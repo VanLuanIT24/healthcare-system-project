@@ -1,19 +1,19 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHero } from '../components/PageHero';
 import { useAuth } from '../context/AuthContext';
 
-export function LogoutPage() {
+export default function LogoutPage() {
   const navigate = useNavigate();
-  const auth = useAuth();
+  const { logout } = useAuth();
 
   useEffect(() => {
-    auth.logout().finally(() => {
-      navigate('/dang-nhap-nhan-su');
-    });
-  }, [auth, navigate]);
+    async function runLogout() {
+      await logout();
+      navigate('/dang-nhap-nhan-su', { replace: true });
+    }
 
-  return (
-    <PageHero eyebrow="Đăng xuất" title="Phiên đăng nhập đang được kết thúc." description="Bạn sẽ được chuyển về trang đăng nhập nhân sự ngay sau khi hệ thống thu hồi phiên hiện tại." />
-  );
+    runLogout();
+  }, [logout, navigate]);
+
+  return <div className="auth-loading">Đang đăng xuất...</div>;
 }

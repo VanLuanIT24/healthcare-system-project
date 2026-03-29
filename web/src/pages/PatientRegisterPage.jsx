@@ -1,72 +1,95 @@
-import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AuthCard } from '../components/AuthCard';
+import { useState } from 'react';
+import AuthPageFrame from '../components/AuthPageFrame';
+import FormField from '../components/FormField';
+import StatusMessage from '../components/StatusMessage';
 import { useAuth } from '../context/AuthContext';
 
-export function PatientRegisterPage() {
+const initialForm = {
+  full_name: '',
+  phone: '',
+  email: '',
+  password: '',
+  confirm_password: '',
+  date_of_birth: '',
+  gender: 'unknown',
+  address: '',
+};
+
+export default function PatientRegisterPage() {
   const navigate = useNavigate();
-  const auth = useAuth();
-  const [form, setForm] = useState({
-    full_name: '',
-    email: '',
-    phone: '',
-    password: '',
-    gender: 'unknown',
-  });
-  const [feedback, setFeedback] = useState({ error: '', success: '' });
+  const { registerPatient } = useAuth();
+  const [form, setForm] = useState(initialForm);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function handleChange(event) {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setFeedback({ error: '', success: '' });
+    setError('');
+    setIsSubmitting(true);
+
     try {
-      const response = await auth.patientRegister(form);
-      setFeedback({ error: '', success: response.message });
-      navigate('/tai-khoan');
-    } catch (error) {
-      setFeedback({ error: error.message, success: '' });
+      await registerPatient(form);
+      navigate('/tai-khoan', { replace: true });
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   return (
-    <AuthCard
+    <AuthPageFrame
       eyebrow="Đăng ký bệnh nhân"
-      title="Tạo tài khoản bệnh nhân nhanh, rõ ràng và sẵn sàng cho đặt lịch."
-      description="Form này bám theo API backend hiện tại và có thể mở rộng thêm ngày sinh, địa chỉ, BHYT khi nối dữ liệu thật."
-      aside={<><h3>Đăng ký tự phục vụ</h3><p>Sau khi đăng ký thành công, bệnh nhân được đăng nhập ngay và có thể tiếp tục đặt lịch hoặc cập nhật thông tin cá nhân.</p></>}
+      title="Tạo tài khoản bệnh nhân mới"
+      description="Một luồng đăng ký tối ưu cho MVP: form rõ ràng, ít bước, vẫn tuân thủ password policy từ backend."
+      side={
+        <div className="feature-list">
+          <div className="feature-item">Bắt buộc ít nhất email hoặc số điện thoại.</div>
+          <div className="feature-item">Tự động tạo luôn hồ sơ bệnh nhân gốc và account đăng nhập.</div>
+          <div className="feature-item">Không dùng OTP nhưng kiến trúc vẫn sạch để nâng cấp sau.</div>
+        </div>
+      }
     >
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label className="form-field">
-          <span>Họ và tên</span>
-          <input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
-        </label>
-        <label className="form-field">
-          <span>Email</span>
-          <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        </label>
-        <label className="form-field">
-          <span>Số điện thoại</span>
-          <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        </label>
-        <label className="form-field">
-          <span>Mật khẩu</span>
-          <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        </label>
-        <label className="form-field">
-          <span>Giới tính</span>
-          <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+      <form className="form-card form-grid" onSubmit={handleSubmit}>
+        <FormField label="Họ và tên" name="full_name" value={form.full_name} onChange={handleChange} required />
+        <FormField label="Số điện thoại" name="phone" value={form.phone} onChange={handleChange} placeholder="09xxxxxxxx" />
+        <FormField label="Email" name="email" value={form.email} onChange={handleChange} placeholder="you@example.com" />
+        <FormField label="Ngày sinh" name="date_of_birth" value={form.date_of_birth} onChange={handleChange} type="date" />
+        <FormField label="Giới tính" name="gender" value={form.gender} onChange={handleChange}>
+          <select className="field-input" name="gender" value={form.gender} onChange={handleChange}>
             <option value="unknown">Chưa xác định</option>
             <option value="male">Nam</option>
             <option value="female">Nữ</option>
             <option value="other">Khác</option>
           </select>
-        </label>
-        <button className="cta-button" type="submit">Đăng ký bệnh nhân</button>
-        {feedback.success ? <div className="feedback feedback--success">{feedback.success}</div> : null}
-        {feedback.error ? <div className="feedback feedback--error">{feedback.error}</div> : null}
-        <div className="auth-links">
-          <Link to="/dang-nhap-benh-nhan">Đã có tài khoản? Đăng nhập</Link>
+        </FormField>
+        <FormField label="Địa chỉ" name="address" value={form.address} onChange={handleChange} />
+        <FormField label="Mật khẩu" name="password" value={form.password} onChange={handleChange} type="password" required />
+        <FormField
+          label="Xác nhận mật khẩu"
+          name="confirm_password"
+          value={form.confirm_password}
+          onChange={handleChange}
+          type="password"
+          required
+        />
+
+        <StatusMessage type="error">{error}</StatusMessage>
+
+        <button className="button primary-button wide-button" disabled={isSubmitting} type="submit">
+          {isSubmitting ? 'Đang tạo tài khoản...' : 'Đăng ký ngay'}
+        </button>
+
+        <div className="form-links">
+          <Link to="/dang-nhap-benh-nhan">Đã có tài khoản?</Link>
+          <Link to="/dang-nhap-nhan-su">Tôi là nhân sự</Link>
         </div>
       </form>
-    </AuthCard>
+    </AuthPageFrame>
   );
 }

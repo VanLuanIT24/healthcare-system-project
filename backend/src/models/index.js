@@ -22,6 +22,13 @@ const MedicationMaster = require('./pharmacy/medication-master.model');
 const Prescription = require('./pharmacy/prescription.model');
 const PrescriptionItem = require('./pharmacy/prescription-item.model');
 const { AuthSession, hashRefreshToken } = require('./auth/auth-session.model');
+const {
+  PasswordResetToken,
+  hashResetToken,
+  generateResetToken,
+  generateResetCode,
+} = require('./auth/password-reset-token.model');
+const AuditLog = require('./auth/audit-log.model');
 
 module.exports = {
   Department,
@@ -45,4 +52,9 @@ module.exports = {
   PrescriptionItem,
   AuthSession,
   hashRefreshToken,
+  PasswordResetToken,
+  hashResetToken,
+  generateResetToken,
+  generateResetCode,
+  AuditLog,
 };
