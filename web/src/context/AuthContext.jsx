@@ -1,185 +1,150 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 
+const STORAGE_KEY = 'healthcare-auth-session';
 const AuthContext = createContext(null);
-const STORAGE_KEY = 'healthcare-auth';
 
-function readStoredAuth() {
+function readStoredSession() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
 export function AuthProvider({ children }) {
-  const [authState, setAuthState] = useState(() => readStoredAuth() || {
-    accessToken: '',
-    refreshToken: '',
-    profile: null,
-  });
-  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [session, setSession] = useState(() => readStoredSession());
+  const [profile, setProfile] = useState(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authState));
-  }, [authState]);
+    if (session) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [session]);
 
   useEffect(() => {
-    if (authState.accessToken && !authState.profile) {
-      loadProfile(authState.accessToken).catch(() => {
-        setAuthState({
-          accessToken: '',
-          refreshToken: '',
-          profile: null,
-        });
-      });
-    }
-  }, [authState.accessToken, authState.profile]);
+    async function bootstrapProfile() {
+      if (!session?.accessToken) {
+        setProfile(null);
+        setIsReady(true);
+        return;
+      }
 
-  async function loadProfile(accessToken = authState.accessToken) {
-    if (!accessToken) return null;
-    setLoadingProfile(true);
-    try {
-      const response = await api.request('/auth/me', {
-        token: accessToken,
-      });
-      const profile = response.data.profile;
-      setAuthState((current) => ({ ...current, profile }));
-      return profile;
-    } finally {
-      setLoadingProfile(false);
-    }
-  }
-
-  function saveAuth(data) {
-    const nextState = {
-      accessToken: data.tokens?.access_token || '',
-      refreshToken: data.tokens?.refresh_token || '',
-      profile: data.user || data.patient || null,
-    };
-    setAuthState(nextState);
-    return nextState;
-  }
-
-  async function staffLogin(payload) {
-    const response = await api.request('/auth/staff/login', {
-      method: 'POST',
-      body: payload,
-    });
-    saveAuth(response.data);
-    return response;
-  }
-
-  async function patientLogin(payload) {
-    const response = await api.request('/auth/patients/login', {
-      method: 'POST',
-      body: payload,
-    });
-    saveAuth(response.data);
-    return response;
-  }
-
-  async function patientRegister(payload) {
-    const response = await api.request('/auth/patients/register', {
-      method: 'POST',
-      body: payload,
-    });
-    saveAuth(response.data);
-    return response;
-  }
-
-  async function refreshToken() {
-    if (!authState.refreshToken) {
-      throw new Error('Không có refresh token để làm mới phiên đăng nhập.');
-    }
-
-    const response = await api.request('/auth/refresh-token', {
-      method: 'POST',
-      body: {
-        refresh_token: authState.refreshToken,
-      },
-    });
-
-    setAuthState((current) => ({
-      ...current,
-      accessToken: response.data.access_token,
-      refreshToken: response.data.refresh_token,
-    }));
-
-    return response;
-  }
-
-  async function logout() {
-    if (authState.refreshToken) {
       try {
-        await api.request('/auth/logout', {
-          method: 'POST',
-          body: {
-            refresh_token: authState.refreshToken,
-          },
-        });
-      } catch {
+        const response = await api.me(session.accessToken);
+        setProfile(response.data.profile);
+      } catch (error) {
+        try {
+          if (session.refreshToken) {
+            const refreshed = await api.refreshToken({ refresh_token: session.refreshToken });
+            const nextSession = {
+              accessToken: refreshed.data.access_token,
+              refreshToken: refreshed.data.refresh_token,
+            };
+            setSession(nextSession);
+            const me = await api.me(nextSession.accessToken);
+            setProfile(me.data.profile);
+          } else {
+            setSession(null);
+            setProfile(null);
+          }
+        } catch {
+          setSession(null);
+          setProfile(null);
+        }
+      } finally {
+        setIsReady(true);
       }
     }
 
-    setAuthState({
-      accessToken: '',
-      refreshToken: '',
-      profile: null,
-    });
+    bootstrapProfile();
+  }, [session?.accessToken, session?.refreshToken]);
+
+  async function applyAuthResult(result) {
+    const nextSession = {
+      accessToken: result.tokens.access_token,
+      refreshToken: result.tokens.refresh_token,
+    };
+    setSession(nextSession);
+    setProfile(result.user || result.patient || null);
+    return result;
+  }
+
+  async function loginStaff(payload) {
+    const response = await api.staffLogin(payload);
+    return applyAuthResult(response.data);
+  }
+
+  async function loginPatient(payload) {
+    const response = await api.patientLogin(payload);
+    return applyAuthResult(response.data);
+  }
+
+  async function registerPatient(payload) {
+    const response = await api.patientRegister(payload);
+    return applyAuthResult(response.data);
+  }
+
+  async function refreshProfile() {
+    if (!session?.accessToken) {
+      return null;
+    }
+
+    const response = await api.me(session.accessToken);
+    setProfile(response.data.profile);
+    return response.data.profile;
+  }
+
+  async function logout() {
+    try {
+      if (session?.refreshToken) {
+        await api.logout({ refresh_token: session.refreshToken }, session.accessToken);
+      }
+    } finally {
+      setSession(null);
+      setProfile(null);
+    }
   }
 
   async function changePassword(payload) {
-    return api.request('/auth/change-password', {
-      method: 'POST',
-      token: authState.accessToken,
-      body: payload,
-    });
+    const response = await api.changePassword(payload, session?.accessToken);
+    setSession(null);
+    setProfile(null);
+    return response;
   }
 
-  async function createStaffAccount(payload) {
-    return api.request('/auth/staff/accounts', {
-      method: 'POST',
-      token: authState.accessToken,
-      body: payload,
-    });
-  }
-
-  async function assignRoles(payload) {
-    return api.request('/auth/staff/accounts/roles', {
-      method: 'PATCH',
-      token: authState.accessToken,
-      body: payload,
-    });
-  }
-
-  function hasAnyRole(roles) {
-    const currentRoles = authState.profile?.roles || [];
-    return roles.some((role) => currentRoles.includes(role));
-  }
-
-  const value = useMemo(
-    () => ({
-      authState,
-      isAuthenticated: Boolean(authState.accessToken),
-      loadingProfile,
-      loadProfile,
-      staffLogin,
-      patientLogin,
-      patientRegister,
-      refreshToken,
-      logout,
-      changePassword,
-      createStaffAccount,
-      assignRoles,
-      hasAnyRole,
-    }),
-    [authState, loadingProfile],
+  return (
+    <AuthContext.Provider
+      value={{
+        session,
+        profile,
+        isReady,
+        isAuthenticated: Boolean(session?.accessToken && profile),
+        loginStaff,
+        loginPatient,
+        registerPatient,
+        logout,
+        changePassword,
+        refreshProfile,
+        setSession,
+        setProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error('useAuth phải được dùng trong AuthProvider.');
+  }
+
+  return context;
 }

@@ -1,50 +1,87 @@
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AuthCard } from '../components/AuthCard';
+import AuthPageFrame from '../components/AuthPageFrame';
+import FormField from '../components/FormField';
+import StatusMessage from '../components/StatusMessage';
 import { useAuth } from '../context/AuthContext';
 
-export function StaffLoginPage() {
+export default function StaffLoginPage() {
   const navigate = useNavigate();
-  const auth = useAuth();
-  const [form, setForm] = useState({ username: '', password: '' });
-  const [feedback, setFeedback] = useState({ error: '', success: '' });
+  const location = useLocation();
+  const { loginStaff } = useAuth();
+  const [form, setForm] = useState({ login: '', password: '' });
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function handleChange(event) {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setFeedback({ error: '', success: '' });
+    setError('');
+    setIsSubmitting(true);
+
     try {
-      const response = await auth.staffLogin(form);
-      setFeedback({ error: '', success: response.message });
-      navigate('/tai-khoan');
-    } catch (error) {
-      setFeedback({ error: error.message, success: '' });
+      const result = await loginStaff(form);
+      const nextPath =
+        location.state?.from || (result.user.permissions.includes('auth.staff.read') ? '/quan-tri/tai-khoan-nhan-su' : '/tai-khoan');
+      navigate(nextPath, { replace: true });
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   return (
-    <AuthCard
-      eyebrow="Nhân sự"
-      title="Đăng nhập cho super_admin, admin và các vai trò nghiệp vụ."
-      description="Dùng tài khoản nhân sự để quản trị hệ thống, tạo tài khoản vai trò khác và truy cập khu vực tác nghiệp nội bộ."
-      aside={<><h3>Điểm vào dành cho nội bộ</h3><p>Trang này dành cho quản trị viên, bác sĩ, lễ tân, điều dưỡng, dược sĩ và các vai trò được cấp quyền.</p></>}
+    <AuthPageFrame
+      eyebrow="Cổng nội bộ"
+      title="Đăng nhập nhân sự"
+      description="Đăng nhập bằng username hoặc email. Hệ thống kiểm tra trạng thái tài khoản, session và permission ngay tại backend."
+      side={
+        <div className="info-stack">
+          <div className="mini-stat-card">
+            <strong>Đúng luồng nghiệp vụ</strong>
+            <span>Staff không tự đăng ký, tài khoản do admin hoặc super_admin cấp.</span>
+          </div>
+          <div className="mini-stat-card">
+            <strong>Bảo mật rõ ràng</strong>
+            <span>Khóa tạm khi đăng nhập sai nhiều lần, có refresh token và audit log.</span>
+          </div>
+        </div>
+      }
     >
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label className="form-field">
-          <span>Tên đăng nhập</span>
-          <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-        </label>
-        <label className="form-field">
-          <span>Mật khẩu</span>
-          <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        </label>
-        <button className="cta-button" type="submit">Đăng nhập nhân sự</button>
-        {feedback.success ? <div className="feedback feedback--success">{feedback.success}</div> : null}
-        {feedback.error ? <div className="feedback feedback--error">{feedback.error}</div> : null}
-        <div className="auth-links">
-          <Link to="/tai-khoan">Vào trang tài khoản</Link>
-          <Link to="/dang-nhap-benh-nhan">Đăng nhập bệnh nhân</Link>
+      <form className="form-card" onSubmit={handleSubmit}>
+        <FormField
+          label="Tên đăng nhập hoặc email"
+          name="login"
+          value={form.login}
+          onChange={handleChange}
+          placeholder="superadmin hoặc admin@hospital.vn"
+          required
+        />
+        <FormField
+          label="Mật khẩu"
+          name="password"
+          value={form.password}
+          onChange={handleChange}
+          type="password"
+          placeholder="Nhập mật khẩu"
+          required
+        />
+
+        <StatusMessage type="error">{error}</StatusMessage>
+
+        <button className="button primary-button wide-button" disabled={isSubmitting} type="submit">
+          {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập nhân sự'}
+        </button>
+
+        <div className="form-links">
+          <Link to="/quen-mat-khau">Quên mật khẩu</Link>
+          <Link to="/dang-nhap-benh-nhan">Tôi là bệnh nhân</Link>
         </div>
       </form>
-    </AuthCard>
+    </AuthPageFrame>
   );
 }

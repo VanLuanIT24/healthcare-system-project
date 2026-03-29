@@ -18,7 +18,10 @@ async function staffLogin(req, res) {
 
 async function createStaffAccount(req, res) {
   try {
-    const result = await authService.createStaffAccount(req.body, req.auth);
+    const result = await authService.createStaffAccount(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
     return successResponse(res, {
       statusCode: 201,
       message: 'Tạo tài khoản nhân sự thành công.',
@@ -62,7 +65,10 @@ async function patientLogin(req, res) {
 
 async function assignRoles(req, res) {
   try {
-    const result = await authService.assignRolesToStaff(req.body, req.auth);
+    const result = await authService.assignRolesToStaff(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
     return successResponse(res, {
       message: 'Cập nhật vai trò cho tài khoản nhân sự thành công.',
       data: result,
@@ -87,9 +93,42 @@ async function refreshToken(req, res) {
   }
 }
 
+async function forgotPassword(req, res) {
+  try {
+    const result = await authService.requestPasswordReset(req.body, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Yêu cầu quên mật khẩu đã được ghi nhận.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function resetPassword(req, res) {
+  try {
+    const result = await authService.resetPassword(req.body, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Đặt lại mật khẩu thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
 async function logout(req, res) {
   try {
-    const result = await authService.logout(req.body);
+    const result = await authService.logout(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
     return successResponse(res, {
       message: 'Đăng xuất thành công.',
       data: result,
@@ -101,7 +140,10 @@ async function logout(req, res) {
 
 async function changePassword(req, res) {
   try {
-    const result = await authService.changePassword(req.auth, req.body);
+    const result = await authService.changePassword(req.auth, req.body, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
     return successResponse(res, {
       message: 'Đổi mật khẩu thành công. Các phiên đăng nhập cũ đã bị thu hồi.',
       data: result,
@@ -123,14 +165,74 @@ async function me(req, res) {
   }
 }
 
+async function listStaffAccounts(req, res) {
+  try {
+    const result = await authService.listStaffAccounts(req.query);
+    return successResponse(res, {
+      message: 'Lấy danh sách tài khoản nhân sự thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function updateStaffStatus(req, res) {
+  try {
+    const result = await authService.updateStaffAccountStatus(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Cập nhật trạng thái tài khoản nhân sự thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function resetStaffPassword(req, res) {
+  try {
+    const result = await authService.resetStaffPassword(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Đặt lại mật khẩu tài khoản nhân sự thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function getAuditLogs(req, res) {
+  try {
+    const result = await authService.getAuditLogs(req.query);
+    return successResponse(res, {
+      message: 'Lấy nhật ký bảo mật thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
 module.exports = {
   staffLogin,
   createStaffAccount,
+  listStaffAccounts,
   assignRoles,
+  updateStaffStatus,
+  resetStaffPassword,
   registerPatient,
   patientLogin,
+  forgotPassword,
+  resetPassword,
   refreshToken,
   logout,
   changePassword,
   me,
+  getAuditLogs,
 };

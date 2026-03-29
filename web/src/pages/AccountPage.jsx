@@ -1,80 +1,125 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { PageHero } from '../components/PageHero';
+import FormField from '../components/FormField';
+import StatusMessage from '../components/StatusMessage';
 import { useAuth } from '../context/AuthContext';
 
-export function AccountPage() {
-  const auth = useAuth();
-  const [form, setForm] = useState({ current_password: '', new_password: '' });
-  const [feedback, setFeedback] = useState({ error: '', success: '' });
+export default function AccountPage() {
+  const { profile, changePassword } = useAuth();
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: '',
+    new_password: '',
+  });
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleChangePassword(event) {
+  function handleChange(event) {
+    setPasswordForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault();
-    setFeedback({ error: '', success: '' });
+    setError('');
+    setSuccess('');
+    setIsSubmitting(true);
+
     try {
-      const response = await auth.changePassword(form);
-      setFeedback({ error: '', success: response.message });
-      setForm({ current_password: '', new_password: '' });
-    } catch (error) {
-      setFeedback({ error: error.message, success: '' });
+      const response = await changePassword(passwordForm);
+      setSuccess(`${response.message} Vui lòng đăng nhập lại.`);
+      setPasswordForm({ current_password: '', new_password: '' });
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   return (
-    <div>
-      <PageHero
-        eyebrow="Tài khoản"
-        title={auth.authState.profile?.full_name || 'Khu vực tài khoản'}
-        description="Trang riêng để xem hồ sơ đăng nhập hiện tại, làm mới phiên và đổi mật khẩu."
-        secondaryLabel="Đăng xuất"
-        secondaryTo="/dang-xuat"
-      />
-      <section className="section">
-        <div className="auth-grid">
-          <section className="auth-panel">
-            <div className="auth-panel__head">
-              <h3>Thông tin hồ sơ</h3>
-              <p>Dữ liệu lấy trực tiếp từ endpoint `/auth/me`.</p>
-            </div>
-            <div className="auth-state">
-              <pre>{JSON.stringify(auth.authState.profile, null, 2)}</pre>
-            </div>
-            <div className="auth-form">
-              <button className="ghost-button" type="button" onClick={() => auth.loadProfile()}>
-                Tải lại hồ sơ
-              </button>
-              <button className="ghost-button" type="button" onClick={() => auth.refreshToken()}>
-                Làm mới phiên
-              </button>
-              {auth.hasAnyRole(['super_admin', 'admin']) ? (
-                <Link className="cta-button" to="/quan-tri/tai-khoan-nhan-su">
-                  Vào quản trị tài khoản nhân sự
-                </Link>
-              ) : null}
-            </div>
-          </section>
+    <section className="dashboard-page">
+      <div className="page-headline">
+        <span className="eyebrow">My Account</span>
+        <h1>Tài khoản hiện tại</h1>
+        <p>Trang này lấy dữ liệu từ `GET /api/auth/me` và hiển thị chính xác role, permission của actor đang đăng nhập.</p>
+      </div>
 
-          <section className="auth-panel">
-            <div className="auth-panel__head">
-              <h3>Đổi mật khẩu</h3>
-              <p>Đổi mật khẩu sẽ thu hồi các phiên cũ theo logic backend hiện tại.</p>
+      <div className="dashboard-grid">
+        <div className="glass-card profile-card">
+          <h2>Thông tin hồ sơ</h2>
+          <div className="profile-grid">
+            <div>
+              <span>Loại tài khoản</span>
+              <strong>{profile?.actor_type}</strong>
             </div>
-            <form className="auth-form" onSubmit={handleChangePassword}>
-              <label className="form-field">
-                <span>Mật khẩu hiện tại</span>
-                <input type="password" value={form.current_password} onChange={(e) => setForm({ ...form, current_password: e.target.value })} />
-              </label>
-              <label className="form-field">
-                <span>Mật khẩu mới</span>
-                <input type="password" value={form.new_password} onChange={(e) => setForm({ ...form, new_password: e.target.value })} />
-              </label>
-              <button className="cta-button" type="submit">Đổi mật khẩu</button>
-              {feedback.success ? <div className="feedback feedback--success">{feedback.success}</div> : null}
-              {feedback.error ? <div className="feedback feedback--error">{feedback.error}</div> : null}
-            </form>
-          </section>
+            <div>
+              <span>Họ và tên</span>
+              <strong>{profile?.full_name}</strong>
+            </div>
+            <div>
+              <span>Email</span>
+              <strong>{profile?.email || 'Chưa có'}</strong>
+            </div>
+            <div>
+              <span>Số điện thoại</span>
+              <strong>{profile?.phone || 'Chưa có'}</strong>
+            </div>
+            <div>
+              <span>Trạng thái</span>
+              <strong>{profile?.status}</strong>
+            </div>
+            <div>
+              <span>Lần đăng nhập gần nhất</span>
+              <strong>{profile?.last_login_at ? new Date(profile.last_login_at).toLocaleString('vi-VN') : 'Chưa có'}</strong>
+            </div>
+          </div>
         </div>
-      </section>
-    </div>
+
+        <div className="glass-card">
+          <h2>Vai trò và quyền</h2>
+          <div className="tag-cloud">
+            {(profile?.roles || []).map((role) => (
+              <span key={role} className="tag role-tag">
+                {role}
+              </span>
+            ))}
+          </div>
+          <div className="tag-cloud">
+            {(profile?.permissions || []).map((permission) => (
+              <span key={permission} className="tag permission-tag">
+                {permission}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-card">
+          <h2>Đổi mật khẩu</h2>
+          <form className="form-card compact-form" onSubmit={handleSubmit}>
+            <FormField
+              label="Mật khẩu hiện tại"
+              name="current_password"
+              type="password"
+              value={passwordForm.current_password}
+              onChange={handleChange}
+              required
+            />
+            <FormField
+              label="Mật khẩu mới"
+              name="new_password"
+              type="password"
+              value={passwordForm.new_password}
+              onChange={handleChange}
+              required
+            />
+
+            <StatusMessage type="error">{error}</StatusMessage>
+            <StatusMessage type="success">{success}</StatusMessage>
+
+            <button className="button primary-button" disabled={isSubmitting} type="submit">
+              {isSubmitting ? 'Đang đổi...' : 'Đổi mật khẩu'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
   );
 }

@@ -1,6 +1,22 @@
 const { verifyAccessToken } = require('../utils/tokens');
 const { Patient, PatientAccount, Permission, Role, RolePermission, User, UserRole } = require('../models');
 
+function ensureActiveAccount(account, label) {
+  if (!account || account.is_deleted) {
+    return `${label} không tồn tại hoặc đã bị xóa.`;
+  }
+
+  if (account.locked_until && account.locked_until > new Date()) {
+    return `${label} đang tạm bị khóa.`;
+  }
+
+  if (account.status !== 'active') {
+    return `${label} hiện không khả dụng.`;
+  }
+
+  return null;
+}
+
 async function resolveStaffAuthorization(userId) {
   const userRoles = await UserRole.find({
     user_id: userId,
@@ -42,6 +58,11 @@ async function authenticate(req, res, next) {
         return res.status(401).json({ success: false, message: 'Không tìm thấy tài khoản nhân sự.' });
       }
 
+      const accountStateError = ensureActiveAccount(user, 'Tài khoản nhân sự');
+      if (accountStateError) {
+        return res.status(401).json({ success: false, message: accountStateError });
+      }
+
       const authorization = await resolveStaffAuthorization(user._id);
 
       req.auth = {
@@ -60,6 +81,11 @@ async function authenticate(req, res, next) {
         return res.status(401).json({ success: false, message: 'Không tìm thấy tài khoản bệnh nhân.' });
       }
 
+      const accountStateError = ensureActiveAccount(account, 'Tài khoản bệnh nhân');
+      if (accountStateError) {
+        return res.status(401).json({ success: false, message: accountStateError });
+      }
+
       const patient = await Patient.findById(account.patient_id).lean();
       if (!patient) {
         return res.status(401).json({ success: false, message: 'Không tìm thấy hồ sơ bệnh nhân.' });
@@ -70,7 +96,7 @@ async function authenticate(req, res, next) {
         patientAccountId: String(account._id),
         patientId: String(patient._id),
         roles: ['patient'],
-        permissions: ['patients.self.read', 'patients.self.update'],
+        permissions: ['patients.self.read', 'patients.self.update', 'appointments.self.read', 'appointments.self.create'],
         account,
         patient,
       };
