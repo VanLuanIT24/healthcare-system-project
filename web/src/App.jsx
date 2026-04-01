@@ -11,6 +11,9 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import AccountPage from './pages/AccountPage';
 import AdminStaffPage from './pages/AdminStaffPage';
 import AuditLogsPage from './pages/AuditLogsPage';
+import RolesPage from './pages/RolesPage';
+import RoleDetailPage from './pages/RoleDetailPage';
+import PermissionsPage from './pages/PermissionsPage';
 import LogoutPage from './pages/LogoutPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 
@@ -49,6 +52,30 @@ export default function App() {
               element={
                 <ProtectedRoute permissions={['auth.audit.read']}>
                   <AuditLogsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quan-tri/roles"
+              element={
+                <ProtectedRoute permissions={['role.read']}>
+                  <RolesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quan-tri/roles/:roleId"
+              element={
+                <ProtectedRoute permissions={['role.read']}>
+                  <RoleDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quan-tri/permissions"
+              element={
+                <ProtectedRoute permissions={['permission.read']}>
+                  <PermissionsPage />
                 </ProtectedRoute>
               }
             />

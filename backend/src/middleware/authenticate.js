@@ -1,4 +1,4 @@
-const { verifyAccessToken } = require('../utils/tokens');
+const { decodeAndValidateJwt, extractBearerToken } = require('../utils/auth');
 const { Patient, PatientAccount, Permission, Role, RolePermission, User, UserRole } = require('../models');
 
 function ensureActiveAccount(account, label) {
@@ -43,14 +43,12 @@ async function resolveStaffAuthorization(userId) {
 
 async function authenticate(req, res, next) {
   try {
-    const authorization = req.headers.authorization || '';
-    const [scheme, token] = authorization.split(' ');
-
-    if (scheme !== 'Bearer' || !token) {
+    const token = extractBearerToken(req);
+    if (!token) {
       return res.status(401).json({ success: false, message: 'Thiếu token truy cập hoặc token không hợp lệ.' });
     }
 
-    const payload = verifyAccessToken(token);
+    const payload = decodeAndValidateJwt(token);
 
     if (payload.actor_type === 'staff') {
       const user = await User.findById(payload.sub).lean();

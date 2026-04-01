@@ -45,6 +45,11 @@ function normalizePhone(value) {
   return String(value || '').trim();
 }
 
+function verifyAccessToken(token) {
+  const { decodeAndValidateJwt } = require('../utils/auth');
+  return decodeAndValidateJwt(token);
+}
+
 function createError(message, statusCode = 400) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -67,6 +72,12 @@ function validatePasswordStrength(password) {
   if (!/[a-z]/.test(value) || !/[A-Z]/.test(value) || !/[0-9]/.test(value) || !/[^A-Za-z0-9]/.test(value)) {
     throw createError('Mật khẩu phải gồm chữ hoa, chữ thường, số và ký tự đặc biệt.');
   }
+}
+
+function validatePasswordPolicy({ password, username, email, phone }) {
+  validatePasswordStrength(password);
+  validatePasswordAgainstIdentifiers(password, [username, email, phone]);
+  return true;
 }
 
 function validatePasswordAgainstIdentifiers(password, identifiers = []) {
@@ -100,6 +111,11 @@ function getStatusLabel(status) {
   };
 
   return map[status] || status;
+}
+
+function checkAccountStatusBeforeLogin(account, label) {
+  ensureAccountCanLogin(account, label);
+  return true;
 }
 
 async function recordAuditLog({
@@ -272,6 +288,35 @@ async function revokeSessionByRefreshToken(refreshToken) {
   return session;
 }
 
+async function getSessionByRefreshToken(refreshToken) {
+  if (!refreshToken) {
+    throw createError('Thiếu refresh_token.', 400);
+  }
+
+  return AuthSession.findOne({
+    refresh_token_hash: hashRefreshToken(refreshToken),
+  });
+}
+
+async function validateRefreshSession(refreshToken) {
+  const session = await getSessionByRefreshToken(refreshToken);
+
+  if (!session || session.revoked_at || session.expires_at <= new Date()) {
+    throw createError('Refresh session không hợp lệ hoặc đã hết hiệu lực.', 401);
+  }
+
+  return session;
+}
+
+async function invalidateAllUserSessions(actorType, actorId) {
+  await AuthSession.updateMany(
+    { actor_type: actorType, actor_id: actorId, revoked_at: null },
+    { $set: { revoked_at: new Date() } },
+  );
+
+  return true;
+}
+
 async function resetFailedAttempts(account, ipAddress) {
   account.failed_login_attempts = 0;
   account.locked_until = undefined;
@@ -282,6 +327,23 @@ async function resetFailedAttempts(account, ipAddress) {
   await account.save();
 }
 
+async function recordLoginSuccess(account, actorType, requestMeta = {}) {
+  await resetFailedAttempts(account, requestMeta.ipAddress);
+
+  await recordAuditLog({
+    actorType,
+    actorId: account._id,
+    action: actorType === 'staff' ? 'auth.staff.login' : 'auth.patient.login',
+    targetType: actorType === 'staff' ? 'user' : 'patient_account',
+    targetId: account._id,
+    status: 'success',
+    message: actorType === 'staff' ? 'Đăng nhập nhân sự thành công.' : 'Đăng nhập bệnh nhân thành công.',
+    requestMeta,
+  });
+
+  return true;
+}
+
 async function registerFailedAttempt(account) {
   const nextAttempts = (account.failed_login_attempts || 0) + 1;
   account.failed_login_attempts = nextAttempts;
@@ -289,6 +351,38 @@ async function registerFailedAttempt(account) {
     account.locked_until = calculateLockUntil();
   }
   await account.save();
+}
+
+async function lockAccountAfterFailedAttempts(account) {
+  const nextAttempts = (account.failed_login_attempts || 0) + 1;
+  account.failed_login_attempts = nextAttempts;
+
+  if (nextAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+    account.locked_until = calculateLockUntil();
+    account.status = 'locked';
+  }
+
+  await account.save();
+  return account;
+}
+
+async function recordLoginFailure(account, actorType, requestMeta = {}, message = 'Đăng nhập thất bại.') {
+  if (account) {
+    await lockAccountAfterFailedAttempts(account);
+  }
+
+  await recordAuditLog({
+    actorType: account ? actorType : 'system',
+    actorId: account?._id,
+    action: actorType === 'staff' ? 'auth.staff.login' : 'auth.patient.login',
+    targetType: actorType === 'staff' ? 'user' : 'patient_account',
+    targetId: account?._id,
+    status: 'failure',
+    message,
+    requestMeta,
+  });
+
+  return true;
 }
 
 function ensureAccountCanLogin(account, label) {
@@ -326,25 +420,15 @@ async function loginStaff({ login, username, password }, requestMeta = {}) {
     throw createError('Tên đăng nhập hoặc mật khẩu không đúng.', 401);
   }
 
-  ensureAccountCanLogin(user, 'Tài khoản nhân sự');
+  checkAccountStatusBeforeLogin(user, 'Tài khoản nhân sự');
 
   const isValidPassword = await comparePassword(password, user.password_hash);
   if (!isValidPassword) {
-    await registerFailedAttempt(user);
-    await recordAuditLog({
-      actorType: 'staff',
-      actorId: user._id,
-      action: 'auth.staff.login',
-      targetType: 'user',
-      targetId: user._id,
-      status: 'failure',
-      message: 'Đăng nhập nhân sự thất bại do sai mật khẩu.',
-      requestMeta,
-    });
+    await recordLoginFailure(user, 'staff', requestMeta, 'Đăng nhập nhân sự thất bại do sai mật khẩu.');
     throw createError('Tên đăng nhập hoặc mật khẩu không đúng.', 401);
   }
 
-  await resetFailedAttempts(user, requestMeta.ipAddress);
+  await recordLoginSuccess(user, 'staff', requestMeta);
 
   const authorization = await getStaffAuthorization(user._id);
   const tokens = await createSession({
@@ -354,17 +438,6 @@ async function loginStaff({ login, username, password }, requestMeta = {}) {
     permissions: authorization.permissionCodes,
     userAgent: requestMeta.userAgent,
     ipAddress: requestMeta.ipAddress,
-  });
-
-  await recordAuditLog({
-    actorType: 'staff',
-    actorId: user._id,
-    action: 'auth.staff.login',
-    targetType: 'user',
-    targetId: user._id,
-    status: 'success',
-    message: 'Đăng nhập nhân sự thành công.',
-    requestMeta,
   });
 
   return {
@@ -389,10 +462,9 @@ async function createStaffAccount(payload, actor, requestMeta = {}) {
   validateRequired(username, 'Tên đăng nhập');
   validateRequired(password, 'Mật khẩu');
   validateRequired(full_name, 'Họ và tên');
-  validatePasswordStrength(password);
+  validatePasswordPolicy({ password, username, email, phone });
   validateEmail(email);
   validatePhone(phone);
-  validatePasswordAgainstIdentifiers(password, [username, email, phone]);
 
   if (!Array.isArray(role_codes) || role_codes.length === 0) {
     throw createError('Phải chọn ít nhất một vai trò cho tài khoản nhân sự.');
@@ -516,15 +588,31 @@ async function assignRolesToStaff({ user_id, role_codes }, actor, requestMeta = 
     }
   }
 
-  await UserRole.updateMany({ user_id: user._id }, { $set: { is_active: false, updated_by: actor.userId } });
-  await UserRole.insertMany(
-    roles.map((role) => ({
+  await UserRole.updateMany(
+    {
       user_id: user._id,
-      role_id: role._id,
-      is_active: true,
-      created_by: actor.userId,
-    })),
+      role_id: {
+        $nin: roles.map((role) => role._id),
+      },
+    },
+    { $set: { is_active: false, updated_by: actor.userId } },
   );
+
+  for (const role of roles) {
+    await UserRole.updateOne(
+      { user_id: user._id, role_id: role._id },
+      {
+        $set: {
+          is_active: true,
+          updated_by: actor.userId,
+        },
+        $setOnInsert: {
+          created_by: actor.userId,
+        },
+      },
+      { upsert: true },
+    );
+  }
 
   const authorization = await getStaffAuthorization(user._id);
   await recordAuditLog({
@@ -562,7 +650,7 @@ async function registerPatient(payload, requestMeta = {}) {
 
   validateRequired(full_name, 'Họ và tên');
   validateRequired(password, 'Mật khẩu');
-  validatePasswordStrength(password);
+  validatePasswordPolicy({ password, email, phone });
   validateEmail(email);
   validatePhone(phone);
 
@@ -573,8 +661,6 @@ async function registerPatient(payload, requestMeta = {}) {
   if (confirm_password && confirm_password !== password) {
     throw createError('Xác nhận mật khẩu không khớp.');
   }
-
-  validatePasswordAgainstIdentifiers(password, [email, phone]);
 
   const normalizedEmail = email ? normalizeLogin(email) : undefined;
   const normalizedPhone = phone ? normalizePhone(phone) : undefined;
@@ -687,25 +773,15 @@ async function loginPatient({ login, password }, requestMeta = {}) {
     throw createError('Thông tin đăng nhập hoặc mật khẩu không đúng.', 401);
   }
 
-  ensureAccountCanLogin(account, 'Tài khoản bệnh nhân');
+  checkAccountStatusBeforeLogin(account, 'Tài khoản bệnh nhân');
 
   const isValidPassword = await comparePassword(password, account.password_hash);
   if (!isValidPassword) {
-    await registerFailedAttempt(account);
-    await recordAuditLog({
-      actorType: 'patient',
-      actorId: account._id,
-      action: 'auth.patient.login',
-      targetType: 'patient_account',
-      targetId: account._id,
-      status: 'failure',
-      message: 'Đăng nhập bệnh nhân thất bại do sai mật khẩu.',
-      requestMeta,
-    });
+    await recordLoginFailure(account, 'patient', requestMeta, 'Đăng nhập bệnh nhân thất bại do sai mật khẩu.');
     throw createError('Thông tin đăng nhập hoặc mật khẩu không đúng.', 401);
   }
 
-  await resetFailedAttempts(account, requestMeta.ipAddress);
+  await recordLoginSuccess(account, 'patient', requestMeta);
 
   const patient = await Patient.findById(account.patient_id);
   if (!patient) {
@@ -719,17 +795,6 @@ async function loginPatient({ login, password }, requestMeta = {}) {
     permissions: ['patients.self.read', 'patients.self.update', 'appointments.self.read', 'appointments.self.create'],
     userAgent: requestMeta.userAgent,
     ipAddress: requestMeta.ipAddress,
-  });
-
-  await recordAuditLog({
-    actorType: 'patient',
-    actorId: account._id,
-    action: 'auth.patient.login',
-    targetType: 'patient_account',
-    targetId: account._id,
-    status: 'success',
-    message: 'Đăng nhập bệnh nhân thành công.',
-    requestMeta,
   });
 
   return {
@@ -853,7 +918,7 @@ async function resetStaffPassword({ user_id, new_password }, actor, requestMeta 
   }
 
   validateRequired(new_password, 'Mật khẩu mới');
-  validatePasswordStrength(new_password);
+  validatePasswordPolicy({ password: new_password });
 
   const user = await User.findById(user_id);
   if (!user || user.is_deleted) {
@@ -862,7 +927,7 @@ async function resetStaffPassword({ user_id, new_password }, actor, requestMeta 
 
   await ensureCanManageTargetUser(user._id, actor, 'đặt lại mật khẩu');
 
-  validatePasswordAgainstIdentifiers(new_password, [user.username, user.email, user.phone]);
+  validatePasswordPolicy({ password: new_password, username: user.username, email: user.email, phone: user.phone });
 
   user.password_hash = await hashPassword(new_password);
   user.password_changed_at = new Date();
@@ -873,10 +938,7 @@ async function resetStaffPassword({ user_id, new_password }, actor, requestMeta 
   user.updated_by = actor.userId;
   await user.save();
 
-  await AuthSession.updateMany(
-    { actor_type: 'staff', actor_id: user._id, revoked_at: null },
-    { $set: { revoked_at: new Date() } },
-  );
+  await invalidateAllUserSessions('staff', user._id);
 
   await recordAuditLog({
     actorType: 'staff',
@@ -1012,7 +1074,7 @@ async function resetPassword({ reset_token, reset_code, new_password }, requestM
       throw createError('Không tìm thấy tài khoản nhân sự.', 404);
     }
 
-    validatePasswordAgainstIdentifiers(new_password, [user.username, user.email, user.phone]);
+    validatePasswordPolicy({ password: new_password, username: user.username, email: user.email, phone: user.phone });
     user.password_hash = await hashPassword(new_password);
     user.password_changed_at = new Date();
     user.must_change_password = false;
@@ -1021,17 +1083,14 @@ async function resetPassword({ reset_token, reset_code, new_password }, requestM
     user.status = 'active';
     await user.save();
 
-    await AuthSession.updateMany(
-      { actor_type: 'staff', actor_id: user._id, revoked_at: null },
-      { $set: { revoked_at: new Date() } },
-    );
+    await invalidateAllUserSessions('staff', user._id);
   } else {
     const account = await PatientAccount.findById(resetRecord.actor_id);
     if (!account || account.is_deleted) {
       throw createError('Không tìm thấy tài khoản bệnh nhân.', 404);
     }
 
-    validatePasswordAgainstIdentifiers(new_password, [account.username, account.email, account.phone]);
+    validatePasswordPolicy({ password: new_password, username: account.username, email: account.email, phone: account.phone });
     account.password_hash = await hashPassword(new_password);
     account.password_changed_at = new Date();
     account.failed_login_attempts = 0;
@@ -1039,10 +1098,7 @@ async function resetPassword({ reset_token, reset_code, new_password }, requestM
     account.status = 'active';
     await account.save();
 
-    await AuthSession.updateMany(
-      { actor_type: 'patient', actor_id: account._id, revoked_at: null },
-      { $set: { revoked_at: new Date() } },
-    );
+    await invalidateAllUserSessions('patient', account._id);
   }
 
   resetRecord.used_at = new Date();
@@ -1085,12 +1141,14 @@ async function refreshAccessToken({ refresh_token }, requestMeta = {}) {
     throw createError('Refresh token không hợp lệ hoặc đã hết hạn.', 401);
   }
 
-  const currentSession = await revokeSessionByRefreshToken(refresh_token);
+  const currentSession = await validateRefreshSession(refresh_token);
+  currentSession.revoked_at = new Date();
+  await currentSession.save();
 
   if (payload.actor_type === 'staff') {
     const user = await User.findById(payload.sub);
     if (!user) throw createError('Không tìm thấy tài khoản nhân sự.', 404);
-    ensureAccountCanLogin(user, 'Tài khoản nhân sự');
+    checkAccountStatusBeforeLogin(user, 'Tài khoản nhân sự');
     const authorization = await getStaffAuthorization(user._id);
 
     const tokens = await createSession({
@@ -1118,7 +1176,7 @@ async function refreshAccessToken({ refresh_token }, requestMeta = {}) {
 
   const account = await PatientAccount.findById(payload.sub);
   if (!account) throw createError('Không tìm thấy tài khoản bệnh nhân.', 404);
-  ensureAccountCanLogin(account, 'Tài khoản bệnh nhân');
+  checkAccountStatusBeforeLogin(account, 'Tài khoản bệnh nhân');
 
   const tokens = await createSession({
     actorType: 'patient',
@@ -1185,7 +1243,7 @@ async function changePassword(auth, payload, requestMeta = {}) {
     throw createError('Mật khẩu mới không được trùng với mật khẩu hiện tại.');
   }
 
-  validatePasswordStrength(new_password);
+  validatePasswordPolicy({ password: new_password });
 
   if (auth.actorType === 'staff') {
     const user = await User.findById(auth.userId);
@@ -1194,16 +1252,13 @@ async function changePassword(auth, payload, requestMeta = {}) {
     const isValid = await comparePassword(current_password, user.password_hash);
     if (!isValid) throw createError('Mật khẩu hiện tại không đúng.', 400);
 
-    validatePasswordAgainstIdentifiers(new_password, [user.username, user.email, user.phone]);
+    validatePasswordPolicy({ password: new_password, username: user.username, email: user.email, phone: user.phone });
     user.password_hash = await hashPassword(new_password);
     user.password_changed_at = new Date();
     user.must_change_password = false;
     await user.save();
 
-    await AuthSession.updateMany(
-      { actor_type: 'staff', actor_id: user._id, revoked_at: null },
-      { $set: { revoked_at: new Date() } },
-    );
+    await invalidateAllUserSessions('staff', user._id);
 
     await recordAuditLog({
       actorType: 'staff',
@@ -1225,15 +1280,12 @@ async function changePassword(auth, payload, requestMeta = {}) {
   const isValid = await comparePassword(current_password, account.password_hash);
   if (!isValid) throw createError('Mật khẩu hiện tại không đúng.', 400);
 
-  validatePasswordAgainstIdentifiers(new_password, [account.username, account.email, account.phone]);
+    validatePasswordPolicy({ password: new_password, username: account.username, email: account.email, phone: account.phone });
   account.password_hash = await hashPassword(new_password);
   account.password_changed_at = new Date();
   await account.save();
 
-  await AuthSession.updateMany(
-    { actor_type: 'patient', actor_id: account._id, revoked_at: null },
-    { $set: { revoked_at: new Date() } },
-  );
+    await invalidateAllUserSessions('patient', account._id);
 
   await recordAuditLog({
     actorType: 'patient',
@@ -1256,6 +1308,345 @@ async function getCurrentProfile(auth) {
   }
 
   return sanitizePatient(auth.patient, auth.account);
+}
+
+async function getMyRoles(auth) {
+  if (auth.actorType === 'patient') {
+    return {
+      actor_type: 'patient',
+      roles: [{ role_code: 'patient', role_name: 'Patient', description: 'Bệnh nhân' }],
+    };
+  }
+
+  const userRoles = await UserRole.find({ user_id: auth.userId, is_active: true }).lean();
+  const roleIds = userRoles.map((item) => item.role_id);
+  const roles = await Role.find({
+    _id: { $in: roleIds },
+    status: 'active',
+    is_deleted: false,
+  }).lean();
+
+  return {
+    actor_type: 'staff',
+    roles: roles.map((role) => ({
+      role_id: String(role._id),
+      role_code: role.role_code,
+      role_name: role.role_name,
+      description: role.description,
+    })),
+  };
+}
+
+async function getMyPermissions(auth) {
+  if (auth.actorType === 'patient') {
+    return {
+      actor_type: 'patient',
+      user_id: auth.patientAccountId,
+      roles: ['patient'],
+      permissions: ['patients.self.read', 'patients.self.update', 'appointments.self.read', 'appointments.self.create'],
+    };
+  }
+
+  const authorization = await getStaffAuthorization(auth.userId);
+  return {
+    actor_type: 'staff',
+    user_id: auth.userId,
+    roles: authorization.roleCodes,
+    permissions: authorization.permissionCodes,
+  };
+}
+
+async function updateMyProfile(auth, payload, requestMeta = {}) {
+  const { full_name, email, phone, address } = payload;
+
+  validateEmail(email);
+  validatePhone(phone);
+
+  if (auth.actorType === 'staff') {
+    const user = await User.findById(auth.userId);
+    if (!user || user.is_deleted) {
+      throw createError('Không tìm thấy tài khoản nhân sự.', 404);
+    }
+
+    const normalizedEmail = email ? normalizeLogin(email) : undefined;
+    const normalizedPhone = phone ? normalizePhone(phone) : undefined;
+
+    if (normalizedEmail && normalizedEmail !== user.email) {
+      const existingEmail = await User.findOne({
+        _id: { $ne: user._id },
+        email: normalizedEmail,
+        is_deleted: false,
+      }).lean();
+
+      if (existingEmail) {
+        throw createError('Email đã được sử dụng bởi tài khoản khác.', 409);
+      }
+    }
+
+    user.full_name = full_name || user.full_name;
+    user.email = normalizedEmail || user.email;
+    user.phone = normalizedPhone || user.phone;
+    user.updated_by = user._id;
+    await user.save();
+
+    await recordAuditLog({
+      actorType: 'staff',
+      actorId: user._id,
+      action: 'auth.profile.update',
+      targetType: 'user',
+      targetId: user._id,
+      status: 'success',
+      message: 'Cập nhật hồ sơ cá nhân thành công.',
+      requestMeta,
+    });
+
+    return {
+      profile: sanitizeStaff(user, await getStaffAuthorization(user._id)),
+    };
+  }
+
+  const account = await PatientAccount.findById(auth.patientAccountId);
+  const patient = await Patient.findById(auth.patientId);
+  if (!account || !patient || account.is_deleted || patient.is_deleted) {
+    throw createError('Không tìm thấy tài khoản bệnh nhân.', 404);
+  }
+
+  const normalizedEmail = email ? normalizeLogin(email) : undefined;
+  const normalizedPhone = phone ? normalizePhone(phone) : undefined;
+
+  if (normalizedEmail && normalizedEmail !== account.email) {
+    const existingEmail = await PatientAccount.findOne({
+      _id: { $ne: account._id },
+      email: normalizedEmail,
+      is_deleted: false,
+    }).lean();
+
+    if (existingEmail) {
+      throw createError('Email đã được sử dụng bởi tài khoản khác.', 409);
+    }
+  }
+
+  if (normalizedPhone && normalizedPhone !== account.phone) {
+    const existingPhone = await PatientAccount.findOne({
+      _id: { $ne: account._id },
+      phone: normalizedPhone,
+      is_deleted: false,
+    }).lean();
+
+    if (existingPhone) {
+      throw createError('Số điện thoại đã được sử dụng bởi tài khoản khác.', 409);
+    }
+  }
+
+  if (full_name) patient.full_name = full_name;
+  if (normalizedEmail) {
+    patient.email = normalizedEmail;
+    account.email = normalizedEmail;
+    account.username = normalizedEmail;
+  }
+  if (normalizedPhone) {
+    patient.phone = normalizedPhone;
+    account.phone = normalizedPhone;
+    if (!normalizedEmail) {
+      account.username = normalizedPhone;
+    }
+  }
+  if (address !== undefined) {
+    patient.address = address;
+  }
+
+  await Promise.all([patient.save(), account.save()]);
+
+  await recordAuditLog({
+    actorType: 'patient',
+    actorId: account._id,
+    action: 'auth.profile.update',
+    targetType: 'patient_account',
+    targetId: account._id,
+    status: 'success',
+    message: 'Cập nhật hồ sơ cá nhân thành công.',
+    requestMeta,
+  });
+
+  return {
+    profile: sanitizePatient(patient, account),
+  };
+}
+
+async function revokeRefreshToken({ refresh_token, session_id }, auth, requestMeta = {}) {
+  let session = null;
+
+  if (refresh_token) {
+    session = await AuthSession.findOne({
+      refresh_token_hash: hashRefreshToken(refresh_token),
+      revoked_at: null,
+    });
+  } else if (session_id) {
+    session = await AuthSession.findById(session_id);
+  } else {
+    throw createError('refresh_token hoặc session_id là bắt buộc.', 400);
+  }
+
+  if (!session) {
+    return { success: true };
+  }
+
+  const isOwner = String(session.actor_id) === String(auth.userId || auth.patientAccountId);
+  const isAdminActor = auth.actorType === 'staff' && auth.permissions.includes('auth.staff.reset_password');
+
+  if (!isOwner && !isAdminActor) {
+    throw createError('Bạn không có quyền thu hồi phiên đăng nhập này.', 403);
+  }
+
+  if (!session.revoked_at) {
+    session.revoked_at = new Date();
+    await session.save();
+  }
+
+  await recordAuditLog({
+    actorType: auth.actorType,
+    actorId: auth.userId || auth.patientAccountId,
+    action: 'auth.session.revoke',
+    targetType: 'auth_session',
+    targetId: session._id,
+    status: 'success',
+    message: 'Thu hồi refresh token thành công.',
+    requestMeta,
+  });
+
+  return { success: true };
+}
+
+async function logoutAllDevices(auth, requestMeta = {}) {
+  const actorId = auth.userId || auth.patientAccountId;
+  const actorType = auth.actorType;
+
+  await AuthSession.updateMany(
+    { actor_type: actorType, actor_id: actorId, revoked_at: null },
+    { $set: { revoked_at: new Date() } },
+  );
+
+  await recordAuditLog({
+    actorType,
+    actorId,
+    action: 'auth.logout_all_devices',
+    targetType: actorType === 'staff' ? 'user' : 'patient_account',
+    targetId: actorId,
+    status: 'success',
+    message: 'Đăng xuất khỏi toàn bộ thiết bị thành công.',
+    requestMeta,
+  });
+
+  return { success: true };
+}
+
+async function getMySessions(auth) {
+  const actorId = auth.userId || auth.patientAccountId;
+  const actorType = auth.actorType;
+  const sessions = await AuthSession.find({
+    actor_type: actorType,
+    actor_id: actorId,
+  })
+    .sort({ created_at: -1 })
+    .lean();
+
+  return {
+    items: sessions.map((session) => ({
+      session_id: String(session._id),
+      login_at: session.created_at,
+      last_seen_at: session.last_used_at,
+      ip_address: session.ip_address,
+      user_agent: session.user_agent,
+      expires_at: session.expires_at,
+      revoked_at: session.revoked_at,
+      is_active: !session.revoked_at && session.expires_at > new Date(),
+    })),
+  };
+}
+
+async function getLoginHistory(auth, query = {}) {
+  const actorId = auth.userId || auth.patientAccountId;
+  const actorType = auth.actorType;
+  const page = Math.max(Number(query.page || 1), 1);
+  const limit = Math.min(Math.max(Number(query.limit || 20), 1), 100);
+  const skip = (page - 1) * limit;
+
+  const filter = {
+    actor_type: actorType,
+    actor_id: actorId,
+    action: {
+      $in: actorType === 'staff' ? ['auth.staff.login'] : ['auth.patient.login'],
+    },
+  };
+
+  const [items, total] = await Promise.all([
+    AuditLog.find(filter).sort({ created_at: -1 }).skip(skip).limit(limit).lean(),
+    AuditLog.countDocuments(filter),
+  ]);
+
+  return {
+    items: items.map((item) => ({
+      audit_log_id: String(item._id),
+      action: item.action,
+      status: item.status,
+      message: item.message,
+      ip_address: item.ip_address,
+      user_agent: item.user_agent,
+      created_at: item.created_at,
+    })),
+    pagination: {
+      page,
+      limit,
+      total,
+      total_pages: Math.ceil(total / limit),
+    },
+  };
+}
+
+async function unlockStaffAccount({ user_id }, actor, requestMeta = {}) {
+  if (!user_id) {
+    throw createError('user_id là bắt buộc.');
+  }
+
+  const user = await User.findById(user_id);
+  if (!user || user.is_deleted) {
+    throw createError('Không tìm thấy tài khoản nhân sự.', 404);
+  }
+
+  await ensureCanManageTargetUser(user._id, actor, 'mở khóa tài khoản');
+
+  if (user.status !== 'locked' && !(user.locked_until && user.locked_until > new Date())) {
+    throw createError('Tài khoản này hiện không ở trạng thái bị khóa.', 409);
+  }
+
+  user.status = 'active';
+  user.failed_login_attempts = 0;
+  user.locked_until = undefined;
+  user.updated_by = actor.userId;
+  await user.save();
+
+  await recordAuditLog({
+    actorType: 'staff',
+    actorId: actor.userId,
+    action: 'auth.staff.unlock',
+    targetType: 'user',
+    targetId: user._id,
+    status: 'success',
+    message: 'Mở khóa tài khoản nhân sự thành công.',
+    requestMeta,
+  });
+
+  return {
+    user: sanitizeStaff(user, await getStaffAuthorization(user._id)),
+  };
+}
+
+async function activateStaffAccount(payload, actor, requestMeta = {}) {
+  return updateStaffAccountStatus({ ...payload, status: 'active' }, actor, requestMeta);
+}
+
+async function deactivateStaffAccount(payload, actor, requestMeta = {}) {
+  return updateStaffAccountStatus({ ...payload, status: 'disabled' }, actor, requestMeta);
 }
 
 async function getAuditLogs(query = {}) {
@@ -1293,19 +1684,38 @@ async function getAuditLogs(query = {}) {
 }
 
 module.exports = {
+  verifyAccessToken,
+  validatePasswordPolicy,
+  checkAccountStatusBeforeLogin,
+  recordLoginSuccess,
+  recordLoginFailure,
+  lockAccountAfterFailedAttempts,
+  invalidateAllUserSessions,
+  getSessionByRefreshToken,
+  validateRefreshSession,
   loginStaff,
   createStaffAccount,
   assignRolesToStaff,
   listStaffAccounts,
   updateStaffAccountStatus,
+  unlockStaffAccount,
+  activateStaffAccount,
+  deactivateStaffAccount,
   resetStaffPassword,
   registerPatient,
   loginPatient,
   requestPasswordReset,
   resetPassword,
   refreshAccessToken,
+  revokeRefreshToken,
   logout,
+  logoutAllDevices,
   changePassword,
   getCurrentProfile,
+  getMyRoles,
+  getMyPermissions,
+  updateMyProfile,
+  getMySessions,
+  getLoginHistory,
   getAuditLogs,
 };

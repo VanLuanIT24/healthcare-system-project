@@ -13,6 +13,8 @@ export default function AppLayout() {
   const { profile, isAuthenticated } = useAuth();
   const canManageStaff = profile?.permissions?.includes('auth.staff.read');
   const canReadAuditLogs = profile?.permissions?.includes('auth.audit.read');
+  const canReadRoles = profile?.permissions?.includes('role.read');
+  const canReadPermissions = profile?.permissions?.includes('permission.read');
 
   return (
     <div className="app-shell">
@@ -34,6 +36,8 @@ export default function AppLayout() {
           <NavigationLink to="/dang-ky-benh-nhan">Đăng ký</NavigationLink>
           {isAuthenticated && <NavigationLink to="/tai-khoan">Tài khoản</NavigationLink>}
           {canManageStaff && <NavigationLink to="/quan-tri/tai-khoan-nhan-su">Quản trị staff</NavigationLink>}
+          {canReadRoles && <NavigationLink to="/quan-tri/roles">Roles</NavigationLink>}
+          {canReadPermissions && <NavigationLink to="/quan-tri/permissions">Permissions</NavigationLink>}
           {canReadAuditLogs && <NavigationLink to="/quan-tri/audit-logs">Audit logs</NavigationLink>}
         </nav>
 

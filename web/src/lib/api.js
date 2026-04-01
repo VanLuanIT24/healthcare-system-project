@@ -63,6 +63,28 @@ export const api = {
   me(accessToken) {
     return request('/auth/me', { accessToken });
   },
+  getMyRoles(accessToken) {
+    return request('/auth/my-roles', { accessToken });
+  },
+  getMyPermissions(accessToken) {
+    return request('/auth/my-permissions', { accessToken });
+  },
+  updateMyProfile(body, accessToken) {
+    return request('/auth/my-profile', { method: 'PATCH', body, accessToken });
+  },
+  getMySessions(accessToken) {
+    return request('/auth/my-sessions', { accessToken });
+  },
+  getLoginHistory(params, accessToken) {
+    const search = new URLSearchParams(params).toString();
+    return request(`/auth/login-history${search ? `?${search}` : ''}`, { accessToken });
+  },
+  revokeSession(body, accessToken) {
+    return request('/auth/sessions/revoke', { method: 'POST', body, accessToken });
+  },
+  logoutAllDevices(accessToken) {
+    return request('/auth/logout-all-devices', { method: 'POST', accessToken });
+  },
   getStaffAccounts(params, accessToken) {
     const search = new URLSearchParams(params).toString();
     return request(`/auth/staff/accounts${search ? `?${search}` : ''}`, { accessToken });
@@ -76,11 +98,65 @@ export const api = {
   updateStaffStatus(body, accessToken) {
     return request('/auth/staff/accounts/status', { method: 'PATCH', body, accessToken });
   },
+  unlockStaffAccount(body, accessToken) {
+    return request('/auth/staff/accounts/unlock', { method: 'POST', body, accessToken });
+  },
+  activateStaffAccount(body, accessToken) {
+    return request('/auth/staff/accounts/activate', { method: 'POST', body, accessToken });
+  },
+  deactivateStaffAccount(body, accessToken) {
+    return request('/auth/staff/accounts/deactivate', { method: 'POST', body, accessToken });
+  },
   resetStaffPassword(body, accessToken) {
     return request('/auth/staff/accounts/reset-password', { method: 'POST', body, accessToken });
   },
   getAuditLogs(params, accessToken) {
     const search = new URLSearchParams(params).toString();
     return request(`/auth/audit-logs${search ? `?${search}` : ''}`, { accessToken });
+  },
+  getStaffRoles(userId, accessToken) {
+    return request(`/iam/staff/${userId}/roles`, { accessToken });
+  },
+  getStaffPermissions(userId, accessToken) {
+    return request(`/iam/staff/${userId}/permissions`, { accessToken });
+  },
+  checkStaffPermission(userId, permissionCode, accessToken) {
+    const search = new URLSearchParams({ permission_code: permissionCode }).toString();
+    return request(`/iam/staff/${userId}/check-permission?${search}`, { accessToken });
+  },
+  removeRolesFromStaff(userId, body, accessToken) {
+    return request(`/iam/staff/${userId}/roles`, { method: 'DELETE', body, accessToken });
+  },
+  listRoles(params, accessToken) {
+    const search = new URLSearchParams(params).toString();
+    return request(`/iam/roles${search ? `?${search}` : ''}`, { accessToken });
+  },
+  createRole(body, accessToken) {
+    return request('/iam/roles', { method: 'POST', body, accessToken });
+  },
+  getRoleDetail(roleId, accessToken) {
+    return request(`/iam/roles/${roleId}`, { accessToken });
+  },
+  updateRole(roleId, body, accessToken) {
+    return request(`/iam/roles/${roleId}`, { method: 'PATCH', body, accessToken });
+  },
+  updateRoleStatus(roleId, body, accessToken) {
+    return request(`/iam/roles/${roleId}/status`, { method: 'PATCH', body, accessToken });
+  },
+  getRolePermissions(roleId, accessToken) {
+    return request(`/iam/roles/${roleId}/permissions`, { accessToken });
+  },
+  assignPermissionsToRole(roleId, body, accessToken) {
+    return request(`/iam/roles/${roleId}/permissions`, { method: 'POST', body, accessToken });
+  },
+  removePermissionsFromRole(roleId, body, accessToken) {
+    return request(`/iam/roles/${roleId}/permissions`, { method: 'DELETE', body, accessToken });
+  },
+  listPermissions(params, accessToken) {
+    const search = new URLSearchParams(params).toString();
+    return request(`/iam/permissions${search ? `?${search}` : ''}`, { accessToken });
+  },
+  seedSystemAccess(accessToken) {
+    return request('/iam/seed/system-access', { method: 'POST', accessToken });
   },
 };
