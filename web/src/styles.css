@@ -534,15 +534,31 @@ textarea.field-input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.three-column-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .profile-card,
 .glass-card {
   padding: 26px;
+}
+
+.span-two-columns {
+  grid-column: span 2;
+}
+
+.span-three-columns {
+  grid-column: 1 / -1;
 }
 
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
+}
+
+.single-column-grid {
+  grid-template-columns: 1fr;
 }
 
 .profile-grid span {
@@ -651,6 +667,54 @@ textarea.field-input {
   margin-top: 18px;
 }
 
+.triple-action-grid {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.small-button {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.subpanel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(95, 164, 215, 0.16);
+}
+
+.inline-note,
+.subtle-text {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.top-gap {
+  margin-top: 18px;
+}
+
+.compact-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.permissions-group-list,
+.permissions-catalog {
+  display: grid;
+  gap: 16px;
+}
+
+.tall-input {
+  min-height: 140px;
+  resize: vertical;
+}
+
 .check-grid {
   display: flex;
   flex-wrap: wrap;
@@ -710,8 +774,14 @@ textarea.field-input {
 
   .hero-page,
   .auth-frame,
-  .dashboard-grid {
+  .dashboard-grid,
+  .three-column-grid {
     grid-template-columns: 1fr;
+  }
+
+  .span-two-columns,
+  .span-three-columns {
+    grid-column: auto;
   }
 }
 
@@ -734,7 +804,9 @@ textarea.field-input {
 
   .form-grid,
   .profile-grid,
-  .admin-action-grid {
+  .admin-action-grid,
+  .compact-grid,
+  .triple-action-grid {
     grid-template-columns: 1fr;
   }
 

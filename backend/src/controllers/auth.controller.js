@@ -165,6 +165,99 @@ async function me(req, res) {
   }
 }
 
+async function myRoles(req, res) {
+  try {
+    const result = await authService.getMyRoles(req.auth);
+    return successResponse(res, {
+      message: 'Lấy danh sách vai trò hiện tại thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function myPermissions(req, res) {
+  try {
+    const result = await authService.getMyPermissions(req.auth);
+    return successResponse(res, {
+      message: 'Lấy danh sách quyền hiện tại thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function updateMyProfile(req, res) {
+  try {
+    const result = await authService.updateMyProfile(req.auth, req.body, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Cập nhật hồ sơ cá nhân thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function revokeRefreshToken(req, res) {
+  try {
+    const result = await authService.revokeRefreshToken(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Thu hồi refresh token thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function logoutAllDevices(req, res) {
+  try {
+    const result = await authService.logoutAllDevices(req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Đăng xuất khỏi toàn bộ thiết bị thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function mySessions(req, res) {
+  try {
+    const result = await authService.getMySessions(req.auth);
+    return successResponse(res, {
+      message: 'Lấy danh sách phiên đăng nhập thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function myLoginHistory(req, res) {
+  try {
+    const result = await authService.getLoginHistory(req.auth, req.query);
+    return successResponse(res, {
+      message: 'Lấy lịch sử đăng nhập thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
 async function listStaffAccounts(req, res) {
   try {
     const result = await authService.listStaffAccounts(req.query);
@@ -185,6 +278,51 @@ async function updateStaffStatus(req, res) {
     });
     return successResponse(res, {
       message: 'Cập nhật trạng thái tài khoản nhân sự thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function unlockStaffAccount(req, res) {
+  try {
+    const result = await authService.unlockStaffAccount(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Mở khóa tài khoản nhân sự thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function activateStaffAccount(req, res) {
+  try {
+    const result = await authService.activateStaffAccount(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Kích hoạt tài khoản nhân sự thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function deactivateStaffAccount(req, res) {
+  try {
+    const result = await authService.deactivateStaffAccount(req.body, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Vô hiệu hóa tài khoản nhân sự thành công.',
       data: result,
     });
   } catch (error) {
@@ -222,9 +360,19 @@ async function getAuditLogs(req, res) {
 module.exports = {
   staffLogin,
   createStaffAccount,
+  myRoles,
+  myPermissions,
+  updateMyProfile,
+  revokeRefreshToken,
+  logoutAllDevices,
+  mySessions,
+  myLoginHistory,
   listStaffAccounts,
   assignRoles,
   updateStaffStatus,
+  unlockStaffAccount,
+  activateStaffAccount,
+  deactivateStaffAccount,
   resetStaffPassword,
   registerPatient,
   patientLogin,

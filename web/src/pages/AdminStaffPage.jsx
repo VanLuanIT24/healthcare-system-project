@@ -19,7 +19,7 @@ const initialCreateForm = {
 };
 
 export default function AdminStaffPage() {
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
   const accessToken = session?.accessToken;
   const [staffData, setStaffData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,14 +29,12 @@ export default function AdminStaffPage() {
   const [roleEdits, setRoleEdits] = useState({});
   const [statusEdits, setStatusEdits] = useState({});
   const [resetPasswords, setResetPasswords] = useState({});
+  const [staffMeta, setStaffMeta] = useState({});
+  const [permissionChecks, setPermissionChecks] = useState({});
 
   async function loadStaffAccounts() {
-    if (!accessToken) {
-      return;
-    }
-
+    if (!accessToken) return;
     setLoading(true);
-
     try {
       const response = await api.getStaffAccounts({}, accessToken);
       setStaffData(response.data.items);
@@ -53,10 +51,7 @@ export default function AdminStaffPage() {
 
   function handleCreateChange(event) {
     const { name, value, type, checked } = event.target;
-    setCreateForm((current) => ({
-      ...current,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    setCreateForm((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }));
   }
 
   function toggleCreateRole(role) {
@@ -73,7 +68,6 @@ export default function AdminStaffPage() {
     event.preventDefault();
     setError('');
     setFeedback('');
-
     try {
       const response = await api.createStaffAccount(createForm, accessToken);
       setFeedback(response.message);
@@ -97,14 +91,8 @@ export default function AdminStaffPage() {
   }
 
   async function handleUpdateRoles(userId) {
-    setError('');
-    setFeedback('');
-
     try {
-      const response = await api.updateStaffRoles(
-        { user_id: userId, role_codes: roleEdits[userId] || [] },
-        accessToken,
-      );
+      const response = await api.updateStaffRoles({ user_id: userId, role_codes: roleEdits[userId] || [] }, accessToken);
       setFeedback(response.message);
       await loadStaffAccounts();
     } catch (submitError) {
@@ -113,14 +101,21 @@ export default function AdminStaffPage() {
   }
 
   async function handleUpdateStatus(userId) {
-    setError('');
-    setFeedback('');
-
     try {
-      const response = await api.updateStaffStatus(
-        { user_id: userId, status: statusEdits[userId] || 'active' },
-        accessToken,
-      );
+      const response = await api.updateStaffStatus({ user_id: userId, status: statusEdits[userId] || 'active' }, accessToken);
+      setFeedback(response.message);
+      await loadStaffAccounts();
+    } catch (submitError) {
+      setError(submitError.message);
+    }
+  }
+
+  async function handleQuickAction(type, userId) {
+    try {
+      let response;
+      if (type === 'unlock') response = await api.unlockStaffAccount({ user_id: userId }, accessToken);
+      if (type === 'activate') response = await api.activateStaffAccount({ user_id: userId }, accessToken);
+      if (type === 'deactivate') response = await api.deactivateStaffAccount({ user_id: userId }, accessToken);
       setFeedback(response.message);
       await loadStaffAccounts();
     } catch (submitError) {
@@ -129,16 +124,50 @@ export default function AdminStaffPage() {
   }
 
   async function handleResetPassword(userId) {
-    setError('');
-    setFeedback('');
-
     try {
-      const response = await api.resetStaffPassword(
-        { user_id: userId, new_password: resetPasswords[userId] || '' },
-        accessToken,
-      );
+      const response = await api.resetStaffPassword({ user_id: userId, new_password: resetPasswords[userId] || '' }, accessToken);
       setFeedback(response.message);
       setResetPasswords((current) => ({ ...current, [userId]: '' }));
+    } catch (submitError) {
+      setError(submitError.message);
+    }
+  }
+
+  async function handleLoadMeta(userId) {
+    try {
+      const [rolesRes, permissionsRes] = await Promise.all([
+        api.getStaffRoles(userId, accessToken),
+        api.getStaffPermissions(userId, accessToken),
+      ]);
+      setStaffMeta((current) => ({
+        ...current,
+        [userId]: {
+          roles: rolesRes.data.roles || [],
+          permissions: permissionsRes.data.permissions || [],
+        },
+      }));
+    } catch (submitError) {
+      setError(submitError.message);
+    }
+  }
+
+  async function handleCheckPermission(userId) {
+    try {
+      const permissionCode = permissionChecks[userId];
+      if (!permissionCode) return;
+      const response = await api.checkStaffPermission(userId, permissionCode, accessToken);
+      setFeedback(`Kiểm tra quyền: ${response.data.permission_code} = ${response.data.allowed ? 'có' : 'không'}`);
+    } catch (submitError) {
+      setError(submitError.message);
+    }
+  }
+
+  async function handleRemoveRoles(userId) {
+    try {
+      const response = await api.removeRolesFromStaff(userId, { role_codes: roleEdits[userId] || [] }, accessToken);
+      setFeedback(response.message);
+      setStaffMeta((current) => ({ ...current, [userId]: { ...(current[userId] || {}), roles: response.data.roles } }));
+      await loadStaffAccounts();
     } catch (submitError) {
       setError(submitError.message);
     }
@@ -149,14 +178,14 @@ export default function AdminStaffPage() {
       <div className="page-headline">
         <span className="eyebrow">Staff Administration</span>
         <h1>Quản trị tài khoản nhân sự</h1>
-        <p>Tạo staff account, gán role, khóa hoặc mở khóa tài khoản và reset mật khẩu đúng theo permission backend.</p>
+        <p>Trang này đã phủ gần hết các API quản trị staff: tạo account, role, status, unlock, activate, deactivate, reset password, xem roles và permissions.</p>
       </div>
 
       <StatusMessage type="error">{error}</StatusMessage>
       <StatusMessage type="success">{feedback}</StatusMessage>
 
-      <div className="dashboard-grid">
-        <div className="glass-card">
+      <div className="dashboard-grid three-column-grid">
+        <div className="glass-card span-two-columns">
           <h2>Tạo tài khoản nhân sự</h2>
           <form className="form-card form-grid" onSubmit={handleCreateStaff}>
             <FormField label="Username" name="username" value={createForm.username} onChange={handleCreateChange} required />
@@ -171,11 +200,7 @@ export default function AdminStaffPage() {
               <div className="check-grid">
                 {roleOptions.map((role) => (
                   <label key={role} className="check-pill">
-                    <input
-                      type="checkbox"
-                      checked={createForm.role_codes.includes(role)}
-                      onChange={() => toggleCreateRole(role)}
-                    />
+                    <input type="checkbox" checked={createForm.role_codes.includes(role)} onChange={() => toggleCreateRole(role)} />
                     <span>{role}</span>
                   </label>
                 ))}
@@ -183,12 +208,7 @@ export default function AdminStaffPage() {
             </div>
 
             <label className="toggle-row field-span-full">
-              <input
-                type="checkbox"
-                name="must_change_password"
-                checked={createForm.must_change_password}
-                onChange={handleCreateChange}
-              />
+              <input type="checkbox" name="must_change_password" checked={createForm.must_change_password} onChange={handleCreateChange} />
               <span>Bắt buộc đổi mật khẩu ở lần đăng nhập đầu tiên</span>
             </label>
 
@@ -199,83 +219,105 @@ export default function AdminStaffPage() {
         </div>
 
         <div className="glass-card">
+          <h2>Người đang đăng nhập</h2>
+          <div className="profile-grid single-column-grid">
+            <div><span>Họ tên</span><strong>{profile?.full_name}</strong></div>
+            <div><span>Roles</span><strong>{(profile?.roles || []).join(', ')}</strong></div>
+            <div><span>Permissions</span><strong>{profile?.permissions?.length || 0}</strong></div>
+          </div>
+        </div>
+
+        <div className="glass-card span-three-columns">
           <div className="section-header-inline">
             <h2>Danh sách staff</h2>
-            <button className="button secondary-button" type="button" onClick={loadStaffAccounts}>
-              Tải lại
-            </button>
+            <button className="button secondary-button" type="button" onClick={loadStaffAccounts}>Tải lại</button>
           </div>
 
           {loading ? (
             <div className="auth-loading">Đang tải danh sách tài khoản...</div>
           ) : (
             <div className="staff-table">
-              {staffData.map((user) => (
-                <article key={user.user_id} className="staff-card">
-                  <div className="staff-card-top">
-                    <div>
-                      <h3>{user.full_name}</h3>
-                      <p>{user.username}</p>
+              {staffData.map((user) => {
+                const meta = staffMeta[user.user_id] || {};
+                const isSelf = user.user_id === profile?.user_id;
+
+                return (
+                  <article key={user.user_id} className="staff-card">
+                    <div className="staff-card-top">
+                      <div>
+                        <h3>{user.full_name}</h3>
+                        <p>{user.username}</p>
+                      </div>
+                      <span className={`tag status-tag status-${user.status}`}>{user.status}</span>
                     </div>
-                    <span className={`tag status-tag status-${user.status}`}>{user.status}</span>
-                  </div>
 
-                  <div className="tag-cloud">
-                    {user.roles.map((role) => (
-                      <span key={role} className="tag role-tag">
-                        {role}
-                      </span>
-                    ))}
-                  </div>
+                    <div className="tag-cloud">
+                      {user.roles.map((role) => (
+                        <span key={role} className="tag role-tag">{role}</span>
+                      ))}
+                    </div>
 
-                  <div className="admin-action-grid">
-                    <FormField label="Cập nhật role">
-                      <select
-                        className="field-input"
-                        value={(roleEdits[user.user_id] || user.roles)[0]}
-                        onChange={(event) => setRoleDraft(user.user_id, event.target.value)}
-                      >
-                        {roleOptions.map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                      </select>
-                    </FormField>
-                    <button className="button secondary-button" type="button" onClick={() => handleUpdateRoles(user.user_id)}>
-                      Lưu role
-                    </button>
+                    {isSelf ? <div className="inline-note">Chính tài khoản đang đăng nhập. Các thao tác tự phá quyền đã bị chặn ở backend.</div> : null}
 
-                    <FormField label="Trạng thái">
-                      <select
-                        className="field-input"
-                        value={statusEdits[user.user_id] || user.status}
-                        onChange={(event) => setStatusDraft(user.user_id, event.target.value)}
-                      >
-                        {staffStatuses.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </FormField>
-                    <button className="button secondary-button" type="button" onClick={() => handleUpdateStatus(user.user_id)}>
-                      Lưu trạng thái
-                    </button>
+                    <div className="admin-action-grid triple-action-grid">
+                      <FormField label="Cập nhật role">
+                        <select className="field-input" value={(roleEdits[user.user_id] || user.roles)[0]} onChange={(event) => setRoleDraft(user.user_id, event.target.value)}>
+                          {roleOptions.map((role) => (
+                            <option key={role} value={role}>{role}</option>
+                          ))}
+                        </select>
+                      </FormField>
+                      <button className="button secondary-button" type="button" onClick={() => handleUpdateRoles(user.user_id)} disabled={isSelf}>Lưu role</button>
+                      <button className="button ghost-button" type="button" onClick={() => handleRemoveRoles(user.user_id)} disabled={isSelf}>Gỡ role</button>
 
-                    <FormField
-                      label="Mật khẩu tạm mới"
-                      name={`reset-${user.user_id}`}
-                      type="password"
-                      value={resetPasswords[user.user_id] || ''}
-                      onChange={(event) => setResetDraft(user.user_id, event.target.value)}
-                    />
-                    <button className="button ghost-button" type="button" onClick={() => handleResetPassword(user.user_id)}>
-                      Reset mật khẩu
-                    </button>
-                  </div>
-                </article>
-              ))}
+                      <FormField label="Trạng thái">
+                        <select className="field-input" value={statusEdits[user.user_id] || user.status} onChange={(event) => setStatusDraft(user.user_id, event.target.value)}>
+                          {staffStatuses.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </FormField>
+                      <button className="button secondary-button" type="button" onClick={() => handleUpdateStatus(user.user_id)} disabled={isSelf}>Lưu trạng thái</button>
+                      <div className="inline-actions">
+                        <button className="button ghost-button small-button" type="button" onClick={() => handleQuickAction('unlock', user.user_id)} disabled={isSelf}>Unlock</button>
+                        <button className="button ghost-button small-button" type="button" onClick={() => handleQuickAction('activate', user.user_id)} disabled={isSelf}>Activate</button>
+                        <button className="button ghost-button small-button" type="button" onClick={() => handleQuickAction('deactivate', user.user_id)} disabled={isSelf}>Deactivate</button>
+                      </div>
+
+                      <FormField label="Mật khẩu tạm mới" name={`reset-${user.user_id}`} type="password" value={resetPasswords[user.user_id] || ''} onChange={(event) => setResetPasswords((current) => ({ ...current, [user.user_id]: event.target.value }))} />
+                      <button className="button ghost-button" type="button" onClick={() => handleResetPassword(user.user_id)} disabled={isSelf}>Reset mật khẩu</button>
+                      <button className="button secondary-button" type="button" onClick={() => handleLoadMeta(user.user_id)}>Xem role/quyền</button>
+
+                      <FormField label="Check permission">
+                        <input className="field-input" value={permissionChecks[user.user_id] || ''} onChange={(event) => setPermissionChecks((current) => ({ ...current, [user.user_id]: event.target.value }))} placeholder="role.read hoặc auth.staff.read" />
+                      </FormField>
+                      <button className="button secondary-button" type="button" onClick={() => handleCheckPermission(user.user_id)}>Kiểm tra</button>
+                    </div>
+
+                    {meta.roles?.length ? (
+                      <div className="subpanel">
+                        <strong>Roles chi tiết</strong>
+                        <div className="tag-cloud">
+                          {meta.roles.map((role) => (
+                            <span key={role.role_id} className="tag role-tag">{role.role_code}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {meta.permissions?.length ? (
+                      <div className="subpanel">
+                        <strong>Permissions thực tế</strong>
+                        <div className="tag-cloud">
+                          {meta.permissions.map((permission) => (
+                            <span key={permission} className="tag permission-tag">{permission}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>
