@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../Home/context/AuthContext'
 import { useState, useRef, useEffect } from 'react'
 
 export default function HomePage() {

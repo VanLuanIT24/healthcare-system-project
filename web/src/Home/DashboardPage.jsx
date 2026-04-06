@@ -1,4 +1,4 @@
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../Home/context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
 export default function DashboardPage() {

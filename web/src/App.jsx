@@ -1,10 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
-import HomePage from './pages/HomePage'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
-import DashboardPage from './pages/DashboardPage'
-import ProtectedRoute from './components/ProtectedRoute'
+import { AuthProvider } from './Home/context/AuthContext'
+import HomePage from './Home'
+import LoginPage from './Auth/Login'
+import RegisterPage from './Auth/Register'
+import DashboardPage from './Home/DashboardPage'
+import ProtectedRoute from './Home/components/ProtectedRoute'
 
 function App() {
   return (

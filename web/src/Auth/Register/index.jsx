@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../../Home/context/AuthContext'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
