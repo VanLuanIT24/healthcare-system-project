@@ -12,6 +12,14 @@ const doctorScheduleSchema = new Schema(
     shift_end: { type: Date, required: true },
     slot_duration_minutes: { type: Number, default: 15, min: 5, required: true },
     max_patients: { type: Number, min: 0 },
+    blocked_slots: [
+      {
+        slot_time: { type: Date, required: true },
+        reason: { type: String, trim: true },
+        blocked_by: { type: Schema.Types.ObjectId, ref: 'User' },
+        blocked_at: { type: Date, default: Date.now },
+      },
+    ],
     status: { type: String, enum: scheduleStatuses, default: 'draft', required: true },
     ...auditFields(),
     ...softDeleteFields(),

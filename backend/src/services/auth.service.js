@@ -288,6 +288,20 @@ async function revokeSessionByRefreshToken(refreshToken) {
   return session;
 }
 
+async function revokeSessionById(sessionId) {
+  const session = await AuthSession.findById(sessionId);
+  if (!session) {
+    throw createError('Phiên đăng nhập không tồn tại.', 404);
+  }
+
+  if (!session.revoked_at) {
+    session.revoked_at = new Date();
+    await session.save();
+  }
+
+  return session;
+}
+
 async function getSessionByRefreshToken(refreshToken) {
   if (!refreshToken) {
     throw createError('Thiếu refresh_token.', 400);
@@ -306,6 +320,26 @@ async function validateRefreshSession(refreshToken) {
   }
 
   return session;
+}
+
+async function getCurrentSession({ refresh_token, session_id }) {
+  if (session_id) {
+    const session = await AuthSession.findById(session_id).lean();
+    if (!session) {
+      throw createError('Không tìm thấy session.', 404);
+    }
+    return session;
+  }
+
+  if (refresh_token) {
+    const session = await getSessionByRefreshToken(refresh_token);
+    if (!session) {
+      throw createError('Không tìm thấy session.', 404);
+    }
+    return session;
+  }
+
+  throw createError('refresh_token hoặc session_id là bắt buộc.', 400);
 }
 
 async function invalidateAllUserSessions(actorType, actorId) {
@@ -1032,17 +1066,21 @@ async function requestPasswordReset({ actor_type, login }, requestMeta = {}) {
   return result;
 }
 
-async function resetPassword({ reset_token, reset_code, new_password }, requestMeta = {}) {
+async function verifyPasswordResetToken({ reset_token, reset_code, actor_type }) {
   validateRequired(reset_token, 'Reset token');
   validateRequired(reset_code, 'Mã reset');
-  validateRequired(new_password, 'Mật khẩu mới');
-  validatePasswordStrength(new_password);
 
-  const resetRecord = await PasswordResetToken.findOne({
+  const filter = {
     token_hash: hashResetToken(reset_token),
     used_at: null,
     revoked_at: null,
-  });
+  };
+
+  if (actor_type) {
+    filter.actor_type = actor_type;
+  }
+
+  const resetRecord = await PasswordResetToken.findOne(filter);
 
   if (!resetRecord) {
     throw createError('Token đặt lại mật khẩu không hợp lệ hoặc đã hết hiệu lực.', 400);
@@ -1055,17 +1093,30 @@ async function resetPassword({ reset_token, reset_code, new_password }, requestM
   }
 
   if (resetRecord.reset_code_hash !== hashResetToken(reset_code)) {
+    throw createError('Mã reset không đúng.', 400);
+  }
+
+  return resetRecord;
+}
+
+async function resetPassword({ reset_token, reset_code, new_password }, requestMeta = {}) {
+  validateRequired(reset_token, 'Reset token');
+  validateRequired(reset_code, 'Mã reset');
+  validateRequired(new_password, 'Mật khẩu mới');
+  validatePasswordStrength(new_password);
+
+  let resetRecord;
+  try {
+    resetRecord = await verifyPasswordResetToken({ reset_token, reset_code });
+  } catch (error) {
     await recordAuditLog({
-      actorType: resetRecord.actor_type,
-      actorId: resetRecord.actor_id,
+      actorType: 'system',
       action: 'auth.password_reset.complete',
-      targetType: resetRecord.actor_type === 'staff' ? 'user' : 'patient_account',
-      targetId: resetRecord.actor_id,
       status: 'failure',
-      message: 'Đặt lại mật khẩu thất bại do mã reset không đúng.',
+      message: error.message,
       requestMeta,
     });
-    throw createError('Mã reset không đúng.');
+    throw error;
   }
 
   if (resetRecord.actor_type === 'staff') {
@@ -1199,6 +1250,10 @@ async function refreshAccessToken({ refresh_token }, requestMeta = {}) {
   });
 
   return tokens;
+}
+
+async function rotateRefreshToken(payload, requestMeta = {}) {
+  return refreshAccessToken(payload, requestMeta);
 }
 
 async function logout({ refresh_token }, auth, requestMeta = {}) {
@@ -1693,6 +1748,8 @@ module.exports = {
   invalidateAllUserSessions,
   getSessionByRefreshToken,
   validateRefreshSession,
+  revokeSessionById,
+  getCurrentSession,
   loginStaff,
   createStaffAccount,
   assignRolesToStaff,
@@ -1705,8 +1762,10 @@ module.exports = {
   registerPatient,
   loginPatient,
   requestPasswordReset,
+  verifyPasswordResetToken,
   resetPassword,
   refreshAccessToken,
+  rotateRefreshToken,
   revokeRefreshToken,
   logout,
   logoutAllDevices,

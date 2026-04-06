@@ -11,13 +11,17 @@ router.use(authorize({ actorTypes: ['staff'] }));
 router.get('/permissions', authorize({ permissions: ['permission.read'] }), iamController.listPermissions);
 router.post('/permissions', authorize({ permissions: ['permission.create'] }), iamController.createPermission);
 router.get('/permissions/:permissionId', authorize({ permissions: ['permission.read'] }), iamController.getPermissionDetail);
+router.get('/permissions/:permissionId/usage', authorize({ permissions: ['permission.read'] }), iamController.getPermissionUsageSummary);
 router.patch('/permissions/:permissionId', authorize({ permissions: ['permission.update'] }), iamController.updatePermission);
+router.delete('/permissions/:permissionId', authorize({ permissions: ['permission.update'] }), iamController.deletePermissionSoft);
 router.post('/seed/system-access', authorize({ roles: ['super_admin'] }), iamController.seedSystemAccess);
 
 router.get('/roles', authorize({ permissions: ['role.read'] }), iamController.listRoles);
 router.post('/roles', authorize({ permissions: ['role.create'] }), iamController.createRole);
 router.get('/roles/:roleId', authorize({ permissions: ['role.read'] }), iamController.getRoleDetail);
+router.get('/roles/:roleId/usage', authorize({ permissions: ['role.read'] }), iamController.getRoleUsageSummary);
 router.patch('/roles/:roleId', authorize({ permissions: ['role.update'] }), iamController.updateRole);
+router.delete('/roles/:roleId', authorize({ permissions: ['role.update'] }), iamController.deleteRoleSoft);
 router.patch('/roles/:roleId/status', authorize({ permissions: ['role.update_status'] }), iamController.updateRoleStatus);
 router.get('/roles/:roleId/permissions', authorize({ permissions: ['role.read'] }), iamController.getRolePermissions);
 router.get('/roles/:roleId/users', authorize({ permissions: ['role.users.read'] }), iamController.getUsersByRole);

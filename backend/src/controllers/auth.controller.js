@@ -359,7 +359,6 @@ async function getAuditLogs(req, res) {
 
 module.exports = {
   staffLogin,
-  createStaffAccount,
   myRoles,
   myPermissions,
   updateMyProfile,
@@ -367,13 +366,6 @@ module.exports = {
   logoutAllDevices,
   mySessions,
   myLoginHistory,
-  listStaffAccounts,
-  assignRoles,
-  updateStaffStatus,
-  unlockStaffAccount,
-  activateStaffAccount,
-  deactivateStaffAccount,
-  resetStaffPassword,
   registerPatient,
   patientLogin,
   forgotPassword,
