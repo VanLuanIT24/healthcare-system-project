@@ -1,26 +1,21 @@
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
-export default function ProtectedRoute({ children, permissions = [] }) {
-  const { isReady, isAuthenticated, profile } = useAuth();
-  const location = useLocation();
+export default function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth()
 
-  if (!isReady) {
-    return <div className="auth-loading">Đang kiểm tra phiên đăng nhập...</div>;
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p>Đang tải...</p>
+      </div>
+    )
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/dang-nhap-nhan-su" replace state={{ from: location.pathname }} />;
+  if (!user) {
+    return <Navigate to="/dang-nhap" replace />
   }
 
-  if (permissions.length > 0) {
-    const profilePermissions = profile?.permissions || [];
-    const hasPermission = permissions.every((permission) => profilePermissions.includes(permission));
-
-    if (!hasPermission) {
-      return <Navigate to="/khong-co-quyen" replace />;
-    }
-  }
-
-  return children;
+  return children
 }

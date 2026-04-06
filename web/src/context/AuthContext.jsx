@@ -1,150 +1,96 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { createContext, useState, useContext, useEffect } from 'react'
+import { authAPI } from '../utils/api'
 
-const STORAGE_KEY = 'healthcare-auth-session';
-const AuthContext = createContext(null);
-
-function readStoredSession() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
+const AuthContext = createContext()
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(() => readStoredSession());
-  const [profile, setProfile] = useState(null);
-  const [isReady, setIsReady] = useState(false);
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (session) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
+    const token = localStorage.getItem('token')
+    const userData = localStorage.getItem('user')
+    
+    if (token && userData) {
+      setUser(JSON.parse(userData))
     }
-  }, [session]);
+    setLoading(false)
+  }, [])
 
-  useEffect(() => {
-    async function bootstrapProfile() {
-      if (!session?.accessToken) {
-        setProfile(null);
-        setIsReady(true);
-        return;
-      }
-
-      try {
-        const response = await api.me(session.accessToken);
-        setProfile(response.data.profile);
-      } catch (error) {
-        try {
-          if (session.refreshToken) {
-            const refreshed = await api.refreshToken({ refresh_token: session.refreshToken });
-            const nextSession = {
-              accessToken: refreshed.data.access_token,
-              refreshToken: refreshed.data.refresh_token,
-            };
-            setSession(nextSession);
-            const me = await api.me(nextSession.accessToken);
-            setProfile(me.data.profile);
-          } else {
-            setSession(null);
-            setProfile(null);
-          }
-        } catch {
-          setSession(null);
-          setProfile(null);
-        }
-      } finally {
-        setIsReady(true);
-      }
-    }
-
-    bootstrapProfile();
-  }, [session?.accessToken, session?.refreshToken]);
-
-  async function applyAuthResult(result) {
-    const nextSession = {
-      accessToken: result.tokens.access_token,
-      refreshToken: result.tokens.refresh_token,
-    };
-    setSession(nextSession);
-    setProfile(result.user || result.patient || null);
-    return result;
-  }
-
-  async function loginStaff(payload) {
-    const response = await api.staffLogin(payload);
-    return applyAuthResult(response.data);
-  }
-
-  async function loginPatient(payload) {
-    const response = await api.patientLogin(payload);
-    return applyAuthResult(response.data);
-  }
-
-  async function registerPatient(payload) {
-    const response = await api.patientRegister(payload);
-    return applyAuthResult(response.data);
-  }
-
-  async function refreshProfile() {
-    if (!session?.accessToken) {
-      return null;
-    }
-
-    const response = await api.me(session.accessToken);
-    setProfile(response.data.profile);
-    return response.data.profile;
-  }
-
-  async function logout() {
+  const login = async (login, password) => {
+    setError(null)
     try {
-      if (session?.refreshToken) {
-        await api.logout({ refresh_token: session.refreshToken }, session.accessToken);
+      const response = await authAPI.login(login, password)
+      // Backend returns: { ok: true, message: "...", data: { tokens: { access_token, refresh_token }, patient }, ... }
+      const result = response.data
+      
+      if (!result.data || !result.data.tokens || !result.data.tokens.access_token) {
+        throw new Error('Token không được nhận từ server')
       }
-    } finally {
-      setSession(null);
-      setProfile(null);
+      
+      const { tokens, patient } = result.data
+      const token = tokens.access_token
+      const refreshToken = tokens.refresh_token
+      
+      localStorage.setItem('token', token)
+      localStorage.setItem('refreshToken', refreshToken)
+      localStorage.setItem('user', JSON.stringify(patient))
+      setUser(patient)
+      
+      return { token, refreshToken, user: patient }
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Đăng nhập thất bại'
+      setError(message)
+      throw new Error(message)
     }
   }
 
-  async function changePassword(payload) {
-    const response = await api.changePassword(payload, session?.accessToken);
-    setSession(null);
-    setProfile(null);
-    return response;
+  const register = async (userData) => {
+    setError(null)
+    try {
+      const response = await authAPI.register(userData)
+      // Backend returns: { ok: true, message: "...", data: { tokens: { access_token, refresh_token }, patient }, ... }
+      const result = response.data
+      
+      if (!result.data || !result.data.tokens || !result.data.tokens.access_token) {
+        throw new Error('Token không được nhận từ server')
+      }
+      
+      const { tokens, patient } = result.data
+      const token = tokens.access_token
+      const refreshToken = tokens.refresh_token
+      
+      localStorage.setItem('token', token)
+      localStorage.setItem('refreshToken', refreshToken)
+      localStorage.setItem('user', JSON.stringify(patient))
+      setUser(patient)
+      
+      return { token, refreshToken, user: patient }
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Đăng ký thất bại'
+      setError(message)
+      throw new Error(message)
+    }
+  }
+
+  const logout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setUser(null)
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        profile,
-        isReady,
-        isAuthenticated: Boolean(session?.accessToken && profile),
-        loginStaff,
-        loginPatient,
-        registerPatient,
-        logout,
-        changePassword,
-        refreshProfile,
-        setSession,
-        setProfile,
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, error, login, register, logout }}>
       {children}
     </AuthContext.Provider>
-  );
+  )
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-
+  const context = useContext(AuthContext)
   if (!context) {
-    throw new Error('useAuth phải được dùng trong AuthProvider.');
+    throw new Error('useAuth must be used within AuthProvider')
   }
-
-  return context;
+  return context
 }
