@@ -13,7 +13,7 @@
 
 .patient-history-hero h1 {
   margin-top: 8px;
-  font-size: clamp(40px, 4.8vw, 58px);
+  font-size: var(--patient-hero-title-size);
   line-height: 0.96;
   letter-spacing: -0.05em;
 }
@@ -22,7 +22,7 @@
   max-width: 720px;
   margin-top: 12px;
   color: var(--patient-muted);
-  font-size: 17px;
+  font-size: var(--patient-body-size);
   line-height: 1.65;
 }
 
@@ -199,7 +199,7 @@
 
 .patient-history-detail-head h2 {
   margin-top: 12px;
-  font-size: 38px;
+  font-size: clamp(28px, 1.1vw + 20px, 36px);
   line-height: 0.98;
   letter-spacing: -0.05em;
 }
@@ -559,6 +559,20 @@
 }
 
 @media (max-width: 640px) {
+  .patient-history-page {
+    gap: 20px;
+  }
+
+  .patient-history-hero h1 {
+    font-size: 30px;
+    line-height: 1.02;
+  }
+
+  .patient-history-copy {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
   .patient-history-hero-actions,
   .patient-soft-action {
     width: 100%;
@@ -578,5 +592,103 @@
 
   .patient-history-detail-head h2 {
     font-size: 30px;
+  }
+
+  .patient-visit-card {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+
+  .patient-visit-card h3 {
+    font-size: 20px;
+  }
+
+  .patient-history-summary-grid {
+    gap: 18px;
+  }
+
+  .patient-history-quote,
+  .patient-history-summary-block p,
+  .patient-history-note-list p {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .patient-history-table {
+    min-width: 0;
+  }
+
+  .patient-history-table thead {
+    display: none;
+  }
+
+  .patient-history-table,
+  .patient-history-table tbody,
+  .patient-history-table tr,
+  .patient-history-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .patient-history-table tr {
+    padding: 16px 0;
+    border-top: 1px solid rgba(160, 174, 203, 0.12);
+  }
+
+  .patient-history-table tr:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .patient-history-table td {
+    padding: 10px 0 0;
+    border-top: 0;
+    font-size: 13px;
+  }
+
+  .patient-history-table td:first-child {
+    padding-top: 0;
+  }
+
+  .patient-history-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--patient-muted);
+  }
+
+  .patient-history-table-qty {
+    text-align: left;
+  }
+
+  .patient-history-result-item {
+    padding: 18px;
+    gap: 14px;
+  }
+
+  .patient-history-result-head h3,
+  .patient-lab-card-title h3 {
+    font-size: 18px;
+  }
+
+  .patient-history-result-head p,
+  .patient-lab-card-title p,
+  .patient-lab-preview-copy {
+    font-size: 12px;
+  }
+
+  .patient-lab-detail-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .patient-outline-action {
+    width: 100%;
   }
 }

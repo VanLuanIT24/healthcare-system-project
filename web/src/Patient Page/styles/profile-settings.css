@@ -8,7 +8,7 @@
 
 .patient-page-intro h1 {
   margin-top: 8px;
-  font-size: clamp(36px, 5vw, 56px);
+  font-size: var(--patient-hero-title-size);
   line-height: 0.98;
   letter-spacing: -0.05em;
   max-width: 860px;
@@ -18,7 +18,7 @@
   max-width: 620px;
   margin-top: 12px;
   color: var(--patient-muted);
-  font-size: 17px;
+  font-size: var(--patient-body-size);
   line-height: 1.65;
 }
 
@@ -86,7 +86,7 @@
 }
 
 .patient-profile-card-large h2 {
-  font-size: 32px;
+  font-size: clamp(26px, 0.9vw + 18px, 32px);
   letter-spacing: -0.04em;
 }
 

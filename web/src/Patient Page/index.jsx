@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../Home/context/AuthContext'
 import { authAPI } from '../utils/api'
+import PatientIcon from './components/PatientIcon'
 import PatientSidebar from './components/PatientSidebar'
 import PatientTopbar from './components/PatientTopbar'
 import PatientAppointmentsPage from './pages/PatientAppointmentsPage'
@@ -387,10 +388,53 @@ export default function PatientPage() {
           onNotificationsOpen={() => openSection('notifications')}
           onLogout={handleLogout}
           onProfileOpen={() => openSection('profile')}
+          onSectionChange={openSection}
           patientName={patientName}
         />
 
         <main className="patient-content">{renderContent()}</main>
+
+        <section className="patient-mobile-tail-actions">
+          <button
+            className={`patient-muted-link${activeSection === 'profile' ? ' is-active' : ''}`}
+            type="button"
+            onClick={() => openSection('profile')}
+          >
+            <span className="patient-nav-icon" aria-hidden="true">
+              <PatientIcon name="settings" />
+            </span>
+            <span>Cài đặt</span>
+          </button>
+
+          <button
+            className={`patient-muted-link${activeSection === 'support' ? ' is-active' : ''}`}
+            type="button"
+            onClick={() => openSection('support')}
+          >
+            <span className="patient-nav-icon" aria-hidden="true">
+              <PatientIcon name="help_outline" />
+            </span>
+            <span>Hỗ trợ</span>
+          </button>
+
+          <div className="patient-sidebar-cta patient-mobile-tail-cta">
+            <button
+              className="patient-danger-button"
+              type="button"
+              onClick={() => openSection('emergency')}
+            >
+              <PatientIcon name="emergency" aria-hidden="true" />
+              <span>Cấp cứu</span>
+            </button>
+          </div>
+
+          <button className="patient-muted-link" type="button" onClick={handleLogout}>
+            <span className="patient-nav-icon" aria-hidden="true">
+              <PatientIcon name="logout" />
+            </span>
+            <span>Đăng xuất</span>
+          </button>
+        </section>
       </div>
     </div>
   )

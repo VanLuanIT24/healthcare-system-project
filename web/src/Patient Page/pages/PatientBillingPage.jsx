@@ -70,7 +70,7 @@ export default function PatientBillingPage() {
                 <tbody>
                   {billingInvoices.map((invoice) => (
                     <tr key={invoice.id}>
-                      <td>
+                      <td data-label="Dịch vụ / Ngày">
                         <div className="patient-billing-service">
                           <div className={`patient-billing-service-icon ${invoice.iconTone}`}>
                             <PatientIcon name={invoice.icon} aria-hidden="true" />
@@ -83,13 +83,15 @@ export default function PatientBillingPage() {
                         </div>
                       </td>
 
-                      <td className="patient-billing-amount">{invoice.amount}</td>
+                      <td className="patient-billing-amount" data-label="Số tiền">
+                        {invoice.amount}
+                      </td>
 
-                      <td className="patient-billing-status-cell">
+                      <td className="patient-billing-status-cell" data-label="Trạng thái">
                         <span className={`patient-status-pill ${invoice.tone}`}>{invoice.status}</span>
                       </td>
 
-                      <td className="patient-billing-download-cell">
+                      <td className="patient-billing-download-cell" data-label="Tải về">
                         <button type="button" aria-label={`Tải hóa đơn ${invoice.service}`}>
                           <PatientIcon name="picture_as_pdf" aria-hidden="true" />
                         </button>

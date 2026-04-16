@@ -41,7 +41,7 @@
 
 .patient-support-hero-copy h1 {
   margin-top: 12px;
-  font-size: clamp(38px, 5vw, 56px);
+  font-size: var(--patient-hero-title-size);
   line-height: 0.98;
   letter-spacing: -0.05em;
 }
@@ -50,7 +50,7 @@
   max-width: 680px;
   margin: 16px auto 0;
   color: var(--patient-muted);
-  font-size: 17px;
+  font-size: var(--patient-body-size);
   line-height: 1.7;
 }
 
@@ -144,14 +144,14 @@
 }
 
 .patient-support-category h2 {
-  font-size: 18px;
+  font-size: var(--patient-card-title-size);
   line-height: 1.2;
 }
 
 .patient-support-category p {
   margin-top: 10px;
   color: var(--patient-muted);
-  font-size: 13px;
+  font-size: var(--patient-body-size);
   line-height: 1.65;
 }
 
@@ -169,7 +169,7 @@
 
 .patient-support-section-head h2 {
   margin-top: 8px;
-  font-size: 30px;
+  font-size: var(--patient-section-title-size);
   line-height: 1.02;
   letter-spacing: -0.04em;
 }
@@ -252,7 +252,7 @@
 
 .patient-support-cta-copy h2 {
   margin-top: 12px;
-  font-size: clamp(34px, 4vw, 48px);
+  font-size: clamp(30px, 1.4vw + 20px, 40px);
   line-height: 0.98;
   letter-spacing: -0.05em;
 }
@@ -261,7 +261,7 @@
   max-width: 620px;
   margin-top: 14px;
   color: rgba(255, 255, 255, 0.82);
-  font-size: 16px;
+  font-size: var(--patient-body-size);
   line-height: 1.75;
 }
 

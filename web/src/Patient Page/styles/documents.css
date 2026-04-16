@@ -12,7 +12,7 @@
 }
 
 .patient-documents-head h1 {
-  font-size: clamp(36px, 4.2vw, 52px);
+  font-size: var(--patient-hero-title-size);
   line-height: 0.98;
   letter-spacing: -0.05em;
 }
@@ -20,7 +20,7 @@
 .patient-documents-head p {
   margin-top: 10px;
   color: var(--patient-muted);
-  font-size: 16px;
+  font-size: var(--patient-body-size);
   line-height: 1.7;
 }
 

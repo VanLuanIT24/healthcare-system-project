@@ -163,7 +163,7 @@ export default function PatientAppointmentsPage() {
               <tbody>
                 {appointmentHistory.map((appointment) => (
                   <tr key={appointment.id}>
-                    <td>
+                    <td data-label="Bác sĩ và chuyên khoa">
                       <div className="patient-history-doctor">
                         <div className="patient-history-icon">
                           <PatientIcon name={appointment.icon} aria-hidden="true" />
@@ -174,14 +174,14 @@ export default function PatientAppointmentsPage() {
                         </div>
                       </div>
                     </td>
-                    <td>{appointment.date}</td>
-                    <td>{appointment.time}</td>
-                    <td>
+                    <td data-label="Ngày khám">{appointment.date}</td>
+                    <td data-label="Giờ">{appointment.time}</td>
+                    <td data-label="Trạng thái">
                       <span className={`patient-status-pill ${appointment.tone}`}>
                         {appointment.status}
                       </span>
                     </td>
-                    <td className="patient-history-actions">
+                    <td className="patient-history-actions" data-label="Hành động">
                       <button type="button" aria-label="Tùy chọn khác">
                         <PatientIcon name="more_vert" aria-hidden="true" />
                       </button>

@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useState, useRef, useEffect } from 'react'
+import { startTransition, useDeferredValue, useEffect, useRef, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
 import { messageThreads } from '../data/patientPageData'
 import { getInitials } from '../utils/patientHelpers'
@@ -25,6 +25,7 @@ export default function PatientMessagesPage() {
         setShowAttachmentMenu(false)
       }
     }
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
@@ -42,7 +43,7 @@ export default function PatientMessagesPage() {
   const handleSendMessage = () => {
     const nextMessage = draft.trim()
 
-    if (!nextMessage && attachments.length === 0 || !selectedThread) {
+    if ((!nextMessage && attachments.length === 0) || !selectedThread) {
       return
     }
 
@@ -51,7 +52,8 @@ export default function PatientMessagesPage() {
       minute: '2-digit',
     })
 
-    const previewMessage = nextMessage || (attachments.length > 0 ? `Đã đính kèm ${attachments.length} tệp` : '')
+    const previewMessage =
+      nextMessage || (attachments.length > 0 ? `Đã đính kèm ${attachments.length} tệp` : '')
 
     startTransition(() => {
       setThreads((current) =>
@@ -67,7 +69,7 @@ export default function PatientMessagesPage() {
                     id: `${thread.id}-${Date.now()}`,
                     sender: 'patient',
                     text: nextMessage,
-                    attachments: attachments,
+                    attachments,
                     time: currentTime,
                     seen: true,
                   },
@@ -84,53 +86,58 @@ export default function PatientMessagesPage() {
 
   const handleFileSelect = (event) => {
     if (event.target.files?.length) {
-      const newFiles = Array.from(event.target.files).map(file => ({
+      const newFiles = Array.from(event.target.files).map((file) => ({
         name: file.name,
         size: file.size,
         type: file.type,
-        url: URL.createObjectURL(file)
+        url: URL.createObjectURL(file),
       }))
-      setAttachments(current => [...current, ...newFiles])
+      setAttachments((current) => [...current, ...newFiles])
     }
     event.target.value = ''
   }
 
   const removeAttachment = (index) => {
-    setAttachments(current => {
-      const newAtt = [...current]
-      if (newAtt[index]?.url && newAtt[index].url.startsWith('blob:')) {
-        URL.revokeObjectURL(newAtt[index].url)
+    setAttachments((current) => {
+      const nextAttachments = [...current]
+      if (nextAttachments[index]?.url && nextAttachments[index].url.startsWith('blob:')) {
+        URL.revokeObjectURL(nextAttachments[index].url)
       }
-      newAtt.splice(index, 1)
-      return newAtt
+      nextAttachments.splice(index, 1)
+      return nextAttachments
     })
   }
 
   const handleShareLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude.toFixed(4)
-          const lng = position.coords.longitude.toFixed(4)
-          const newMapAtt = {
+    const fallbackLocation = {
+      name: 'Vị trí hiện tại',
+      type: 'location',
+      url: 'https://maps.google.com/?q=10.7626,106.6602',
+    }
+
+    if (!navigator.geolocation) {
+      setAttachments((current) => [...current, fallbackLocation])
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude.toFixed(4)
+        const lng = position.coords.longitude.toFixed(4)
+
+        setAttachments((current) => [
+          ...current,
+          {
             name: `Vị trí (${lat}, ${lng})`,
             type: 'location',
-            url: `https://maps.google.com/?q=${lat},${lng}`
-          }
-          setAttachments(current => [...current, newMapAtt])
-        },
-        () => {
-          const newMapAtt = {
-            name: `Vị trí hiện tại`,
-            type: 'location',
-            url: `https://maps.google.com/?q=10.7626,106.6602`
-          }
-          setAttachments(current => [...current, newMapAtt])
-        }
-      )
-    } else {
-      setAttachments(current => [...current, { name: 'Vị trí hiện tại', type: 'location', url: 'https://maps.google.com/?q=10.7626,106.6602' }])
-    }
+            url: `https://maps.google.com/?q=${lat},${lng}`,
+          },
+        ])
+      },
+      () => {
+        setAttachments((current) => [...current, fallbackLocation])
+      },
+    )
   }
 
   const handleDraftKeyDown = (event) => {
@@ -146,6 +153,33 @@ export default function PatientMessagesPage() {
 
   return (
     <div className="patient-messages-page">
+      <div className="patient-chat-mobile-strip">
+        <div className="patient-chat-mobile-strip-list">
+          {visibleThreads.map((thread) => {
+            const active = thread.id === selectedThreadId
+
+            return (
+              <button
+                key={thread.id}
+                className={`patient-chat-mobile-thread${active ? ' is-active' : ''}`}
+                type="button"
+                onClick={() => setSelectedThreadId(thread.id)}
+              >
+                <div className="patient-chat-thread-avatar">
+                  <span>{getChatInitials(thread.doctor)}</span>
+                  <i className={thread.online ? 'is-online' : ''} aria-hidden="true" />
+                </div>
+
+                <div className="patient-chat-mobile-thread-copy">
+                  <strong>{thread.doctor}</strong>
+                  <span>{thread.specialty}</span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       <div className="patient-chat-layout">
         <aside className="patient-chat-thread-panel">
           <div className="patient-chat-search-shell">
@@ -267,26 +301,91 @@ export default function PatientMessagesPage() {
 
                   <div className="patient-chat-bubble-stack">
                     <div className={`patient-chat-bubble${fromDoctor ? '' : ' is-patient'}`}>
-                      {message.text && <div>{message.text}</div>}
-                      {message.attachments?.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: message.text ? '8px' : '0' }}>
-                          {message.attachments.map((file, idx) => (
+                      {message.text ? <div>{message.text}</div> : null}
+
+                      {message.attachments?.length ? (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            marginTop: message.text ? '8px' : '0',
+                          }}
+                        >
+                          {message.attachments.map((file, idx) =>
                             file.type === 'location' ? (
-                              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: fromDoctor ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.2)', padding: '8px 12px', borderRadius: '8px' }}>
+                              <div
+                                key={idx}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  background: fromDoctor
+                                    ? 'rgba(0,0,0,0.05)'
+                                    : 'rgba(255,255,255,0.2)',
+                                  padding: '8px 12px',
+                                  borderRadius: '8px',
+                                }}
+                              >
                                 <PatientIcon name="location_on" aria-hidden="true" />
-                                <a href={file.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', wordBreak: 'break-all' }}>{file.name}</a>
+                                <a
+                                  href={file.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: 'inherit',
+                                    textDecoration: 'underline',
+                                    wordBreak: 'break-all',
+                                  }}
+                                >
+                                  {file.name}
+                                </a>
                               </div>
                             ) : file.type?.startsWith('image/') ? (
-                              <img key={idx} src={file.url} alt={file.name} style={{ maxWidth: '100%', borderRadius: '8px', maxHeight: '200px', objectFit: 'cover', cursor: 'pointer' }} onClick={() => window.open(file.url, '_blank')} />
+                              <img
+                                key={idx}
+                                src={file.url}
+                                alt={file.name}
+                                style={{
+                                  maxWidth: '100%',
+                                  borderRadius: '8px',
+                                  maxHeight: '200px',
+                                  objectFit: 'cover',
+                                  cursor: 'pointer',
+                                }}
+                                onClick={() => window.open(file.url, '_blank')}
+                              />
                             ) : (
-                              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: fromDoctor ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.2)', padding: '8px 12px', borderRadius: '8px' }}>
+                              <div
+                                key={idx}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  background: fromDoctor
+                                    ? 'rgba(0,0,0,0.05)'
+                                    : 'rgba(255,255,255,0.2)',
+                                  padding: '8px 12px',
+                                  borderRadius: '8px',
+                                }}
+                              >
                                 <PatientIcon name="description" aria-hidden="true" />
-                                <a href={file.url} download={file.name} style={{ color: 'inherit', textDecoration: 'none', wordBreak: 'break-all' }}>{file.name}</a>
+                                <a
+                                  href={file.url}
+                                  download={file.name}
+                                  style={{
+                                    color: 'inherit',
+                                    textDecoration: 'none',
+                                    wordBreak: 'break-all',
+                                  }}
+                                >
+                                  {file.name}
+                                </a>
                               </div>
-                            )
-                          ))}
+                            ),
+                          )}
                         </div>
-                      )}
+                      ) : null}
                     </div>
 
                     <span className={`patient-chat-message-time${fromDoctor ? '' : ' is-patient'}`}>
@@ -304,63 +403,193 @@ export default function PatientMessagesPage() {
           </div>
 
           <div className="patient-chat-composer-wrap">
-            {attachments.length > 0 && (
-              <div style={{ display: 'flex', gap: '8px', padding: '12px 16px', borderBottom: '1px solid var(--border-soft)', overflowX: 'auto' }}>
+            {attachments.length ? (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                  padding: '12px 16px',
+                  borderBottom: '1px solid rgba(160, 174, 203, 0.14)',
+                  overflowX: 'auto',
+                }}
+              >
                 {attachments.map((file, index) => (
-                  <div key={index} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--surface-sunken)', padding: '4px 8px', borderRadius: '8px', fontSize: '13px', border: '1px solid var(--border-soft)' }}>
+                  <div
+                    key={index}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(232, 237, 247, 0.78)',
+                      padding: '4px 8px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      border: '1px solid rgba(160, 174, 203, 0.14)',
+                    }}
+                  >
                     {file.type === 'location' ? (
                       <PatientIcon name="location_on" aria-hidden="true" />
                     ) : file.type?.startsWith('image/') ? (
-                      <img src={file.url} alt={file.name} style={{ width: '24px', height: '24px', objectFit: 'cover', borderRadius: '4px' }} />
+                      <img
+                        src={file.url}
+                        alt={file.name}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          objectFit: 'cover',
+                          borderRadius: '4px',
+                        }}
+                      />
                     ) : (
                       <PatientIcon name="description" aria-hidden="true" />
                     )}
-                    <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                    <button type="button" onClick={() => removeAttachment(index)} style={{ cursor: 'pointer', border: 'none', background: 'none', color: 'var(--text-danger)', display: 'flex', alignItems: 'center', padding: '2px', marginLeft: '4px' }}>
+
+                    <span
+                      style={{
+                        maxWidth: '120px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {file.name}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(index)}
+                      style={{
+                        cursor: 'pointer',
+                        border: 'none',
+                        background: 'none',
+                        color: '#ba1a1a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '2px',
+                        marginLeft: '4px',
+                      }}
+                    >
                       <PatientIcon name="close" aria-hidden="true" />
                     </button>
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
+
             <div className="patient-chat-composer">
-              <div className="patient-chat-composer-tools" style={{ position: 'relative' }} ref={attachmentMenuRef}>
-                <button type="button" aria-label="Thêm đính kèm" onClick={() => setShowAttachmentMenu(!showAttachmentMenu)} style={{ color: 'var(--primary, #2563eb)' }}>
+              <div
+                className="patient-chat-composer-tools"
+                style={{ position: 'relative' }}
+                ref={attachmentMenuRef}
+              >
+                <button
+                  type="button"
+                  aria-label="Thêm đính kèm"
+                  onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                  style={{ color: 'var(--patient-primary)' }}
+                >
                   <PatientIcon name="add_circle" aria-hidden="true" />
                 </button>
-                
-                {showAttachmentMenu && (
-                  <div className="patient-chat-attachment-menu" style={{
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: '0',
-                    marginBottom: '8px',
-                    background: 'var(--surface)',
-                    boxShadow: 'var(--shadow-md)',
-                    borderRadius: '8px',
-                    padding: '4px 0',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minWidth: '160px',
-                    border: '1px solid var(--border-soft)',
-                    zIndex: 10
-                  }}>
-                    <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', color: 'var(--primary, #2563eb)', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = 'var(--surface-sunken)'} onMouseOut={(e) => e.currentTarget.style.background = 'none'} onClick={() => { fileInputRef.current?.click(); setShowAttachmentMenu(false); }}>
+
+                {showAttachmentMenu ? (
+                  <div
+                    className="patient-chat-attachment-menu"
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: '0',
+                      marginBottom: '8px',
+                      background: '#fff',
+                      boxShadow: '0 18px 30px rgba(15, 23, 42, 0.12)',
+                      borderRadius: '8px',
+                      padding: '4px 0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      minWidth: '160px',
+                      border: '1px solid rgba(160, 174, 203, 0.14)',
+                      zIndex: 10,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 16px',
+                        background: 'none',
+                        border: 'none',
+                        width: '100%',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        color: 'var(--patient-primary)',
+                        transition: 'background 0.2s',
+                      }}
+                      onMouseOver={(event) => {
+                        event.currentTarget.style.background = 'rgba(232, 237, 247, 0.78)'
+                      }}
+                      onMouseOut={(event) => {
+                        event.currentTarget.style.background = 'none'
+                      }}
+                      onClick={() => {
+                        fileInputRef.current?.click()
+                        setShowAttachmentMenu(false)
+                      }}
+                    >
                       <PatientIcon name="description" aria-hidden="true" />
                       <span style={{ fontWeight: 500 }}>Chia sẻ tệp</span>
                     </button>
-                    <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', color: 'var(--primary, #2563eb)', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = 'var(--surface-sunken)'} onMouseOut={(e) => e.currentTarget.style.background = 'none'} onClick={() => { handleShareLocation(); setShowAttachmentMenu(false); }}>
+
+                    <button
+                      type="button"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 16px',
+                        background: 'none',
+                        border: 'none',
+                        width: '100%',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        color: 'var(--patient-primary)',
+                        transition: 'background 0.2s',
+                      }}
+                      onMouseOver={(event) => {
+                        event.currentTarget.style.background = 'rgba(232, 237, 247, 0.78)'
+                      }}
+                      onMouseOut={(event) => {
+                        event.currentTarget.style.background = 'none'
+                      }}
+                      onClick={() => {
+                        handleShareLocation()
+                        setShowAttachmentMenu(false)
+                      }}
+                    >
                       <PatientIcon name="location_on" aria-hidden="true" />
                       <span style={{ fontWeight: 500 }}>Chia sẻ vị trí</span>
                     </button>
                   </div>
-                )}
+                ) : null}
 
                 <input type="file" hidden multiple ref={fileInputRef} onChange={handleFileSelect} />
-                <button type="button" aria-label="Thêm hình ảnh" onClick={() => imageInputRef.current?.click()} style={{ color: 'var(--primary, #2563eb)' }}>
+
+                <button
+                  type="button"
+                  aria-label="Thêm hình ảnh"
+                  onClick={() => imageInputRef.current?.click()}
+                  style={{ color: 'var(--patient-primary)' }}
+                >
                   <PatientIcon name="image" aria-hidden="true" />
                 </button>
-                <input type="file" hidden accept="image/*" multiple ref={imageInputRef} onChange={handleFileSelect} />
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  multiple
+                  ref={imageInputRef}
+                  onChange={handleFileSelect}
+                />
               </div>
 
               <textarea

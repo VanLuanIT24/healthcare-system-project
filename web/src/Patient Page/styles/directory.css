@@ -141,7 +141,7 @@
 
 .patient-directory-card h2 {
   margin-top: 14px;
-  font-size: 27px;
+  font-size: clamp(22px, 0.7vw + 16px, 26px);
   line-height: 1.02;
   letter-spacing: -0.04em;
   transition: color 0.2s ease;
@@ -355,7 +355,7 @@
 }
 
 .patient-directory-map-summary h3 {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;

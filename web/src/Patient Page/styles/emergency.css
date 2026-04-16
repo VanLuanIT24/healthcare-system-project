@@ -28,7 +28,7 @@
 
 .patient-emergency-head h1 {
   margin-top: 14px;
-  font-size: clamp(38px, 4.8vw, 58px);
+  font-size: var(--patient-hero-title-size);
   line-height: 0.94;
   letter-spacing: -0.05em;
 }
@@ -37,7 +37,7 @@
   max-width: 720px;
   margin-top: 12px;
   color: var(--patient-muted);
-  font-size: 16px;
+  font-size: var(--patient-body-size);
   line-height: 1.72;
 }
 
@@ -102,7 +102,7 @@
 .patient-emergency-qr-card h2,
 .patient-emergency-contacts-card h2,
 .patient-emergency-map-head h2 {
-  font-size: 30px;
+  font-size: var(--patient-section-title-size);
   line-height: 1.02;
   letter-spacing: -0.04em;
 }
@@ -115,7 +115,7 @@
 
 .patient-emergency-sos-copy p {
   color: var(--patient-muted);
-  font-size: 17px;
+  font-size: var(--patient-body-size);
   line-height: 1.78;
 }
 

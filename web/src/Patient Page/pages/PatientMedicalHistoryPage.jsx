@@ -150,10 +150,14 @@ export default function PatientMedicalHistoryPage() {
                   <tbody>
                     {prescriptionItems.map((item) => (
                       <tr key={item.id}>
-                        <td className="patient-history-table-primary">{item.medication}</td>
-                        <td>{item.dosage}</td>
-                        <td>{item.usage}</td>
-                        <td className="patient-history-table-qty">{item.quantity}</td>
+                        <td className="patient-history-table-primary" data-label="Tên thuốc">
+                          {item.medication}
+                        </td>
+                        <td data-label="Liều dùng">{item.dosage}</td>
+                        <td data-label="Hướng dẫn sử dụng">{item.usage}</td>
+                        <td className="patient-history-table-qty" data-label="Số lượng">
+                          {item.quantity}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

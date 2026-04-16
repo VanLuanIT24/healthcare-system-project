@@ -12,7 +12,7 @@
 }
 
 .patient-medications-head h1 {
-  font-size: clamp(38px, 4.8vw, 56px);
+  font-size: var(--patient-hero-title-size);
   line-height: 0.94;
   letter-spacing: -0.05em;
 }
@@ -20,7 +20,7 @@
 .patient-medications-head p {
   margin-top: 10px;
   color: var(--patient-muted);
-  font-size: 16px;
+  font-size: var(--patient-body-size);
   line-height: 1.7;
   max-width: 720px;
 }
@@ -67,7 +67,7 @@
 }
 
 .patient-medications-card-head h2 {
-  font-size: 28px;
+  font-size: var(--patient-section-title-size);
   line-height: 1.04;
   letter-spacing: -0.04em;
 }
@@ -326,7 +326,7 @@
 }
 
 .patient-medications-title-block h2 {
-  font-size: 34px;
+  font-size: clamp(28px, 1vw + 20px, 36px);
   line-height: 0.98;
   letter-spacing: -0.05em;
 }

@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
+import { navItems } from '../data/patientPageData'
 import PatientIcon from './PatientIcon'
+
+const mobileNavItems = [
+  navItems.find((item) => item.key === 'trends'),
+  navItems.find((item) => item.key === 'dashboard'),
+  navItems.find((item) => item.key === 'appointments'),
+  navItems.find((item) => item.key === 'directory'),
+  navItems.find((item) => item.key === 'notifications'),
+  navItems.find((item) => item.key === 'messages'),
+  navItems.find((item) => item.key === 'documents'),
+  navItems.find((item) => item.key === 'history'),
+  navItems.find((item) => item.key === 'billing'),
+  { key: 'emergency', label: 'Khẩn cấp' },
+].filter(Boolean)
 
 export default function PatientTopbar({
   activeSection,
@@ -13,6 +27,7 @@ export default function PatientTopbar({
   onNotificationsOpen,
   onLogout,
   onProfileOpen,
+  onSectionChange,
   patientName,
 }) {
   const [openMenu, setOpenMenu] = useState(null)
@@ -78,19 +93,17 @@ export default function PatientTopbar({
   return (
     <header className="patient-topbar">
       <div className="patient-topbar-title">
-        <span className="patient-topbar-brand">{titleMap[activeSection] || 'Tổng quan'}</span>
+        <span className="patient-topbar-brand patient-topbar-brand-desktop">
+          {titleMap[activeSection] || 'Tổng quan'}
+        </span>
+        <span className="patient-topbar-brand patient-topbar-brand-mobile">HealthCare</span>
       </div>
 
       <div className="patient-topbar-actions">
-        <label className="patient-search" aria-label="Tìm kiếm hồ sơ">
-          <span className="patient-search-icon" aria-hidden="true">
-            <PatientIcon name="search" />
-          </span>
-          <input type="text" placeholder={searchPlaceholder} />
-        </label>
-
         <button
-          className={`patient-notify${activeSection === 'messages' ? ' is-active' : ''}`}
+          className={`patient-notify patient-topbar-chat${
+            activeSection === 'messages' ? ' is-active' : ''
+          }`}
           type="button"
           aria-label="Tin nhắn"
           onClick={onMessagesOpen}
@@ -165,7 +178,11 @@ export default function PatientTopbar({
           ) : null}
         </div>
 
-        <button className="patient-emergency" type="button" onClick={onEmergencyOpen}>
+        <button
+          className="patient-emergency patient-topbar-emergency"
+          type="button"
+          onClick={onEmergencyOpen}
+        >
           Khẩn cấp
         </button>
 
@@ -228,6 +245,33 @@ export default function PatientTopbar({
           ) : null}
         </div>
       </div>
+
+      <div className="patient-topbar-mobile-nav" aria-label="Điều hướng nhanh trên điện thoại">
+        {mobileNavItems.map((item) => {
+          const isEmergency = item.key === 'emergency'
+          const isActive = activeSection === item.key
+
+          return (
+            <button
+              key={item.key}
+              className={`patient-mobile-nav-pill${isActive ? ' is-active' : ''}${
+                isEmergency ? ' is-emergency' : ''
+              }`}
+              type="button"
+              onClick={() => (isEmergency ? onEmergencyOpen() : onSectionChange(item.key))}
+            >
+              {item.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <label className="patient-search" aria-label="Tìm kiếm hồ sơ">
+        <span className="patient-search-icon" aria-hidden="true">
+          <PatientIcon name="search" />
+        </span>
+        <input type="text" placeholder={searchPlaceholder} />
+      </label>
     </header>
   )
 }
