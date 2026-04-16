@@ -1,0 +1,486 @@
+.patient-trends-page {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.patient-trends-header h1 {
+  font-size: clamp(38px, 4.6vw, 56px);
+  line-height: 0.96;
+  letter-spacing: -0.05em;
+}
+
+.patient-trends-header p {
+  margin-top: 10px;
+  color: var(--patient-muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.patient-trends-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.patient-trend-card {
+  padding: 28px;
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 40px rgba(17, 24, 39, 0.05);
+}
+
+.patient-trend-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.patient-trend-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+}
+
+.patient-trend-icon.primary {
+  background: rgba(13, 99, 243, 0.1);
+  color: var(--patient-primary);
+}
+
+.patient-trend-icon.danger {
+  background: rgba(255, 92, 102, 0.12);
+  color: #b9383a;
+}
+
+.patient-trend-icon.secondary {
+  background: rgba(1, 187, 155, 0.14);
+  color: #046d60;
+}
+
+.patient-trend-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.patient-trend-badge.good {
+  background: #dff8ef;
+  color: #0d7b68;
+}
+
+.patient-trend-badge.soft {
+  background: #e8edf7;
+  color: #4f5d79;
+}
+
+.patient-trend-label {
+  color: var(--patient-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.patient-trend-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.patient-trend-value strong {
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(42px, 5vw, 64px);
+  line-height: 0.92;
+  letter-spacing: -0.06em;
+}
+
+.patient-trend-value em {
+  font-family: 'Manrope', sans-serif;
+  font-style: normal;
+  font-size: 28px;
+  color: #b8c1cf;
+}
+
+.patient-trend-value span {
+  font-family: 'Manrope', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #98a2b3;
+}
+
+.patient-trend-note {
+  margin-top: 8px;
+  color: #98a2b3;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.patient-trend-footer {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(160, 174, 203, 0.14);
+}
+
+.patient-trend-footer-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.patient-trend-footer-copy.good {
+  color: #0d7b68;
+}
+
+.patient-trend-footer-copy.primary {
+  color: var(--patient-primary);
+}
+
+.patient-trends-analytics-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 8fr) minmax(320px, 4fr);
+  gap: 22px;
+}
+
+.patient-trend-chart-panel {
+  background: rgba(243, 246, 251, 0.94);
+}
+
+.patient-trend-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.patient-trend-chart-head h2,
+.patient-trend-history-head h2 {
+  font-size: 30px;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.patient-trend-chart-head p {
+  margin-top: 8px;
+  color: var(--patient-muted);
+  font-size: 13px;
+}
+
+.patient-trend-chart-filters {
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(160, 174, 203, 0.14);
+}
+
+.patient-trend-chart-filters button {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: transparent;
+  color: var(--patient-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.patient-trend-chart-filters button.is-active {
+  background: rgba(13, 99, 243, 0.08);
+  color: var(--patient-primary);
+}
+
+.patient-trend-chart-stage {
+  position: relative;
+  min-height: 320px;
+}
+
+.patient-trend-gridlines {
+  position: absolute;
+  inset: 0 0 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.patient-trend-gridlines span {
+  border-top: 1px solid rgba(160, 174, 203, 0.16);
+}
+
+.patient-trend-bars {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-height: 320px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 18px;
+  align-items: end;
+  padding-top: 20px;
+}
+
+.patient-trend-bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.patient-trend-bar-stack {
+  width: 100%;
+  min-height: 250px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: 6px;
+}
+
+.patient-trend-bar {
+  display: block;
+  flex: 0 0 14px;
+  width: 14px;
+  border-radius: 999px 999px 0 0;
+  transition: transform 0.2s ease;
+}
+
+.patient-trend-bar-group:hover .patient-trend-bar {
+  transform: scaleY(1.04);
+  transform-origin: bottom;
+}
+
+.patient-trend-bar.is-soft {
+  background: rgba(13, 99, 243, 0.28);
+}
+
+.patient-trend-bar.is-solid {
+  background: var(--patient-primary);
+}
+
+.patient-trend-bar-group strong {
+  color: var(--patient-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.patient-trends-side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.patient-trend-recommendation-card {
+  padding: 30px;
+  border-radius: 32px;
+  background: linear-gradient(135deg, #0d63f3, #3d82ff);
+  color: #fff;
+  box-shadow: 0 24px 40px rgba(13, 99, 243, 0.2);
+}
+
+.patient-trend-recommendation-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.patient-trend-recommendation-head h3,
+.patient-trend-tests-card h3 {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.patient-trend-recommendation-card p {
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.75;
+  opacity: 0.92;
+}
+
+.patient-trend-recommendation-card button {
+  width: 100%;
+  margin-top: 20px;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.patient-trend-tests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.patient-trend-test-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.patient-trend-test-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.patient-trend-test-icon.soft {
+  background: rgba(219, 227, 241, 0.86);
+  color: #4d5872;
+}
+
+.patient-trend-test-icon.mint {
+  background: rgba(1, 187, 155, 0.14);
+  color: #046d60;
+}
+
+.patient-trend-test-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.patient-trend-test-copy strong {
+  font-size: 14px;
+}
+
+.patient-trend-test-copy small,
+.patient-trend-test-row > .material-symbols-outlined {
+  color: var(--patient-muted);
+  font-size: 12px;
+}
+
+.patient-trend-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.patient-trend-history-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--patient-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.patient-trend-table-wrap {
+  overflow-x: auto;
+}
+
+.patient-trend-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 12px;
+  min-width: 760px;
+}
+
+.patient-trend-table th {
+  padding: 0 18px 8px;
+  text-align: left;
+  color: var(--patient-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.patient-trend-table td {
+  padding: 18px;
+  background: rgba(243, 246, 251, 0.82);
+  font-size: 14px;
+}
+
+.patient-trend-table tbody tr td:first-child {
+  border-radius: 18px 0 0 18px;
+}
+
+.patient-trend-table tbody tr td:last-child {
+  border-radius: 0 18px 18px 0;
+  color: var(--patient-muted);
+}
+
+.patient-trend-date {
+  color: var(--patient-primary);
+  font-weight: 800;
+}
+
+.patient-trend-value-cell {
+  font-weight: 800;
+}
+
+@media (max-width: 1380px) {
+  .patient-trends-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-trends-analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .patient-trend-chart-head,
+  .patient-trend-history-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .patient-trend-bars {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .patient-trend-card,
+  .patient-trend-recommendation-card {
+    padding: 22px;
+  }
+
+  .patient-trend-value strong {
+    font-size: 46px;
+  }
+
+  .patient-trend-chart-filters {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
