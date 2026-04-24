@@ -115,4 +115,5 @@ module.exports = {
   ),
   getMyAppointments: wrap((req) => patientService.getPatientAppointmentHistory(req.auth.patientId, req.query), 'Lấy lịch hẹn của tôi thành công.'),
   getMyEncounters: wrap((req) => patientService.getPatientEncounterHistory(req.auth.patientId, req.query), 'Lấy lịch sử khám của tôi thành công.'),
+  getMyPrescriptions: wrap((req) => patientService.getPatientPrescriptionHistory(req.auth.patientId, req.query), 'Lấy đơn thuốc của tôi thành công.'),
 };

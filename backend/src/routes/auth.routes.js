@@ -7,9 +7,9 @@ const router = express.Router();
 
 router.post('/staff/login', authController.staffLogin);
 
-router.post('/patients/register', authController.registerPatient);
-router.post('/patients/login', authController.patientLogin);
-router.post('/forgot-password', authController.forgotPassword);
+router.post('/patients/register', authController.registerPatient);  ///
+router.post('/patients/login', authController.patientLogin);  ///
+router.post('/forgot-password', authController.forgotPassword); ///
 router.post('/reset-password', authController.resetPassword);
 router.post('/refresh-token', authController.refreshToken);
 router.post('/logout', authController.logout);
