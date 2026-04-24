@@ -1,0 +1,992 @@
+/* ============================================================================
+   Doctor Profile Page - Modern Design with Animations
+   ============================================================================ */
+
+:root {
+  --doctor-primary: #0d63f3;
+  --doctor-primary-light: #dfe9ff;
+  --doctor-primary-lighter: #f4f8ff;
+  --doctor-secondary: #00d4ff;
+  --doctor-success: #10b981;
+  --doctor-warning: #f59e0b;
+  --doctor-error: #ef4444;
+  --doctor-copy: #0f172a;
+  --doctor-muted: #64748b;
+  --doctor-border: #e2e8f0;
+  --doctor-bg: #ffffff;
+  --doctor-bg-light: #f8fafc;
+  --doctor-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --doctor-shadow-lg: 0 10px 24px rgba(15, 23, 42, 0.08);
+  --doctor-shadow-xl: 0 20px 40px rgba(15, 23, 42, 0.12);
+}
+
+/* Container & Layout */
+.doctor-profile-container {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* ============================================================================
+   Hero Section
+   ============================================================================ */
+.doctor-page-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 40px;
+  animation: slideInDown 0.5s ease-out;
+}
+
+.doctor-intro-content {
+  flex: 1;
+}
+
+.doctor-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--doctor-primary);
+  font-weight: 700;
+  margin-bottom: 8px;
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out 0.1s forwards;
+}
+
+.doctor-intro-title {
+  font-size: clamp(32px, 3vw, 48px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.98;
+  margin: 0;
+  margin-top: 8px;
+  color: var(--doctor-copy);
+  background: linear-gradient(135deg, var(--doctor-primary), var(--doctor-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out 0.2s forwards;
+}
+
+.doctor-intro-description {
+  max-width: 620px;
+  margin-top: 12px;
+  color: var(--doctor-muted);
+  font-size: 14px;
+  line-height: 1.65;
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out 0.3s forwards;
+}
+
+/* ============================================================================
+   Feedback Messages
+   ============================================================================ */
+.doctor-feedback {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 24px;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: var(--doctor-success);
+  font-weight: 600;
+  animation: slideInDown 0.3s ease-out;
+}
+
+.doctor-feedback.is-error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+  border-color: rgba(239, 68, 68, 0.2);
+  color: var(--doctor-error);
+}
+
+.doctor-feedback-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.doctor-feedback svg {
+  flex-shrink: 0;
+  animation: popIn 0.4s ease-out;
+}
+
+/* ============================================================================
+   Profile Grid Layout
+   ============================================================================ */
+.doctor-profile-grid {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.doctor-profile-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.doctor-profile-column-wide {
+  grid-column: 2;
+}
+
+/* ============================================================================
+   Panels
+   ============================================================================ */
+.doctor-panel {
+  background: var(--doctor-bg);
+  border-radius: 28px;
+  padding: 32px;
+  border: 1px solid var(--doctor-border);
+  box-shadow: var(--doctor-shadow);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.doctor-panel:hover {
+  box-shadow: var(--doctor-shadow-lg);
+  transform: translateY(-2px);
+  border-color: rgba(13, 99, 243, 0.2);
+}
+
+/* ============================================================================
+   Profile Card - Large
+   ============================================================================ */
+.doctor-profile-card-large {
+  text-align: center;
+  background: linear-gradient(180deg, var(--doctor-bg) 0%, #f9fbfd 100%);
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.doctor-profile-photo-wrap {
+  position: relative;
+  width: fit-content;
+  margin: 0 auto 28px;
+  animation: scaleIn 0.5s ease-out 0.2s backwards;
+}
+
+.doctor-profile-photo {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, var(--doctor-primary-light), var(--doctor-primary-lighter));
+  border: 8px solid #eef3fb;
+  box-shadow: 
+    0 0 0 1px rgba(13, 99, 243, 0.1),
+    0 20px 40px rgba(13, 99, 243, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: transform 0.3s ease-out;
+}
+
+.doctor-profile-photo:hover {
+  transform: scale(1.05) rotate(2deg);
+}
+
+.doctor-profile-photo span {
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--doctor-primary);
+  letter-spacing: -0.08em;
+}
+
+.doctor-profile-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--doctor-success);
+  color: white;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+  animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s;
+}
+
+.doctor-profile-badge svg {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.doctor-profile-name {
+  font-size: clamp(24px, 2vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  margin: 0;
+  color: var(--doctor-copy);
+  animation: fadeInUp 0.5s ease-out 0.1s backwards;
+}
+
+.doctor-profile-id {
+  margin-top: 6px;
+  color: var(--doctor-muted);
+  font-weight: 600;
+  font-size: 13px;
+  animation: fadeInUp 0.5s ease-out 0.15s backwards;
+}
+
+.doctor-profile-specialization {
+  margin-top: 8px;
+  color: var(--doctor-primary);
+  font-weight: 700;
+  font-size: 14px;
+  animation: fadeInUp 0.5s ease-out 0.2s backwards;
+}
+
+/* ============================================================================
+   Profile Stats Grid
+   ============================================================================ */
+.doctor-profile-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 28px 0;
+}
+
+.doctor-profile-stat {
+  padding: 18px 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(13, 99, 243, 0.08), rgba(13, 99, 243, 0.02));
+  border: 1px solid rgba(13, 99, 243, 0.1);
+  text-align: left;
+  transition: all 0.3s ease-out;
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.doctor-profile-stat:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.doctor-profile-stat:hover {
+  transform: translateY(-4px);
+  background: linear-gradient(135deg, rgba(13, 99, 243, 0.12), rgba(13, 99, 243, 0.06));
+  border-color: rgba(13, 99, 243, 0.2);
+  box-shadow: 0 8px 20px rgba(13, 99, 243, 0.1);
+}
+
+.stat-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--doctor-muted);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  display: block;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: clamp(20px, 1.5vw, 28px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--doctor-primary);
+}
+
+/* ============================================================================
+   Profile Actions
+   ============================================================================ */
+.doctor-profile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.doctor-hero-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--doctor-primary), var(--doctor-secondary));
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 24px rgba(13, 99, 243, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.doctor-hero-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.doctor-hero-button:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.doctor-hero-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(13, 99, 243, 0.4);
+}
+
+.doctor-hero-button:active {
+  transform: translateY(0);
+}
+
+.doctor-hero-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.doctor-soft-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #eef3fb, #f3f6fb);
+  color: var(--doctor-primary);
+  font-weight: 700;
+  font-size: 14px;
+  border: 1px solid rgba(13, 99, 243, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease-out;
+}
+
+.doctor-soft-button:hover {
+  background: linear-gradient(135deg, rgba(13, 99, 243, 0.08), rgba(13, 99, 243, 0.06));
+  transform: translateY(-2px);
+  border-color: var(--doctor-primary);
+  box-shadow: 0 8px 20px rgba(13, 99, 243, 0.15);
+}
+
+/* ============================================================================
+   Verified Panel
+   ============================================================================ */
+.doctor-verified-panel {
+  background: linear-gradient(180deg, rgba(13, 99, 243, 0.08), rgba(13, 99, 243, 0.03));
+  border: 1px solid rgba(13, 99, 243, 0.15);
+}
+
+.doctor-verified-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: var(--doctor-primary);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.doctor-verified-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 99, 243, 0.12);
+  color: var(--doctor-primary);
+  flex-shrink: 0;
+}
+
+.doctor-profile-meta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doctor-profile-meta-stack p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--doctor-muted);
+  line-height: 1.6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doctor-profile-meta-stack strong {
+  color: var(--doctor-copy);
+  font-weight: 600;
+}
+
+.doctor-profile-meta-stack span {
+  color: var(--doctor-copy);
+}
+
+/* ============================================================================
+   Panel Head
+   ============================================================================ */
+.doctor-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--doctor-border);
+}
+
+.doctor-section-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--doctor-primary);
+  font-weight: 700;
+  margin: 0;
+  margin-bottom: 6px;
+}
+
+.doctor-panel-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+  color: var(--doctor-copy);
+}
+
+.doctor-head-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #f2f5fb, #eef2f8);
+  color: var(--doctor-primary);
+  flex-shrink: 0;
+  border: 1px solid rgba(13, 99, 243, 0.1);
+}
+
+/* ============================================================================
+   Form Styles
+   ============================================================================ */
+.doctor-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.doctor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.doctor-field:nth-child(n) {
+  animation-delay: calc(0.05s * var(--field-index, 1));
+}
+
+.field-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--doctor-muted);
+  font-weight: 700;
+}
+
+.doctor-field-wide {
+  grid-column: 1 / -1;
+}
+
+.doctor-field-shell {
+  background: linear-gradient(135deg, #f9fbfd, #f3f6fb);
+  border: 1.5px solid var(--doctor-border);
+  border-radius: 18px;
+  padding: 16px 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.doctor-field-shell::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, transparent, rgba(13, 99, 243, 0.05), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+.doctor-field-shell:focus-within {
+  border-color: var(--doctor-primary);
+  background: var(--doctor-bg);
+  box-shadow: 0 0 0 3px rgba(13, 99, 243, 0.1);
+}
+
+.doctor-field-shell:focus-within::before {
+  opacity: 1;
+}
+
+.doctor-field-shell input,
+.doctor-field-shell select {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--doctor-copy);
+  font: inherit;
+  outline: none;
+  position: relative;
+  z-index: 1;
+}
+
+.doctor-field-shell input::placeholder {
+  color: #cbd5e1;
+}
+
+/* ============================================================================
+   Sessions List
+   ============================================================================ */
+.doctor-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doctor-session-item {
+  border: 1px solid var(--doctor-border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease-out;
+  animation: slideInUp 0.3s ease-out;
+}
+
+.doctor-session-item:hover {
+  border-color: rgba(13, 99, 243, 0.2);
+  box-shadow: 0 4px 16px rgba(13, 99, 243, 0.08);
+}
+
+.session-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-out;
+}
+
+.session-main:hover {
+  background-color: #f9fbfd;
+}
+
+.session-info {
+  flex: 1;
+}
+
+.session-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.session-device {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--doctor-copy);
+  font-weight: 600;
+}
+
+.session-device svg {
+  color: var(--doctor-primary);
+}
+
+.session-name {
+  font-size: 14px;
+}
+
+.session-status {
+  font-size: 12px;
+  color: var(--doctor-success);
+  font-weight: 600;
+}
+
+.session-status.is-current {
+  color: var(--doctor-primary);
+}
+
+.session-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--doctor-muted);
+}
+
+.expand-icon {
+  transition: transform 0.3s ease-out;
+  color: var(--doctor-muted);
+}
+
+.expand-icon.is-open {
+  transform: rotate(180deg);
+}
+
+.session-expanded {
+  padding: 16px;
+  background: linear-gradient(135deg, #f9fbfd, #f3f6fb);
+  border-top: 1px solid var(--doctor-border);
+  animation: slideDown 0.3s ease-out;
+}
+
+.session-expanded p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--doctor-muted);
+  line-height: 1.6;
+}
+
+.session-expanded p:last-of-type {
+  margin-bottom: 16px;
+}
+
+.doctor-revoke-button {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--doctor-error);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease-out;
+}
+
+.doctor-revoke-button:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: var(--doctor-error);
+  transform: translateY(-1px);
+}
+
+/* ============================================================================
+   History List
+   ============================================================================ */
+.doctor-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doctor-history-item {
+  border: 1px solid var(--doctor-border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease-out;
+  animation: slideInUp 0.3s ease-out;
+}
+
+.doctor-history-item:hover {
+  border-color: rgba(13, 99, 243, 0.2);
+  box-shadow: 0 4px 16px rgba(13, 99, 243, 0.08);
+}
+
+.history-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-out;
+}
+
+.history-main:hover {
+  background-color: #f9fbfd;
+}
+
+.history-info {
+  flex: 1;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.history-time {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--doctor-copy);
+}
+
+.history-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--doctor-success);
+}
+
+.history-status.is-failed {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--doctor-error);
+}
+
+.history-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--doctor-muted);
+}
+
+.history-expanded {
+  padding: 16px;
+  background: linear-gradient(135deg, #f9fbfd, #f3f6fb);
+  border-top: 1px solid var(--doctor-border);
+  animation: slideDown 0.3s ease-out;
+}
+
+.history-expanded p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--doctor-muted);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.history-expanded p:last-child {
+  margin-bottom: 0;
+}
+
+/* ============================================================================
+   Empty States & Loading
+   ============================================================================ */
+.doctor-empty-text,
+.doctor-loading-text {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--doctor-muted);
+  font-size: 14px;
+}
+
+/* ============================================================================
+   Animations
+   ============================================================================ */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+@media (max-width: 1024px) {
+  .doctor-profile-grid {
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+  }
+
+  .doctor-panel {
+    padding: 24px;
+    border-radius: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .doctor-profile-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .doctor-profile-column-wide {
+    grid-column: auto;
+  }
+
+  .doctor-page-intro {
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .doctor-form-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .doctor-field-wide {
+    grid-column: auto;
+  }
+
+  .doctor-profile-stat-grid {
+    gap: 12px;
+  }
+
+  .doctor-profile-card-large {
+    padding: 24px;
+  }
+
+  .doctor-profile-photo {
+    width: 120px;
+    height: 120px;
+  }
+
+  .doctor-profile-photo span {
+    font-size: 36px;
+  }
+
+  .doctor-panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .doctor-head-icon {
+    align-self: flex-end;
+  }
+
+  .session-header,
+  .history-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .doctor-intro-title {
+    font-size: 28px;
+  }
+
+  .doctor-panel {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .doctor-profile-card-large {
+    padding: 16px;
+  }
+
+  .doctor-profile-actions {
+    gap: 8px;
+  }
+
+  .doctor-hero-button,
+  .doctor-soft-button {
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+
+  .doctor-page-intro {
+    margin-bottom: 16px;
+  }
+
+  .session-meta,
+  .history-meta {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

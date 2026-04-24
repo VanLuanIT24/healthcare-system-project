@@ -1,40 +1,55 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { authAPI } from '../../utils/api'
+import { authAPI, getApiErrorStatus } from '../../utils/api'
 
 const AUTH_CONTEXT_KEY = '__HEALTHCARE_AUTH_CONTEXT__'
-const AuthContext =
-  globalThis[AUTH_CONTEXT_KEY] || createContext(undefined)
+const AuthContext = globalThis[AUTH_CONTEXT_KEY] || createContext(undefined)
 
 if (!globalThis[AUTH_CONTEXT_KEY]) {
   globalThis[AUTH_CONTEXT_KEY] = AuthContext
 }
 
-function normalizePatientProfile(profile = {}) {
+function normalizeAuthProfile(profile = {}) {
   if (!profile || typeof profile !== 'object') {
     return null
   }
 
-  const patientId = profile.patient_id || profile.patientId || profile.id || ''
+  const actorType = profile.actor_type || profile.actorType || (profile.user_id ? 'staff' : 'patient')
+  const userId = profile.user_id || profile.userId || ''
+  const patientId = profile.patient_id || profile.patientId || ''
   const patientAccountId = profile.patient_account_id || profile.patientAccountId || ''
+  const departmentId = profile.department_id || profile.departmentId || ''
+  const employeeCode = profile.employee_code || profile.employeeCode || ''
   const patientCode = profile.patient_code || profile.patientCode || ''
-  const fullName = profile.full_name || profile.fullName || ''
+  const fullName = profile.full_name || profile.fullName || profile.username || profile.email || ''
   const lastLoginAt = profile.last_login_at || profile.lastLoginAt || null
-  const actorType = profile.actor_type || profile.actorType || 'patient'
   const roles = Array.isArray(profile.roles) ? profile.roles : []
   const permissions = Array.isArray(profile.permissions) ? profile.permissions : []
 
   return {
     ...profile,
-    id: patientId,
     actorType,
+    actor_type: actorType,
+    id: userId || patientId || profile.id || '',
+    userId,
+    user_id: userId,
     patientId,
+    patient_id: patientId,
     patientAccountId,
+    patient_account_id: patientAccountId,
+    departmentId,
+    department_id: departmentId,
+    employeeCode,
+    employee_code: employeeCode,
     patientCode,
+    patient_code: patientCode,
     fullName,
+    full_name: fullName,
+    username: profile.username || '',
     email: profile.email || '',
     phone: profile.phone || '',
     status: profile.status || '',
     lastLoginAt,
+    last_login_at: lastLoginAt,
     roles,
     permissions,
   }
@@ -58,6 +73,50 @@ function persistAuthSession({ accessToken, refreshToken, user }) {
   localStorage.setItem('user', JSON.stringify(user))
 }
 
+function buildNormalizedSession(result = {}) {
+  const normalizedUser = normalizeAuthProfile(result.user || result.patient || result.profile)
+
+  if (!normalizedUser) {
+    throw new Error('Không thể đọc thông tin tài khoản.')
+  }
+
+  const accessToken = result.tokens?.access_token
+
+  if (!accessToken) {
+    throw new Error('Token không được nhận từ server.')
+  }
+
+  return {
+    token: accessToken,
+    refreshToken: result.tokens?.refresh_token,
+    user: normalizedUser,
+  }
+}
+
+async function attemptRoleAwareLogin(loginValue, password) {
+  const attempts = [
+    () => authAPI.loginPatient(loginValue, password),
+    () => authAPI.loginStaff(loginValue, password),
+  ]
+
+  let lastError = null
+
+  for (const request of attempts) {
+    try {
+      const response = await request()
+      return buildNormalizedSession(response.data?.data)
+    } catch (error) {
+      lastError = error
+
+      if (![400, 401, 403, 404].includes(getApiErrorStatus(error))) {
+        throw error
+      }
+    }
+  }
+
+  throw lastError || new Error('Đăng nhập thất bại.')
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -72,7 +131,7 @@ export function AuthProvider({ children }) {
     }
 
     const response = await authAPI.me()
-    const normalizedProfile = normalizePatientProfile(response.data?.data?.profile)
+    const normalizedProfile = normalizeAuthProfile(response.data?.data?.profile)
 
     if (!normalizedProfile) {
       throw new Error('Không thể đọc thông tin tài khoản.')
@@ -99,7 +158,7 @@ export function AuthProvider({ children }) {
 
       if (storedUser) {
         try {
-          const normalizedStoredUser = normalizePatientProfile(JSON.parse(storedUser))
+          const normalizedStoredUser = normalizeAuthProfile(JSON.parse(storedUser))
 
           if (normalizedStoredUser && isMounted) {
             setUser(normalizedStoredUser)
@@ -136,32 +195,16 @@ export function AuthProvider({ children }) {
     setError(null)
 
     try {
-      const response = await authAPI.login(loginValue, password)
-      const result = response.data?.data
-
-      if (!result?.tokens?.access_token) {
-        throw new Error('Token không được nhận từ server.')
-      }
-
-      const normalizedUser = normalizePatientProfile(result.patient)
-
-      if (!normalizedUser) {
-        throw new Error('Không thể đọc thông tin bệnh nhân.')
-      }
+      const session = await attemptRoleAwareLogin(loginValue, password)
 
       persistAuthSession({
-        accessToken: result.tokens.access_token,
-        refreshToken: result.tokens.refresh_token,
-        user: normalizedUser,
+        accessToken: session.token,
+        refreshToken: session.refreshToken,
+        user: session.user,
       })
 
-      setUser(normalizedUser)
-
-      return {
-        token: result.tokens.access_token,
-        refreshToken: result.tokens.refresh_token,
-        user: normalizedUser,
-      }
+      setUser(session.user)
+      return session
     } catch (err) {
       const message = err.response?.data?.message || err.message || 'Đăng nhập thất bại.'
       setError(message)
@@ -174,31 +217,16 @@ export function AuthProvider({ children }) {
 
     try {
       const response = await authAPI.register(userData)
-      const result = response.data?.data
-
-      if (!result?.tokens?.access_token) {
-        throw new Error('Token không được nhận từ server.')
-      }
-
-      const normalizedUser = normalizePatientProfile(result.patient)
-
-      if (!normalizedUser) {
-        throw new Error('Không thể đọc thông tin bệnh nhân.')
-      }
+      const session = buildNormalizedSession(response.data?.data)
 
       persistAuthSession({
-        accessToken: result.tokens.access_token,
-        refreshToken: result.tokens.refresh_token,
-        user: normalizedUser,
+        accessToken: session.token,
+        refreshToken: session.refreshToken,
+        user: session.user,
       })
 
-      setUser(normalizedUser)
-
-      return {
-        token: result.tokens.access_token,
-        refreshToken: result.tokens.refresh_token,
-        user: normalizedUser,
-      }
+      setUser(session.user)
+      return session
     } catch (err) {
       const message = err.response?.data?.message || err.message || 'Đăng ký thất bại.'
       setError(message)
@@ -224,8 +252,36 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const forgotPassword = async (payload) => {
+    setError(null)
+
+    try {
+      const response = await authAPI.forgotPassword(payload)
+      return response.data?.data || null
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Không thể gửi yêu cầu đặt lại mật khẩu.'
+      setError(message)
+      throw new Error(message)
+    }
+  }
+
+  const resetPassword = async (payload) => {
+    setError(null)
+
+    try {
+      const response = await authAPI.resetPassword(payload)
+      return response.data?.data || null
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Không thể đặt lại mật khẩu.'
+      setError(message)
+      throw new Error(message)
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, register, logout, refreshProfile }}>
+    <AuthContext.Provider
+      value={{ user, loading, error, login, register, logout, refreshProfile, forgotPassword, resetPassword }}
+    >
       {children}
     </AuthContext.Provider>
   )

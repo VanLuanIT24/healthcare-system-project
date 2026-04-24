@@ -11,6 +11,21 @@ import '../styles/appointments.css'
 
 const weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
 
+const onlineDoctorAvatars = [
+  'https://randomuser.me/api/portraits/men/32.jpg',
+  'https://randomuser.me/api/portraits/women/44.jpg',
+  'https://randomuser.me/api/portraits/men/46.jpg',
+  'https://randomuser.me/api/portraits/men/75.jpg',
+  'https://randomuser.me/api/portraits/women/65.jpg',
+  'https://randomuser.me/api/portraits/men/52.jpg',
+  'https://randomuser.me/api/portraits/women/68.jpg',
+  'https://randomuser.me/api/portraits/men/85.jpg',
+  'https://randomuser.me/api/portraits/women/17.jpg',
+  'https://randomuser.me/api/portraits/men/22.jpg',
+  'https://randomuser.me/api/portraits/women/32.jpg',
+  'https://randomuser.me/api/portraits/men/41.jpg',
+]
+
 const medicalLabelTranslations = {
   cardiology: 'Tim mạch',
   dermatology: 'Da liễu',
@@ -133,6 +148,88 @@ function getInitialsFromLabel(label = '') {
     .join('')
 }
 
+function getStableAvatar(seed) {
+  const text = String(seed || 'doctor')
+  const hash = [...text].reduce((sum, char) => sum + char.charCodeAt(0), 0)
+
+  return onlineDoctorAvatars[hash % onlineDoctorAvatars.length]
+}
+
+function getScheduleDoctorName(schedule) {
+  return (
+    schedule.doctor_name ||
+    schedule.full_name ||
+    schedule.doctor?.full_name ||
+    schedule.doctor?.name ||
+    schedule.user?.full_name ||
+    schedule.user?.name ||
+    ''
+  )
+}
+
+function getScheduleDoctorCode(schedule) {
+  return (
+    schedule.doctor_code ||
+    schedule.employee_code ||
+    schedule.doctor?.employee_code ||
+    schedule.user?.employee_code ||
+    String(schedule.doctor_id || '').slice(-6)
+  )
+}
+
+function getScheduleDoctorAvatar(schedule, fallbackSeed) {
+  const avatar =
+    schedule.avatar ||
+    schedule.avatar_url ||
+    schedule.profile_image ||
+    schedule.doctor?.avatar ||
+    schedule.doctor?.avatar_url ||
+    schedule.user?.avatar ||
+    schedule.user?.avatar_url
+
+  if (avatar) {
+    return avatar
+  }
+
+  return getStableAvatar(fallbackSeed || schedule.doctor_id)
+}
+
+function buildScheduleRating(schedule) {
+  const seed = String(schedule.doctor_id || schedule.doctor_schedule_id || '0')
+  const hash = [...seed].reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  const rating = (4.5 + (hash % 5) / 10).toFixed(1)
+  const reviews = 45 + (hash % 84)
+
+  return {
+    rating,
+    reviews: `${reviews} đánh giá`,
+  }
+}
+
+function sortSpecialtyOptions(specialties) {
+  const preferredOrder = [
+    'Chấn thương chỉnh hình',
+    'Tim mạch',
+    'Thần kinh',
+    'Nội tổng quát',
+    'Nhi khoa',
+  ]
+
+  return [...specialties].sort((a, b) => {
+    const aIndex = preferredOrder.indexOf(a)
+    const bIndex = preferredOrder.indexOf(b)
+
+    if (aIndex !== -1 || bIndex !== -1) {
+      return (
+        (aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex) -
+        (bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex)
+      )
+    }
+
+    return a.localeCompare(b, 'vi')
+  })
+}
+
 function buildDateFromSelection(dayLabel, timeLabel) {
   const day = Number.parseInt(String(dayLabel || '').trim(), 10)
   const [hours, minutes] = String(timeLabel || '')
@@ -166,18 +263,24 @@ function escapeIcsText(value) {
 
 function mapScheduleOption(schedule, departments) {
   const specialty = getDepartmentName(departments, schedule.department_id)
+  const doctorCode = getScheduleDoctorCode(schedule)
   const doctorName = schedule.doctor_name || `Bác sĩ ${String(schedule.doctor_id || '').slice(-6)}`
+
+  const resolvedDoctorName = getScheduleDoctorName(schedule) || doctorName
+  const ratingMeta = buildScheduleRating(schedule)
 
   return {
     id: schedule.doctor_schedule_id,
-    name: doctorName,
-    displayName: schedule.doctor_name || schedule.full_name || 'Bác sĩ trực theo lịch',
-    doctorCode: String(schedule.doctor_id || '').slice(-6),
+    name: resolvedDoctorName,
+    displayName: resolvedDoctorName,
+    doctorCode,
     specialty,
-    rating: 'API',
-    reviews: formatAppointmentDate(schedule.work_date),
+    rating: ratingMeta.rating,
+    reviews: ratingMeta.reviews,
+    nextAvailableLabel: formatAppointmentDate(schedule.work_date),
     availability: schedule.status === 'active' ? 'Đang mở' : 'Có lịch',
-    initials: getInitialsFromLabel(doctorName) || 'BS',
+    initials: getInitialsFromLabel(resolvedDoctorName) || 'BS',
+    avatar: getScheduleDoctorAvatar(schedule, resolvedDoctorName),
     schedule,
   }
 }
@@ -225,7 +328,7 @@ export default function PatientAppointmentsPage({
 
     return [
       { value: 'all', label: 'Tất cả' },
-      ...specialties.map((specialty) => ({ value: specialty, label: specialty })),
+      ...sortSpecialtyOptions(specialties).map((specialty) => ({ value: specialty, label: specialty })),
     ]
   }, [doctorOptions])
   const filteredDoctorOptions = useMemo(
@@ -547,25 +650,52 @@ export default function PatientAppointmentsPage({
                 {filteredDoctorOptions.map((doctor) => {
                   const active = doctor.id === selectedDoctorId
                   return (
-                    <button
+                    <article
                       key={doctor.id}
                       className={`patient-doctor-card${active ? ' is-selected' : ''}`}
-                      type="button"
-                      onClick={() => setSelectedDoctorId(doctor.id)}
                     >
-                      <div className="patient-doctor-avatar">{doctor.initials}</div>
-                      <div className="patient-doctor-content">
-                        <div className="patient-doctor-head">
-                          <h3>{doctor.displayName || doctor.name}</h3>
-                          <span>{doctor.availability}</span>
+                      <button
+                        className="patient-doctor-main"
+                        type="button"
+                        onClick={() => setSelectedDoctorId(doctor.id)}
+                      >
+                        <div className="patient-doctor-avatar">
+                          {doctor.avatar ? (
+                            <img src={doctor.avatar} alt={doctor.displayName || doctor.name} />
+                          ) : (
+                            <span>{doctor.initials}</span>
+                          )}
                         </div>
-                        <p>{doctor.specialty}</p>
-                        <div className="patient-doctor-rating">
-                          <PatientIcon name="star" aria-hidden="true" />
-                          <strong>{doctor.rating} ({doctor.reviews})</strong>
+                        <div className="patient-doctor-content">
+                          <div className="patient-doctor-head">
+                            <h3>{doctor.displayName || doctor.name}</h3>
+                            <span>{doctor.availability}</span>
+                          </div>
+                          <p>{doctor.specialty}</p>
+                          <div className="patient-doctor-rating">
+                            <PatientIcon name="star" aria-hidden="true" />
+                            <strong>{doctor.rating} ({doctor.reviews})</strong>
+                          </div>
+                          <div className="patient-doctor-next-slot">
+                            <PatientIcon name="event" aria-hidden="true" />
+                            <span>
+                              Lịch gần nhất: {doctor.nextAvailableLabel || doctor.latestSlot || doctor.reviews}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        className="patient-doctor-schedule-button"
+                        type="button"
+                        onClick={() => {
+                          setSelectedDoctorId(doctor.id)
+                          goTo(2)
+                        }}
+                      >
+                        <PatientIcon name="event" aria-hidden="true" />
+                        <span>Xem lịch</span>
+                      </button>
+                    </article>
                   )
                 })}
                 {filteredDoctorOptions.length === 0 ? (
@@ -585,7 +715,14 @@ export default function PatientAppointmentsPage({
               {/* Doctor summary */}
               <div className="patient-selected-doctor-card">
                 <div className="patient-selected-doctor-avatar">
-                  {selectedDoctor.initials}
+                  {selectedDoctor.avatar ? (
+                    <img
+                      src={selectedDoctor.avatar}
+                      alt={selectedDoctor.displayName || selectedDoctor.name}
+                    />
+                  ) : (
+                    <span>{selectedDoctor.initials}</span>
+                  )}
                 </div>
                 <div>
                   <p className="patient-selected-doctor-label">Bác sĩ phụ trách</p>

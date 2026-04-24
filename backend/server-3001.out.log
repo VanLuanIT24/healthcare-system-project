@@ -1,0 +1,9 @@
+Server running on port 3000
+[0mGET /api/health [32m200[0m 4.984 ms - 88[0m
+[0mGET /api/health [32m200[0m 0.411 ms - 88[0m
+[0mPOST /api/auth/patients/login [33m401[0m 144.728 ms - 89[0m
+[0mPOST /api/auth/patients/register [32m201[0m 944.016 ms - 1150[0m
+[0mPOST /api/auth/patients/login [32m200[0m 999.146 ms - 1183[0m
+[0mGET /api/auth/me [32m200[0m 93.400 ms - 530[0m
+[0mPOST /api/auth/refresh-token [32m200[0m 241.753 ms - 728[0m
+[0mPOST /api/auth/logout [32m200[0m 144.080 ms - 80[0m

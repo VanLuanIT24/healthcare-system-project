@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../../Home/context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { getDefaultAuthenticatedPath } from '../../Home/context/authHelpers'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -28,8 +29,8 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      await login(formData.login, formData.password)
-      navigate('/dashboard', { replace: true })
+      const session = await login(formData.login, formData.password)
+      navigate(getDefaultAuthenticatedPath(session.user), { replace: true })
     } catch (error) {
       setErrors({ submit: error.message })
     } finally {
