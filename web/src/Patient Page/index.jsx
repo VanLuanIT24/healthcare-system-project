@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../Home/context/AuthContext'
 import { appointmentAPI, authAPI, departmentAPI, patientAPI, scheduleAPI } from '../utils/api'
-import { clearStoredAuth, readStoredAuth, writeStoredAuth } from '../lib/storage'
 import PatientIcon from './components/PatientIcon'
 import PatientSidebar from './components/PatientSidebar'
 import PatientTopbar from './components/PatientTopbar'
@@ -49,38 +49,10 @@ function getResponseData(result) {
   return result.status === 'fulfilled' ? result.value.data?.data : null
 }
 
-function normalizePatientUser(patient) {
-  if (!patient) {
-    return null
-  }
-
-  return {
-    ...patient,
-    patientId: patient.patient_id,
-    patientCode: patient.patient_code,
-    patientAccountId: patient.patient_account_id,
-    fullName: patient.full_name,
-    lastLoginAt: patient.last_login_at,
-  }
-}
-
-function readPatientAuth() {
-  const auth = readStoredAuth()
-
-  if (auth?.actorType !== 'patient' || !auth?.tokens?.access_token) {
-    return { auth: null, user: null }
-  }
-
-  return {
-    auth,
-    user: normalizePatientUser(auth.patient),
-  }
-}
-
 export default function PatientPage() {
+  const { user, logout, refreshProfile, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const mainColumnRef = useRef(null)
-  const [authState, setAuthState] = useState(readPatientAuth)
 
   const [activeSection, setActiveSection] = useState('dashboard')
   const [profileForm, setProfileForm] = useState({
@@ -111,47 +83,9 @@ export default function PatientPage() {
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [feedback, setFeedback] = useState(null)
 
-  const authLoading = false
-  const user = authState.user
   const patientName = user?.fullName || user?.email?.split('@')[0] || 'Bệnh nhân'
   const avatarText = getInitials(patientName) || 'BN'
   const patientId = user?.patientCode || user?.patientId || 'Chưa cấp mã'
-
-  const refreshProfile = async () => {
-    const response = await authAPI.getMe()
-    const profile = response.data?.data?.profile
-    const patient = normalizePatientUser(profile)
-
-    if (profile) {
-      setAuthState((current) => {
-        const nextAuth = {
-          ...(current.auth || readStoredAuth() || {}),
-          actorType: 'patient',
-          patient: profile,
-        }
-
-        writeStoredAuth(nextAuth)
-        return { auth: nextAuth, user: patient }
-      })
-    }
-
-    return patient
-  }
-
-  const logout = async ({ skipRequest = false } = {}) => {
-    const refreshToken = authState.auth?.tokens?.refresh_token
-
-    if (!skipRequest) {
-      try {
-        await authAPI.logout(refreshToken)
-      } catch (error) {
-        // The local session should be cleared even if the server session is already gone.
-      }
-    }
-
-    clearStoredAuth()
-    setAuthState({ auth: null, user: null })
-  }
 
   const openSection = (sectionKey) => {
     setActiveSection(sectionKey)
@@ -226,11 +160,6 @@ export default function PatientPage() {
   }
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login', { replace: true })
-      return
-    }
-
     if (authLoading) {
       return
     }
@@ -305,7 +234,7 @@ export default function PatientPage() {
 
   const handleLogout = async (options = {}) => {
     await logout(options)
-    navigate('/login', { replace: true })
+    navigate('/dang-nhap', { replace: true })
   }
 
   const handleFieldChange = (field) => (event) => {
@@ -567,7 +496,7 @@ export default function PatientPage() {
           avatarText={avatarText}
           notificationItems={notificationItems}
           onEmergencyOpen={() => openSection('emergency')}
-          onHomeOpen={() => navigate('/home')}
+          onHomeOpen={() => navigate('/')}
           onMarkAllNotificationsAsRead={markAllNotificationsAsRead}
           onMarkNotificationAsRead={markNotificationAsRead}
           onMessagesOpen={() => openSection('messages')}

@@ -1,86 +1,207 @@
-import { API_BASE_URL } from '../lib/api'
-import { clearStoredAuth, readStoredAuth } from '../lib/storage'
+import axios from 'axios'
 
-function buildUrl(path, params) {
-  const url = new URL(`${API_BASE_URL}${path}`)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      url.searchParams.set(key, value)
-    }
-  })
+const AUTH_WHITELIST = [
+  '/auth/patients/login',
+  '/auth/patients/register',
+  '/auth/refresh-token',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+]
 
-  return url.toString()
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+let refreshPromise = null
+
+function getStoredToken() {
+  return localStorage.getItem('token')
 }
 
-async function request(path, { method = 'GET', params, body, auth = true } = {}) {
-  const storedAuth = readStoredAuth()
-  const headers = {
-    ...(body ? { 'Content-Type': 'application/json' } : {}),
-    ...(auth && storedAuth?.tokens?.access_token
-      ? { Authorization: `Bearer ${storedAuth.tokens.access_token}` }
-      : {}),
+function getStoredRefreshToken() {
+  return localStorage.getItem('refreshToken')
+}
+
+function setStoredTokens(accessToken, refreshToken) {
+  localStorage.setItem('token', accessToken)
+
+  if (refreshToken) {
+    localStorage.setItem('refreshToken', refreshToken)
+  }
+}
+
+function clearStoredAuth() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+}
+
+function redirectToLogin() {
+  if (typeof window === 'undefined') {
+    return
   }
 
-  const response = await fetch(buildUrl(path, params), {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
+  if (window.location.pathname !== '/dang-nhap') {
+    window.location.replace('/dang-nhap')
+  }
+}
 
-  let payload = null
+function isAuthWhitelisted(url = '') {
+  return AUTH_WHITELIST.some((path) => url.includes(path))
+}
+
+function decodeJwtPayload(token) {
   try {
-    payload = await response.json()
-  } catch (error) {
-    payload = null
-  }
+    const [, payload] = token.split('.')
 
-  if (response.status === 401) {
-    clearStoredAuth()
-  }
+    if (!payload) {
+      return null
+    }
 
-  if (!response.ok) {
-    const apiError = new Error(payload?.message || 'Không thể kết nối đến máy chủ.')
-    apiError.response = { status: response.status, data: payload }
-    throw apiError
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
+    return JSON.parse(window.atob(padded))
+  } catch {
+    return null
   }
-
-  return { data: payload }
 }
+
+function isTokenExpiringSoon(token, thresholdSeconds = 30) {
+  const payload = decodeJwtPayload(token)
+
+  if (!payload?.exp) {
+    return false
+  }
+
+  const nowInSeconds = Math.floor(Date.now() / 1000)
+  return payload.exp <= nowInSeconds + thresholdSeconds
+}
+
+async function requestTokenRefresh() {
+  const refreshToken = getStoredRefreshToken()
+
+  if (!refreshToken) {
+    throw new Error('Thiếu refresh token.')
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(
+        `${API_BASE_URL}/auth/refresh-token`,
+        { refresh_token: refreshToken },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+      .then((response) => {
+        const tokens = response.data?.data
+
+        if (!tokens?.access_token || !tokens?.refresh_token) {
+          throw new Error('Không thể làm mới phiên đăng nhập.')
+        }
+
+        setStoredTokens(tokens.access_token, tokens.refresh_token)
+        return tokens.access_token
+      })
+      .catch((error) => {
+        clearStoredAuth()
+        redirectToLogin()
+        throw error
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+
+  return refreshPromise
+}
+
+api.interceptors.request.use(async (config) => {
+  let token = getStoredToken()
+
+  if (token && !isAuthWhitelisted(config.url) && isTokenExpiringSoon(token)) {
+    token = await requestTokenRefresh()
+  }
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+
+  return config
+})
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+    const status = error.response?.status
+
+    if (
+      status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !isAuthWhitelisted(originalRequest.url)
+    ) {
+      try {
+        originalRequest._retry = true
+        const newToken = await requestTokenRefresh()
+        originalRequest.headers = originalRequest.headers || {}
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return api(originalRequest)
+      } catch (refreshError) {
+        clearStoredAuth()
+        redirectToLogin()
+        return Promise.reject(refreshError)
+      }
+    }
+
+    return Promise.reject(error)
+  }
+)
 
 export const authAPI = {
-  getMe: () => request('/auth/me'),
-  getMySessions: () => request('/auth/me/sessions'),
-  getLoginHistory: (params) => request('/auth/me/login-history', { params }),
-  changePassword: (body) => request('/auth/change-password', { method: 'POST', body }),
-  logout: (refreshToken) =>
-    request('/auth/logout', {
-      method: 'POST',
-      body: refreshToken ? { refresh_token: refreshToken } : {},
-    }),
-  logoutAllDevices: () => request('/auth/logout-all-devices', { method: 'POST', body: {} }),
-  revokeSession: (sessionId) =>
-    request('/auth/sessions/revoke', { method: 'POST', body: { session_id: sessionId } }),
+  login: (login, password) => api.post('/auth/patients/login', { login, password }),
+  register: (userData) => api.post('/auth/patients/register', userData),
+  logout: (refreshToken) => api.post('/auth/logout', { refresh_token: refreshToken }),
+  refreshToken: (refreshToken) => api.post('/auth/refresh-token', { refresh_token: refreshToken }),
+  me: () => api.get('/auth/me'),
+  updateMyProfile: (payload) => api.patch('/auth/my-profile', payload),
+  changePassword: (payload) => api.post('/auth/change-password', payload),
+  getMySessions: () => api.get('/auth/me/sessions'),
+  getLoginHistory: (params = {}) => api.get('/auth/me/login-history', { params }),
+  revokeSession: (sessionId) => api.post('/auth/sessions/revoke', { session_id: sessionId }),
+  logoutAllDevices: () => api.post('/auth/logout-all-devices'),
 }
 
 export const patientAPI = {
-  getMyProfile: () => request('/patients/me/profile'),
-  updateMyProfile: (body) => request('/patients/me/profile', { method: 'PATCH', body }),
-  getMyEncounters: (params) => request('/patients/me/encounters', { params }),
-  getMyPrescriptions: (params) => request('/patients/me/prescriptions', { params }),
+  getMyProfile: () => api.get('/patients/me/profile'),
+  updateMyProfile: (payload) => api.patch('/patients/me/profile', payload),
+  getMyAppointments: (params = {}) => api.get('/patients/me/appointments', { params }),
+  getMyEncounters: (params = {}) => api.get('/patients/me/encounters', { params }),
+  getMyPrescriptions: (params = {}) => api.get('/patients/me/prescriptions', { params }),
 }
 
 export const appointmentAPI = {
-  getMyAppointments: (params) => request('/appointments/my', { params }),
-  createFromPortal: (body) => request('/appointments/portal', { method: 'POST', body }),
+  getMyAppointments: (params = {}) => api.get('/appointments/my', { params }),
+  createFromPortal: (payload) => api.post('/appointments/portal', payload),
 }
 
 export const departmentAPI = {
-  getActiveDepartments: () => request('/departments/active', { auth: false }),
+  getActiveDepartments: () => api.get('/departments/active'),
 }
 
 export const scheduleAPI = {
-  getByDateRange: (params) => request('/schedules/date-range', { params, auth: false }),
-  getAvailableSlots: (scheduleId) =>
-    request(`/schedules/${encodeURIComponent(scheduleId)}/available-slots`, { auth: false }),
+  getByDateRange: (params = {}) => api.get('/schedules/date-range', { params }),
+  getByDepartment: (departmentId, params = {}) =>
+    api.get(`/schedules/department/${departmentId}`, { params }),
+  getAvailableSlots: (scheduleId) => api.get(`/schedules/${scheduleId}/available-slots`),
 }
+
+export default api
