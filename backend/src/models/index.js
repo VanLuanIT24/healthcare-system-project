@@ -15,6 +15,7 @@ const QueueTicket = require('./scheduling/queue-ticket.model');
 
 const Encounter = require('./clinical/encounter.model');
 const Consultation = require('./clinical/consultation.model');
+const ClinicalNote = require('./clinical/clinical-note.model');
 const Diagnosis = require('./clinical/diagnosis.model');
 const VitalSign = require('./clinical/vital-sign.model');
 
@@ -45,6 +46,7 @@ module.exports = {
   QueueTicket,
   Encounter,
   Consultation,
+  ClinicalNote,
   Diagnosis,
   VitalSign,
   MedicationMaster,

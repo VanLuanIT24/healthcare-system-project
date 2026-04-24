@@ -288,6 +288,60 @@ async function seedSystemAccess(req, res) {
   }
 }
 
+async function getRoleUsageSummary(req, res) {
+  try {
+    const result = await iamService.getRoleUsageSummary(req.params.roleId);
+    return successResponse(res, {
+      message: 'Lấy thống kê sử dụng role thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function getPermissionUsageSummary(req, res) {
+  try {
+    const result = await iamService.getPermissionUsageSummary(req.params.permissionId);
+    return successResponse(res, {
+      message: 'Lấy thống kê sử dụng permission thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function deleteRoleSoft(req, res) {
+  try {
+    const result = await iamService.deleteRoleSoft(req.params.roleId, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Xóa mềm role thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
+async function deletePermissionSoft(req, res) {
+  try {
+    const result = await iamService.deletePermissionSoft(req.params.permissionId, req.auth, {
+      userAgent: req.get('user-agent'),
+      ipAddress: req.ip,
+    });
+    return successResponse(res, {
+      message: 'Xóa mềm permission thành công.',
+      data: result,
+    });
+  } catch (error) {
+    return errorResponse(res, error);
+  }
+}
+
 module.exports = {
   createRole,
   createPermission,
@@ -310,4 +364,8 @@ module.exports = {
   rebuildUserPermissionCache,
   checkStaffPermission,
   seedSystemAccess,
+  getRoleUsageSummary,
+  getPermissionUsageSummary,
+  deleteRoleSoft,
+  deletePermissionSoft,
 };

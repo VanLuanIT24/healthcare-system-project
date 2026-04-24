@@ -601,7 +601,7 @@ export default function PatientMessagesPage() {
               />
 
               <div className="patient-chat-composer-actions">
-                <button className="patient-chat-ai-support" type="button">
+                <button className="patient-chat-ai-support" type="button" aria-label="Hỗ trợ AI">
                   <PatientIcon name="auto_awesome" aria-hidden="true" />
                   <span>Hỗ trợ AI</span>
                 </button>

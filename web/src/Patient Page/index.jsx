@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../Home/context/AuthContext'
-import { authAPI } from '../utils/api'
+import { appointmentAPI, authAPI, departmentAPI, patientAPI, scheduleAPI } from '../utils/api'
 import PatientIcon from './components/PatientIcon'
 import PatientSidebar from './components/PatientSidebar'
 import PatientTopbar from './components/PatientTopbar'
@@ -45,6 +45,10 @@ function normalizeOptionalText(value) {
   return trimmed ? trimmed : undefined
 }
 
+function getResponseData(result) {
+  return result.status === 'fulfilled' ? result.value.data?.data : null
+}
+
 export default function PatientPage() {
   const { user, logout, refreshProfile, loading: authLoading } = useAuth()
   const navigate = useNavigate()
@@ -56,6 +60,7 @@ export default function PatientPage() {
     phone: '',
     email: '',
     address: '',
+    emergencyContactPhone: '',
   })
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -64,8 +69,16 @@ export default function PatientPage() {
   const [sessions, setSessions] = useState([])
   const [loginHistory, setLoginHistory] = useState([])
   const [notificationItems, setNotificationItems] = useState(notificationFeed)
+  const [patientProfile, setPatientProfile] = useState(null)
+  const [patientAppointments, setPatientAppointments] = useState([])
+  const [patientEncounters, setPatientEncounters] = useState([])
+  const [patientPrescriptions, setPatientPrescriptions] = useState([])
+  const [patientDepartments, setPatientDepartments] = useState([])
+  const [patientSchedules, setPatientSchedules] = useState([])
   const [accountLoading, setAccountLoading] = useState(true)
+  const [patientDataLoading, setPatientDataLoading] = useState(true)
   const [accountError, setAccountError] = useState('')
+  const [patientDataError, setPatientDataError] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [feedback, setFeedback] = useState(null)
@@ -108,13 +121,17 @@ export default function PatientPage() {
   }
 
   useEffect(() => {
+    const patient = patientProfile?.patient
+
     setProfileForm((current) => ({
       ...current,
-      fullName: user?.fullName || '',
-      phone: user?.phone || '',
-      email: user?.email || '',
+      fullName: patient?.full_name || user?.fullName || '',
+      phone: patient?.phone || user?.phone || '',
+      email: patient?.email || user?.email || '',
+      address: patient?.address || current.address || '',
+      emergencyContactPhone: patient?.emergency_contact_phone || current.emergencyContactPhone || '',
     }))
-  }, [user?.fullName, user?.phone, user?.email])
+  }, [patientProfile, user?.fullName, user?.phone, user?.email])
 
   async function loadAccountCollections() {
     if (!user) {
@@ -150,6 +167,71 @@ export default function PatientPage() {
     loadAccountCollections()
   }, [authLoading, user?.patientId])
 
+  async function loadPatientPortalData() {
+    if (!user) {
+      setPatientProfile(null)
+      setPatientAppointments([])
+      setPatientEncounters([])
+      setPatientPrescriptions([])
+      setPatientDepartments([])
+      setPatientSchedules([])
+      setPatientDataLoading(false)
+      return
+    }
+
+    setPatientDataLoading(true)
+    setPatientDataError('')
+
+    const today = new Date()
+    const dateFrom = today.toISOString().slice(0, 10)
+    const dateTo = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+    const results = await Promise.allSettled([
+      patientAPI.getMyProfile(),
+      appointmentAPI.getMyAppointments({ limit: 30 }),
+      patientAPI.getMyEncounters({ limit: 30 }),
+      patientAPI.getMyPrescriptions({ limit: 30 }),
+      departmentAPI.getActiveDepartments(),
+      scheduleAPI.getByDateRange({
+        date_from: dateFrom,
+        date_to: dateTo,
+        status: 'published,active',
+        limit: 50,
+      }),
+    ])
+
+    const profileData = getResponseData(results[0])
+    const appointmentsData = getResponseData(results[1])
+    const encountersData = getResponseData(results[2])
+    const prescriptionsData = getResponseData(results[3])
+    const departmentsData = getResponseData(results[4])
+    const schedulesData = getResponseData(results[5])
+
+    setPatientProfile(profileData || null)
+    setPatientAppointments(appointmentsData?.items || [])
+    setPatientEncounters(encountersData?.items || [])
+    setPatientPrescriptions(prescriptionsData?.items || [])
+    setPatientDepartments(departmentsData?.items || [])
+    setPatientSchedules(schedulesData?.items || [])
+
+    const failed = results.find((result) => result.status === 'rejected')
+    if (failed) {
+      setPatientDataError(
+        getApiErrorMessage(failed.reason, 'Một phần dữ liệu bệnh nhân chưa tải được.'),
+      )
+    }
+
+    setPatientDataLoading(false)
+  }
+
+  useEffect(() => {
+    if (authLoading) {
+      return
+    }
+
+    loadPatientPortalData()
+  }, [authLoading, user?.patientId])
+
   const handleLogout = async (options = {}) => {
     await logout(options)
     navigate('/dang-nhap', { replace: true })
@@ -179,14 +261,20 @@ export default function PatientPage() {
     try {
       const address = profileForm.address.trim()
 
-      await authAPI.updateMyProfile({
+      const profileResponse = await patientAPI.updateMyProfile({
         full_name: normalizeOptionalText(profileForm.fullName),
         email: normalizeOptionalText(profileForm.email),
         phone: normalizeOptionalText(profileForm.phone),
         address,
+        emergency_contact_phone: normalizeOptionalText(profileForm.emergencyContactPhone),
       })
 
       const refreshedUser = await refreshProfile()
+      const refreshedProfile = profileResponse.data?.data
+
+      if (refreshedProfile) {
+        setPatientProfile(refreshedProfile)
+      }
 
       setProfileForm((current) => ({
         ...current,
@@ -194,6 +282,8 @@ export default function PatientPage() {
         phone: refreshedUser?.phone || current.phone,
         email: refreshedUser?.email || current.email,
         address,
+        emergencyContactPhone:
+          refreshedProfile?.patient?.emergency_contact_phone || current.emergencyContactPhone,
       }))
 
       setFeedback({ type: 'success', text: 'Đã cập nhật hồ sơ tài khoản.' })
@@ -267,6 +357,8 @@ export default function PatientPage() {
       return (
         <PatientDashboardPage
           accountError={accountError}
+          appointments={patientAppointments}
+          encounters={patientEncounters}
           loginHistory={loginHistory}
           loading={accountLoading || authLoading}
           notifications={notificationItems}
@@ -275,6 +367,9 @@ export default function PatientPage() {
           onOpenNotifications={() => openSection('notifications')}
           onOpenProfile={() => openSection('profile')}
           patientName={patientName}
+          patientProfile={patientProfile}
+          patientDataError={patientDataError}
+          patientDataLoading={patientDataLoading}
           sessions={sessions}
           user={user}
         />
@@ -282,7 +377,15 @@ export default function PatientPage() {
     }
 
     if (activeSection === 'appointments') {
-      return <PatientAppointmentsPage />
+      return (
+        <PatientAppointmentsPage
+          appointments={patientAppointments}
+          departments={patientDepartments}
+          loading={patientDataLoading}
+          onAppointmentCreated={loadPatientPortalData}
+          schedules={patientSchedules}
+        />
+      )
     }
 
     if (activeSection === 'emergency') {
@@ -294,7 +397,12 @@ export default function PatientPage() {
     }
 
     if (activeSection === 'medications') {
-      return <PatientMedicationsPage />
+      return (
+        <PatientMedicationsPage
+          loading={patientDataLoading}
+          prescriptions={patientPrescriptions}
+        />
+      )
     }
 
     if (activeSection === 'directory') {
@@ -321,7 +429,13 @@ export default function PatientPage() {
     }
 
     if (activeSection === 'history') {
-      return <PatientMedicalHistoryPage />
+      return (
+        <PatientMedicalHistoryPage
+          encounters={patientEncounters}
+          loading={patientDataLoading}
+          prescriptions={patientPrescriptions}
+        />
+      )
     }
 
     if (activeSection === 'billing') {
@@ -346,6 +460,7 @@ export default function PatientPage() {
           passwordSaving={passwordSaving}
           patientId={patientId}
           patientName={patientName}
+          patientProfile={patientProfile}
           profileForm={profileForm}
           profileSaving={profileSaving}
           sessions={sessions}

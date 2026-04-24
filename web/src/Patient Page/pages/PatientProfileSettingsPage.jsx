@@ -33,12 +33,15 @@ export default function PatientProfileSettingsPage({
   passwordSaving,
   patientId,
   patientName,
+  patientProfile,
   profileForm,
   profileSaving,
   sessions,
   sessionsLoading,
   user,
 }) {
+  const patient = patientProfile?.patient
+
   return (
     <>
       <section className="patient-page-intro">
@@ -146,6 +149,44 @@ export default function PatientProfileSettingsPage({
                   </div>
                 </label>
 
+                <label className="patient-field">
+                  <span>Ngày sinh</span>
+                  <div className="patient-field-shell">
+                    <input
+                      type="text"
+                      value={
+                        patient?.date_of_birth
+                          ? formatDateTime(patient.date_of_birth, { timeStyle: undefined })
+                          : 'Chưa cập nhật'
+                      }
+                      readOnly
+                    />
+                  </div>
+                </label>
+
+                <label className="patient-field">
+                  <span>Bảo hiểm</span>
+                  <div className="patient-field-shell">
+                    <input
+                      type="text"
+                      value={patient?.insurance_number || 'Chưa cập nhật'}
+                      readOnly
+                    />
+                  </div>
+                </label>
+
+                <label className="patient-field patient-field-wide">
+                  <span>Liên hệ khẩn cấp</span>
+                  <div className="patient-field-shell">
+                    <input
+                      type="tel"
+                      value={profileForm.emergencyContactPhone}
+                      onChange={onFieldChange('emergencyContactPhone')}
+                      placeholder="Nhập số điện thoại liên hệ khẩn cấp"
+                    />
+                  </div>
+                </label>
+
                 <label className="patient-field patient-field-wide">
                   <span>Địa chỉ email</span>
                   <div className="patient-field-shell">
@@ -164,7 +205,7 @@ export default function PatientProfileSettingsPage({
                       type="text"
                       value={profileForm.address}
                       onChange={onFieldChange('address')}
-                      placeholder="Backend cho cập nhật địa chỉ, nhưng chưa có API đọc lại field này."
+                      placeholder="Nhập địa chỉ liên hệ"
                     />
                   </div>
                 </label>

@@ -866,45 +866,100 @@
   }
 
   .patient-chat-ai-card {
-    width: 100%;
+    width: calc(100% - 16px);
     max-width: none;
-    padding: 16px;
-    border-radius: 18px;
+    padding: 14px;
+    border-radius: 16px;
+    align-self: flex-start;
+  }
+
+  .patient-chat-ai-head {
+    gap: 6px;
+    font-size: 10px;
   }
 
   .patient-chat-ai-card p {
+    margin-top: 8px;
     font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .patient-chat-ai-actions {
+    gap: 6px;
+    margin-top: 10px;
   }
 
   .patient-chat-ai-actions button {
     flex: 1 1 calc(50% - 8px);
     justify-content: center;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 10px;
   }
 
   .patient-chat-composer-wrap {
-    padding-bottom: 18px;
+    padding-bottom: 16px;
   }
 
   .patient-chat-composer {
-    gap: 10px;
-    padding: 12px;
-    border-radius: 20px;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .patient-chat-composer-tools,
+  .patient-chat-composer-actions {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .patient-chat-composer-tools {
+    gap: 2px;
+  }
+
+  .patient-chat-composer-actions {
+    gap: 4px;
+    justify-content: flex-end;
+    flex-shrink: 0;
   }
 
   .patient-chat-composer textarea {
-    min-height: 40px;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 34px;
+    width: 100%;
     font-size: 13px;
+    line-height: 1.45;
+    padding: 6px 2px;
   }
 
   .patient-chat-composer-tools button,
   .patient-chat-send {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
   }
 
   .patient-chat-ai-support {
-    padding: 10px 12px;
-    font-size: 11px;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--patient-primary);
+    justify-content: center;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: inset 0 0 0 1px rgba(160, 174, 203, 0.16);
+  }
+
+  .patient-chat-ai-support .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  .patient-chat-ai-support > span:not(.material-symbols-outlined) {
+    display: none;
   }
 
   .patient-chat-security-note {

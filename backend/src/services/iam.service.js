@@ -869,6 +869,105 @@ async function seedSystemAccess(actor, requestMeta = {}) {
   return { success: true };
 }
 
+async function getRoleUsageSummary(roleId) {
+  const role = await Role.findById(roleId).lean();
+  if (!role || role.is_deleted) {
+    throw createError('Không tìm thấy role.', 404);
+  }
+
+  const [users_count, active_users_count, permissions_count] = await Promise.all([
+    UserRole.countDocuments({ role_id: role._id }),
+    UserRole.countDocuments({ role_id: role._id, is_active: true }),
+    RolePermission.countDocuments({ role_id: role._id, is_active: true }),
+  ]);
+
+  return {
+    role_id: String(role._id),
+    role_code: role.role_code,
+    users_count,
+    active_users_count,
+    permissions_count,
+  };
+}
+
+async function getPermissionUsageSummary(permissionId) {
+  const permission = await Permission.findById(permissionId).lean();
+  if (!permission || permission.is_deleted) {
+    throw createError('Không tìm thấy permission.', 404);
+  }
+
+  const roles_count = await RolePermission.countDocuments({
+    permission_id: permission._id,
+    is_active: true,
+  });
+
+  return {
+    permission_id: String(permission._id),
+    permission_code: permission.permission_code,
+    roles_count,
+  };
+}
+
+async function deleteRoleSoft(roleId, actor, requestMeta = {}) {
+  const role = await Role.findById(roleId);
+  if (!role || role.is_deleted) {
+    throw createError('Không tìm thấy role.', 404);
+  }
+
+  const usage = await getRoleUsageSummary(role._id);
+  if (usage.active_users_count > 0) {
+    throw createError('Role vẫn đang được gán cho user active, chưa thể xóa mềm.', 409);
+  }
+
+  role.is_deleted = true;
+  role.deleted_at = new Date();
+  role.deleted_by = actor.userId;
+  role.status = 'inactive';
+  role.updated_by = actor.userId;
+  await role.save();
+
+  await recordAuditLog({
+    actor,
+    action: 'role.soft_delete',
+    targetType: 'role',
+    targetId: role._id,
+    status: 'success',
+    message: 'Xóa mềm role thành công.',
+    requestMeta,
+  });
+
+  return { success: true };
+}
+
+async function deletePermissionSoft(permissionId, actor, requestMeta = {}) {
+  const permission = await Permission.findById(permissionId);
+  if (!permission || permission.is_deleted) {
+    throw createError('Không tìm thấy permission.', 404);
+  }
+
+  permission.is_deleted = true;
+  permission.deleted_at = new Date();
+  permission.deleted_by = actor.userId;
+  await permission.save();
+
+  await RolePermission.updateMany(
+    { permission_id: permission._id },
+    { $set: { is_active: false, updated_by: actor.userId } },
+  );
+
+  await recordAuditLog({
+    actor,
+    action: 'permission.soft_delete',
+    targetType: 'permission',
+    targetId: permission._id,
+    status: 'success',
+    message: 'Xóa mềm permission thành công.',
+    requestMeta,
+  });
+
+  return { success: true };
+}
+
 module.exports = {
   validateRoleAssignable,
   validatePermissionAssignable,
@@ -885,6 +984,10 @@ module.exports = {
   listPermissions,
   getPermissionDetail,
   updatePermission,
+  deleteRoleSoft,
+  deletePermissionSoft,
+  getRoleUsageSummary,
+  getPermissionUsageSummary,
   removePermissionsFromRole,
   removeRolesFromStaff,
   syncStaffRoles,

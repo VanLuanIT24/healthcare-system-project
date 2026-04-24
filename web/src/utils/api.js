@@ -174,10 +174,34 @@ export const authAPI = {
   me: () => api.get('/auth/me'),
   updateMyProfile: (payload) => api.patch('/auth/my-profile', payload),
   changePassword: (payload) => api.post('/auth/change-password', payload),
-  getMySessions: () => api.get('/auth/my-sessions'),
-  getLoginHistory: (params = {}) => api.get('/auth/login-history', { params }),
+  getMySessions: () => api.get('/auth/me/sessions'),
+  getLoginHistory: (params = {}) => api.get('/auth/me/login-history', { params }),
   revokeSession: (sessionId) => api.post('/auth/sessions/revoke', { session_id: sessionId }),
   logoutAllDevices: () => api.post('/auth/logout-all-devices'),
+}
+
+export const patientAPI = {
+  getMyProfile: () => api.get('/patients/me/profile'),
+  updateMyProfile: (payload) => api.patch('/patients/me/profile', payload),
+  getMyAppointments: (params = {}) => api.get('/patients/me/appointments', { params }),
+  getMyEncounters: (params = {}) => api.get('/patients/me/encounters', { params }),
+  getMyPrescriptions: (params = {}) => api.get('/patients/me/prescriptions', { params }),
+}
+
+export const appointmentAPI = {
+  getMyAppointments: (params = {}) => api.get('/appointments/my', { params }),
+  createFromPortal: (payload) => api.post('/appointments/portal', payload),
+}
+
+export const departmentAPI = {
+  getActiveDepartments: () => api.get('/departments/active'),
+}
+
+export const scheduleAPI = {
+  getByDateRange: (params = {}) => api.get('/schedules/date-range', { params }),
+  getByDepartment: (departmentId, params = {}) =>
+    api.get(`/schedules/department/${departmentId}`, { params }),
+  getAvailableSlots: (scheduleId) => api.get(`/schedules/${scheduleId}/available-slots`),
 }
 
 export default api
