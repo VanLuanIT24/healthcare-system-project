@@ -1,0 +1,540 @@
+.patient-billing-page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.patient-billing-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 24px;
+}
+
+.patient-billing-balance-card {
+  position: relative;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.patient-billing-balance-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.patient-billing-balance-card h1 {
+  margin-top: 10px;
+  font-size: clamp(34px, 1.8vw + 22px, 50px);
+  line-height: 0.95;
+  letter-spacing: -0.07em;
+  color: var(--patient-primary);
+}
+
+.patient-billing-balance-card h1 span {
+  margin-left: 12px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--patient-copy);
+}
+
+.patient-billing-balance-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.patient-billing-balance-glow {
+  position: absolute;
+  right: -60px;
+  bottom: -80px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(13, 99, 243, 0.12), transparent 68%);
+  filter: blur(10px);
+}
+
+.patient-billing-settled-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  background: linear-gradient(180deg, rgba(217, 246, 239, 0.95), rgba(233, 249, 244, 0.82));
+}
+
+.patient-billing-settled-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(1, 187, 155, 0.12);
+  color: #046d60;
+}
+
+.patient-billing-settled-card h2 {
+  margin-top: 10px;
+  font-size: clamp(26px, 0.9vw + 18px, 32px);
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: #046d60;
+}
+
+.patient-billing-settled-card p:last-child {
+  margin: 0;
+  color: rgba(4, 109, 96, 0.72);
+  font-size: 14px;
+  font-style: italic;
+}
+
+.patient-billing-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.patient-billing-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 8px;
+}
+
+.patient-billing-section-head h2,
+.patient-billing-side-column > h2 {
+  font-size: var(--patient-section-title-size);
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+}
+
+.patient-billing-filter-button {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--patient-muted);
+  cursor: pointer;
+}
+
+.patient-billing-filter-button:hover {
+  background: rgba(232, 237, 247, 0.65);
+}
+
+.patient-billing-table-shell,
+.patient-billing-methods-card,
+.patient-billing-help-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.patient-billing-table-wrap {
+  overflow-x: auto;
+}
+
+.patient-billing-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.patient-billing-table th {
+  padding: 18px 22px;
+  background: rgba(232, 237, 247, 0.62);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--patient-muted);
+}
+
+.patient-billing-table th:nth-child(2),
+.patient-billing-table td:nth-child(2),
+.patient-billing-table th:nth-child(4),
+.patient-billing-table td:nth-child(4) {
+  text-align: right;
+}
+
+.patient-billing-table th:nth-child(3),
+.patient-billing-table td:nth-child(3) {
+  text-align: center;
+}
+
+.patient-billing-table td {
+  padding: 24px 22px;
+  border-top: 1px solid rgba(160, 174, 203, 0.12);
+  vertical-align: middle;
+}
+
+.patient-billing-service {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.patient-billing-service-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.patient-billing-service-icon.primary {
+  background: rgba(13, 99, 243, 0.08);
+  color: var(--patient-primary);
+}
+
+.patient-billing-service-icon.secondary {
+  background: rgba(1, 187, 155, 0.1);
+  color: #046d60;
+}
+
+.patient-billing-service strong {
+  display: block;
+  color: var(--patient-primary);
+  font-family: 'Manrope', sans-serif;
+  font-size: 17px;
+  letter-spacing: -0.03em;
+}
+
+.patient-billing-service p {
+  margin-top: 6px;
+  color: var(--patient-muted);
+  font-size: 12px;
+}
+
+.patient-billing-amount {
+  font-family: 'Manrope', sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.patient-status-pill.unpaid {
+  background: #ffe6e7;
+  color: #b9383a;
+}
+
+.patient-status-pill.paid {
+  background: #dff8ef;
+  color: #0d7b68;
+}
+
+.patient-billing-download-cell button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--patient-muted);
+  cursor: pointer;
+}
+
+.patient-billing-download-cell button:hover {
+  background: rgba(232, 237, 247, 0.7);
+  color: var(--patient-primary);
+}
+
+.patient-billing-side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.patient-billing-side-column > h2 {
+  padding: 0 8px;
+}
+
+.patient-billing-methods-card {
+  padding: 28px;
+}
+
+.patient-billing-intro {
+  margin: 0;
+  color: var(--patient-muted);
+  line-height: 1.7;
+}
+
+.patient-billing-method-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.patient-billing-method {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border: 2px solid transparent;
+  border-radius: 20px;
+  background: rgba(232, 237, 247, 0.46);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+
+.patient-billing-method:hover {
+  transform: translateY(-1px);
+}
+
+.patient-billing-method.is-selected {
+  border-color: var(--patient-primary);
+  background: rgba(13, 99, 243, 0.06);
+}
+
+.patient-billing-method input {
+  accent-color: var(--patient-primary);
+}
+
+.patient-billing-method-copy {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.patient-billing-method-copy > span {
+  font-weight: 700;
+}
+
+.patient-billing-method-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.patient-billing-method-badge {
+  min-width: 48px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.patient-billing-method-badge.vnpay {
+  background: #e6eefc;
+  color: #1e4db7;
+}
+
+.patient-billing-method-badge.momo {
+  background: #a50064;
+  color: #fff;
+}
+
+.patient-billing-method-badge.card {
+  background: linear-gradient(135deg, #265ac8, #ff8e32);
+  color: #fff;
+}
+
+.patient-billing-total-box {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(160, 174, 203, 0.16);
+}
+
+.patient-billing-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.patient-billing-total-row span {
+  color: var(--patient-muted);
+  font-weight: 600;
+}
+
+.patient-billing-total-row strong {
+  font-family: 'Manrope', sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--patient-primary);
+}
+
+.patient-billing-pay-button {
+  width: 100%;
+}
+
+.patient-billing-security-note {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  color: rgba(102, 112, 133, 0.86);
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.patient-billing-help-card {
+  padding: 22px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.patient-billing-help-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(1, 187, 155, 0.14);
+  color: #046d60;
+  flex-shrink: 0;
+}
+
+.patient-billing-help-card h3 {
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.patient-billing-help-card p {
+  margin-top: 8px;
+  color: var(--patient-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+@media (max-width: 1240px) {
+  .patient-billing-summary-grid,
+  .patient-billing-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .patient-billing-table {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 640px) {
+  .patient-billing-page {
+    gap: 20px;
+  }
+
+  .patient-billing-balance-card,
+  .patient-billing-settled-card,
+  .patient-billing-methods-card,
+  .patient-billing-help-card {
+    padding: 18px;
+  }
+
+  .patient-billing-balance-card h1 {
+    font-size: 34px;
+    line-height: 1;
+  }
+
+  .patient-billing-balance-card h1 span {
+    margin-left: 8px;
+    font-size: 18px;
+  }
+
+  .patient-billing-settled-card h2,
+  .patient-billing-section-head h2,
+  .patient-billing-side-column > h2 {
+    font-size: 22px;
+  }
+
+  .patient-billing-balance-actions,
+  .patient-billing-method-copy,
+  .patient-billing-total-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .patient-billing-section-head,
+  .patient-billing-side-column > h2 {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .patient-billing-method-badges {
+    justify-content: flex-start;
+  }
+
+  .patient-billing-table {
+    min-width: 0;
+  }
+
+  .patient-billing-table thead {
+    display: none;
+  }
+
+  .patient-billing-table,
+  .patient-billing-table tbody,
+  .patient-billing-table tr,
+  .patient-billing-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .patient-billing-table tr {
+    padding: 18px;
+    border-top: 1px solid rgba(160, 174, 203, 0.12);
+  }
+
+  .patient-billing-table tr:first-child {
+    border-top: 0;
+  }
+
+  .patient-billing-table td {
+    padding: 10px 0 0;
+    border-top: 0;
+    text-align: left !important;
+  }
+
+  .patient-billing-table td:first-child {
+    padding-top: 0;
+  }
+
+  .patient-billing-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--patient-muted);
+  }
+
+  .patient-billing-service strong {
+    font-size: 15px;
+  }
+
+  .patient-billing-service p,
+  .patient-billing-help-card p,
+  .patient-billing-intro,
+  .patient-billing-security-note {
+    font-size: 12px;
+  }
+
+  .patient-billing-amount {
+    font-size: 17px;
+  }
+
+  .patient-billing-total-row strong {
+    font-size: 24px;
+  }
+}

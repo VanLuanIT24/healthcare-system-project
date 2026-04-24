@@ -1,10 +1,13 @@
 const {
   Appointment,
   Encounter,
+  MedicationMaster,
   Patient,
   PatientAccount,
   PatientIdentifier,
   Prescription,
+  PrescriptionItem,
+  User,
 } = require('../models');
 const authService = require('./auth.service');
 const {
@@ -540,6 +543,45 @@ async function updateMyPatientProfile(auth, payload, requestMeta = {}) {
   };
 
   await authService.updateMyProfile(auth, profilePayload, requestMeta);
+  const patient = await Patient.findById(auth.patientId);
+
+  if (!patient || patient.is_deleted) {
+    throw createError('KhÃ´ng tÃ¬m tháº¥y bá»‡nh nhÃ¢n.', 404);
+  }
+
+  const normalized = normalizePatientData(payload);
+  const patientOnlyFields = [
+    'national_id',
+    'insurance_number',
+    'emergency_contact_name',
+    'emergency_contact_phone',
+    'gender',
+    'date_of_birth',
+  ];
+
+  let hasPatientChanges = false;
+
+  for (const field of patientOnlyFields) {
+    if (normalized[field] !== undefined) {
+      patient[field] = normalized[field];
+      hasPatientChanges = true;
+    }
+  }
+
+  if (hasPatientChanges) {
+    await patient.save();
+    await recordAuditLog({
+      actorType: 'patient',
+      actorId: auth.patientAccountId,
+      action: 'patient.profile.update',
+      targetType: 'patient',
+      targetId: patient._id,
+      status: 'success',
+      message: 'Cáº­p nháº­t thÃ´ng tin há»“ sÆ¡ bá»‡nh nhÃ¢n thÃ nh cÃ´ng.',
+      requestMeta,
+    });
+  }
+
   return getPatientDetail(auth.patientId);
 }
 
@@ -574,14 +616,88 @@ async function getPatientEncounterHistory(patientId, query = {}) {
 async function getPatientPrescriptionHistory(patientId, query = {}) {
   const encounterIds = (await Encounter.find({ patient_id: patientId }).select('_id').lean()).map((item) => item._id);
   const { page, limit, skip } = getPagination(query);
-  const [items, total] = await Promise.all([
+  const [prescriptions, total] = await Promise.all([
     Prescription.find({ encounter_id: { $in: encounterIds } }).sort({ prescribed_at: -1 }).skip(skip).limit(limit).lean(),
     Prescription.countDocuments({ encounter_id: { $in: encounterIds } }),
   ]);
 
+  const prescriptionIds = prescriptions.map((item) => item._id);
+  const medicationItems = prescriptionIds.length
+    ? await PrescriptionItem.find({
+        prescription_id: { $in: prescriptionIds },
+        status: { $ne: 'cancelled' },
+      })
+        .sort({ created_at: 1 })
+        .lean()
+    : [];
+  const medicationIds = [...new Set(medicationItems.map((item) => String(item.medication_id)).filter(Boolean))];
+  const doctorIds = [...new Set(prescriptions.map((item) => String(item.prescribed_by)).filter(Boolean))];
+  const prescriptionEncounterIds = [...new Set(prescriptions.map((item) => String(item.encounter_id)).filter(Boolean))];
+
+  const [medications, doctors, relatedEncounters] = await Promise.all([
+    medicationIds.length
+      ? MedicationMaster.find({ _id: { $in: medicationIds } })
+          .select('generic_name brand_name strength dosage_form')
+          .lean()
+      : [],
+    doctorIds.length ? User.find({ _id: { $in: doctorIds }, is_deleted: false }).select('full_name').lean() : [],
+    prescriptionEncounterIds.length
+      ? Encounter.find({ _id: { $in: prescriptionEncounterIds } }).select('encounter_code department_name encounter_type').lean()
+      : [],
+  ]);
+
+  const medicationMap = new Map(medications.map((item) => [String(item._id), item]));
+  const doctorMap = new Map(doctors.map((item) => [String(item._id), item]));
+  const encounterMap = new Map(relatedEncounters.map((item) => [String(item._id), item]));
+  const groupedItems = medicationItems.reduce((map, item) => {
+    const key = String(item.prescription_id);
+    const bucket = map.get(key) || [];
+    bucket.push(item);
+    map.set(key, bucket);
+    return map;
+  }, new Map());
+
   return {
     patient_id: String(patientId),
-    items,
+    items: prescriptions.map((prescription) => {
+      const doctor = doctorMap.get(String(prescription.prescribed_by));
+      const encounter = encounterMap.get(String(prescription.encounter_id));
+      const items = (groupedItems.get(String(prescription._id)) || []).map((item) => {
+        const medication = medicationMap.get(String(item.medication_id));
+        const medicationName =
+          medication?.brand_name ||
+          [medication?.generic_name, medication?.strength].filter(Boolean).join(' ') ||
+          'Thuá»‘c chÆ°a Ä‘á»‹nh danh';
+
+        return {
+          prescription_item_id: String(item._id),
+          medication_id: item.medication_id ? String(item.medication_id) : null,
+          medication_name: medicationName,
+          dose: item.dose,
+          frequency: item.frequency,
+          route: item.route,
+          duration_days: item.duration_days,
+          quantity: item.quantity,
+          instructions: item.instructions,
+          status: item.status,
+        };
+      });
+
+      return {
+        prescription_id: String(prescription._id),
+        prescription_no: prescription.prescription_no,
+        prescribed_at: prescription.prescribed_at,
+        status: prescription.status,
+        note: prescription.note,
+        encounter_id: prescription.encounter_id ? String(prescription.encounter_id) : null,
+        encounter_code: encounter?.encounter_code || null,
+        department_name: encounter?.department_name || null,
+        encounter_type: encounter?.encounter_type || null,
+        doctor_id: prescription.prescribed_by ? String(prescription.prescribed_by) : null,
+        doctor_name: doctor?.full_name || null,
+        items,
+      };
+    }),
     pagination: buildPagination(page, limit, total),
   };
 }

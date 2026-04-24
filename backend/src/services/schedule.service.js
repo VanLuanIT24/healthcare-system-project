@@ -115,6 +115,39 @@ function calculateScheduleSlots(schedule) {
   return slots;
 }
 
+async function buildScheduleDoctorMap(schedules = []) {
+  const doctorIds = [...new Set(schedules.map((schedule) => String(schedule.doctor_id)).filter(Boolean))];
+
+  if (doctorIds.length === 0) {
+    return new Map();
+  }
+
+  const doctors = await User.find({ _id: { $in: doctorIds }, is_deleted: false })
+    .select('full_name employee_code department_id')
+    .lean();
+
+  return new Map(doctors.map((doctor) => [String(doctor._id), doctor]));
+}
+
+function formatDoctorSchedule(schedule, doctorMap = new Map()) {
+  const doctor = doctorMap.get(String(schedule.doctor_id));
+
+  return {
+    doctor_schedule_id: String(schedule._id),
+    doctor_id: String(schedule.doctor_id),
+    doctor_name: doctor?.full_name || null,
+    doctor_code: doctor?.employee_code || null,
+    department_id: String(schedule.department_id),
+    work_date: schedule.work_date,
+    shift_start: schedule.shift_start,
+    shift_end: schedule.shift_end,
+    slot_duration_minutes: schedule.slot_duration_minutes,
+    max_patients: schedule.max_patients,
+    blocked_slots_count: (schedule.blocked_slots || []).length,
+    status: schedule.status,
+  };
+}
+
 async function countScheduleAppointments(scheduleId) {
   return Appointment.countDocuments({
     doctor_schedule_id: scheduleId,
@@ -266,7 +299,13 @@ async function listDoctorSchedules(query = {}) {
 
   if (query.doctor_id) filter.doctor_id = query.doctor_id;
   if (query.department_id) filter.department_id = query.department_id;
-  if (query.status) filter.status = query.status;
+  if (query.status) {
+    const statuses = String(query.status)
+      .split(',')
+      .map((status) => status.trim())
+      .filter(Boolean);
+    filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
+  }
   if (query.date_from || query.date_to) {
     filter.work_date = {};
     if (query.date_from) filter.work_date.$gte = getStartOfDay(query.date_from);
@@ -277,20 +316,10 @@ async function listDoctorSchedules(query = {}) {
     DoctorSchedule.find(filter).sort({ work_date: 1, shift_start: 1 }).skip(skip).limit(limit).lean(),
     DoctorSchedule.countDocuments(filter),
   ]);
+  const doctorMap = await buildScheduleDoctorMap(items);
 
   return {
-    items: items.map((schedule) => ({
-      doctor_schedule_id: String(schedule._id),
-      doctor_id: String(schedule.doctor_id),
-      department_id: String(schedule.department_id),
-      work_date: schedule.work_date,
-      shift_start: schedule.shift_start,
-      shift_end: schedule.shift_end,
-      slot_duration_minutes: schedule.slot_duration_minutes,
-      max_patients: schedule.max_patients,
-      blocked_slots_count: (schedule.blocked_slots || []).length,
-      status: schedule.status,
-    })),
+    items: items.map((schedule) => formatDoctorSchedule(schedule, doctorMap)),
     pagination: buildPagination(page, limit, total),
   };
 }
@@ -301,23 +330,16 @@ async function getDoctorScheduleDetail(scheduleId) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
 
-  const [availableSlots, appointmentsCount] = await Promise.all([
+  const [availableSlots, appointmentsCount, doctorMap] = await Promise.all([
     getAvailableSlots(schedule._id),
     countScheduleAppointments(schedule._id),
+    buildScheduleDoctorMap([schedule]),
   ]);
 
   return {
     schedule: {
-      doctor_schedule_id: String(schedule._id),
-      doctor_id: String(schedule.doctor_id),
-      department_id: String(schedule.department_id),
-      work_date: schedule.work_date,
-      shift_start: schedule.shift_start,
-      shift_end: schedule.shift_end,
-      slot_duration_minutes: schedule.slot_duration_minutes,
-      max_patients: schedule.max_patients,
+      ...formatDoctorSchedule(schedule, doctorMap),
       blocked_slots: schedule.blocked_slots || [],
-      status: schedule.status,
     },
     appointments_count: appointmentsCount,
     slots_summary: {

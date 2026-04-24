@@ -77,6 +77,10 @@ module.exports = {
     (req) => patientService.updateMyPatientProfile(req.auth, req.body, requestMeta(req)),
     'Cập nhật hồ sơ bệnh nhân của tôi thành công.',
   ),
+  getMyPrescriptions: wrap(
+    (req) => patientService.getPatientPrescriptionHistory(req.auth.patientId, req.query),
+    'Láº¥y Ä‘Æ¡n thuá»‘c cá»§a tÃ´i thÃ nh cÃ´ng.',
+  ),
   getPatientAppointmentHistory: wrap(
     (req) => patientService.getPatientAppointmentHistory(req.params.patientId, req.query),
     'Lấy lịch sử lịch hẹn của bệnh nhân thành công.',

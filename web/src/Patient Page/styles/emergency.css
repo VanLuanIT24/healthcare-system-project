@@ -1,0 +1,676 @@
+.patient-emergency-page {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.patient-emergency-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.patient-emergency-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #ffdad6;
+  color: #93000a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.patient-emergency-head h1 {
+  margin-top: 14px;
+  font-size: var(--patient-hero-title-size);
+  line-height: 0.94;
+  letter-spacing: -0.05em;
+}
+
+.patient-emergency-head p {
+  max-width: 720px;
+  margin-top: 12px;
+  color: var(--patient-muted);
+  font-size: var(--patient-body-size);
+  line-height: 1.72;
+}
+
+.patient-emergency-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.patient-emergency-print,
+.patient-emergency-map-head button,
+.patient-emergency-add-contact {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.patient-emergency-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 18px;
+  border-radius: 18px;
+  background: rgba(233, 238, 248, 0.9);
+  color: var(--patient-copy);
+  font-weight: 800;
+}
+
+.patient-emergency-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.patient-emergency-sos-card {
+  grid-column: span 7;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.patient-emergency-sos-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.patient-emergency-sos-head > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.patient-emergency-sos-head .material-symbols-outlined {
+  color: #ba1a1a;
+  font-size: 34px;
+}
+
+.patient-emergency-sos-head h2,
+.patient-emergency-qr-card h2,
+.patient-emergency-contacts-card h2,
+.patient-emergency-map-head h2 {
+  font-size: var(--patient-section-title-size);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.patient-emergency-sos-head > span {
+  color: var(--patient-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.patient-emergency-sos-copy p {
+  color: var(--patient-muted);
+  font-size: var(--patient-body-size);
+  line-height: 1.78;
+}
+
+.patient-emergency-sos-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 26px;
+  align-items: center;
+}
+
+.patient-emergency-sos-trigger {
+  min-height: 260px;
+  border: 0;
+  border-radius: 32px;
+  background: linear-gradient(135deg, #ba1a1a 0%, #93000a 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-shadow: 0 28px 54px rgba(147, 0, 10, 0.28);
+  cursor: pointer;
+}
+
+.patient-emergency-sos-trigger .material-symbols-outlined {
+  font-size: 76px;
+}
+
+.patient-emergency-sos-trigger strong {
+  font-family: 'Manrope', sans-serif;
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.patient-emergency-sos-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.patient-emergency-sos-meta article {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(243, 246, 251, 0.88);
+}
+
+.patient-emergency-meta-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+}
+
+.patient-emergency-meta-icon.is-location {
+  background: #dff8ef;
+  color: #0d7b68;
+}
+
+.patient-emergency-meta-icon.is-dispatch {
+  background: #dbe7ff;
+  color: var(--patient-primary);
+}
+
+.patient-emergency-sos-meta small,
+.patient-emergency-profile-card small {
+  display: block;
+  color: var(--patient-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.patient-emergency-sos-meta strong,
+.patient-emergency-contact-copy strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.patient-emergency-qr-card {
+  grid-column: span 5;
+  position: relative;
+  overflow: hidden;
+  border-radius: 34px;
+  padding: 30px;
+  background: linear-gradient(180deg, #1e2432 0%, #111827 100%);
+  color: #fff;
+}
+
+.patient-emergency-qr-card::before {
+  content: '';
+  position: absolute;
+  top: -70px;
+  right: -70px;
+  width: 240px;
+  height: 240px;
+  border-radius: 999px;
+  background: rgba(13, 99, 243, 0.18);
+  filter: blur(80px);
+}
+
+.patient-emergency-qr-card p {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.patient-emergency-qr-frame {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  margin: 28px auto 0;
+  padding: 20px;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+}
+
+.patient-emergency-qr-code {
+  width: 192px;
+  height: 192px;
+  border-radius: 16px;
+  background:
+    linear-gradient(90deg, #111 0 20px, transparent 20px 28px, #111 28px 52px, transparent 52px 66px, #111 66px 94px, transparent 94px 110px, #111 110px 132px, transparent 132px 150px, #111 150px 100%),
+    linear-gradient(#111 0 20px, transparent 20px 34px, #111 34px 62px, transparent 62px 78px, #111 78px 108px, transparent 108px 124px, #111 124px 146px, transparent 146px 166px, #111 166px 100%),
+    #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.patient-emergency-qr-code span {
+  position: absolute;
+  background: #fff;
+}
+
+.patient-emergency-qr-code span:nth-child(1) { inset: 16px auto auto 16px; width: 36px; height: 36px; }
+.patient-emergency-qr-code span:nth-child(2) { inset: 16px 16px auto auto; width: 28px; height: 28px; }
+.patient-emergency-qr-code span:nth-child(3) { inset: auto auto 16px 16px; width: 30px; height: 30px; }
+.patient-emergency-qr-code span:nth-child(4) { inset: 72px auto auto 74px; width: 24px; height: 24px; }
+.patient-emergency-qr-code span:nth-child(5) { inset: 102px 40px auto auto; width: 18px; height: 18px; }
+.patient-emergency-qr-code span:nth-child(6) { inset: auto 60px 28px auto; width: 22px; height: 22px; }
+.patient-emergency-qr-code span:nth-child(7) { inset: 132px auto auto 50px; width: 14px; height: 14px; }
+.patient-emergency-qr-code span:nth-child(8) { inset: 56px 22px auto auto; width: 12px; height: 12px; }
+
+.patient-emergency-qr-verified {
+  position: absolute;
+  right: -12px;
+  bottom: -12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--patient-primary);
+  color: #fff;
+}
+
+.patient-emergency-verified-pill {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 24px auto 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.patient-emergency-verified-pill span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #0d7b68;
+}
+
+.patient-emergency-verified-pill strong {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.patient-emergency-profile-grid {
+  grid-column: span 8;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.patient-emergency-profile-card {
+  min-height: 220px;
+}
+
+.patient-emergency-blood {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.patient-emergency-blood strong {
+  font-family: 'Manrope', sans-serif;
+  color: #ba1a1a;
+  font-size: 72px;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+}
+
+.patient-emergency-blood span {
+  color: var(--patient-muted);
+  font-size: 15px;
+  font-weight: 700;
+  padding-bottom: 12px;
+}
+
+.patient-emergency-profile-card.is-alert {
+  position: relative;
+  overflow: hidden;
+}
+
+.patient-emergency-profile-card.is-alert > .material-symbols-outlined {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  color: rgba(186, 26, 26, 0.24);
+  font-size: 28px;
+}
+
+.patient-emergency-allergy {
+  display: inline-flex;
+  margin-top: 24px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #ffdad6;
+  color: #93000a;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.patient-emergency-profile-card.is-alert span:last-child {
+  display: block;
+  margin-top: 12px;
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.patient-emergency-condition-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.patient-emergency-condition-list div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.patient-emergency-condition-list span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(160, 174, 203, 0.6);
+}
+
+.patient-emergency-condition-list span.is-primary {
+  background: var(--patient-primary);
+}
+
+.patient-emergency-condition-list strong {
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.patient-emergency-contacts-card {
+  grid-column: span 4;
+}
+
+.patient-emergency-contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.patient-emergency-contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.patient-emergency-contact-copy {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.patient-emergency-contact-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.patient-emergency-contact-avatar.mint {
+  background: #dff8ef;
+  color: #0d7b68;
+}
+
+.patient-emergency-contact-avatar.soft {
+  background: #dbe3f1;
+  color: #141c26;
+}
+
+.patient-emergency-contact-copy small {
+  display: block;
+  margin-top: 4px;
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.patient-emergency-contact-row button {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(233, 238, 248, 0.92);
+  color: var(--patient-copy);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.patient-emergency-contact-row button:hover {
+  background: var(--patient-primary);
+  color: #fff;
+}
+
+.patient-emergency-add-contact {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 24px;
+  border-radius: 18px;
+  background: transparent;
+  border: 2px dashed rgba(160, 174, 203, 0.32);
+  color: var(--patient-muted);
+  font-weight: 800;
+}
+
+.patient-emergency-map-card {
+  grid-column: span 12;
+}
+
+.patient-emergency-map-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.patient-emergency-map-head p {
+  margin-top: 8px;
+  color: var(--patient-muted);
+  font-size: 14px;
+}
+
+.patient-emergency-map-head button {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--patient-primary);
+  color: #fff;
+  font-weight: 800;
+}
+
+.patient-emergency-map-stage {
+  position: relative;
+  height: 320px;
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.patient-emergency-map-surface {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255, 92, 102, 0.18), transparent 16%),
+    radial-gradient(circle at 76% 66%, rgba(13, 99, 243, 0.14), transparent 18%),
+    linear-gradient(transparent 0 18%, rgba(255, 255, 255, 0.74) 18% 20%, transparent 20% 46%, rgba(255, 255, 255, 0.72) 46% 48%, transparent 48% 76%, rgba(255, 255, 255, 0.74) 76% 78%, transparent 78% 100%),
+    linear-gradient(90deg, transparent 0 14%, rgba(255, 255, 255, 0.76) 14% 16%, transparent 16% 36%, rgba(255, 255, 255, 0.72) 36% 38%, transparent 38% 62%, rgba(255, 255, 255, 0.74) 62% 64%, transparent 64% 88%, rgba(255, 255, 255, 0.72) 88% 90%, transparent 90% 100%),
+    linear-gradient(135deg, transparent 0 28%, rgba(255, 92, 102, 0.16) 28% 30%, transparent 30% 100%),
+    linear-gradient(45deg, transparent 0 52%, rgba(13, 99, 243, 0.12) 52% 54%, transparent 54% 100%),
+    linear-gradient(180deg, #eef2f8 0%, #e9eef6 100%);
+}
+
+.patient-emergency-map-surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 56%, rgba(0, 0, 0, 0.18) 100%);
+}
+
+.patient-emergency-map-highlight {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 360px;
+  padding: 16px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 22px 40px rgba(15, 23, 42, 0.12);
+}
+
+.patient-emergency-map-highlight span {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: #ba1a1a;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.patient-emergency-map-highlight strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.patient-emergency-map-highlight small {
+  display: block;
+  margin-top: 4px;
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.patient-emergency-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 8px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(160, 174, 203, 0.2);
+  color: var(--patient-muted);
+}
+
+.patient-emergency-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.patient-emergency-footer p,
+.patient-emergency-footer button {
+  color: inherit;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.patient-emergency-footer button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.patient-emergency-footer > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #dff8ef;
+  color: #0d7b68;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1320px) {
+  .patient-emergency-sos-card,
+  .patient-emergency-qr-card,
+  .patient-emergency-profile-grid,
+  .patient-emergency-contacts-card {
+    grid-column: span 12;
+  }
+
+  .patient-emergency-profile-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .patient-emergency-head,
+  .patient-emergency-map-head,
+  .patient-emergency-sos-layout {
+    flex-direction: column;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .patient-emergency-profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .patient-emergency-sos-card,
+  .patient-emergency-qr-card {
+    padding: 22px;
+  }
+
+  .patient-emergency-sos-trigger {
+    min-height: 220px;
+  }
+
+  .patient-emergency-sos-trigger strong {
+    font-size: 30px;
+  }
+
+  .patient-emergency-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

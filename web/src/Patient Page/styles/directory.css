@@ -1,0 +1,476 @@
+.patient-directory-page {
+  min-height: calc(100vh - 152px);
+}
+
+.patient-directory-shell {
+  display: grid;
+  grid-template-columns: 420px minmax(0, 1fr);
+  gap: 24px;
+  min-height: calc(100vh - 172px);
+}
+
+.patient-directory-list-panel {
+  display: flex;
+  flex-direction: column;
+  border-radius: 34px;
+  overflow: hidden;
+  background: rgba(243, 246, 251, 0.92);
+  border: 1px solid rgba(160, 174, 203, 0.18);
+  min-height: 0;
+}
+
+.patient-directory-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 24px;
+  border-bottom: 1px solid rgba(160, 174, 203, 0.16);
+}
+
+.patient-directory-chip,
+.patient-directory-card-main,
+.patient-directory-secondary-action,
+.patient-directory-primary-action,
+.patient-directory-marker,
+.patient-directory-zoom-box button,
+.patient-directory-locate {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.patient-directory-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 0 0 1px rgba(160, 174, 203, 0.18);
+}
+
+.patient-directory-chip.is-active {
+  background: linear-gradient(135deg, var(--patient-primary), #3d82ff);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(13, 99, 243, 0.18);
+}
+
+.patient-directory-card-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.patient-directory-card {
+  padding: 20px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(160, 174, 203, 0.12);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.patient-directory-card:hover {
+  background: rgba(248, 250, 253, 1);
+  border-color: rgba(160, 174, 203, 0.2);
+}
+
+.patient-directory-card.is-selected {
+  border-left: 4px solid var(--patient-primary);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.05);
+}
+
+.patient-directory-card-main {
+  width: 100%;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+.patient-directory-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.patient-directory-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.patient-directory-badge.mint {
+  background: #dff8ef;
+  color: #0d7b68;
+}
+
+.patient-directory-badge.soft {
+  background: #dde4ef;
+  color: #4b5873;
+}
+
+.patient-directory-badge.blue {
+  background: #dbe7ff;
+  color: var(--patient-primary);
+}
+
+.patient-directory-distance,
+.patient-directory-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.patient-directory-card h2 {
+  margin-top: 14px;
+  font-size: clamp(22px, 0.7vw + 16px, 26px);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  transition: color 0.2s ease;
+}
+
+.patient-directory-card:hover h2,
+.patient-directory-card.is-selected h2 {
+  color: var(--patient-primary);
+}
+
+.patient-directory-address {
+  margin-top: 8px;
+  color: var(--patient-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.patient-directory-meta {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.patient-directory-status.open {
+  color: #0d7b68;
+}
+
+.patient-directory-status.closing {
+  color: #b9383a;
+}
+
+.patient-directory-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.patient-directory-secondary-action,
+.patient-directory-primary-action {
+  min-height: 44px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.patient-directory-secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(233, 238, 248, 0.84);
+  color: var(--patient-copy);
+}
+
+.patient-directory-primary-action {
+  background: rgba(13, 99, 243, 0.08);
+  color: var(--patient-primary);
+}
+
+.patient-directory-primary-action:hover {
+  background: var(--patient-primary);
+  color: #fff;
+}
+
+.patient-directory-map-panel {
+  position: relative;
+  min-height: 0;
+  border-radius: 36px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #eff4fb 0%, #eef2f8 100%);
+  border: 1px solid rgba(160, 174, 203, 0.16);
+}
+
+.patient-directory-map-surface {
+  position: absolute;
+  inset: 0;
+  opacity: 0.9;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(13, 99, 243, 0.15), transparent 14%),
+    radial-gradient(circle at 75% 74%, rgba(1, 187, 155, 0.14), transparent 16%),
+    linear-gradient(transparent 0 8%, rgba(255, 255, 255, 0.82) 8% 10%, transparent 10% 28%, rgba(255, 255, 255, 0.8) 28% 30%, transparent 30% 46%, rgba(255, 255, 255, 0.82) 46% 48%, transparent 48% 64%, rgba(255, 255, 255, 0.8) 64% 66%, transparent 66% 100%),
+    linear-gradient(90deg, transparent 0 16%, rgba(255, 255, 255, 0.84) 16% 18%, transparent 18% 38%, rgba(255, 255, 255, 0.82) 38% 40%, transparent 40% 62%, rgba(255, 255, 255, 0.82) 62% 64%, transparent 64% 84%, rgba(255, 255, 255, 0.82) 84% 86%, transparent 86% 100%),
+    linear-gradient(135deg, transparent 0 22%, rgba(144, 179, 241, 0.2) 22% 24%, transparent 24% 54%, rgba(144, 179, 241, 0.18) 54% 56%, transparent 56% 100%),
+    linear-gradient(45deg, transparent 0 30%, rgba(170, 227, 214, 0.18) 30% 32%, transparent 32% 74%, rgba(170, 227, 214, 0.16) 74% 76%, transparent 76% 100%),
+    linear-gradient(180deg, #f7faff 0%, #edf2f8 100%);
+}
+
+.patient-directory-markers {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.patient-directory-marker {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: transparent;
+  transform: translate(-50%, -50%);
+}
+
+.patient-directory-marker-pin {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  color: #fff;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+
+.patient-directory-marker.primary .patient-directory-marker-pin,
+.patient-directory-marker.mint .patient-directory-marker-pin {
+  background: var(--patient-primary);
+}
+
+.patient-directory-marker.secondary .patient-directory-marker-pin {
+  background: #0d7b68;
+}
+
+.patient-directory-marker.slate .patient-directory-marker-pin {
+  background: #64748b;
+}
+
+.patient-directory-marker.active .patient-directory-marker-pin {
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  background: var(--patient-primary);
+  box-shadow: 0 0 0 16px rgba(13, 99, 243, 0.12), 0 24px 42px rgba(13, 99, 243, 0.26);
+}
+
+.patient-directory-marker.is-selected {
+  z-index: 2;
+}
+
+.patient-directory-marker.is-selected .patient-directory-marker-pin {
+  transform: scale(1.08);
+}
+
+.patient-directory-marker-label {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(18, 24, 38, 0.88);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.patient-directory-marker.active .patient-directory-marker-label,
+.patient-directory-marker.is-selected .patient-directory-marker-label {
+  background: var(--patient-primary);
+}
+
+.patient-directory-map-controls {
+  position: absolute;
+  right: 26px;
+  bottom: 26px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.patient-directory-zoom-box {
+  overflow: hidden;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+}
+
+.patient-directory-zoom-box button,
+.patient-directory-locate {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--patient-muted);
+}
+
+.patient-directory-zoom-box button + button {
+  border-top: 1px solid rgba(160, 174, 203, 0.14);
+}
+
+.patient-directory-locate {
+  border-radius: 18px;
+  color: var(--patient-primary);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+}
+
+.patient-directory-map-summary {
+  position: absolute;
+  top: 26px;
+  right: 26px;
+  z-index: 2;
+  width: min(320px, calc(100% - 52px));
+  padding: 24px;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(22px);
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  box-shadow: 0 24px 42px rgba(15, 23, 42, 0.12);
+}
+
+.patient-directory-map-summary h3 {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.patient-directory-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.patient-directory-summary-list div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.patient-directory-summary-list span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.patient-directory-summary-list span.is-clinic {
+  background: #0d7b68;
+}
+
+.patient-directory-summary-list span.is-pharmacy {
+  background: var(--patient-primary);
+}
+
+.patient-directory-summary-list p,
+.patient-directory-map-summary > p {
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.patient-directory-map-summary > p {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(160, 174, 203, 0.18);
+}
+
+.patient-directory-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 260px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--patient-muted);
+  text-align: center;
+  padding: 24px;
+}
+
+.patient-directory-empty h3 {
+  font-size: 20px;
+  color: var(--patient-copy);
+}
+
+.patient-directory-empty p {
+  max-width: 260px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+@media (max-width: 1320px) {
+  .patient-directory-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-directory-list-panel {
+    min-height: 420px;
+  }
+
+  .patient-directory-map-panel {
+    min-height: 620px;
+  }
+}
+
+@media (max-width: 720px) {
+  .patient-directory-shell {
+    gap: 18px;
+  }
+
+  .patient-directory-filters,
+  .patient-directory-card-list {
+    padding: 18px;
+  }
+
+  .patient-directory-card {
+    padding: 16px;
+  }
+
+  .patient-directory-card h2 {
+    font-size: 22px;
+  }
+
+  .patient-directory-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-directory-map-summary {
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
+
+  .patient-directory-map-controls {
+    right: 16px;
+    bottom: 16px;
+  }
+}

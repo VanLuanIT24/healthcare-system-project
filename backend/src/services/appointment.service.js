@@ -178,6 +178,27 @@ function calculateAppointmentSource(payload = {}, actor = null) {
   return actor.actorType === 'patient' ? 'patient_portal' : 'staff';
 }
 
+async function buildAppointmentReferenceMaps(appointments = []) {
+  const doctorIds = [...new Set(appointments.map((item) => String(item.doctor_id)).filter(Boolean))];
+  const departmentIds = [...new Set(appointments.map((item) => String(item.department_id)).filter(Boolean))];
+
+  const [doctors, departments] = await Promise.all([
+    doctorIds.length
+      ? User.find({ _id: { $in: doctorIds }, is_deleted: false }).select('full_name employee_code').lean()
+      : [],
+    departmentIds.length
+      ? Department.find({ _id: { $in: departmentIds }, is_deleted: false })
+          .select('department_name department_code')
+          .lean()
+      : [],
+  ]);
+
+  return {
+    doctorMap: new Map(doctors.map((doctor) => [String(doctor._id), doctor])),
+    departmentMap: new Map(departments.map((department) => [String(department._id), department])),
+  };
+}
+
 async function ensurePatientAndDoctor(payload) {
   const [patient, doctor, department] = await Promise.all([
     Patient.findById(payload.patient_id).lean(),
@@ -287,20 +308,30 @@ async function listAppointments(query = {}) {
     Appointment.find(filter).sort({ appointment_time: -1 }).skip(skip).limit(limit).lean(),
     Appointment.countDocuments(filter),
   ]);
+  const { doctorMap, departmentMap } = await buildAppointmentReferenceMaps(items);
 
   return {
-    items: items.map((item) => ({
-      appointment_id: String(item._id),
-      patient_id: String(item.patient_id),
-      doctor_id: String(item.doctor_id),
-      department_id: String(item.department_id),
-      doctor_schedule_id: item.doctor_schedule_id ? String(item.doctor_schedule_id) : null,
-      appointment_time: item.appointment_time,
-      appointment_type: item.appointment_type,
-      source: item.source,
-      status: item.status,
-      reason: item.reason,
-    })),
+    items: items.map((item) => {
+      const doctor = doctorMap.get(String(item.doctor_id));
+      const department = departmentMap.get(String(item.department_id));
+
+      return {
+        appointment_id: String(item._id),
+        patient_id: String(item.patient_id),
+        doctor_id: String(item.doctor_id),
+        doctor_name: doctor?.full_name || null,
+        doctor_code: doctor?.employee_code || null,
+        department_id: String(item.department_id),
+        department_name: department?.department_name || null,
+        department_code: department?.department_code || null,
+        doctor_schedule_id: item.doctor_schedule_id ? String(item.doctor_schedule_id) : null,
+        appointment_time: item.appointment_time,
+        appointment_type: item.appointment_type,
+        source: item.source,
+        status: item.status,
+        reason: item.reason,
+      };
+    }),
     pagination: buildPagination(page, limit, total),
   };
 }

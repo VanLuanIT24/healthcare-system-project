@@ -11,6 +11,7 @@ router.get('/me/profile', authorize({ actorTypes: ['patient'] }), patientControl
 router.patch('/me/profile', authorize({ actorTypes: ['patient'] }), patientController.updateMyPatientProfile);
 router.get('/me/appointments', authorize({ actorTypes: ['patient'] }), patientController.getMyAppointments);
 router.get('/me/encounters', authorize({ actorTypes: ['patient'] }), patientController.getMyEncounters);
+router.get('/me/prescriptions', authorize({ actorTypes: ['patient'] }), patientController.getMyPrescriptions);
 
 router.use(authorize({ actorTypes: ['staff'] }));
 
