@@ -35,6 +35,7 @@ import './styles/notifications.css'
 import './styles/profile-settings.css'
 import './styles/support.css'
 import './styles/trends.css'
+import './styles/compact-desktop.css'
 
 function getApiErrorMessage(error, fallback) {
   return error.response?.data?.message || error.message || fallback

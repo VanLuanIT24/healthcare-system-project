@@ -194,11 +194,11 @@ export default function PatientTopbar({
             aria-label="Mở menu tài khoản"
             aria-expanded={openMenu === 'profile'}
           >
+            <div className="patient-avatar">{avatarText}</div>
             <div className="patient-profile-copy">
               <p>{patientName}</p>
               <span>Bệnh nhân ưu tiên</span>
             </div>
-            <div className="patient-avatar">{avatarText}</div>
             <span className="patient-profile-caret" aria-hidden="true">
               <PatientIcon name={openMenu === 'profile' ? 'expand_less' : 'expand_more'} />
             </span>
