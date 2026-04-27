@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChartNoAxesCombined,
   Clock3,
+  FileClock,
   Headphones,
   House,
   LayoutDashboard,
@@ -14,6 +15,7 @@ import {
   LogOut,
   Menu,
   Search,
+  Send,
   Settings,
   ShieldCheck,
   Sun,
@@ -30,12 +32,14 @@ const navItems = [
   { label: 'Danh sách lịch', to: '/scheduling/schedules', hint: 'Quản lý tất cả lịch bác sĩ', icon: CalendarDays },
   { label: 'Tạo lịch', to: '/scheduling/create', hint: 'Tạo lịch mới', icon: WandSparkles },
   { label: 'Tạo hàng loạt', to: '/scheduling/bulk-create', hint: 'Tạo nhiều lịch cùng lúc', icon: Layers3, badge: 'HOT' },
+  { label: 'Duyệt & xuất bản', to: '/scheduling/approvals', hint: 'Duyệt và công bố lịch', icon: Send },
   { label: 'Lịch trực quan', to: '/scheduling/calendar', hint: 'Xem lịch theo ngày / tuần', icon: CalendarCheck2 },
-  { label: 'Quản lý khung giờ', to: '/scheduling/slots', hint: 'Slot, mở và theo dõi', icon: Clock3 },
-  { label: 'Báo cáo', to: '/scheduling/utilization', hint: 'Hiệu suất & phân tích', icon: ChartNoAxesCombined },
+  { label: 'Khung giờ & slot', to: '/scheduling/slots', hint: 'Quản lý khung giờ, slot', icon: Clock3 },
   { label: 'Theo bác sĩ', to: '/scheduling/doctors', hint: 'Lịch cá nhân từng bác sĩ', icon: UsersRound },
   { label: 'Theo khoa', to: '/scheduling/departments', hint: 'Lịch theo từng khoa', icon: Building2 },
-  { label: 'Cấu hình', to: '/admin/settings', hint: 'Thiết lập hệ thống', icon: Settings },
+  { label: 'Báo cáo thống kê', to: '/scheduling/utilization', hint: 'Hiệu suất & phân tích', icon: ChartNoAxesCombined },
+  { label: 'Nhật ký hoạt động', to: '/scheduling/activity', hint: 'Lịch sử thay đổi lịch', icon: FileClock },
+  { label: 'Cấu hình lịch', to: '/admin/settings', hint: 'Thiết lập hệ thống', icon: Settings },
 ];
 
 export function SchedulingShell() {

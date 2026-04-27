@@ -6,8 +6,8 @@ export default function PatientSidebar({ activeSection, onSectionChange, onLogou
     <aside className="patient-sidebar">
       <div className="patient-sidebar-top">
         <div className="patient-brand">
-          <div className="patient-brand-mark patient-brand-mark-logo">
-            <img src="images/logo.png" alt="HealthCare Logo" className="patient-brand-logo" />
+          <div className="patient-brand-mark" aria-hidden="true">
+            <PatientIcon name="monitor_heart" />
           </div>
           <div>
             <p className="patient-brand-name">HealthCare</p>

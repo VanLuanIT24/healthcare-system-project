@@ -91,11 +91,13 @@ export function AppRouter() {
           <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
           <Route path="create" element={<ScheduleCreatePage />} />
           <Route path="bulk-create" element={<ScheduleBulkCreatePage />} />
+          <Route path="approvals" element={<SchedulingDashboardPage />} />
           <Route path="calendar" element={<SchedulingCalendarPage />} />
           <Route path="slots" element={<SchedulingSlotsPage />} />
           <Route path="utilization" element={<SchedulingUtilizationPage />} />
           <Route path="doctors" element={<SchedulesByDoctorPage />} />
           <Route path="departments" element={<SchedulesByDepartmentPage />} />
+          <Route path="activity" element={<SchedulingDashboardPage />} />
         </Route>
         <Route path="/admin/scheduling/*" element={<Navigate to="/scheduling/dashboard" replace />} />
         <Route
