@@ -83,4 +83,16 @@ export const scheduleAPI = {
   getByDateRange: (params) => request('/schedules/date-range', { params, auth: false }),
   getAvailableSlots: (scheduleId) =>
     request(`/schedules/${encodeURIComponent(scheduleId)}/available-slots`, { auth: false }),
+  getSystemSummary: (params) => request('/schedules/summary/system', { params }),
+  getDepartmentSummary: (params) => request('/schedules/summary/departments', { params }),
+  getDateRangeSummary: (params) => request('/schedules/summary/date-range', { params }),
+  getActivity: (scheduleId, params) => request(`/schedules/${encodeURIComponent(scheduleId)}/activity`, { params }),
+  getMyTodaySchedule: (params) => request('/schedules/my/today', { params }),
+  getMyWeekSchedule: (params) => request('/schedules/my/week', { params }),
+  batchBlockSlots: (scheduleId, body) =>
+    request(`/schedules/${encodeURIComponent(scheduleId)}/block-slots`, { method: 'POST', body }),
+  batchReopenSlots: (scheduleId, body) =>
+    request(`/schedules/${encodeURIComponent(scheduleId)}/reopen-slots`, { method: 'POST', body }),
+  previewImpact: (scheduleId, body) =>
+    request(`/schedules/${encodeURIComponent(scheduleId)}/preview-impact`, { method: 'POST', body }),
 }

@@ -34,8 +34,22 @@ import { AboutPage } from '../home/pages/AboutPage';
 import { FaqPage } from '../home/pages/FaqPage';
 import { NewsArticlePage, NewsPage } from '../home/pages/NewsPage';
 import { ContactPage } from '../home/pages/ContactPage';
+import { StaffAccessPage } from '../staff/pages/StaffAccessPage';
 import { StaffOverviewPage } from '../staff/pages/StaffOverviewPage';
 import PatientPage from '../Patient Page';
+import {
+  ScheduleBulkCreatePage,
+  ScheduleCreatePage,
+  ScheduleDetailPage,
+  SchedulesByDepartmentPage,
+  SchedulesByDoctorPage,
+  SchedulingCalendarPage,
+  SchedulingDashboardPage,
+  SchedulingListPage,
+  SchedulingShell,
+  SchedulingSlotsPage,
+  SchedulingUtilizationPage,
+} from '../scheduling';
 
 export function AppRouter() {
   return (
@@ -48,6 +62,14 @@ export function AppRouter() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route
+          path="/staff/access"
+          element={
+            <StaffRoute>
+              <StaffAccessPage />
+            </StaffRoute>
+          }
+        />
+        <Route
           path="/staff/overview"
           element={
             <StaffRoute>
@@ -55,6 +77,27 @@ export function AppRouter() {
             </StaffRoute>
           }
         />
+        <Route
+          path="/scheduling"
+          element={
+            <StaffRoute>
+              <SchedulingShell />
+            </StaffRoute>
+          }
+        >
+          <Route index element={<Navigate to="/scheduling/dashboard" replace />} />
+          <Route path="dashboard" element={<SchedulingDashboardPage />} />
+          <Route path="schedules" element={<SchedulingListPage />} />
+          <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
+          <Route path="create" element={<ScheduleCreatePage />} />
+          <Route path="bulk-create" element={<ScheduleBulkCreatePage />} />
+          <Route path="calendar" element={<SchedulingCalendarPage />} />
+          <Route path="slots" element={<SchedulingSlotsPage />} />
+          <Route path="utilization" element={<SchedulingUtilizationPage />} />
+          <Route path="doctors" element={<SchedulesByDoctorPage />} />
+          <Route path="departments" element={<SchedulesByDepartmentPage />} />
+        </Route>
+        <Route path="/admin/scheduling/*" element={<Navigate to="/scheduling/dashboard" replace />} />
         <Route
           path="/patient"
           element={

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Doctor avatar">
+  <defs>
+    <linearGradient id="bg" x1="16" y1="8" x2="84" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff7ed"/>
+      <stop offset="1" stop-color="#fed7aa"/>
+    </linearGradient>
+    <linearGradient id="coat" x1="24" y1="55" x2="72" y2="94" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e0f2fe"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="24" fill="url(#bg)"/>
+  <circle cx="48" cy="42" r="24" fill="#2f1d1b"/>
+  <path d="M24 89c2-20 13-31 24-31s22 11 24 31H24Z" fill="url(#coat)"/>
+  <path d="M38 58h20l-3 13-7 6-7-6-3-13Z" fill="#f8c9ad"/>
+  <circle cx="48" cy="43" r="17" fill="#ffd6bd"/>
+  <path d="M31 40c5-16 19-22 34-10 2 6 0 12-3 17-8-7-19-8-31-7Z" fill="#2f1d1b"/>
+  <circle cx="42" cy="45" r="2" fill="#12233f"/>
+  <circle cx="54" cy="45" r="2" fill="#12233f"/>
+  <path d="M42 53c4 4 9 4 13 0" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round"/>
+  <path d="M32 70l11 17 5-10 5 10 11-17" fill="none" stroke="#b8d7e7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="69" cy="31" r="9" fill="#ffffff" opacity=".75"/>
+</svg>

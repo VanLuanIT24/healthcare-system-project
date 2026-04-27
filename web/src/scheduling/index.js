@@ -1,0 +1,11 @@
+export { SchedulingShell } from './components/SchedulingShell';
+export { SchedulingDashboardPage } from './pages/SchedulingDashboardPage';
+export { SchedulingListPage } from './pages/SchedulingListPage';
+export { ScheduleCreatePage } from './pages/ScheduleCreatePage';
+export { ScheduleBulkCreatePage } from './pages/ScheduleBulkCreatePage';
+export { ScheduleDetailPage } from './pages/ScheduleDetailPage';
+export { SchedulingCalendarPage } from './pages/SchedulingCalendarPage';
+export { SchedulingSlotsPage } from './pages/SchedulingSlotsPage';
+export { SchedulingUtilizationPage } from './pages/SchedulingUtilizationPage';
+export { SchedulesByDoctorPage } from './pages/SchedulesByDoctorPage';
+export { SchedulesByDepartmentPage } from './pages/SchedulesByDepartmentPage';

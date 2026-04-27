@@ -1,0 +1,85 @@
+/* Scheduling responsive rules */
+@media (max-width: 1200px) {
+  .scheduling-module,
+  .scheduling-dashboard-grid,
+  .scheduling-report-grid,
+  .scheduling-calendar-layout,
+  .scheduling-slot-layout,
+  .scheduling-form-layout,
+  .scheduling-dashboard-hero,
+  .scheduling-analytics-grid,
+  .scheduling-watch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduling-rail {
+    position: static;
+    height: auto;
+  }
+
+  .scheduling-metrics-grid,
+  .scheduling-metrics-grid--four,
+  .scheduling-metrics-grid--dashboard,
+  .scheduling-command-strip,
+  .scheduling-command-strip--dashboard,
+  .scheduling-detail-summary,
+  .scheduling-option-grid,
+  .scheduling-department-grid,
+  .scheduling-priority-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .scheduling-module {
+    padding: 0.75rem;
+  }
+
+  .scheduling-hero {
+    flex-direction: column;
+  }
+
+  .scheduling-metrics-grid,
+  .scheduling-metrics-grid--four,
+  .scheduling-metrics-grid--dashboard,
+  .scheduling-command-strip,
+  .scheduling-command-strip--dashboard,
+  .scheduling-form__grid,
+  .scheduling-option-grid,
+  .scheduling-detail-summary,
+  .scheduling-detail-grid,
+  .scheduling-doctor-grid,
+  .scheduling-department-grid,
+  .scheduling-doctor-checks,
+  .scheduling-publish-strip,
+  .scheduling-priority-grid,
+  .scheduling-donut-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduling-dashboard-hero {
+    min-height: auto;
+    padding: 1.1rem;
+  }
+
+  .scheduling-dashboard-hero__content h1 {
+    font-size: clamp(2rem, 13vw, 3.2rem);
+  }
+
+  .scheduling-dashboard-hero__console {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduling-flow-line i {
+    width: 14px;
+  }
+
+  .scheduling-donut {
+    margin: 0 auto;
+  }
+
+  .scheduling-dashboard-timeline > div {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+}

@@ -1,0 +1,191 @@
+/* Scheduling tables, badges, utilization bars, alerts, charts */
+.scheduling-dashboard-grid--bottom,
+.scheduling-report-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.scheduling-table {
+  display: grid;
+  gap: 0.45rem;
+  overflow-x: auto;
+}
+
+.scheduling-table__head,
+.scheduling-table__row {
+  display: grid;
+  gap: 0.8rem;
+  align-items: center;
+  min-width: 900px;
+}
+
+.scheduling-table--compact .scheduling-table__head,
+.scheduling-table--compact .scheduling-table__row {
+  grid-template-columns: 1.35fr 1fr 1fr 0.8fr 0.8fr;
+  min-width: 760px;
+}
+
+.scheduling-table--schedules .scheduling-table__head,
+.scheduling-table--schedules .scheduling-table__row {
+  grid-template-columns: 1.4fr 0.9fr 0.9fr 0.85fr 1fr 0.75fr 0.75fr 1fr 1.6fr;
+}
+
+.scheduling-table__head {
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  color: #7a8ba3;
+  background: #f6f9fd;
+  font-size: 0.77rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.scheduling-table__row {
+  padding: 0.85rem 0.9rem;
+  border: 1px solid #eef3f9;
+  border-radius: 18px;
+  color: #52647c;
+  background: #ffffff;
+}
+
+.scheduling-table__row strong {
+  color: #14253e;
+}
+
+.scheduling-badge {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 0.6rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.scheduling-badge--green { color: #047857; background: #ecfdf5; }
+.scheduling-badge--blue { color: #0369a1; background: #e0f2fe; }
+.scheduling-badge--amber { color: #b45309; background: #fffbeb; }
+.scheduling-badge--red { color: #be123c; background: #fff1f2; }
+.scheduling-badge--slate { color: #475569; background: #f1f5f9; }
+
+.scheduling-util {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) 42px;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.scheduling-util::before {
+  content: '';
+  grid-column: 1;
+  grid-row: 1;
+  height: 9px;
+  border-radius: 999px;
+  background: #edf2f8;
+}
+
+.scheduling-util__bar {
+  grid-column: 1;
+  grid-row: 1;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.scheduling-util strong {
+  color: #26384f;
+  font-size: 0.8rem;
+}
+
+.scheduling-util__bar--green { background: #10b981; }
+.scheduling-util__bar--amber { background: #f59e0b; }
+.scheduling-util__bar--red { background: #ef4444; }
+.scheduling-util__bar--blue { background: #38bdf8; }
+
+.scheduling-alert-list,
+.scheduling-stack,
+.scheduling-mini-list,
+.scheduling-calendar-preview {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.scheduling-alert,
+.scheduling-stack__item,
+.scheduling-mini-list > div,
+.scheduling-calendar-preview > div,
+.scheduling-publish-strip > div {
+  padding: 0.9rem;
+  border: 1px solid #e8eef6;
+  border-radius: 18px;
+  background: #fbfdff;
+}
+
+.scheduling-alert strong,
+.scheduling-stack__item strong,
+.scheduling-mini-list strong,
+.scheduling-mini-list span {
+  color: #14253e;
+}
+
+.scheduling-alert p,
+.scheduling-stack__item span,
+.scheduling-mini-list small,
+.scheduling-calendar-preview span {
+  margin: 0.25rem 0 0;
+  color: #6f8198;
+}
+
+.scheduling-alert--danger { background: #fff5f5; border-color: #ffd7d7; }
+.scheduling-alert--warning { background: #fff9ed; border-color: #ffe3ac; }
+.scheduling-alert--info { background: #eef9ff; border-color: #c7ecff; }
+
+.scheduling-chart {
+  min-height: 280px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: end;
+  padding: 1rem 0.4rem 0;
+}
+
+.scheduling-chart__bar {
+  height: 250px;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  gap: 0.45rem;
+  align-items: end;
+  text-align: center;
+}
+
+.scheduling-chart__bar div {
+  width: 100%;
+  min-height: 28px;
+  border-radius: 18px 18px 8px 8px;
+  background: linear-gradient(180deg, #14b8a6, #0891b2);
+}
+
+.scheduling-chart__bar strong {
+  color: #17314f;
+}
+
+.scheduling-chart__bar span {
+  color: #72849d;
+  font-weight: 800;
+}
+
+.scheduling-publish-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.scheduling-publish-strip > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.8rem;
+}
+
+.scheduling-publish-strip span {
+  color: #667891;
+}
+

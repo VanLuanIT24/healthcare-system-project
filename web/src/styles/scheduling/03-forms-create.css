@@ -1,0 +1,171 @@
+/* Scheduling filters, forms, create and bulk-create helpers */
+.scheduling-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: end;
+  padding: 1rem;
+  border-radius: 24px;
+}
+
+.scheduling-filter-bar label,
+.scheduling-form label,
+.scheduling-slot-command label {
+  display: grid;
+  gap: 0.35rem;
+  color: #546982;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.scheduling-filter-bar input,
+.scheduling-filter-bar select,
+.scheduling-form input,
+.scheduling-form select,
+.scheduling-form textarea,
+.scheduling-slot-command select,
+.scheduling-slot-command textarea,
+.scheduling-control-grid input,
+.scheduling-control-grid select {
+  min-height: 42px;
+  padding: 0 0.8rem;
+  border: 1px solid #dce7f5;
+  border-radius: 14px;
+  color: #14253e;
+  background: #ffffff;
+  outline: none;
+}
+
+.scheduling-form textarea,
+.scheduling-slot-command textarea {
+  min-height: 96px;
+  padding-top: 0.75rem;
+  resize: vertical;
+}
+
+.scheduling-form__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.scheduling-form__grid .is-wide {
+  grid-column: 1 / -1;
+}
+
+.scheduling-form__actions,
+.scheduling-actions,
+.scheduling-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.scheduling-preview__doctor {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #ecfeff, #f0fdf4);
+}
+
+.scheduling-preview__doctor span {
+  color: #5e7188;
+}
+
+.scheduling-preview__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.scheduling-preview__stats div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.8rem;
+  border-radius: 18px;
+  background: #f7fbff;
+}
+
+.scheduling-preview__stats strong {
+  color: #0f344e;
+  font-size: 1.35rem;
+}
+
+.scheduling-preview__stats span {
+  color: #6f8198;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.scheduling-slot-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.scheduling-slot-preview span {
+  padding: 0.45rem 0.65rem;
+  border-radius: 999px;
+  color: #075985;
+  background: #e0f2fe;
+  font-weight: 900;
+}
+
+.scheduling-warning-box {
+  margin-top: 1rem;
+  padding: 0.95rem;
+  border: 1px solid #fde68a;
+  border-radius: 18px;
+  color: #7c4a03;
+  background: #fffbeb;
+}
+
+.scheduling-choice-block {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.scheduling-chip-row button,
+.scheduling-doctor-checks button {
+  border: 1px solid #dbe7f4;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #53677f;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.scheduling-chip-row button {
+  min-height: 38px;
+  padding: 0 1rem;
+}
+
+.scheduling-chip-row button.is-selected,
+.scheduling-doctor-checks button.is-selected {
+  border-color: #5eead4;
+  color: #0f766e;
+  background: #ecfdf5;
+}
+
+.scheduling-doctor-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.scheduling-doctor-checks button {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem;
+  border-radius: 18px;
+  text-align: left;
+}
+
+.scheduling-doctor-checks span {
+  color: #7a8ca3;
+}
+

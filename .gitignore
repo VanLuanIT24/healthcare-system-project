@@ -7,3 +7,4 @@ backend/.env.*
 !backend/.env.example
 npm-debug.log*
 dist/
+web/.vite-dev*.log
