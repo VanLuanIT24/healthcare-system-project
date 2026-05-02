@@ -4774,6 +4774,76 @@
   font-size: 0.63rem;
 }
 
+.scheduling-create-field input[type='date'],
+.scheduling-create-field input[type='time'] {
+  color-scheme: light;
+  border-color: #d9e5f5;
+  color: #10233e;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 252, 255, 0.96)),
+    #ffffff;
+  font-size: 0.68rem;
+  font-weight: 920;
+  letter-spacing: 0;
+  box-shadow:
+    0 8px 18px rgba(38, 71, 102, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.scheduling-create-time-main .scheduling-create-field input[type='time'],
+.scheduling-create-break-card .scheduling-create-field input[type='time'],
+.scheduling-create-extra-breaks input[type='time'] {
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: 0.63rem;
+}
+
+.scheduling-create-field input[type='date']:hover,
+.scheduling-create-field input[type='time']:hover {
+  border-color: #bdd7ef;
+  background:
+    linear-gradient(180deg, #ffffff, #f3fbff),
+    #ffffff;
+}
+
+.scheduling-create-field input[type='date']:focus,
+.scheduling-create-field input[type='time']:focus {
+  border-color: #8edbd7;
+  box-shadow:
+    0 0 0 4px rgba(20, 184, 166, 0.08),
+    0 14px 30px rgba(38, 71, 102, 0.08);
+}
+
+.scheduling-create-field input[type='date']::-webkit-calendar-picker-indicator,
+.scheduling-create-field input[type='time']::-webkit-calendar-picker-indicator {
+  width: 18px;
+  height: 18px;
+  margin-right: -0.12rem;
+  padding: 0.34rem;
+  border-radius: 9px;
+  cursor: pointer;
+  opacity: 0.72;
+  background-color: #eff6ff;
+  transition: opacity 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.scheduling-create-field input[type='date']::-webkit-calendar-picker-indicator:hover,
+.scheduling-create-field input[type='time']::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background-color: #dcfce7;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+.scheduling-create-field input[type='date']:disabled,
+.scheduling-create-field input[type='time']:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.92)),
+    #f8fafc;
+  box-shadow: none;
+}
+
 @media (max-width: 1380px) {
   .scheduling-create-body {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 318px);
