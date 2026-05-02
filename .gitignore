@@ -8,3 +8,4 @@ backend/.env.*
 npm-debug.log*
 dist/
 web/.vite-dev*.log
+tmp/

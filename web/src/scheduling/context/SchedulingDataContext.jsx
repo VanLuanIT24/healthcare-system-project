@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { schedulingApi } from '../api/schedulingApi';
+import { translateDepartmentName } from '../utils/schedulingUi';
 import {
   calendarEvents as mockCalendarEvents,
   departments as mockDepartments,
@@ -38,7 +39,7 @@ function mapScheduleFromApi(item = {}) {
     id: item.doctor_schedule_id,
     doctor: item.doctor_name || item.doctor_code || 'Chưa xác định bác sĩ',
     doctorId: item.doctor_id,
-    department: item.department_name || item.department_code || 'Chưa xác định khoa',
+    department: translateDepartmentName(item.department_name || item.department_code || 'Chưa xác định khoa'),
     departmentId: item.department_id,
     date: formatDateKey(item.work_date),
     start: formatClock(item.shift_start),
@@ -75,7 +76,7 @@ function mapGroupToDoctor(item) {
 function mapGroupToDepartment(item) {
   return {
     id: item.id,
-    name: item.label || 'Chưa xác định khoa',
+    name: translateDepartmentName(item.label || 'Chưa xác định khoa'),
     bookings: Number(item.booked_slots || 0),
     utilization: Number(item.utilization_rate || 0),
     totalSlots: Number(item.total_slots || 0),
@@ -84,8 +85,44 @@ function mapGroupToDepartment(item) {
   };
 }
 
+function buildStatsFromSchedules(schedules) {
+  const todayKey = formatDateKey(new Date());
+  const totals = schedules.reduce(
+    (result, item) => ({
+      totalSlots: result.totalSlots + Number(item.totalSlots || 0),
+      bookedSlots: result.bookedSlots + Number(item.bookedSlots || 0),
+      availableSlots: result.availableSlots + Number(item.availableSlots || 0),
+      blockedSlots: result.blockedSlots + Number(item.blockedSlots || 0),
+      unpublishedSchedules:
+        result.unpublishedSchedules +
+        (item.publishStatus === 'Hidden' && item.status !== 'cancelled' && item.status !== 'completed' ? 1 : 0),
+      todaySchedules: result.todaySchedules + (item.date === todayKey ? 1 : 0),
+    }),
+    {
+      totalSlots: 0,
+      bookedSlots: 0,
+      availableSlots: 0,
+      blockedSlots: 0,
+      unpublishedSchedules: 0,
+      todaySchedules: 0,
+    },
+  );
+  const utilizationRate = totals.totalSlots > 0 ? (totals.bookedSlots / totals.totalSlots) * 100 : 0;
+
+  return [
+    { label: 'Lịch hôm nay', value: totals.todaySchedules, delta: 'đang vận hành', tone: 'blue', icon: 'LH' },
+    { label: 'Lịch trong tuần', value: schedules.length, delta: 'theo bộ lọc', tone: 'indigo', icon: 'LT' },
+    { label: 'Chưa công khai', value: totals.unpublishedSchedules, delta: 'cần duyệt', tone: 'amber', icon: 'CK' },
+    { label: 'Tổng khung giờ', value: totals.totalSlots, delta: 'toàn hệ thống', tone: 'slate', icon: 'KG' },
+    { label: 'Đã đặt', value: totals.bookedSlots, delta: 'lịch hẹn hợp lệ', tone: 'green', icon: 'ĐĐ' },
+    { label: 'Còn trống', value: totals.availableSlots, delta: 'có thể đặt', tone: 'mint', icon: 'CT' },
+    { label: 'Đã khóa', value: totals.blockedSlots, delta: 'do vận hành', tone: 'red', icon: 'K' },
+    { label: 'Lấp đầy trung bình', value: `${Math.round(utilizationRate)}%`, delta: 'theo khoảng ngày', tone: 'violet', icon: '%' },
+  ];
+}
+
 function buildStatsFromSummary(summary, schedules) {
-  if (!summary?.overview) return mockScheduleStats;
+  if (!summary?.overview) return buildStatsFromSchedules(schedules);
   const overview = summary.overview;
   return [
     { label: 'Lịch hôm nay', value: overview.today_schedules || 0, delta: 'đang vận hành', tone: 'blue', icon: 'LH' },
@@ -100,7 +137,7 @@ function buildStatsFromSummary(summary, schedules) {
 }
 
 function buildCalendarEventsFromSchedules(schedules) {
-  if (!schedules.length) return mockCalendarEvents;
+  if (!schedules.length) return [];
   return schedules.slice(0, 14).map((schedule, index) => {
     const utilization = Number(schedule.utilization || 0);
     const status = schedule.status === 'cancelled' ? 'cancelled' : utilization >= 95 ? 'full' : utilization >= 80 ? 'near-full' : 'open';
@@ -120,19 +157,76 @@ function buildCalendarEventsFromSchedules(schedules) {
 }
 
 function mapOperationAlerts(alerts) {
-  return alerts?.length
-    ? alerts.map((item) => ({
+  if (Array.isArray(alerts)) {
+    return alerts.map((item) => ({
         title: item.title,
         body: item.body,
         tone: item.tone === 'danger' ? 'danger' : item.tone === 'warning' ? 'warning' : 'info',
-      }))
-    : mockOperationAlerts;
+      }));
+  }
+
+  return [];
 }
 
 function mapUtilizationSeries(series) {
-  return series?.length
-    ? series.map((item) => ({ label: item.label || formatDateKey(item.date), value: Number(item.value || 0) }))
-    : mockUtilizationSeries;
+  if (Array.isArray(series)) {
+    return series.map((item) => ({ label: item.label || formatDateKey(item.date), value: Number(item.value || 0) }));
+  }
+
+  return [];
+}
+
+function buildDoctorsFromSchedules(schedules) {
+  const grouped = new Map();
+
+  schedules.forEach((schedule) => {
+    const key = schedule.doctorId || schedule.doctor;
+    const current = grouped.get(key) || {
+      id: key,
+      name: schedule.doctor,
+      department: schedule.department,
+      totalSlots: 0,
+      bookedSlots: 0,
+      availableSlots: 0,
+    };
+
+    current.totalSlots += Number(schedule.totalSlots || 0);
+    current.bookedSlots += Number(schedule.bookedSlots || 0);
+    current.availableSlots += Number(schedule.availableSlots || 0);
+    grouped.set(key, current);
+  });
+
+  return Array.from(grouped.values()).map((item) => ({
+    ...item,
+    load: item.totalSlots > 0 ? (item.bookedSlots / item.totalSlots) * 100 : 0,
+  }));
+}
+
+function buildDepartmentsFromSchedules(schedules) {
+  const grouped = new Map();
+
+  schedules.forEach((schedule) => {
+    const key = schedule.departmentId || schedule.department;
+    const current = grouped.get(key) || {
+      id: key,
+      name: schedule.department,
+      bookings: 0,
+      totalSlots: 0,
+      availableSlots: 0,
+      schedulesCount: 0,
+    };
+
+    current.bookings += Number(schedule.bookedSlots || 0);
+    current.totalSlots += Number(schedule.totalSlots || 0);
+    current.availableSlots += Number(schedule.availableSlots || 0);
+    current.schedulesCount += 1;
+    grouped.set(key, current);
+  });
+
+  return Array.from(grouped.values()).map((item) => ({
+    ...item,
+    utilization: item.totalSlots > 0 ? (item.bookings / item.totalSlots) * 100 : 0,
+  }));
 }
 
 function mapSlotFromApi(slot, bookedMap, blockedMap) {
@@ -206,11 +300,13 @@ export function SchedulingDataProvider({ children }) {
         schedulingApi.listSchedules({ limit: 100 }),
       ]);
       const schedules = (list?.items || summary?.items || []).map(mapScheduleFromApi);
-      const doctors = summary?.by_doctor?.length ? summary.by_doctor.map(mapGroupToDoctor) : mockDoctors;
-      const departments = summary?.by_department?.length ? summary.by_department.map(mapGroupToDepartment) : mockDepartments;
+      const doctors = summary?.by_doctor?.length ? summary.by_doctor.map(mapGroupToDoctor) : buildDoctorsFromSchedules(schedules);
+      const departments = summary?.by_department?.length
+        ? summary.by_department.map(mapGroupToDepartment)
+        : buildDepartmentsFromSchedules(schedules);
 
       setState({
-        schedules: schedules.length ? schedules : mockSchedules,
+        schedules,
         doctors,
         departments,
         scheduleStats: buildStatsFromSummary(summary, schedules),

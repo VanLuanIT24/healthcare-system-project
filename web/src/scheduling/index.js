@@ -1,6 +1,10 @@
 export { SchedulingShell } from './components/SchedulingShell';
+export { SchedulingApprovalsPage } from './pages/SchedulingApprovalsPage';
+export { SchedulingActivityPage } from './pages/SchedulingActivityPage';
 export { SchedulingDashboardPage } from './pages/SchedulingDashboardPage';
 export { SchedulingListPage } from './pages/SchedulingListPage';
+export { SchedulingTasksPage } from './pages/SchedulingTasksPage';
+export { SchedulingTodayPage } from './pages/SchedulingTodayPage';
 export { ScheduleCreatePage } from './pages/ScheduleCreatePage';
 export { ScheduleBulkCreatePage } from './pages/ScheduleBulkCreatePage';
 export { ScheduleDetailPage } from './pages/ScheduleDetailPage';
@@ -9,3 +13,4 @@ export { SchedulingSlotsPage } from './pages/SchedulingSlotsPage';
 export { SchedulingUtilizationPage } from './pages/SchedulingUtilizationPage';
 export { SchedulesByDoctorPage } from './pages/SchedulesByDoctorPage';
 export { SchedulesByDepartmentPage } from './pages/SchedulesByDepartmentPage';
+export { SchedulingConfigurationPage } from './pages/SchedulingConfigurationPage';

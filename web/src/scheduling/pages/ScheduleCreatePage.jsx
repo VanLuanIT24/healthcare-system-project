@@ -29,7 +29,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { useSchedulingData } from '../context/SchedulingDataContext';
-import { buildSlotPreview } from '../utils/schedulingUi';
+import { buildSlotPreview, translateDepartmentName } from '../utils/schedulingUi';
 
 const DOCTOR_AVATAR = '/images/scheduling/doctors/doctor-ai-fallback.png';
 const CREATE_STEPS = [
@@ -352,7 +352,7 @@ export function ScheduleCreatePage() {
                     <select name="doctor" value={form.doctor} onChange={handleChange}>
                       {doctors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                     </select>
-                    <small>{selectedDoctor.department || form.department} • 12 năm kinh nghiệm</small>
+                    <small>{translateDepartmentName(selectedDoctor.department || form.department)} • 12 năm kinh nghiệm</small>
                   </div>
                 </label>
 
@@ -361,9 +361,13 @@ export function ScheduleCreatePage() {
                   <div>
                     <i aria-hidden="true"><HeartPulse size={17} strokeWidth={2.25} /></i>
                     <select name="department" value={form.department} onChange={handleChange}>
-                      {departments.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                      {departments.map((item) => (
+                        <option key={item.id} value={item.name}>
+                          {translateDepartmentName(item.name)}
+                        </option>
+                      ))}
                     </select>
-                    <small>{form.department}</small>
+                    <small>{translateDepartmentName(form.department)}</small>
                   </div>
                 </label>
 
@@ -632,7 +636,7 @@ export function ScheduleCreatePage() {
                   </div>
                   <div>
                     <span aria-hidden="true"><HeartPulse size={13} strokeWidth={2.35} /></span>
-                    <div><dt>Khoa</dt><dd>{form.department || 'Chưa chọn'}</dd></div>
+                    <div><dt>Khoa</dt><dd>{form.department ? translateDepartmentName(form.department) : 'Chưa chọn'}</dd></div>
                   </div>
                   <div>
                     <span aria-hidden="true"><CalendarDays size={13} strokeWidth={2.35} /></span>

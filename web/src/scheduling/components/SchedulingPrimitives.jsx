@@ -20,7 +20,7 @@ export function SchedulingHero({ eyebrow, title, copy, actions }) {
   );
 }
 
-export function MetricCard({ label, value, delta, tone = 'blue', icon }) {
+export function MetricCard({ label, value, delta, tone = 'blue', icon, assessment }) {
   return (
     <article className={`scheduling-metric scheduling-metric--${tone}`}>
       <div className="scheduling-metric__top">
@@ -29,6 +29,12 @@ export function MetricCard({ label, value, delta, tone = 'blue', icon }) {
       </div>
       <strong>{value}</strong>
       <small>{delta}</small>
+      {assessment ? (
+        <em className={`scheduling-metric__assessment is-${assessment.tone || 'good'}`}>
+          <span>{assessment.label}</span>
+          <b>{assessment.body}</b>
+        </em>
+      ) : null}
     </article>
   );
 }

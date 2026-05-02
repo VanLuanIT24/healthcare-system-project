@@ -6,3 +6,6 @@
 @import './scheduling/06-dashboard.css';
 @import './scheduling/07-responsive.css';
 @import './scheduling/08-doctor-dispatch.css';
+@import './scheduling/09-department-dispatch.css';
+@import './scheduling/10-configuration.css';
+@import './scheduling/11-approvals.css';

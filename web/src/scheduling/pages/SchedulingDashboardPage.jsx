@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -76,7 +76,7 @@ function formatClock(value) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return String(value || '').slice(0, 5);
+    return '';
   }
 
   return new Intl.DateTimeFormat('vi-VN', {
@@ -86,24 +86,128 @@ function formatClock(value) {
   }).format(date);
 }
 
+function formatShortDate(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return `${date.getDate()}/${date.getMonth() + 1}`;
+}
+
+function formatActivityMoment(value) {
+  const dateLabel = formatShortDate(value);
+  const clockLabel = formatClock(value);
+
+  if (!dateLabel && !clockLabel) return '';
+  if (!dateLabel) return clockLabel;
+  if (!clockLabel) return dateLabel;
+  return `${dateLabel} ${clockLabel}`;
+}
+
+function getActivityTimestamp(value) {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getScheduleActivityTimestamp(schedule) {
+  return Math.max(getActivityTimestamp(schedule.updatedAt), getActivityTimestamp(schedule.createdAt));
+}
+
+function getScheduleShiftTimestamp(schedule) {
+  if (!schedule.date) return 0;
+  const startTime = String(schedule.start || '').slice(0, 5);
+  const value = startTime ? `${schedule.date}T${startTime}:00` : `${schedule.date}T00:00:00`;
+  return getActivityTimestamp(value);
+}
+
+function getScheduleActivityMoment(schedule) {
+  const auditTimestamp = getScheduleActivityTimestamp(schedule);
+
+  if (auditTimestamp) {
+    return {
+      timestamp: auditTimestamp,
+      label: formatActivityMoment(auditTimestamp),
+    };
+  }
+
+  const shiftTimestamp = getScheduleShiftTimestamp(schedule);
+
+  if (shiftTimestamp) {
+    return {
+      timestamp: shiftTimestamp,
+      label: formatActivityMoment(shiftTimestamp),
+    };
+  }
+
+  return {
+    timestamp: 0,
+    label: 'Chưa rõ',
+  };
+}
+
+function getScheduleDateDistance(schedule, todayKey) {
+  const scheduleDate = new Date(`${schedule.date}T00:00:00`).getTime();
+  const todayDate = new Date(`${todayKey}T00:00:00`).getTime();
+
+  if (!Number.isFinite(scheduleDate) || !Number.isFinite(todayDate)) return Number.MAX_SAFE_INTEGER;
+  return Math.abs(scheduleDate - todayDate);
+}
+
+function getFallbackActivityTitle(item) {
+  if (item.publishStatus === 'Hidden') return 'Cần công khai lịch khám';
+  if (item.status === 'cancelled') return 'Lịch hủy cần rà soát';
+  if (Number(item.utilization || 0) >= 85) return 'Công suất cao cần theo dõi';
+  if (Number(item.availableSlots || 0) <= 2 && Number(item.totalSlots || 0) > 0) return 'Sắp hết khung giờ trống';
+  if (Number(item.blockedSlots || 0) > 0) return 'Có khung giờ bị khóa';
+  return 'Lịch cần rà soát gần đây';
+}
+
+function buildActivityCandidateSchedules(schedules, todayKey) {
+  return [...schedules]
+    .sort((first, second) => {
+      const secondTimestamp = getScheduleActivityTimestamp(second);
+      const firstTimestamp = getScheduleActivityTimestamp(first);
+
+      if (secondTimestamp !== firstTimestamp) return secondTimestamp - firstTimestamp;
+
+      const firstDistance = getScheduleDateDistance(first, todayKey);
+      const secondDistance = getScheduleDateDistance(second, todayKey);
+
+      if (firstDistance !== secondDistance) return firstDistance - secondDistance;
+      return String(first.start || '').localeCompare(String(second.start || ''));
+    })
+    .slice(0, 8);
+}
+
 function buildFallbackActivities(schedules, alerts) {
-  const scheduleActivities = schedules.slice(0, 4).map((item) => ({
-    id: `lich-${item.id}`,
-    time: item.updatedAt ? formatClock(item.updatedAt) : item.start,
-    title: item.publishStatus === 'Hidden' ? 'Lịch đang chờ công khai' : 'Đã rà soát lịch khám',
-    actor: item.createdBy || 'Hệ thống lịch khám',
-    body: `${item.doctor} - ${item.department} - ${formatDate(item.date)}.`,
-  }));
+  const scheduleActivities = schedules.slice(0, 4).map((item) => {
+    const moment = getScheduleActivityMoment(item);
+
+    return {
+      id: `lich-${item.id}`,
+      timestamp: moment.timestamp,
+      time: moment.label,
+      title: getFallbackActivityTitle(item),
+      actor: item.createdBy || 'Hệ thống lịch khám',
+      body: `${item.doctor} - ${item.department} - ${formatDate(item.date)}. ${getScheduleNeedText(item)}`,
+    };
+  });
 
   const alertActivities = alerts.slice(0, 2).map((item, index) => ({
     id: `canh-bao-${index}`,
-    time: 'Gần đây',
+    timestamp: Date.now() - index,
+    time: formatActivityMoment(Date.now() - index),
     title: item.title,
     actor: 'Trung tâm điều phối',
     body: item.body,
   }));
 
-  return [...scheduleActivities, ...alertActivities].slice(0, 6);
+  return [...alertActivities, ...scheduleActivities]
+    .sort((first, second) => Number(second.timestamp || 0) - Number(first.timestamp || 0))
+    .slice(0, 6);
 }
 
 function getScheduleNeedText(item) {
@@ -361,10 +465,10 @@ function downloadSvgAsPng(svgMarkup, filename, width, height) {
 }
 
 const ANALYSIS_RANGE_OPTIONS = [
-  { id: '7d', label: '7 ngày', multiplier: 1 },
-  { id: '1m', label: '1 tháng', multiplier: 4 },
-  { id: '1q', label: '1 quý', multiplier: 12 },
-  { id: '1y', label: '1 năm', multiplier: 52 },
+  { id: '7d', label: '7 ngày', days: 7 },
+  { id: '1m', label: '1 tháng', days: 30 },
+  { id: '1q', label: '1 quý', days: 90 },
+  { id: '1y', label: '1 năm', days: 365 },
 ];
 
 const ANALYSIS_TABS = [
@@ -405,6 +509,345 @@ const ANALYSIS_TABS = [
   },
 ];
 
+function asNumber(value, fallback = 0) {
+  if (typeof value === 'string') {
+    const normalized = value.replace('%', '').replace(',', '.').trim();
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getOverviewNumber(overview, key, fallback = 0) {
+  return overview && overview[key] !== undefined && overview[key] !== null
+    ? asNumber(overview[key], fallback)
+    : fallback;
+}
+
+function getRate(part, total) {
+  return total > 0 ? (part / total) * 100 : 0;
+}
+
+function addDaysToDateKey(dateKey, days) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  date.setDate(date.getDate() + Math.max(Number(days || 1) - 1, 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function isDateInRange(dateKey, startKey, endKey) {
+  return Boolean(dateKey) && dateKey >= startKey && dateKey <= endKey;
+}
+
+function buildDashboardDepartmentMetrics(schedules) {
+  const grouped = new Map();
+
+  schedules.forEach((schedule) => {
+    const key = schedule.departmentId || schedule.department || 'unknown-department';
+    const current = grouped.get(key) || {
+      id: key,
+      name: schedule.department || 'Chưa xác định khoa',
+      bookings: 0,
+      totalSlots: 0,
+      availableSlots: 0,
+    };
+
+    current.bookings += asNumber(schedule.bookedSlots);
+    current.totalSlots += asNumber(schedule.totalSlots);
+    current.availableSlots += asNumber(schedule.availableSlots);
+    grouped.set(key, current);
+  });
+
+  return Array.from(grouped.values()).map((item) => ({
+    ...item,
+    utilization: getRate(item.bookings, item.totalSlots),
+  }));
+}
+
+function buildDashboardDoctorMetrics(schedules) {
+  const grouped = new Map();
+
+  schedules.forEach((schedule) => {
+    const key = schedule.doctorId || schedule.doctor || 'unknown-doctor';
+    const current = grouped.get(key) || {
+      id: key,
+      name: schedule.doctor || 'Chưa xác định bác sĩ',
+      department: schedule.department || 'Chưa xác định khoa',
+      bookedSlots: 0,
+      totalSlots: 0,
+      avatar: schedule.doctorAvatar || schedule.avatar,
+    };
+
+    current.bookedSlots += asNumber(schedule.bookedSlots);
+    current.totalSlots += asNumber(schedule.totalSlots);
+    grouped.set(key, current);
+  });
+
+  return Array.from(grouped.values()).map((item) => ({
+    ...item,
+    load: getRate(item.bookedSlots, item.totalSlots),
+  }));
+}
+
+function buildDashboardTrendMetrics(schedules) {
+  const grouped = new Map();
+
+  schedules.forEach((schedule) => {
+    const key = schedule.date;
+    if (!key) return;
+
+    const current = grouped.get(key) || { date: key, bookedSlots: 0, totalSlots: 0 };
+    current.bookedSlots += asNumber(schedule.bookedSlots);
+    current.totalSlots += asNumber(schedule.totalSlots);
+    grouped.set(key, current);
+  });
+
+  return Array.from(grouped.values())
+    .sort((first, second) => first.date.localeCompare(second.date))
+    .map((item) => ({
+      label: formatDate(item.date),
+      value: getRate(item.bookedSlots, item.totalSlots),
+    }));
+}
+
+function normalizeStatus(value) {
+  return String(value || '').toLowerCase();
+}
+
+function isScheduleCancelled(item) {
+  const status = normalizeStatus(item.status);
+  return status === 'cancelled' || status === 'canceled';
+}
+
+function isScheduleCompleted(item) {
+  return normalizeStatus(item.status) === 'completed';
+}
+
+function isScheduleVisible(item) {
+  return item.publishStatus === 'Visible' || item.raw?.publish_status === 'visible';
+}
+
+function getAssessmentFromLevel(level, label, body) {
+  return { tone: level, label, body };
+}
+
+function getMetricAssessment(label, signals) {
+  if (label === 'Lịch hôm nay') {
+    if (signals.todayCount === 0) {
+      return getAssessmentFromLevel('warning', 'Cần kiểm tra', 'Không có lịch vận hành hôm nay.');
+    }
+    return getAssessmentFromLevel('good', 'Ổn định', `${signals.todayCount} lịch đang trong ngày.`);
+  }
+
+  if (label === 'Lịch trong tuần') {
+    if (signals.totalSchedules === 0) {
+      return getAssessmentFromLevel('warning', 'Thiếu dữ liệu', 'Chưa có lịch trong khoảng theo dõi.');
+    }
+    return getAssessmentFromLevel('good', 'Có dữ liệu', `${signals.totalSchedules} lịch đang được theo dõi.`);
+  }
+
+  if (label === 'Chưa công khai') {
+    if (signals.unpublishedCount >= 10 || signals.unpublishedRate >= 20) {
+      return getAssessmentFromLevel('danger', 'Báo động', 'Tỷ lệ lịch chưa công khai cao.');
+    }
+    if (signals.unpublishedCount > 0) {
+      return getAssessmentFromLevel('warning', 'Cần duyệt', 'Có lịch chưa hiển thị cho bệnh nhân.');
+    }
+    return getAssessmentFromLevel('good', 'Đã sạch', 'Không còn lịch chờ công khai.');
+  }
+
+  if (label === 'Tổng khung giờ') {
+    if (signals.totalSlots === 0) {
+      return getAssessmentFromLevel('danger', 'Không có slot', 'Chưa có khung giờ khả dụng.');
+    }
+    return getAssessmentFromLevel('good', 'Sẵn sàng', `${signals.totalSlots} khung giờ trong hệ thống.`);
+  }
+
+  if (label === 'Đã đặt') {
+    if (signals.utilizationRate >= 92) {
+      return getAssessmentFromLevel('danger', 'Gần quá tải', 'Công suất đặt lịch rất cao.');
+    }
+    if (signals.utilizationRate >= 80) {
+      return getAssessmentFromLevel('warning', 'Theo dõi sát', 'Nên chuẩn bị phương án mở thêm ca.');
+    }
+    if (signals.utilizationRate < 30 && signals.totalSlots > 0) {
+      return getAssessmentFromLevel('watch', 'Nhu cầu thấp', 'Cần đẩy hiển thị hoặc điều phối.');
+    }
+    return getAssessmentFromLevel('good', 'Cân bằng', 'Tỷ lệ đặt lịch trong vùng an toàn.');
+  }
+
+  if (label === 'Còn trống') {
+    if (signals.totalSlots > 0 && signals.availableRate < 8) {
+      return getAssessmentFromLevel('danger', 'Sắp kín', 'Nguồn slot trống đang rất thấp.');
+    }
+    if (signals.totalSlots > 0 && signals.availableRate < 18) {
+      return getAssessmentFromLevel('warning', 'Cần mở thêm', 'Slot trống thấp hơn ngưỡng khuyến nghị.');
+    }
+    return getAssessmentFromLevel('good', 'Đủ nguồn', 'Còn slot để tiếp nhận đặt lịch.');
+  }
+
+  if (label === 'Đã khóa') {
+    if (signals.blockedRate >= 15) {
+      return getAssessmentFromLevel('danger', 'Khóa cao', 'Tỷ lệ slot khóa vượt ngưỡng an toàn.');
+    }
+    if (signals.blockedRate > 5) {
+      return getAssessmentFromLevel('warning', 'Cần rà soát', 'Có nhiều slot bị khóa vận hành.');
+    }
+    return getAssessmentFromLevel('good', 'Bình thường', 'Tỷ lệ slot khóa thấp.');
+  }
+
+  if (label === 'Lấp đầy TB') {
+    if (signals.utilizationRate >= 92) {
+      return getAssessmentFromLevel('danger', 'Quá tải', 'Công suất trung bình vượt ngưỡng.');
+    }
+    if (signals.utilizationRate >= 80) {
+      return getAssessmentFromLevel('warning', 'Cao', 'Cần theo dõi các khoa đang nóng.');
+    }
+    if (signals.utilizationRate < 30 && signals.totalSlots > 0) {
+      return getAssessmentFromLevel('watch', 'Thấp', 'Công suất thấp hơn kỳ vọng.');
+    }
+    return getAssessmentFromLevel('good', 'Ổn định', 'Công suất ở vùng vận hành tốt.');
+  }
+
+  return getAssessmentFromLevel('good', 'Đã ghi nhận', 'Thông số đang được theo dõi.');
+}
+
+function getScheduleAssessment(item) {
+  if (isScheduleCancelled(item) && Number(item.bookedSlots || 0) > 0) {
+    return { tone: 'danger', label: 'Cần gọi đổi lịch' };
+  }
+  if (!isScheduleVisible(item) && !isScheduleCancelled(item) && !isScheduleCompleted(item)) {
+    return { tone: 'warning', label: 'Chưa công khai' };
+  }
+  if (Number(item.availableSlots || 0) === 0 && Number(item.totalSlots || 0) > 0) {
+    return { tone: 'danger', label: 'Đã kín slot' };
+  }
+  if (Number(item.utilization || 0) >= 85) {
+    return { tone: 'warning', label: 'Công suất cao' };
+  }
+  if (Number(item.utilization || 0) < 30 && Number(item.totalSlots || 0) > 0) {
+    return { tone: 'watch', label: 'Lấp đầy thấp' };
+  }
+  return { tone: 'good', label: 'Ổn định' };
+}
+
+function getSystemHealth(signals, hasError) {
+  if (hasError) {
+    return {
+      tone: 'warning',
+      title: 'Đang dùng dữ liệu dự phòng',
+      body: 'Không kết nối được dữ liệu lịch khám mới nhất.',
+      label: 'Cần kiểm tra kết nối',
+    };
+  }
+
+  if (signals.totalSlots === 0) {
+    return {
+      tone: 'danger',
+      title: 'Chưa có khung giờ vận hành',
+      body: 'Hệ thống chưa có slot khả dụng cho bệnh nhân đặt lịch.',
+      label: 'Cần tạo lịch',
+    };
+  }
+
+  if (signals.criticalIssues > 0) {
+    return {
+      tone: 'danger',
+      title: 'Có chỉ số vượt ngưỡng báo động',
+      body: `${signals.criticalIssues} nhóm chỉ số cần xử lý ngay.`,
+      label: 'Cần can thiệp',
+    };
+  }
+
+  if (signals.warningIssues > 0) {
+    return {
+      tone: 'warning',
+      title: 'Hệ thống cần theo dõi',
+      body: `${signals.warningIssues} nhóm chỉ số đang ở vùng cảnh báo.`,
+      label: 'Theo dõi sát',
+    };
+  }
+
+  return {
+    tone: 'good',
+    title: 'Hệ thống lịch đang hoạt động ổn định',
+    body: 'Các chỉ số chính nằm trong ngưỡng vận hành.',
+    label: 'Đang hoạt động tốt',
+  };
+}
+
+function buildComputedAlerts({ signals, unpublishedSchedules, highPressureSchedules, lowDemandDepartments, cancelledBookedSchedules }) {
+  const alerts = [];
+
+  if (signals.unpublishedCount > 0) {
+    alerts.push({
+      id: 'unpublished',
+      tone: signals.unpublishedCount >= 10 || signals.unpublishedRate >= 20 ? 'danger' : 'warning',
+      title: 'Lịch chưa công khai',
+      body: `${signals.unpublishedCount} lịch cần duyệt trước khi bệnh nhân nhìn thấy khung giờ.`,
+      count: signals.unpublishedCount,
+      to: '/scheduling/approvals',
+      icon: LockKeyhole,
+      items: unpublishedSchedules,
+    });
+  }
+
+  if (highPressureSchedules.length > 0) {
+    alerts.push({
+      id: 'high-pressure',
+      tone: highPressureSchedules.length >= 5 ? 'danger' : 'warning',
+      title: 'Lịch sắp kín khung giờ',
+      body: `${highPressureSchedules.length} lịch đạt từ 85% công suất hoặc gần hết slot trống.`,
+      count: highPressureSchedules.length,
+      to: '/scheduling/schedules',
+      icon: Clock3,
+      items: highPressureSchedules,
+    });
+  }
+
+  if (signals.blockedRate >= 8) {
+    alerts.push({
+      id: 'blocked-rate',
+      tone: signals.blockedRate >= 15 ? 'danger' : 'warning',
+      title: 'Tỷ lệ slot khóa cao',
+      body: `${formatPercent(signals.blockedRate)} khung giờ đang bị khóa, cần rà soát nguyên nhân.`,
+      count: signals.blockedSlots,
+      to: '/scheduling/slots',
+      icon: LockKeyhole,
+      items: [],
+    });
+  }
+
+  if (lowDemandDepartments.length > 0) {
+    alerts.push({
+      id: 'low-demand',
+      tone: 'info',
+      title: 'Khoa có lấp đầy thấp',
+      body: `${lowDemandDepartments.length} khoa dưới 35% công suất, nên ưu tiên hiển thị hoặc điều phối.`,
+      count: lowDemandDepartments.length,
+      to: '/scheduling/departments',
+      icon: Activity,
+      items: lowDemandDepartments,
+    });
+  }
+
+  if (cancelledBookedSchedules.length > 0) {
+    alerts.push({
+      id: 'cancelled-booked',
+      tone: 'danger',
+      title: 'Lịch hủy còn bệnh nhân',
+      body: `${cancelledBookedSchedules.length} lịch đã hủy nhưng còn lượt đặt cần gọi đổi lịch.`,
+      count: cancelledBookedSchedules.length,
+      to: '/scheduling/schedules',
+      icon: AlertTriangle,
+      items: cancelledBookedSchedules,
+    });
+  }
+
+  return alerts;
+}
+
 export function SchedulingDashboardPage() {
   const {
     actions,
@@ -414,9 +857,10 @@ export function SchedulingDashboardPage() {
     error,
     loading,
     operationAlerts,
+    rawSummary,
     refresh,
-    scheduleStats,
     schedules,
+    utilizationSeries,
   } = useSchedulingData();
 
   const [actionMessage, setActionMessage] = useState('');
@@ -425,7 +869,9 @@ export function SchedulingDashboardPage() {
   const [analysisView, setAnalysisView] = useState('chart');
   const [analysisRange, setAnalysisRange] = useState('7d');
   const [isAnalysisRangeOpen, setIsAnalysisRangeOpen] = useState(false);
+  const [isAnalysisActionsOpen, setIsAnalysisActionsOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const analysisToolsRef = useRef(null);
 
   const todayKey = getTodayKey();
 
@@ -439,9 +885,7 @@ export function SchedulingDashboardPage() {
 
   const todaySchedules = sortedSchedules.filter((item) => item.date === todayKey);
 
-  const visibleTodaySchedules = todaySchedules.length
-    ? todaySchedules
-    : sortedSchedules.slice(0, 6);
+  const visibleTodaySchedules = todaySchedules;
 
   const unpublishedSchedules = sortedSchedules.filter(
     (item) =>
@@ -455,8 +899,7 @@ export function SchedulingDashboardPage() {
       (item) =>
         Number(item.totalSlots || 0) > 0 &&
         (Number(item.utilization || 0) >= 85 || Number(item.availableSlots || 0) <= 2),
-    )
-    .slice(0, 4);
+    );
 
   const conflictWatchSchedules = sortedSchedules
     .filter(
@@ -464,12 +907,15 @@ export function SchedulingDashboardPage() {
         item.doctor?.includes('Chưa xác định') ||
         item.department?.includes('Chưa xác định') ||
         String(item.start || '').localeCompare(String(item.end || '')) >= 0,
-    )
-    .slice(0, 3);
+    );
 
   const impactSchedules = sortedSchedules
-    .filter((item) => item.date >= todayKey && Number(item.bookedSlots || 0) > 0)
-    .slice(0, 3);
+    .filter(
+      (item) =>
+        item.date >= todayKey &&
+        Number(item.bookedSlots || 0) > 0 &&
+        (Number(item.blockedSlots || 0) > 0 || !isScheduleVisible(item)),
+    );
 
   const busyDoctors = [...doctors]
     .sort((first, second) => Number(second.load || 0) - Number(first.load || 0))
@@ -479,7 +925,7 @@ export function SchedulingDashboardPage() {
     .sort((first, second) => Number(second.utilization || 0) - Number(first.utilization || 0))
     .slice(0, 5);
 
-  const slotTotals = schedules.reduce(
+  const computedSlotTotals = schedules.reduce(
     (total, item) => ({
       booked: total.booked + Number(item.bookedSlots || 0),
       available: total.available + Number(item.availableSlots || 0),
@@ -488,50 +934,153 @@ export function SchedulingDashboardPage() {
     { booked: 0, available: 0, blocked: 0 },
   );
 
-  const totalSlotCount = Math.max(
-    slotTotals.booked + slotTotals.available + slotTotals.blocked,
-    1,
+  const rawOverview = rawSummary?.overview || null;
+  const slotTotals = {
+    booked: getOverviewNumber(rawOverview, 'booked_slots', computedSlotTotals.booked),
+    available: getOverviewNumber(rawOverview, 'available_slots', computedSlotTotals.available),
+    blocked: getOverviewNumber(rawOverview, 'blocked_slots', computedSlotTotals.blocked),
+  };
+  const actualTotalSlotCount = getOverviewNumber(
+    rawOverview,
+    'total_slots',
+    computedSlotTotals.booked + computedSlotTotals.available + computedSlotTotals.blocked,
   );
+  const totalSlotCount = Math.max(actualTotalSlotCount, 1);
+  const visibleSchedulesCount = sortedSchedules.filter((item) => isScheduleVisible(item)).length;
+  const cancelledBookedSchedules = sortedSchedules.filter(
+    (item) => isScheduleCancelled(item) && Number(item.bookedSlots || 0) > 0,
+  );
+  const lowDemandDepartments = departments.filter(
+    (item) => Number(item.totalSlots || 0) > 0 && Number(item.utilization || 0) < 35,
+  );
+  const overCapacityDepartments = departments.filter((item) => Number(item.utilization || 0) >= 90);
+  const busyDoctorWarnings = doctors.filter((item) => Number(item.load || 0) >= 90);
+  const utilizationRate = getOverviewNumber(
+    rawOverview,
+    'utilization_rate',
+    getRate(slotTotals.booked, totalSlotCount),
+  );
+  const operationalSignals = {
+    todayCount: getOverviewNumber(rawOverview, 'today_schedules', todaySchedules.length),
+    totalSchedules: getOverviewNumber(rawOverview, 'schedules_count', sortedSchedules.length),
+    visibleSchedulesCount,
+    unpublishedCount: getOverviewNumber(rawOverview, 'unpublished_schedules', unpublishedSchedules.length),
+    totalSlots: actualTotalSlotCount,
+    bookedSlots: slotTotals.booked,
+    availableSlots: slotTotals.available,
+    blockedSlots: slotTotals.blocked,
+    utilizationRate,
+    availableRate: getRate(slotTotals.available, totalSlotCount),
+    blockedRate: getRate(slotTotals.blocked, totalSlotCount),
+    unpublishedRate: getRate(
+      getOverviewNumber(rawOverview, 'unpublished_schedules', unpublishedSchedules.length),
+      Math.max(getOverviewNumber(rawOverview, 'schedules_count', sortedSchedules.length), 1),
+    ),
+    highPressureCount: highPressureSchedules.length,
+    cancelledBookedCount: cancelledBookedSchedules.length,
+    lowDemandDepartmentCount: lowDemandDepartments.length,
+    overCapacityDepartmentCount: overCapacityDepartments.length,
+    busyDoctorCount: busyDoctorWarnings.length,
+  };
+  operationalSignals.criticalIssues = [
+    operationalSignals.totalSlots === 0,
+    operationalSignals.utilizationRate >= 92,
+    operationalSignals.availableRate < 8 && operationalSignals.totalSlots > 0,
+    operationalSignals.blockedRate >= 15,
+    operationalSignals.cancelledBookedCount > 0,
+  ].filter(Boolean).length;
+  operationalSignals.warningIssues = [
+    operationalSignals.unpublishedCount > 0,
+    operationalSignals.utilizationRate >= 80 && operationalSignals.utilizationRate < 92,
+    operationalSignals.availableRate >= 8 && operationalSignals.availableRate < 18,
+    operationalSignals.blockedRate >= 8 && operationalSignals.blockedRate < 15,
+    operationalSignals.highPressureCount > 0,
+    operationalSignals.lowDemandDepartmentCount > 0,
+  ].filter(Boolean).length;
+  const systemHealth = getSystemHealth(operationalSignals, Boolean(error));
+  const computedAlerts = buildComputedAlerts({
+    signals: operationalSignals,
+    unpublishedSchedules,
+    highPressureSchedules,
+    lowDemandDepartments,
+    cancelledBookedSchedules,
+  });
+  const backendAlerts = backendConnected
+    ? operationAlerts.map((item, index) => ({
+        id: `backend-${index}`,
+        tone: item.tone === 'danger' ? 'danger' : item.tone === 'warning' ? 'warning' : 'info',
+        title: item.title,
+        body: item.body,
+        count: null,
+        to: '/scheduling/schedules',
+        icon: AlertTriangle,
+        items: [],
+      }))
+    : [];
+  const alertSeverity = { danger: 3, warning: 2, info: 1, good: 0 };
+  const operationalAlerts = [...computedAlerts, ...backendAlerts]
+    .sort(
+      (first, second) =>
+        (alertSeverity[second.tone] || 0) - (alertSeverity[first.tone] || 0) ||
+        Number(second.count || 0) - Number(first.count || 0),
+    )
+    .slice(0, 6);
 
   const departmentColors = ['#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#ec4899'];
   const activeRange = ANALYSIS_RANGE_OPTIONS.find((item) => item.id === analysisRange) || ANALYSIS_RANGE_OPTIONS[0];
   const activeAnalysisTab = ANALYSIS_TABS.find((item) => item.id === activeAnalysis) || ANALYSIS_TABS[0];
   const activeAnalysisIndex = ANALYSIS_TABS.findIndex((item) => item.id === activeAnalysis);
   const activeAnalysisTabIndex = activeAnalysisIndex >= 0 ? activeAnalysisIndex : 0;
+  const analysisRangeEndKey = addDaysToDateKey(todayKey, activeRange.days);
+  const analysisSchedules = sortedSchedules.filter((item) => isDateInRange(item.date, todayKey, analysisRangeEndKey));
+  const analysisDepartmentMetrics = buildDashboardDepartmentMetrics(analysisSchedules)
+    .sort((first, second) => Number(second.utilization || 0) - Number(first.utilization || 0))
+    .slice(0, 5);
+  const analysisDoctorMetrics = buildDashboardDoctorMetrics(analysisSchedules)
+    .sort((first, second) => Number(second.load || 0) - Number(first.load || 0))
+    .slice(0, 5);
+  const analysisSlotTotals = analysisSchedules.reduce(
+    (total, item) => ({
+      booked: total.booked + Number(item.bookedSlots || 0),
+      available: total.available + Number(item.availableSlots || 0),
+      blocked: total.blocked + Number(item.blockedSlots || 0),
+    }),
+    { booked: 0, available: 0, blocked: 0 },
+  );
+  const analysisTotalSlotCount = Math.max(
+    analysisSlotTotals.booked + analysisSlotTotals.available + analysisSlotTotals.blocked,
+    1,
+  );
 
-  const analysisDepartments = watchedDepartments.map((item, index) => {
-    const adjusted = Math.min(
-      100,
-      Math.max(8, Number(item.utilization || 0) + (activeRange.multiplier > 1 ? index * 1.5 : 0)),
-    );
-
-    return {
-      id: item.id,
-      name: item.name,
-      caption: `${Math.round(Number(item.bookings || 0) * activeRange.multiplier)} lượt đặt`,
-      value: adjusted,
-      color: departmentColors[index % departmentColors.length],
-      icon: getDepartmentIcon(item.name),
-    };
-  });
+  const analysisDepartments = analysisDepartmentMetrics.map((item, index) => ({
+    id: item.id,
+    name: item.name,
+    caption: `${Math.round(Number(item.bookings || 0))} lượt đặt`,
+    value: Math.max(0, Math.min(100, Number(item.utilization || 0))),
+    color: departmentColors[index % departmentColors.length],
+    icon: getDepartmentIcon(item.name),
+  }));
 
   const analysisSlotItems = [
-    { id: 'booked', name: 'Đã đặt', caption: `${slotTotals.booked} slot`, value: (slotTotals.booked / totalSlotCount) * 100, color: '#0ea5e9', icon: CheckCircle2 },
-    { id: 'available', name: 'Còn trống', caption: `${slotTotals.available} slot`, value: (slotTotals.available / totalSlotCount) * 100, color: '#10b981', icon: Square },
-    { id: 'blocked', name: 'Đã khóa', caption: `${slotTotals.blocked} slot`, value: (slotTotals.blocked / totalSlotCount) * 100, color: '#ef4444', icon: LockKeyhole },
+    { id: 'booked', name: 'Đã đặt', caption: `${analysisSlotTotals.booked} slot`, value: (analysisSlotTotals.booked / analysisTotalSlotCount) * 100, color: '#0ea5e9', icon: CheckCircle2 },
+    { id: 'available', name: 'Còn trống', caption: `${analysisSlotTotals.available} slot`, value: (analysisSlotTotals.available / analysisTotalSlotCount) * 100, color: '#10b981', icon: Square },
+    { id: 'blocked', name: 'Đã khóa', caption: `${analysisSlotTotals.blocked} slot`, value: (analysisSlotTotals.blocked / analysisTotalSlotCount) * 100, color: '#ef4444', icon: LockKeyhole },
   ];
 
-  const analysisTrendItems = [
-    { id: 't2', name: 'T2', badge: 'MON', caption: activeRange.label, value: 62, color: '#14b8a6', icon: TrendingUp },
-    { id: 't3', name: 'T3', badge: 'TUE', caption: activeRange.label, value: 68, color: '#0ea5e9', icon: TrendingUp },
-    { id: 't4', name: 'T4', badge: 'WED', caption: activeRange.label, value: 74, color: '#8b5cf6', icon: TrendingUp },
-    { id: 't5', name: 'T5', badge: 'THU', caption: activeRange.label, value: 81, color: '#10b981', icon: TrendingUp },
-    { id: 't6', name: 'T6', badge: 'FRI', caption: activeRange.label, value: 77, color: '#f59e0b', icon: TrendingUp },
-    { id: 't7', name: 'T7', badge: 'SAT', caption: activeRange.label, value: 72, color: '#ef4444', icon: TrendingUp },
-    { id: 'cn', name: 'CN', badge: 'SUN', caption: activeRange.label, value: 65, color: '#ec4899', icon: TrendingUp },
-  ];
+  const analysisTrendSource = analysisRange === '7d' && utilizationSeries.length
+    ? utilizationSeries
+    : buildDashboardTrendMetrics(analysisSchedules);
+  const analysisTrendItems = analysisTrendSource.map((item, index) => ({
+        id: `trend-${item.label}-${index}`,
+        name: item.label,
+        badge: String(item.label || '').slice(0, 3).toUpperCase(),
+        caption: activeRange.label,
+        value: Number(item.value || 0),
+        color: departmentColors[index % departmentColors.length],
+        icon: TrendingUp,
+      }));
 
-  const analysisDoctorItems = busyDoctors.map((item, index) => ({
+  const analysisDoctorItems = analysisDoctorMetrics.map((item, index) => ({
     id: item.id,
     name: item.name,
     caption: item.department,
@@ -541,10 +1090,10 @@ export function SchedulingDashboardPage() {
     icon: UserRoundCheck,
   }));
 
-  const analysisTopDepartmentItems = watchedDepartments.map((item, index) => ({
+  const analysisTopDepartmentItems = analysisDepartmentMetrics.map((item, index) => ({
     id: item.id,
     name: item.name,
-    caption: `${Math.round(Number(item.bookings || 0) * activeRange.multiplier)} lượt đặt`,
+    caption: `${Math.round(Number(item.bookings || 0))} lượt đặt`,
     value: Number(item.utilization || 0),
     color: departmentColors[index % departmentColors.length],
     icon: getDepartmentIcon(item.name),
@@ -579,8 +1128,8 @@ export function SchedulingDashboardPage() {
       )
       .join(' ');
 
-  const bookedAngle = (slotTotals.booked / totalSlotCount) * 360;
-  const availableAngle = (slotTotals.available / totalSlotCount) * 360;
+  const bookedAngle = (analysisSlotTotals.booked / analysisTotalSlotCount) * 360;
+  const availableAngle = (analysisSlotTotals.available / analysisTotalSlotCount) * 360;
 
   const donutStyle = {
     background: `conic-gradient(
@@ -598,49 +1147,98 @@ export function SchedulingDashboardPage() {
     month: '2-digit',
   }).format(new Date());
 
-  const dashboardStats = scheduleStats.slice(0, 8).map((item) => {
+  const dashboardSourceStats = [
+    {
+      label: 'Lịch hôm nay',
+      value: operationalSignals.todayCount,
+      delta: operationalSignals.todayCount > 0 ? 'đang vận hành' : 'cần bổ sung lịch',
+    },
+    {
+      label: 'Lịch trong tuần',
+      value: operationalSignals.totalSchedules,
+      delta: backendConnected ? 'theo dữ liệu hệ thống' : 'dữ liệu dự phòng',
+    },
+    {
+      label: 'Chưa công khai',
+      value: operationalSignals.unpublishedCount,
+      delta: operationalSignals.unpublishedCount > 0 ? 'cần duyệt' : 'không còn tồn đọng',
+    },
+    {
+      label: 'Tổng khung giờ',
+      value: operationalSignals.totalSlots,
+      delta: 'toàn hệ thống',
+    },
+    {
+      label: 'Đã đặt',
+      value: operationalSignals.bookedSlots,
+      delta: `${formatPercent(operationalSignals.utilizationRate)} lấp đầy`,
+    },
+    {
+      label: 'Còn trống',
+      value: operationalSignals.availableSlots,
+      delta: `${formatPercent(operationalSignals.availableRate)} nguồn slot`,
+    },
+    {
+      label: 'Đã khóa',
+      value: operationalSignals.blockedSlots,
+      delta: `${formatPercent(operationalSignals.blockedRate)} bị khóa`,
+    },
+    {
+      label: 'Lấp đầy trung bình',
+      value: `${Math.round(operationalSignals.utilizationRate)}%`,
+      delta: 'theo khoảng ngày',
+    },
+  ];
+
+  const dashboardStats = dashboardSourceStats.map((item) => {
     const visual = getDashboardMetricVisual(item.label);
     const Icon = visual.icon;
+    const assessment = getMetricAssessment(visual.label, operationalSignals);
 
     return {
       ...item,
       label: visual.label,
       tone: visual.tone,
       icon: <Icon size={18} strokeWidth={2.25} />,
+      assessment,
     };
   });
 
   const operationFlowSteps = [
     {
       label: 'Tạo lịch',
-      body: 'Bác sĩ tạo lịch và khung giờ.',
+      value: operationalSignals.totalSchedules,
+      body: `${operationalSignals.totalSchedules} lịch trong kỳ theo dõi.`,
       icon: CalendarPlus,
       tone: 'teal',
     },
     {
       label: 'Công khai',
-      body: 'Lịch hiển thị cho bệnh nhân.',
+      value: operationalSignals.visibleSchedulesCount,
+      body: `${operationalSignals.visibleSchedulesCount} lịch đang hiển thị cho bệnh nhân.`,
       icon: Globe2,
       tone: 'blue',
     },
     {
       label: 'Bệnh nhân đặt',
-      body: 'Bệnh nhân đặt lịch trực tuyến.',
+      value: operationalSignals.bookedSlots,
+      body: `${operationalSignals.bookedSlots} lượt đặt hợp lệ ghi nhận từ hệ thống.`,
       icon: UsersRound,
       tone: 'violet',
     },
     {
       label: 'Lễ tân hỗ trợ',
-      body: 'Xác nhận, hỗ trợ và nhắc lịch.',
+      value: operationalAlerts.length,
+      body: `${operationalAlerts.length} nhắc nhở/cảnh báo cần theo dõi.`,
       icon: Headphones,
       tone: 'orange',
     },
   ];
 
   const systemRows = [
-    { label: 'Đang hoạt động', value: totalSlotCount, tone: 'green' },
-    { label: 'Còn trống', value: slotTotals.available, tone: 'blue' },
-    { label: 'Đã khóa', value: slotTotals.blocked, tone: 'red' },
+    { label: 'Đang hoạt động', value: operationalSignals.totalSlots, tone: 'green' },
+    { label: 'Còn trống', value: operationalSignals.availableSlots, tone: 'blue' },
+    { label: 'Đã khóa', value: operationalSignals.blockedSlots, tone: 'red' },
   ];
 
   function handleExportCurrentChart() {
@@ -659,6 +1257,7 @@ export function SchedulingDashboardPage() {
 
     downloadSvgAsPng(svg, `bieu-do-${activeAnalysis}-${analysisView}.png`, 960, 540);
     setIsExportMenuOpen(false);
+    setIsAnalysisActionsOpen(false);
   }
 
   function handleExportAllCharts() {
@@ -708,21 +1307,23 @@ export function SchedulingDashboardPage() {
 
     downloadSvgAsPng(svg, 'tat-ca-bieu-do-phan-tich-van-hanh.png', width, height);
     setIsExportMenuOpen(false);
+    setIsAnalysisActionsOpen(false);
   }
 
   useEffect(() => {
     let isActive = true;
 
     async function loadActivities() {
-      const fallback = buildFallbackActivities(sortedSchedules, operationAlerts);
+      const activityCandidates = buildActivityCandidateSchedules(sortedSchedules, todayKey);
+      const fallback = buildFallbackActivities(activityCandidates, operationAlerts);
 
-      if (!backendConnected || !sortedSchedules.length) {
+      if (!backendConnected || !activityCandidates.length) {
         setRecentActivities(fallback);
         return;
       }
 
       const results = await Promise.allSettled(
-        sortedSchedules
+        activityCandidates
           .slice(0, 5)
           .map((item) => schedulingApi.getScheduleActivity(item.id, { limit: 4 })),
       );
@@ -733,12 +1334,12 @@ export function SchedulingDashboardPage() {
         .flatMap((result) => (result.status === 'fulfilled' ? result.value?.items || [] : []))
         .sort(
           (first, second) =>
-            new Date(second.created_at).getTime() - new Date(first.created_at).getTime(),
+            getActivityTimestamp(second.created_at) - getActivityTimestamp(first.created_at),
         )
         .slice(0, 6)
         .map((item, index) => ({
           id: item.audit_log_id || `${item.action}-${index}`,
-          time: formatClock(item.created_at),
+          time: formatActivityMoment(item.created_at) || 'Chưa rõ',
           title: getActivityTitle(item.action),
           actor: item.actor_name || item.actor_type || 'Hệ thống',
           body: item.message || 'Không có mô tả bổ sung.',
@@ -752,7 +1353,32 @@ export function SchedulingDashboardPage() {
     return () => {
       isActive = false;
     };
-  }, [backendConnected, operationAlerts, sortedSchedules]);
+  }, [backendConnected, operationAlerts, sortedSchedules, todayKey]);
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (analysisToolsRef.current && !analysisToolsRef.current.contains(event.target)) {
+        setIsAnalysisRangeOpen(false);
+        setIsAnalysisActionsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setIsAnalysisRangeOpen(false);
+        setIsAnalysisActionsOpen(false);
+        setIsExportMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   async function runAction(successMessage, callback) {
     setActionMessage('Đang xử lý yêu cầu...');
@@ -765,7 +1391,32 @@ export function SchedulingDashboardPage() {
     }
   }
 
-  const SyncIcon = loading ? LoaderCircle : error ? AlertTriangle : ShieldCheck;
+  function handleAnalysisRefresh() {
+    setIsAnalysisActionsOpen(false);
+    setIsExportMenuOpen(false);
+    runAction('Đã làm mới dữ liệu phân tích vận hành.', refresh);
+  }
+
+  function handleAnalysisViewFromMenu(nextView) {
+    setAnalysisView(nextView);
+    setIsAnalysisActionsOpen(false);
+    setIsExportMenuOpen(false);
+  }
+
+  const todayMetricAssessment = getMetricAssessment('Lịch hôm nay', operationalSignals);
+  const unpublishedMetricAssessment = getMetricAssessment('Chưa công khai', operationalSignals);
+  const capacityMetricAssessment = getMetricAssessment('Lấp đầy TB', operationalSignals);
+  const topOperationalAlert = operationalAlerts[0] || {
+    id: 'stable',
+    tone: 'good',
+    title: systemHealth.label,
+    body: systemHealth.body,
+    count: 0,
+    to: '/scheduling/schedules',
+    icon: ShieldCheck,
+    items: [],
+  };
+  const SyncIcon = loading ? LoaderCircle : systemHealth.tone === 'danger' ? AlertTriangle : ShieldCheck;
 
   return (
     <main className="scheduling-dashboard-page">
@@ -805,9 +1456,9 @@ export function SchedulingDashboardPage() {
               <CalendarCheck2 size={22} strokeWidth={2.1} />
             </i>
             <span>Lịch hôm nay</span>
-            <strong>{todaySchedules.length}</strong>
+            <strong>{operationalSignals.todayCount}</strong>
             <small>
-              +8 so với hôm qua
+              {todayMetricAssessment.label}
               <TrendingUp size={14} strokeWidth={2.4} aria-hidden="true" />
             </small>
           </div>
@@ -816,9 +1467,9 @@ export function SchedulingDashboardPage() {
               <LockKeyhole size={21} strokeWidth={2.1} />
             </i>
             <span>Chưa công khai</span>
-            <strong>{unpublishedSchedules.length}</strong>
+            <strong>{operationalSignals.unpublishedCount}</strong>
             <small>
-              cần duyệt
+              {unpublishedMetricAssessment.label}
               <Eye size={14} strokeWidth={2.4} aria-hidden="true" />
             </small>
           </div>
@@ -827,16 +1478,16 @@ export function SchedulingDashboardPage() {
               <BarChart3 size={22} strokeWidth={2.1} />
             </i>
             <span>Lấp đầy cao</span>
-            <strong>{highPressureSchedules.length}</strong>
+            <strong>{operationalSignals.highPressureCount}</strong>
             <small>
-              &gt; 85% công suất
+              {capacityMetricAssessment.label}
               <TrendingUp size={14} strokeWidth={2.4} aria-hidden="true" />
             </small>
           </div>
         </div>
       </section>
 
-      <section className={`scheduling-sync-banner ${error ? 'is-warning' : ''} ${loading ? 'is-loading' : ''}`}>
+      <section className={`scheduling-sync-banner is-${systemHealth.tone} ${loading ? 'is-loading' : ''}`}>
         <div className="scheduling-sync-banner__content">
           <span className="scheduling-sync-banner__icon" aria-hidden="true">
             <SyncIcon size={21} strokeWidth={2.25} />
@@ -847,9 +1498,11 @@ export function SchedulingDashboardPage() {
                 ? 'Đang đồng bộ dữ liệu lịch khám'
                 : error
                   ? 'Đang dùng dữ liệu mẫu'
-                  : 'Hệ thống lịch đang hoạt động ổn định'}
+                  : systemHealth.title}
             </strong>
-            <span>{error || `Dữ liệu được cập nhật lần cuối lúc ${lastUpdatedText}.`}</span>
+            <span>
+              {error || `${systemHealth.body} Dữ liệu được cập nhật lần cuối lúc ${lastUpdatedText}.`}
+            </span>
           </div>
         </div>
         <button type="button" onClick={refresh}>
@@ -883,41 +1536,42 @@ export function SchedulingDashboardPage() {
                   </div>
                   {index < operationFlowSteps.length - 1 ? <i aria-hidden="true" /> : null}
                   <strong>{step.label}</strong>
+                  <b>{step.value}</b>
                   <small>{step.body}</small>
                 </div>
               );
             })}
           </div>
 
-          <div className="scheduling-operation-status">
+          <div className={`scheduling-operation-status is-${systemHealth.tone}`}>
             <Activity size={15} strokeWidth={2.35} aria-hidden="true" />
-            Hệ thống vận hành ổn định
+            {systemHealth.label}
           </div>
         </article>
 
-        <article className="scheduling-command-card scheduling-command-card--warning">
+        <article className={`scheduling-command-card scheduling-command-card--warning is-${topOperationalAlert.tone}`}>
           <div className="scheduling-command-card__head">
             <span>Ưu tiên hôm nay</span>
           </div>
-          <strong>{unpublishedSchedules.length}</strong>
+          <strong>{topOperationalAlert.count ?? operationalAlerts.length}</strong>
           <small>
             <RefreshCw size={13} strokeWidth={2.35} aria-hidden="true" />
-            Cần xử lý
+            {topOperationalAlert.tone === 'danger' ? 'Báo động' : topOperationalAlert.tone === 'warning' ? 'Cần xử lý' : 'Nhắc nhở'}
           </small>
-          <p>lịch chưa công khai cần duyệt trước khi hiển thị cho bệnh nhân.</p>
+          <p>{topOperationalAlert.body}</p>
           <div className="scheduling-command-list">
-            <Link to="/scheduling/schedules">
-              <CalendarClock size={16} strokeWidth={2.25} aria-hidden="true" />
-              Chưa công khai
-              <b>{unpublishedSchedules.length}</b>
-              <ChevronRight size={15} strokeWidth={2.3} aria-hidden="true" />
-            </Link>
-            <Link to="/scheduling/schedules">
-              <Clock3 size={16} strokeWidth={2.25} aria-hidden="true" />
-              Sắp hết lịch
-              <b>{highPressureSchedules.length}</b>
-              <ChevronRight size={15} strokeWidth={2.3} aria-hidden="true" />
-            </Link>
+            {(operationalAlerts.length ? operationalAlerts : [topOperationalAlert]).slice(0, 3).map((alert) => {
+              const AlertIcon = alert.icon || CalendarClock;
+
+              return (
+                <Link key={alert.id} to={alert.to} className={`is-${alert.tone}`}>
+                  <AlertIcon size={16} strokeWidth={2.25} aria-hidden="true" />
+                  {alert.title}
+                  <b>{alert.count ?? '!'}</b>
+                  <ChevronRight size={15} strokeWidth={2.3} aria-hidden="true" />
+                </Link>
+              );
+            })}
           </div>
         </article>
 
@@ -928,7 +1582,7 @@ export function SchedulingDashboardPage() {
           <div className="scheduling-system-visual" aria-hidden="true">
             <ShieldCheck size={34} strokeWidth={2.3} />
           </div>
-          <strong>{totalSlotCount}</strong>
+          <strong>{operationalSignals.totalSlots}</strong>
           <p>Khung giờ đang hoạt động</p>
           <div className="scheduling-system-rows">
             {systemRows.map((item) => (
@@ -939,9 +1593,9 @@ export function SchedulingDashboardPage() {
               </div>
             ))}
           </div>
-          <div className="scheduling-system-pill">
+          <div className={`scheduling-system-pill is-${systemHealth.tone}`}>
             <Activity size={15} strokeWidth={2.35} aria-hidden="true" />
-            Hệ thống đang hoạt động tốt
+            {systemHealth.label}
           </div>
         </article>
       </section>
@@ -959,7 +1613,7 @@ export function SchedulingDashboardPage() {
               <div>
                 <h2>Việc cần xử lý ngay</h2>
               </div>
-              <Link to="/scheduling/schedules">Xem tất cả</Link>
+              <Link to="/scheduling/tasks">Xem tất cả</Link>
             </div>
 
             <div className="scheduling-priority-grid">
@@ -967,12 +1621,15 @@ export function SchedulingDashboardPage() {
                 <div className="scheduling-priority-card__summary">
                   <div>
                     <span>Lịch chưa công khai</span>
-                    <strong>{unpublishedSchedules.length}</strong>
+                    <strong>{operationalSignals.unpublishedCount}</strong>
                     <p>Cần công khai để bệnh nhân và lễ tân nhìn thấy khung giờ.</p>
+                    <em className={`scheduling-priority-assessment is-${unpublishedMetricAssessment.tone}`}>
+                      {unpublishedMetricAssessment.label}: {unpublishedMetricAssessment.body}
+                    </em>
                   </div>
                 </div>
 
-                {unpublishedSchedules.slice(0, 3).map((item) => (
+                {unpublishedSchedules.length ? unpublishedSchedules.slice(0, 3).map((item) => (
                   <div key={item.id} className="scheduling-priority-item">
                     <span>{item.doctor}</span>
                     <small>
@@ -987,19 +1644,24 @@ export function SchedulingDashboardPage() {
                       Công khai
                     </button>
                   </div>
-                ))}
+                )) : (
+                  <div className="scheduling-priority-empty">Không có lịch chờ công khai.</div>
+                )}
               </div>
 
               <div className="scheduling-priority-card scheduling-priority-card--red">
                 <div className="scheduling-priority-card__summary">
                   <div>
                     <span>Lịch sắp hết khung giờ</span>
-                    <strong>{highPressureSchedules.length}</strong>
+                    <strong>{operationalSignals.highPressureCount}</strong>
                     <p>Theo dõi bác sĩ/khoa có tỷ lệ đặt cao để mở thêm ca.</p>
+                    <em className={`scheduling-priority-assessment is-${capacityMetricAssessment.tone}`}>
+                      {capacityMetricAssessment.label}: {capacityMetricAssessment.body}
+                    </em>
                   </div>
                 </div>
 
-                {highPressureSchedules.slice(0, 3).map((item) => (
+                {highPressureSchedules.length ? highPressureSchedules.slice(0, 3).map((item) => (
                   <Link
                     key={item.id}
                     to={`/scheduling/schedules/${item.id}`}
@@ -1011,19 +1673,24 @@ export function SchedulingDashboardPage() {
                     </small>
                     <b>{formatPercent(item.utilization)}</b>
                   </Link>
-                ))}
+                )) : (
+                  <div className="scheduling-priority-empty">Không có lịch vượt ngưỡng công suất.</div>
+                )}
               </div>
 
               <div className="scheduling-priority-card scheduling-priority-card--blue">
                 <div className="scheduling-priority-card__summary">
                   <div>
                     <span>Lịch cần rà soát</span>
-                    <strong>{conflictWatchSchedules.length + impactSchedules.length}</strong>
+                    <strong>{conflictWatchSchedules.length + impactSchedules.length + cancelledBookedSchedules.length}</strong>
                     <p>Kiểm tra xung đột, khả năng cập nhật hoặc hủy nếu có bệnh nhân đặt.</p>
+                    <em className={`scheduling-priority-assessment is-${cancelledBookedSchedules.length ? 'danger' : 'good'}`}>
+                      {cancelledBookedSchedules.length ? 'Báo động' : 'Ổn định'}: {cancelledBookedSchedules.length ? 'Có lịch hủy còn bệnh nhân.' : 'Chưa phát hiện xung đột nghiêm trọng.'}
+                    </em>
                   </div>
                 </div>
 
-                {[...conflictWatchSchedules, ...impactSchedules].slice(0, 3).map((item) => (
+                {[...cancelledBookedSchedules, ...conflictWatchSchedules, ...impactSchedules].length ? [...cancelledBookedSchedules, ...conflictWatchSchedules, ...impactSchedules].slice(0, 3).map((item) => (
                   <Link
                     key={item.id}
                     to={`/scheduling/schedules/${item.id}`}
@@ -1035,7 +1702,9 @@ export function SchedulingDashboardPage() {
                     </small>
                     <ChevronRight size={14} strokeWidth={2.4} aria-hidden="true" />
                   </Link>
-                ))}
+                )) : (
+                  <div className="scheduling-priority-empty">Không có lịch cần rà soát khẩn.</div>
+                )}
               </div>
             </div>
           </article>
@@ -1047,7 +1716,7 @@ export function SchedulingDashboardPage() {
               <span>Lịch khám hôm nay</span>
               <h2>Bảng điều phối theo ca khám</h2>
             </div>
-            <Link to="/scheduling/schedules">Xem toàn bộ</Link>
+            <Link to="/scheduling/today">Xem toàn bộ</Link>
           </div>
 
           <div className="scheduling-table scheduling-table--today">
@@ -1060,59 +1729,73 @@ export function SchedulingDashboardPage() {
               <span>Còn trống</span>
               <span>Đã khóa</span>
               <span>Trạng thái</span>
+              <span>Đánh giá</span>
               <span>Hành động</span>
             </div>
 
-            {visibleTodaySchedules.map((item) => (
-              <div key={item.id} className="scheduling-table__row">
-                <strong>
-                  {item.start} - {item.end}
-                </strong>
-                <span>{item.doctor}</span>
-                <span>{item.department}</span>
-                <span>{item.totalSlots}</span>
-                <span>{item.bookedSlots}</span>
-                <span>{item.availableSlots}</span>
-                <span>{item.blockedSlots}</span>
-                <StatusBadge value={item.status}>{item.status}</StatusBadge>
+            {visibleTodaySchedules.length ? visibleTodaySchedules.map((item) => {
+              const scheduleAssessment = getScheduleAssessment(item);
 
-                <div className="scheduling-actions">
-                  <Link to={`/scheduling/schedules/${item.id}`} aria-label={`Xem ${item.doctor}`} title="Xem">
-                    <Eye size={14} strokeWidth={2.25} />
-                  </Link>
-                  <Link to="/scheduling/slots" aria-label="Khung giờ" title="Khung giờ">
-                    <CalendarClock size={14} strokeWidth={2.25} />
-                  </Link>
+              return (
+                <div key={item.id} className="scheduling-table__row">
+                  <strong>
+                    {item.start} - {item.end}
+                  </strong>
+                  <span>{item.doctor}</span>
+                  <span>{item.department}</span>
+                  <span>{item.totalSlots}</span>
+                  <span>{item.bookedSlots}</span>
+                  <span>{item.availableSlots}</span>
+                  <span>{item.blockedSlots}</span>
+                  <StatusBadge value={item.status}>{item.status}</StatusBadge>
+                  <span className={`scheduling-row-assessment is-${scheduleAssessment.tone}`}>
+                    {scheduleAssessment.label}
+                  </span>
 
-                  {item.publishStatus === 'Hidden' ? (
-                    <button
-                      type="button"
-                      aria-label="Công khai"
-                      title="Công khai"
-                      onClick={() =>
-                        runAction('Đã công khai lịch khám.', () => actions.publishSchedule(item.id))
-                      }
-                    >
-                      <UploadCloud size={14} strokeWidth={2.25} />
-                    </button>
-                  ) : null}
+                  <div className="scheduling-actions">
+                    <Link to={`/scheduling/schedules/${item.id}`} aria-label={`Xem ${item.doctor}`} title="Xem">
+                      <Eye size={14} strokeWidth={2.25} />
+                    </Link>
+                    <Link to="/scheduling/slots" aria-label="Khung giờ" title="Khung giờ">
+                      <CalendarClock size={14} strokeWidth={2.25} />
+                    </Link>
 
-                  {item.status !== 'cancelled' ? (
-                    <button
-                      type="button"
-                      className="is-danger"
-                      aria-label="Hủy"
-                      title="Hủy"
-                      onClick={() =>
-                        runAction('Đã hủy lịch khám.', () => actions.cancelSchedule(item.id))
-                      }
-                    >
-                      <X size={14} strokeWidth={2.35} />
-                    </button>
-                  ) : null}
+                    {item.publishStatus === 'Hidden' ? (
+                      <button
+                        type="button"
+                        aria-label="Công khai"
+                        title="Công khai"
+                        onClick={() =>
+                          runAction('Đã công khai lịch khám.', () => actions.publishSchedule(item.id))
+                        }
+                      >
+                        <UploadCloud size={14} strokeWidth={2.25} />
+                      </button>
+                    ) : null}
+
+                    {!isScheduleCancelled(item) ? (
+                      <button
+                        type="button"
+                        className="is-danger"
+                        aria-label="Hủy"
+                        title="Hủy"
+                        onClick={() =>
+                          runAction('Đã hủy lịch khám.', () => actions.cancelSchedule(item.id))
+                        }
+                      >
+                        <X size={14} strokeWidth={2.35} />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
+              );
+            }) : (
+              <div className="scheduling-table-empty">
+                <CalendarCheck2 size={20} strokeWidth={2.25} aria-hidden="true" />
+                <strong>Không có lịch hôm nay</strong>
+                <span>Hệ thống chưa ghi nhận ca khám trong ngày {formatDate(todayKey)}.</span>
               </div>
-            ))}
+            )}
           </div>
         </section>
       </section>
@@ -1124,13 +1807,16 @@ export function SchedulingDashboardPage() {
             <p>Theo dõi toàn diện hiệu suất lịch khám</p>
           </div>
 
-          <div className="scheduling-operations-analysis__tools">
+          <div className="scheduling-operations-analysis__tools" ref={analysisToolsRef}>
             <div className="scheduling-analysis-range">
               <button
                 type="button"
                 className="scheduling-analysis-range__button"
                 aria-expanded={isAnalysisRangeOpen}
-                onClick={() => setIsAnalysisRangeOpen((current) => !current)}
+                onClick={() => {
+                  setIsAnalysisRangeOpen((current) => !current);
+                  setIsAnalysisActionsOpen(false);
+                }}
               >
                 <CalendarRange size={15} strokeWidth={2.25} aria-hidden="true" />
                 {activeRange.label}
@@ -1156,9 +1842,49 @@ export function SchedulingDashboardPage() {
               ) : null}
             </div>
 
-            <button type="button" aria-label="Tùy chọn">
-              <EllipsisVertical size={17} strokeWidth={2.2} aria-hidden="true" />
-            </button>
+            <div className="scheduling-analysis-actions-menu">
+              <button
+                type="button"
+                className="scheduling-analysis-actions-menu__button"
+                aria-label="Tùy chọn phân tích vận hành"
+                aria-expanded={isAnalysisActionsOpen}
+                onClick={() => {
+                  setIsAnalysisActionsOpen((current) => !current);
+                  setIsAnalysisRangeOpen(false);
+                }}
+              >
+                <EllipsisVertical size={17} strokeWidth={2.2} aria-hidden="true" />
+              </button>
+
+              {isAnalysisActionsOpen ? (
+                <div className="scheduling-analysis-actions-menu__list" role="menu">
+                  <button type="button" role="menuitem" onClick={handleAnalysisRefresh}>
+                    <RefreshCw size={15} strokeWidth={2.25} aria-hidden="true" />
+                    Làm mới phân tích
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => handleAnalysisViewFromMenu('chart')}>
+                    <BarChart3 size={15} strokeWidth={2.25} aria-hidden="true" />
+                    Xem dạng biểu đồ
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => handleAnalysisViewFromMenu('table')}>
+                    <Table2 size={15} strokeWidth={2.25} aria-hidden="true" />
+                    Xem dạng bảng
+                  </button>
+                  <button type="button" role="menuitem" onClick={handleExportCurrentChart}>
+                    <Download size={15} strokeWidth={2.25} aria-hidden="true" />
+                    Xuất hình đang xem
+                  </button>
+                  <Link to="/scheduling/utilization" role="menuitem" onClick={() => setIsAnalysisActionsOpen(false)}>
+                    <ChartSpline size={15} strokeWidth={2.25} aria-hidden="true" />
+                    Báo cáo chi tiết
+                  </Link>
+                  <Link to="/scheduling/activity" role="menuitem" onClick={() => setIsAnalysisActionsOpen(false)}>
+                    <ClipboardList size={15} strokeWidth={2.25} aria-hidden="true" />
+                    Nhật ký hoạt động
+                  </Link>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -1244,7 +1970,10 @@ export function SchedulingDashboardPage() {
                 type="button"
                 className="scheduling-analysis-export"
                 aria-expanded={isExportMenuOpen}
-                onClick={() => setIsExportMenuOpen((current) => !current)}
+                onClick={() => {
+                  setIsExportMenuOpen((current) => !current);
+                  setIsAnalysisActionsOpen(false);
+                }}
               >
                 <Download size={14} strokeWidth={2.2} aria-hidden="true" />
                 Xuất
@@ -1268,7 +1997,7 @@ export function SchedulingDashboardPage() {
 
           <div className="scheduling-analysis-main-grid">
             <div className="scheduling-analysis-department-list">
-              {activeAnalysisItems.map((item) => {
+              {activeAnalysisItems.length ? activeAnalysisItems.map((item) => {
                 const ItemIcon = item.icon || Activity;
 
                 return (
@@ -1298,7 +2027,9 @@ export function SchedulingDashboardPage() {
                   </em>
                 </div>
                 );
-              })}
+              }) : (
+                <p className="scheduling-analysis-empty">Chưa có dữ liệu phân tích trong {activeRange.label}.</p>
+              )}
             </div>
 
             {analysisView === 'chart' ? (
@@ -1315,8 +2046,9 @@ export function SchedulingDashboardPage() {
                 </div>
 
                 <div className="scheduling-analysis-chart__bars">
-                  {activeAnalysisItems.map((item) => {
-                    const chartValue = Math.max(8, Math.min(Number(item.value || 0), 100));
+                  {activeAnalysisItems.length ? activeAnalysisItems.map((item) => {
+                    const rawChartValue = Math.max(0, Math.min(Number(item.value || 0), 100));
+                    const chartValue = rawChartValue > 0 ? Math.max(8, rawChartValue) : 0;
 
                     return (
                       <div key={item.id}>
@@ -1330,7 +2062,11 @@ export function SchedulingDashboardPage() {
                         <small>{item.name}</small>
                       </div>
                     );
-                  })}
+                  }) : (
+                    <p className="scheduling-analysis-empty scheduling-analysis-empty--chart">
+                      Chưa có dữ liệu biểu đồ trong {activeRange.label}.
+                    </p>
+                  )}
                 </div>
 
                 <div className="scheduling-analysis-chart__legend">
@@ -1416,7 +2152,7 @@ export function SchedulingDashboardPage() {
                   <span>Đánh giá</span>
                 </div>
 
-                {activeAnalysisItems.map((item) => {
+                {activeAnalysisItems.length ? activeAnalysisItems.map((item) => {
                   const ItemIcon = item.icon || Activity;
                   const scoreState = getAnalysisScoreState(item.value);
                   const cappedValue = Math.max(0, Math.min(Number(item.value || 0), 100));
@@ -1451,7 +2187,11 @@ export function SchedulingDashboardPage() {
                       <small className={scoreState.className}>{scoreState.label}</small>
                     </div>
                   );
-                })}
+                }) : (
+                  <div className="scheduling-analysis-insight-empty" role="row">
+                    Chưa có dữ liệu bảng trong {activeRange.label}.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1477,29 +2217,27 @@ export function SchedulingDashboardPage() {
             </div>
 
             <div className="scheduling-analysis-doctor-list">
-              {busyDoctors.map((item, index) => {
-                const avatar = getDoctorAvatar(item, index);
-
-                return (
+              {analysisDoctorItems.length ? analysisDoctorItems.map((item) => (
                   <div key={item.id}>
                     <img
                       className="scheduling-analysis-avatar scheduling-analysis-avatar--small"
-                      src={avatar}
+                      src={item.avatar}
                       alt=""
                       loading="lazy"
                       onError={handleDoctorAvatarError}
                     />
                     <div>
                       <strong>{item.name}</strong>
-                      <span>{item.department}</span>
+                      <span>{item.caption}</span>
                     </div>
-                    <b>{formatPercent(item.load)}</b>
+                    <b>{formatPercent(item.value)}</b>
                     <em>
-                      <span style={{ width: `${Math.min(Number(item.load || 0), 100)}%`, backgroundColor: departmentColors[index % departmentColors.length] }} />
+                      <span style={{ width: `${Math.min(Number(item.value || 0), 100)}%`, backgroundColor: item.color }} />
                     </em>
                   </div>
-                );
-              })}
+              )) : (
+                <p className="scheduling-analysis-empty">Chưa có bác sĩ cần theo dõi trong {activeRange.label}.</p>
+              )}
             </div>
           </article>
 
@@ -1508,24 +2246,24 @@ export function SchedulingDashboardPage() {
               <h3>Tỷ lệ khung giờ</h3>
             </div>
 
-            <div className="scheduling-analysis-donut-layout">
-              <div className="scheduling-donut" style={donutStyle}>
-                <strong>{formatPercent((slotTotals.booked / totalSlotCount) * 100)}</strong>
+              <div className="scheduling-analysis-donut-layout">
+                <div className="scheduling-donut" style={donutStyle}>
+                <strong>{formatPercent((analysisSlotTotals.booked / analysisTotalSlotCount) * 100)}</strong>
                 <span>Đã đặt</span>
               </div>
 
               <div className="scheduling-donut-legend">
                 <span>
                   <i className="is-booked" />
-                  Đã đặt <b>{slotTotals.booked} ({formatPercent((slotTotals.booked / totalSlotCount) * 100)})</b>
+                  Đã đặt <b>{analysisSlotTotals.booked} ({formatPercent((analysisSlotTotals.booked / analysisTotalSlotCount) * 100)})</b>
                 </span>
                 <span>
                   <i className="is-available" />
-                  Còn trống <b>{slotTotals.available} ({formatPercent((slotTotals.available / totalSlotCount) * 100)})</b>
+                  Còn trống <b>{analysisSlotTotals.available} ({formatPercent((analysisSlotTotals.available / analysisTotalSlotCount) * 100)})</b>
                 </span>
                 <span>
                   <i className="is-blocked" />
-                  Đã khóa <b>{slotTotals.blocked} ({formatPercent((slotTotals.blocked / totalSlotCount) * 100)})</b>
+                  Đã khóa <b>{analysisSlotTotals.blocked} ({formatPercent((analysisSlotTotals.blocked / analysisTotalSlotCount) * 100)})</b>
                 </span>
               </div>
             </div>
@@ -1534,11 +2272,11 @@ export function SchedulingDashboardPage() {
           <article className="scheduling-analysis-mini-card scheduling-analysis-activity-card">
             <div className="scheduling-analysis-mini-card__head">
               <h3>Hoạt động gần đây</h3>
-              <Link to="/scheduling/schedules">Xem tất cả</Link>
+              <Link to="/scheduling/activity">Xem tất cả</Link>
             </div>
 
-            <div className="scheduling-analysis-activity-list">
-              {recentActivities.slice(0, 5).map((item) => (
+            <div className={`scheduling-analysis-activity-list ${recentActivities.length ? '' : 'is-empty'}`}>
+              {recentActivities.length ? recentActivities.slice(0, 5).map((item) => (
                 <div key={item.id}>
                   <time>{item.time}</time>
                   <i aria-hidden="true" />
@@ -1547,7 +2285,9 @@ export function SchedulingDashboardPage() {
                     <span>{item.body}</span>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <p className="scheduling-analysis-empty">Chưa có hoạt động gần đây từ hệ thống.</p>
+              )}
             </div>
           </article>
         </div>

@@ -1,5 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { PatientRoute, SuperAdminRoute, StaffRoute } from './RouteGuards';
+import { isPatientSession, isSuperAdminSession } from '../lib/authSession';
+import { readStoredAuth } from '../lib/storage';
 import { LoginPage } from '../auth/pages/LoginPage';
 import { RegisterPage } from '../auth/pages/RegisterPage';
 import { ForgotPasswordPage } from '../auth/pages/ForgotPasswordPage';
@@ -35,21 +37,65 @@ import { FaqPage } from '../home/pages/FaqPage';
 import { NewsArticlePage, NewsPage } from '../home/pages/NewsPage';
 import { ContactPage } from '../home/pages/ContactPage';
 import { StaffAccessPage } from '../staff/pages/StaffAccessPage';
+import { DevPlaceholderPage } from '../staff/pages/DevPlaceholderPage';
 import { StaffOverviewPage } from '../staff/pages/StaffOverviewPage';
 import PatientPage from '../Patient Page';
 import {
   ScheduleBulkCreatePage,
   ScheduleCreatePage,
   ScheduleDetailPage,
+  SchedulingActivityPage,
   SchedulesByDepartmentPage,
   SchedulesByDoctorPage,
+  SchedulingApprovalsPage,
   SchedulingCalendarPage,
+  SchedulingConfigurationPage,
   SchedulingDashboardPage,
   SchedulingListPage,
   SchedulingShell,
   SchedulingSlotsPage,
+  SchedulingTasksPage,
+  SchedulingTodayPage,
   SchedulingUtilizationPage,
 } from '../scheduling';
+
+const devPlaceholderRoutes = [
+  { path: '/reception/dashboard', title: 'Lễ tân & tiếp nhận' },
+  { path: '/doctor/dashboard', title: 'Bác sĩ lâm sàng' },
+  { path: '/nurse/dashboard', title: 'Điều dưỡng' },
+  { path: '/pharmacy/dashboard', title: 'Nhà thuốc' },
+  { path: '/lab/dashboard', title: 'Xét nghiệm & CĐHA' },
+  { path: '/lab/orders', title: 'Chỉ định xét nghiệm & CĐHA' },
+  { path: '/billing/dashboard', title: 'Viện phí & thanh toán' },
+  { path: '/billing/invoices', title: 'Hóa đơn viện phí' },
+  { path: '/reports/dashboard', title: 'Báo cáo & phân tích' },
+  { path: '/security/overview', title: 'Bảo mật & phiên đăng nhập' },
+  { path: '/settings/system', title: 'Cài đặt hệ thống' },
+  { path: '/appointments', title: 'Lịch hẹn' },
+  { path: '/schedules', title: 'Danh sách lịch khám' },
+  { path: '/queue', title: 'Hàng đợi tiếp nhận' },
+  { path: '/encounters', title: 'Cuộc khám' },
+  { path: '/prescriptions', title: 'Đơn thuốc' },
+  { path: '/patients', title: 'Danh sách bệnh nhân' },
+  { path: '/audit-logs', title: 'Nhật ký kiểm toán' },
+  { path: '/dev/ui-kit', title: 'Dev UI Kit' },
+  { path: '/dev/routes', title: 'Dev Routes' },
+  { path: '/dev/playground', title: 'Dev Playground' },
+];
+
+function PatientDashboardEntry() {
+  const auth = readStoredAuth();
+
+  if (isPatientSession(auth)) {
+    return <PatientPage />;
+  }
+
+  if (isSuperAdminSession(auth)) {
+    return <DevPlaceholderPage title="Bệnh nhân" route="/patient/dashboard" />;
+  }
+
+  return <Navigate to="/login" replace />;
+}
 
 export function AppRouter() {
   return (
@@ -70,6 +116,25 @@ export function AppRouter() {
           }
         />
         <Route
+          path="/super-admin/access"
+          element={
+            <SuperAdminRoute>
+              <StaffAccessPage />
+            </SuperAdminRoute>
+          }
+        />
+        {devPlaceholderRoutes.map((item) => (
+          <Route
+            key={item.path}
+            path={item.path}
+            element={
+              <SuperAdminRoute>
+                <DevPlaceholderPage title={item.title} route={item.path} />
+              </SuperAdminRoute>
+            }
+          />
+        ))}
+        <Route
           path="/staff/overview"
           element={
             <StaffRoute>
@@ -87,17 +152,26 @@ export function AppRouter() {
         >
           <Route index element={<Navigate to="/scheduling/dashboard" replace />} />
           <Route path="dashboard" element={<SchedulingDashboardPage />} />
+          <Route path="tasks" element={<SchedulingTasksPage />} />
+          <Route path="today" element={<SchedulingTodayPage />} />
           <Route path="schedules" element={<SchedulingListPage />} />
           <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
           <Route path="create" element={<ScheduleCreatePage />} />
           <Route path="bulk-create" element={<ScheduleBulkCreatePage />} />
-          <Route path="approvals" element={<SchedulingDashboardPage />} />
+          <Route path="approvals" element={<SchedulingApprovalsPage />} />
           <Route path="calendar" element={<SchedulingCalendarPage />} />
           <Route path="slots" element={<SchedulingSlotsPage />} />
           <Route path="utilization" element={<SchedulingUtilizationPage />} />
           <Route path="doctors" element={<SchedulesByDoctorPage />} />
           <Route path="departments" element={<SchedulesByDepartmentPage />} />
-          <Route path="activity" element={<SchedulingDashboardPage />} />
+          <Route path="activity" element={<SchedulingActivityPage />} />
+          <Route path="configuration" element={<SchedulingConfigurationPage />} />
+          <Route path="configuration/templates" element={<SchedulingConfigurationPage />} />
+          <Route path="configuration/policies" element={<SchedulingConfigurationPage />} />
+          <Route path="configuration/exceptions" element={<SchedulingConfigurationPage />} />
+          <Route path="configuration/telehealth" element={<SchedulingConfigurationPage />} />
+          <Route path="configuration/notifications" element={<SchedulingConfigurationPage />} />
+          <Route path="configuration/advanced" element={<SchedulingConfigurationPage />} />
         </Route>
         <Route path="/admin/scheduling/*" element={<Navigate to="/scheduling/dashboard" replace />} />
         <Route
@@ -108,6 +182,7 @@ export function AppRouter() {
             </PatientRoute>
           }
         />
+        <Route path="/patient/dashboard" element={<PatientDashboardEntry />} />
         <Route
           path="/admin"
           element={

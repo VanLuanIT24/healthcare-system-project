@@ -75,6 +75,49 @@ export function formatDate(value) {
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(new Date(value));
 }
 
+const departmentNameMap = new Map([
+  ['cardiology', 'Tim mạch'],
+  ['tim mach', 'Tim mạch'],
+  ['khoa tim mach', 'Tim mạch'],
+  ['pediatrics', 'Nhi khoa'],
+  ['pediatric', 'Nhi khoa'],
+  ['nhi khoa', 'Nhi khoa'],
+  ['khoa nhi', 'Nhi khoa'],
+  ['orthopedics', 'Cơ xương khớp'],
+  ['orthopedic', 'Cơ xương khớp'],
+  ['orthopaedics', 'Cơ xương khớp'],
+  ['co xuong khop', 'Cơ xương khớp'],
+  ['khoa co xuong khop', 'Cơ xương khớp'],
+  ['neurology', 'Thần kinh'],
+  ['than kinh', 'Thần kinh'],
+  ['khoa than kinh', 'Thần kinh'],
+  ['general medicine', 'Nội tổng quát'],
+  ['internal medicine', 'Nội tổng quát'],
+  ['noi tong quat', 'Nội tổng quát'],
+  ['khoa noi tong quat', 'Nội tổng quát'],
+  ['dermatology', 'Da liễu'],
+  ['da lieu', 'Da liễu'],
+  ['khoa da lieu', 'Da liễu'],
+]);
+
+function normalizeDepartmentName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+export function translateDepartmentName(value) {
+  const text = String(value || '').trim();
+  if (!text) return 'Chưa xác định khoa';
+
+  const normalized = normalizeDepartmentName(text);
+  return departmentNameMap.get(normalized) || text;
+}
+
 export function buildSlotPreview({ start = '07:30', end = '11:30', duration = 15, breakMinutes = 0 }) {
   const [startHour, startMinute] = start.split(':').map(Number);
   const [endHour, endMinute] = end.split(':').map(Number);

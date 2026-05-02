@@ -40,13 +40,14 @@ import {
 import { schedulingApi } from '../api/schedulingApi';
 import { StatusBadge } from '../components/SchedulingPrimitives';
 import { useSchedulingData } from '../context/SchedulingDataContext';
+import { buildScheduleActivities } from '../utils/scheduleActivity';
 
-const INITIAL_FILTERS = {
+const BASE_FILTERS = {
   search: '',
   doctor: '',
   department: '',
-  fromDate: '2026-04-24',
-  toDate: '2026-04-30',
+  fromDate: '',
+  toDate: '',
   status: '',
   publishStatus: '',
   slotState: '',
@@ -64,6 +65,7 @@ const DOCTOR_AVATAR_PATHS = {
 };
 const DOCTOR_AVATAR_POOL = Object.values(DOCTOR_AVATAR_PATHS);
 const departmentColors = ['#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#ec4899'];
+const scheduleCardColors = ['#14b8a6', '#3b82f6', '#8b5cf6', '#f97316', '#22c55e', '#f43f5e'];
 
 function getTodayKey() {
   const now = new Date();
@@ -73,6 +75,60 @@ function getTodayKey() {
 
 function normalize(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function isCancelledStatus(value) {
+  return ['cancelled', 'canceled'].includes(normalize(value));
+}
+
+function isCompletedStatus(value) {
+  return normalize(value) === 'completed';
+}
+
+function isDraftSchedule(item) {
+  return item.publishStatus === 'Hidden' && !isCancelledStatus(item.status) && !isCompletedStatus(item.status);
+}
+
+function clampNumber(value, min = 0, max = 100) {
+  const number = Number(value || 0);
+  if (Number.isNaN(number)) return min;
+  return Math.max(min, Math.min(number, max));
+}
+
+function parseDateKey(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day));
+}
+
+function formatDateKeyFromDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function addDaysToKey(dateKey, days) {
+  const date = parseDateKey(dateKey) || new Date();
+  date.setDate(date.getDate() + days);
+  return formatDateKeyFromDate(date);
+}
+
+function getDaysBetween(startKey, endKey) {
+  const start = parseDateKey(startKey);
+  const end = parseDateKey(endKey);
+  if (!start || !end) return 0;
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
+function getInitialFilters() {
+  const weekDays = getWeekDays(getTodayKey());
+  return {
+    ...BASE_FILTERS,
+    fromDate: weekDays[0]?.date || getTodayKey(),
+    toDate: weekDays[weekDays.length - 1]?.date || getTodayKey(),
+  };
 }
 
 function getDuplicateDate(value) {
@@ -104,19 +160,93 @@ function formatWeekday(value) {
   return new Intl.DateTimeFormat('vi-VN', { weekday: 'long' }).format(date);
 }
 
-function buildSparkPoints(seed = 1) {
-  const values = Array.from({ length: 18 }, (_, index) => 26 + ((seed * (index + 5) + index * index * 7) % 46));
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values);
-  const range = Math.max(max - min, 1);
+function getSparkDateWindow(schedules, todayKey, maxBuckets = 18) {
+  const dateKeys = schedules
+    .map((item) => String(item.date || '').slice(0, 10))
+    .filter((value) => parseDateKey(value))
+    .sort();
 
-  return values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * 100;
-      const y = 34 - ((value - min) / range) * 26;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
+  if (!dateKeys.length) {
+    return Array.from({ length: 7 }, (_, index) => addDaysToKey(todayKey, index - 6));
+  }
+
+  const startKey = dateKeys[0];
+  const endKey = dateKeys[dateKeys.length - 1];
+  const dayCount = getDaysBetween(startKey, endKey) + 1;
+  const bucketCount = Math.max(2, Math.min(maxBuckets, dayCount));
+  const windowStart = dayCount > maxBuckets ? addDaysToKey(endKey, -maxBuckets + 1) : startKey;
+
+  return Array.from({ length: bucketCount }, (_, index) => addDaysToKey(windowStart, index));
+}
+
+function getScheduleMetricValue(item, metricId, todayKey) {
+  const isCancelled = isCancelledStatus(item.status);
+  const isCompleted = isCompletedStatus(item.status);
+
+  if (metricId === 'published') return item.publishStatus === 'Visible' ? 1 : 0;
+  if (metricId === 'draft') return isDraftSchedule(item) ? 1 : 0;
+  if (metricId === 'cancelled') return isCancelled ? 1 : 0;
+  if (metricId === 'upcoming') return item.date >= todayKey && !isCancelled && !isCompleted ? 1 : 0;
+  if (metricId === 'completed') return isCompleted ? 1 : 0;
+  return 1;
+}
+
+function buildMetricSeries(schedules, dateWindow, metricId, todayKey) {
+  return dateWindow.map((dateKey) =>
+    schedules
+      .filter((item) => item.date === dateKey)
+      .reduce((total, item) => total + getScheduleMetricValue(item, metricId, todayKey), 0),
+  );
+}
+
+function buildSmoothPath(points) {
+  if (!points.length) return '';
+  if (points.length === 1) return `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+
+  return points.reduce((path, point, index) => {
+    if (index === 0) return `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+
+    const previousControlSource = points[index - 2] || points[index - 1];
+    const previous = points[index - 1];
+    const next = points[index + 1] || point;
+    const controlX1 = previous.x + (point.x - previousControlSource.x) / 6;
+    const controlY1 = previous.y + (point.y - previousControlSource.y) / 6;
+    const controlX2 = point.x - (next.x - previous.x) / 6;
+    const controlY2 = point.y - (next.y - previous.y) / 6;
+
+    return `${path} C ${controlX1.toFixed(2)} ${controlY1.toFixed(2)}, ${controlX2.toFixed(2)} ${controlY2.toFixed(2)}, ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+  }, '');
+}
+
+function buildSparkline(values, width = 120, height = 44) {
+  const safeValues = values.length ? values.map((value) => Number(value || 0)) : [0, 0];
+  const min = Math.min(...safeValues);
+  const max = Math.max(...safeValues);
+  const range = Math.max(max - min, 1);
+  const padX = 3;
+  const padTop = 6;
+  const baseline = height - 5;
+  const chartHeight = baseline - padTop;
+  const flatY = max === min ? (max === 0 ? baseline - 4 : padTop + chartHeight * 0.48) : null;
+
+  const points = safeValues.map((value, index) => {
+    const x = safeValues.length === 1
+      ? width / 2
+      : padX + (index / (safeValues.length - 1)) * (width - padX * 2);
+    const y = flatY ?? baseline - ((value - min) / range) * chartHeight;
+    return { x, y, value };
+  });
+
+  const linePath = buildSmoothPath(points);
+  const first = points[0];
+  const last = points[points.length - 1];
+
+  return {
+    areaPath: `${linePath} L ${last.x.toFixed(2)} ${baseline} L ${first.x.toFixed(2)} ${baseline} Z`,
+    linePath,
+    points,
+    lastPoint: last,
+  };
 }
 
 function getRadarPoint(value, index, total, center, radius) {
@@ -167,6 +297,21 @@ function getUtilizationClass(value) {
   return 'is-normal';
 }
 
+function getScheduleCardColor(value) {
+  const text = String(value || 'default');
+  const hash = [...text].reduce((total, character) => total + character.charCodeAt(0), 0);
+  return scheduleCardColors[Math.abs(hash) % scheduleCardColors.length];
+}
+
+function getActivityIcon(type) {
+  if (type === 'blocked') return LockKeyhole;
+  if (type === 'cancelled') return XCircle;
+  if (type === 'completed') return ShieldCheck;
+  if (type === 'published') return CheckCircle2;
+  if (type === 'draft') return FileText;
+  return CalendarClock;
+}
+
 function getWeekDays(anchorDate) {
   const current = new Date(anchorDate);
   const day = current.getDay() || 7;
@@ -186,8 +331,8 @@ export function SchedulingListPage() {
   const [actionError, setActionError] = useState('');
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
-  const [draftFilters, setDraftFilters] = useState(INITIAL_FILTERS);
-  const [activeFilters, setActiveFilters] = useState(INITIAL_FILTERS);
+  const [draftFilters, setDraftFilters] = useState(getInitialFilters);
+  const [activeFilters, setActiveFilters] = useState(getInitialFilters);
   const [filterNotice, setFilterNotice] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [tableTab, setTableTab] = useState('all');
@@ -205,7 +350,7 @@ export function SchedulingListPage() {
     try {
       const saved = JSON.parse(localStorage.getItem(LIST_FILTER_STORAGE_KEY) || 'null');
       if (saved) {
-        const nextFilters = { ...INITIAL_FILTERS, ...saved };
+        const nextFilters = { ...getInitialFilters(), ...saved };
         setDraftFilters(nextFilters);
         setActiveFilters(nextFilters);
       }
@@ -239,33 +384,47 @@ export function SchedulingListPage() {
   }, [isCreateMenuOpen]);
 
   const todayKey = getTodayKey();
-  const totalSchedules = schedules.length || 1;
+  const totalSchedules = schedules.length;
   const selectedDateSchedules = schedules.filter((item) => item.date === selectedCalendarDate);
-  const visibleTodaySchedules = selectedDateSchedules.length ? selectedDateSchedules : schedules.slice(0, 3);
+  const visibleTodaySchedules = selectedDateSchedules;
+  const selectedDateBooked = visibleTodaySchedules.reduce((total, item) => total + Number(item.bookedSlots || 0), 0);
+  const selectedDateAvailable = visibleTodaySchedules.reduce((total, item) => total + Number(item.availableSlots || 0), 0);
+  const selectedDateTotalSlots = visibleTodaySchedules.reduce((total, item) => total + Number(item.totalSlots || 0), 0);
+  const selectedDateUtilization = selectedDateTotalSlots ? Math.round((selectedDateBooked / selectedDateTotalSlots) * 100) : 0;
   const weekDays = getWeekDays(todayKey);
 
   const overviewStats = useMemo(() => {
+    const dateWindow = getSparkDateWindow(schedules, todayKey);
     const publishedCount = schedules.filter((item) => item.publishStatus === 'Visible').length;
-    const draftCount = schedules.filter((item) => item.publishStatus === 'Hidden' && normalize(item.status) !== 'cancelled').length;
-    const cancelledCount = schedules.filter((item) => normalize(item.status) === 'cancelled').length;
-    const upcomingCount = schedules.filter((item) => item.date >= todayKey && !['cancelled', 'completed'].includes(normalize(item.status))).length;
-    const completedCount = schedules.filter((item) => normalize(item.status) === 'completed').length;
+    const draftCount = schedules.filter(isDraftSchedule).length;
+    const cancelledCount = schedules.filter((item) => isCancelledStatus(item.status)).length;
+    const upcomingCount = schedules.filter((item) => item.date >= todayKey && !isCancelledStatus(item.status) && !isCompletedStatus(item.status)).length;
+    const todaySchedulesCount = schedules.filter((item) => item.date === todayKey).length;
+    const completedTodayCount = schedules.filter((item) => item.date === todayKey && isCompletedStatus(item.status)).length;
+    const withSpark = (metricId) => buildSparkline(buildMetricSeries(schedules, dateWindow, metricId, todayKey));
 
     return [
-      { id: 'total', label: 'Tổng số lịch', value: schedules.length, ratio: '100%', tone: '#0f9f9a', bg: '#e6fffb', icon: CalendarCheck2, points: buildSparkPoints(schedules.length + 11) },
-      { id: 'published', label: 'Đã công khai', value: publishedCount, ratio: formatRatio(publishedCount, totalSchedules), tone: '#3b82f6', bg: '#eff6ff', icon: CheckCircle2, points: buildSparkPoints(publishedCount + 17) },
-      { id: 'draft', label: 'Bản nháp', value: draftCount, ratio: formatRatio(draftCount, totalSchedules), tone: '#f59e0b', bg: '#fff7ed', icon: ClipboardList, points: buildSparkPoints(draftCount + 23) },
-      { id: 'cancelled', label: 'Đã hủy', value: cancelledCount, ratio: formatRatio(cancelledCount, totalSchedules), tone: '#ef4444', bg: '#fff1f2', icon: XCircle, points: buildSparkPoints(cancelledCount + 31) },
-      { id: 'upcoming', label: 'Sắp diễn ra', value: upcomingCount, ratio: formatRatio(upcomingCount, totalSchedules), tone: '#8b5cf6', bg: '#f5f3ff', icon: Clock3, points: buildSparkPoints(upcomingCount + 41) },
-      { id: 'completed', label: 'Hoàn thành hôm nay', value: completedCount, ratio: formatRatio(completedCount, totalSchedules), tone: '#10b981', bg: '#ecfdf5', icon: ShieldCheck, points: buildSparkPoints(completedCount + 53) },
+      { id: 'total', label: 'Tổng số lịch', value: schedules.length, ratio: schedules.length ? '100%' : '0%', tone: '#0f9f9a', bg: '#e6fffb', icon: CalendarCheck2, spark: withSpark('total') },
+      { id: 'published', label: 'Đã công khai', value: publishedCount, ratio: formatRatio(publishedCount, totalSchedules), tone: '#3b82f6', bg: '#eff6ff', icon: CheckCircle2, spark: withSpark('published') },
+      { id: 'draft', label: 'Bản nháp', value: draftCount, ratio: formatRatio(draftCount, totalSchedules), tone: '#f59e0b', bg: '#fff7ed', icon: ClipboardList, spark: withSpark('draft') },
+      { id: 'cancelled', label: 'Đã hủy', value: cancelledCount, ratio: formatRatio(cancelledCount, totalSchedules), tone: '#ef4444', bg: '#fff1f2', icon: XCircle, spark: withSpark('cancelled') },
+      { id: 'upcoming', label: 'Sắp diễn ra', value: upcomingCount, ratio: formatRatio(upcomingCount, totalSchedules), tone: '#8b5cf6', bg: '#f5f3ff', icon: Clock3, spark: withSpark('upcoming') },
+      { id: 'completed', label: 'Hoàn thành hôm nay', value: completedTodayCount, ratio: formatRatio(completedTodayCount, todaySchedulesCount), tone: '#10b981', bg: '#ecfdf5', icon: ShieldCheck, spark: withSpark('completed') },
     ];
   }, [schedules, todayKey, totalSchedules]);
 
   const headerSummaryStats = useMemo(() => {
     const publishedCount = schedules.filter((item) => item.publishStatus === 'Visible').length;
-    const draftCount = schedules.filter((item) => item.publishStatus === 'Hidden' && normalize(item.status) !== 'cancelled').length;
-    const averageUtilization = schedules.length
-      ? Math.round(schedules.reduce((total, item) => total + Number(item.utilization || 0), 0) / schedules.length)
+    const draftCount = schedules.filter(isDraftSchedule).length;
+    const slotTotals = schedules.reduce(
+      (total, item) => ({
+        bookedSlots: total.bookedSlots + Number(item.bookedSlots || 0),
+        totalSlots: total.totalSlots + Number(item.totalSlots || 0),
+      }),
+      { bookedSlots: 0, totalSlots: 0 },
+    );
+    const averageUtilization = slotTotals.totalSlots
+      ? Math.round((slotTotals.bookedSlots / slotTotals.totalSlots) * 100)
       : 0;
 
     return [
@@ -283,26 +442,40 @@ export function SchedulingListPage() {
 
     return rows.slice(0, 5).map((department, index) => {
       const departmentSchedules = schedules.filter((item) => item.department === department.name);
-      const totalSlots = departmentSchedules.reduce((total, item) => total + Number(item.totalSlots || 0), 0);
-      const bookedSlots = departmentSchedules.reduce((total, item) => total + Number(item.bookedSlots || 0), 0);
-      const availableSlots = departmentSchedules.reduce((total, item) => total + Number(item.availableSlots || 0), 0);
-      const blockedSlots = departmentSchedules.reduce((total, item) => total + Number(item.blockedSlots || 0), 0);
-      const utilization = totalSlots ? Math.round((bookedSlots / totalSlots) * 100) : Number(department.utilization || 0);
-      const bookedRatio = totalSlots ? Math.round((bookedSlots / totalSlots) * 100) : utilization;
-      const availableRatio = totalSlots ? Math.round((availableSlots / totalSlots) * 100) : Math.max(20, 100 - utilization);
-      const blockedRatio = totalSlots ? Math.round((blockedSlots / totalSlots) * 100) : Math.max(12, Math.round(utilization / 3));
+      const scheduleTotals = departmentSchedules.reduce(
+        (total, item) => ({
+          totalSlots: total.totalSlots + Number(item.totalSlots || 0),
+          bookedSlots: total.bookedSlots + Number(item.bookedSlots || 0),
+          availableSlots: total.availableSlots + Number(item.availableSlots || 0),
+          blockedSlots: total.blockedSlots + Number(item.blockedSlots || 0),
+        }),
+        { totalSlots: 0, bookedSlots: 0, availableSlots: 0, blockedSlots: 0 },
+      );
+      const hasScheduleSlotData = scheduleTotals.totalSlots > 0;
+      const totalSlots = hasScheduleSlotData ? scheduleTotals.totalSlots : Number(department.totalSlots || 0);
+      const bookedSlots = hasScheduleSlotData ? scheduleTotals.bookedSlots : Number(department.bookings || department.bookedSlots || 0);
+      const availableSlots = hasScheduleSlotData ? scheduleTotals.availableSlots : Number(department.availableSlots || 0);
+      const blockedSlots = hasScheduleSlotData ? scheduleTotals.blockedSlots : Number(department.blockedSlots || 0);
+      const utilization = totalSlots ? Math.round((bookedSlots / totalSlots) * 100) : clampNumber(department.utilization || 0);
+      const bookedRatio = totalSlots ? Math.round((bookedSlots / totalSlots) * 100) : 0;
+      const availableRatio = totalSlots ? Math.round((availableSlots / totalSlots) * 100) : 0;
+      const blockedRatio = totalSlots ? Math.round((blockedSlots / totalSlots) * 100) : 0;
+      const efficiencyRatio = totalSlots
+        ? Math.round((utilization * 0.45) + (availableRatio * 0.25) + ((100 - blockedRatio) * 0.3))
+        : utilization;
 
       return {
         id: department.id || department.name,
         name: department.name,
         value: utilization,
+        slots: totalSlots,
         color: departmentColors[index % departmentColors.length],
         radarValues: [
           utilization,
           bookedRatio,
           availableRatio,
           blockedRatio,
-          Math.min(100, Math.round((utilization + bookedRatio + Math.max(0, 100 - blockedRatio)) / 3)),
+          clampNumber(efficiencyRatio),
         ],
       };
     });
@@ -340,16 +513,16 @@ export function SchedulingListPage() {
   const tabCounts = {
     all: filteredSchedules.length,
     published: filteredSchedules.filter((item) => item.publishStatus === 'Visible').length,
-    draft: filteredSchedules.filter((item) => item.publishStatus === 'Hidden' && normalize(item.status) !== 'cancelled').length,
-    cancelled: filteredSchedules.filter((item) => normalize(item.status) === 'cancelled').length,
+    draft: filteredSchedules.filter(isDraftSchedule).length,
+    cancelled: filteredSchedules.filter((item) => isCancelledStatus(item.status)).length,
     blocked: filteredSchedules.filter((item) => Number(item.blockedSlots || 0) > 0).length,
   };
 
   const tableRows = useMemo(() => {
     const tabbed = filteredSchedules.filter((item) => {
       if (tableTab === 'published') return item.publishStatus === 'Visible';
-      if (tableTab === 'draft') return item.publishStatus === 'Hidden' && normalize(item.status) !== 'cancelled';
-      if (tableTab === 'cancelled') return normalize(item.status) === 'cancelled';
+      if (tableTab === 'draft') return isDraftSchedule(item);
+      if (tableTab === 'cancelled') return isCancelledStatus(item.status);
       if (tableTab === 'blocked') return Number(item.blockedSlots || 0) > 0;
       return true;
     });
@@ -368,20 +541,15 @@ export function SchedulingListPage() {
   const allPageSelected = pagedRows.length > 0 && pagedRows.every((item) => selectedIds.includes(item.id));
   const selectedRows = schedules.filter((item) => selectedIds.includes(item.id));
 
-  const recentActivities = schedules.slice(0, 4).map((item, index) => ({
-    id: `${item.id}-${index}`,
-    avatar: index === 1 ? null : getDoctorAvatar(item, index),
-    icon: index === 1 ? LockKeyhole : null,
-    title:
-      index === 0
-        ? `${item.doctor} tạo lịch mới`
-        : index === 1
-          ? `${item.doctor} khóa ${Math.max(1, item.blockedSlots || 3)} slot`
-          : normalize(item.status) === 'cancelled'
-            ? `${item.doctor} hủy lịch`
-            : `${item.doctor} công khai lịch`,
-    time: ['2 phút trước', '15 phút trước', '32 phút trước', '1 giờ trước'][index] || 'Gần đây',
-  }));
+  const recentActivities = buildScheduleActivities(schedules, { limit: 4 }).map((activity, index) => {
+    const schedule = schedules.find((item) => item.id === activity.scheduleId);
+    return {
+      ...activity,
+      avatar: schedule ? getDoctorAvatar(schedule, index) : DOCTOR_AVATAR,
+      icon: getActivityIcon(activity.type),
+      to: activity.scheduleId ? `/scheduling/schedules/${activity.scheduleId}` : '/scheduling/activity',
+    };
+  });
 
   function updateDraftFilter(key, value) {
     setDraftFilters((current) => ({ ...current, [key]: value }));
@@ -395,8 +563,9 @@ export function SchedulingListPage() {
   }
 
   function resetFilters() {
-    setDraftFilters(INITIAL_FILTERS);
-    setActiveFilters(INITIAL_FILTERS);
+    const initialFilters = getInitialFilters();
+    setDraftFilters(initialFilters);
+    setActiveFilters(initialFilters);
     setPage(1);
     localStorage.removeItem(LIST_FILTER_STORAGE_KEY);
     setFilterNotice('Đã xóa tất cả bộ lọc');
@@ -644,9 +813,20 @@ export function SchedulingListPage() {
                   <strong>{item.value}</strong>
                   <b>{item.ratio}</b>
                 </div>
-                <svg className="scheduling-list-stat-card__chart" viewBox="0 0 100 38" preserveAspectRatio="none" aria-hidden="true">
-                  <polygon points={`${item.points} 100,38 0,38`} />
-                  <polyline points={item.points} />
+                <svg className="scheduling-list-stat-card__chart" viewBox="0 0 120 44" aria-hidden="true">
+                  <path className="scheduling-list-stat-card__area" d={item.spark.areaPath} />
+                  <path className="scheduling-list-stat-card__line" d={item.spark.linePath} />
+                  {item.spark.points.map((point, pointIndex) => (
+                    pointIndex === item.spark.points.length - 1 || pointIndex % 4 === 0 ? (
+                      <circle
+                        key={`${item.id}-${pointIndex}`}
+                        className={pointIndex === item.spark.points.length - 1 ? 'scheduling-list-stat-card__dot is-last' : 'scheduling-list-stat-card__dot'}
+                        cx={point.x}
+                        cy={point.y}
+                        r={pointIndex === item.spark.points.length - 1 ? 2.6 : 1.45}
+                      />
+                    ) : null
+                  ))}
                 </svg>
               </article>
             );
@@ -672,20 +852,29 @@ export function SchedulingListPage() {
               {radarAxisPoints.map((point, index) => (
                 <line key={radarAxes[index]} x1={radarCenter} y1={radarCenter} x2={point.axisX} y2={point.axisY} className="scheduling-list-radar__axis" />
               ))}
-              {departmentPerformance.map((item) => (
-                <polygon
-                  key={item.id}
-                  points={item.radarValues
-                    .map((value, index) => {
-                      const point = getRadarPoint(value, index, radarAxes.length, radarCenter, radarRadius);
-                      return `${point.pointX},${point.pointY}`;
-                    })
-                    .join(' ')}
-                  fill={`${item.color}18`}
-                  stroke={item.color}
-                  className="scheduling-list-radar__shape"
-                />
-              ))}
+              {departmentPerformance.map((item) => {
+                const points = item.radarValues.map((value, index) =>
+                  getRadarPoint(value, index, radarAxes.length, radarCenter, radarRadius),
+                );
+
+                return (
+                  <g key={item.id} className="scheduling-list-radar__series" style={{ '--series-color': item.color }}>
+                    <polygon
+                      points={points.map((point) => `${point.pointX},${point.pointY}`).join(' ')}
+                      className="scheduling-list-radar__shape"
+                    />
+                    {points.map((point, index) => (
+                      <circle
+                        key={`${item.id}-${radarAxes[index]}`}
+                        className="scheduling-list-radar__point"
+                        cx={point.pointX}
+                        cy={point.pointY}
+                        r="2"
+                      />
+                    ))}
+                  </g>
+                );
+              })}
               {radarAxisPoints.map((point, index) => (
                 <text key={radarAxes[index]} x={point.labelX} y={point.labelY}>
                   {radarAxes[index]}
@@ -826,8 +1015,9 @@ export function SchedulingListPage() {
         </section>
       </section>
 
-      <section className="scheduling-list-workspace">
+      <section className={`scheduling-list-workspace is-${viewMode}-mode`}>
         <section className="scheduling-list-board">
+          {viewMode === 'table' || selectedIds.length ? (
           <div className="scheduling-list-bulkbar">
             <div className="scheduling-list-selection-state">
               <button type="button" className={selectedIds.length ? 'is-selected' : ''} onClick={togglePageSelection} aria-label="Chọn trang hiện tại">
@@ -885,16 +1075,17 @@ export function SchedulingListPage() {
               </div>
             </div>
           </div>
+          ) : null}
 
           <div className="scheduling-list-table-toolbar">
             <div className="scheduling-list-tabs">
               {[
-                ['all', 'Tất cả', tabCounts.all],
-                ['published', 'Đã công khai', tabCounts.published],
-                ['draft', 'Bản nháp', tabCounts.draft],
-                ['cancelled', 'Đã hủy', tabCounts.cancelled],
-                ['blocked', 'Khóa khung giờ', tabCounts.blocked],
-              ].map(([id, label, count]) => (
+                ['all', 'Tất cả', tabCounts.all, Grid2X2],
+                ['published', 'Đã công khai', tabCounts.published, CheckCircle2],
+                ['draft', 'Bản nháp', tabCounts.draft, FileText],
+                ['cancelled', 'Đã hủy', tabCounts.cancelled, XCircle],
+                ['blocked', 'Khóa khung giờ', tabCounts.blocked, LockKeyhole],
+              ].map(([id, label, count, Icon]) => (
                 <button
                   key={id}
                   type="button"
@@ -904,6 +1095,7 @@ export function SchedulingListPage() {
                     setPage(1);
                   }}
                 >
+                  <Icon size={14} strokeWidth={2.35} aria-hidden="true" />
                   {label}
                   <span>{count}</span>
                 </button>
@@ -955,9 +1147,14 @@ export function SchedulingListPage() {
             {pagedRows.map((item, index) => {
               const rowIndex = (safePage - 1) * pageSize + index;
               const isSelected = selectedIds.includes(item.id);
+              const cardColor = getScheduleCardColor(item.department || item.doctor);
 
               return (
-                <div key={item.id} className={`scheduling-list-data-row ${isSelected ? 'is-selected' : ''}`}>
+                <div
+                  key={item.id}
+                  className={`scheduling-list-data-row ${isSelected ? 'is-selected' : ''}`}
+                  style={{ '--schedule-card-color': cardColor }}
+                >
                   <button
                     type="button"
                     className={`scheduling-list-checkbox ${isSelected ? 'is-checked' : ''}`}
@@ -1076,7 +1273,10 @@ export function SchedulingListPage() {
           {isTodayCardVisible ? (
           <section className="scheduling-list-today-card">
             <div>
-              <h3>Lịch hôm nay</h3>
+              <div>
+                <h3>Lịch hôm nay</h3>
+                <span>{visibleTodaySchedules.length} lịch trong ngày chọn</span>
+              </div>
               <button type="button" aria-label="Ẩn lịch hôm nay" onClick={() => setIsTodayCardVisible(false)}>
                 <X size={13} strokeWidth={2.4} />
               </button>
@@ -1096,26 +1296,58 @@ export function SchedulingListPage() {
               ))}
             </div>
             <div className="scheduling-list-today-stats">
-              <div><span>Lịch hôm nay</span><strong>{visibleTodaySchedules.length}</strong></div>
-              <div><span>Đã đặt</span><strong>{visibleTodaySchedules.reduce((total, item) => total + Number(item.bookedSlots || 0), 0)}</strong></div>
-              <div><span>Còn trống</span><strong>{visibleTodaySchedules.reduce((total, item) => total + Number(item.availableSlots || 0), 0)}</strong></div>
+              <div><span>Lịch hôm nay</span><strong>{visibleTodaySchedules.length}</strong><small>ca khám</small></div>
+              <div><span>Đã đặt</span><strong>{selectedDateBooked}</strong><small>lượt</small></div>
+              <div><span>Còn trống</span><strong>{selectedDateAvailable}</strong><small>slot</small></div>
             </div>
+            <div className="scheduling-list-today-util">
+              <span>
+                <b>Lấp đầy</b>
+                <strong>{selectedDateUtilization}%</strong>
+              </span>
+              <i><em style={{ width: `${selectedDateUtilization}%` }} /></i>
+            </div>
+            {visibleTodaySchedules.length ? (
+              <Link className="scheduling-list-today-link" to={`/scheduling/schedules?date=${selectedCalendarDate}`}>
+                Xem lịch trong ngày
+                <ChevronRight size={13} strokeWidth={2.45} aria-hidden="true" />
+              </Link>
+            ) : (
+              <div className="scheduling-list-today-empty">
+                Chưa có lịch vận hành trong ngày này.
+              </div>
+            )}
           </section>
           ) : null}
 
           <section className="scheduling-list-activity-card">
             <div>
-              <h3>Hoạt động gần đây</h3>
-              <Link to="/scheduling/schedules">Xem tất cả</Link>
+              <div>
+                <h3>Hoạt động gần đây</h3>
+                <span>{recentActivities.length} cập nhật mới nhất</span>
+              </div>
+              <Link to="/scheduling/activity">Xem tất cả</Link>
             </div>
             <div className="scheduling-list-activity-list">
-              {recentActivities.map((item) => (
-                <article key={item.id}>
-                  {item.avatar ? <img src={item.avatar} alt="" onError={handleDoctorAvatarError} /> : <span><LockKeyhole size={14} strokeWidth={2.3} /></span>}
-                  <strong>{item.title}</strong>
-                  <small>{item.time}</small>
-                </article>
-              ))}
+              {recentActivities.length ? recentActivities.map((item) => {
+                const ActivityIcon = item.icon || CalendarClock;
+
+                return (
+                  <Link key={item.id} to={item.to} className={`is-${item.tone}`}>
+                    <span className="scheduling-list-activity-avatar">
+                      <img src={item.avatar} alt="" onError={handleDoctorAvatarError} />
+                      <i aria-hidden="true"><ActivityIcon size={12} strokeWidth={2.45} /></i>
+                    </span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{item.doctor} - {item.department}</small>
+                    </span>
+                    <time>{item.timeLabel}</time>
+                  </Link>
+                );
+              }) : (
+                <p>Chưa có hoạt động lịch nào được ghi nhận.</p>
+              )}
             </div>
           </section>
 

@@ -275,14 +275,30 @@
   background: linear-gradient(135deg, #fffbeb, #fff7ed);
 }
 
+.scheduling-sync-banner.is-danger {
+  border-color: #fecaca;
+  color: #7f1d1d;
+  background: linear-gradient(135deg, #fff1f2, #fff7f7);
+}
+
 .scheduling-sync-banner.is-warning .scheduling-sync-banner__icon {
   color: #b45309;
   background: #fffbeb;
   box-shadow: inset 0 0 0 1px #fde68a;
 }
 
+.scheduling-sync-banner.is-danger .scheduling-sync-banner__icon {
+  color: #dc2626;
+  background: #fff1f2;
+  box-shadow: inset 0 0 0 1px #fecaca;
+}
+
 .scheduling-sync-banner.is-warning strong {
   color: #92400e;
+}
+
+.scheduling-sync-banner.is-danger strong {
+  color: #991b1b;
 }
 
 .scheduling-sync-banner.is-loading .scheduling-sync-banner__icon svg,
@@ -459,6 +475,19 @@
   line-height: 1.18;
 }
 
+.scheduling-operation-step b {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.58rem;
+  border-radius: 999px;
+  color: currentColor;
+  background: #f8fbff;
+  font-size: 0.84rem;
+  font-weight: 950;
+}
+
 .scheduling-operation-step small {
   max-width: 128px;
   color: #64748b;
@@ -483,6 +512,20 @@
   box-shadow: inset 0 0 0 1px #c8f4df;
 }
 
+.scheduling-operation-status.is-warning,
+.scheduling-system-pill.is-warning {
+  color: #b45309;
+  background: #fffbeb;
+  box-shadow: inset 0 0 0 1px #fde68a;
+}
+
+.scheduling-operation-status.is-danger,
+.scheduling-system-pill.is-danger {
+  color: #dc2626;
+  background: #fff1f2;
+  box-shadow: inset 0 0 0 1px #fecaca;
+}
+
 .scheduling-command-card--warning {
   display: grid;
   grid-template-rows: auto auto auto auto 1fr;
@@ -490,6 +533,17 @@
   gap: 0.66rem;
   padding: 1.55rem;
   background: linear-gradient(150deg, #ffffff, #fff7ed);
+}
+
+.scheduling-command-card--warning.is-danger {
+  border-color: #fecaca;
+  background: linear-gradient(150deg, #ffffff, #fff1f2);
+}
+
+.scheduling-command-card--warning.is-info,
+.scheduling-command-card--warning.is-good {
+  border-color: #bae6fd;
+  background: linear-gradient(150deg, #ffffff, #f0f9ff);
 }
 
 .scheduling-command-card--warning .scheduling-command-card__head span {
@@ -565,6 +619,22 @@
 .scheduling-command-list a:nth-child(2) svg:first-child {
   color: #8b5cf6;
   background: #f5f3ff;
+}
+
+.scheduling-command-list a.is-danger svg:first-child {
+  color: #ef4444;
+  background: #fff1f2;
+}
+
+.scheduling-command-list a.is-warning svg:first-child {
+  color: #f97316;
+  background: #fff7ed;
+}
+
+.scheduling-command-list a.is-info svg:first-child,
+.scheduling-command-list a.is-good svg:first-child {
+  color: #0ea5e9;
+  background: #e0f2fe;
 }
 
 .scheduling-command-list b {
@@ -692,7 +762,7 @@
 }
 
 .scheduling-metrics-grid--dashboard .scheduling-metric {
-  min-height: 96px;
+  min-height: 128px;
   align-content: stretch;
   gap: 0.38rem;
   padding: 0.78rem 0.82rem;
@@ -743,6 +813,42 @@
   font-weight: 950;
   line-height: 1.15;
 }
+
+.scheduling-metric__assessment {
+  align-self: end;
+  display: grid;
+  gap: 0.08rem;
+  margin-top: 0.1rem;
+  padding-top: 0.34rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.72);
+  font-style: normal;
+}
+
+.scheduling-metric__assessment span,
+.scheduling-metric__assessment b {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduling-metric__assessment span {
+  font-size: 0.58rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.scheduling-metric__assessment b {
+  color: #66758b;
+  font-size: 0.58rem;
+  font-weight: 780;
+}
+
+.scheduling-metric__assessment.is-good span { color: #0f9f74; }
+.scheduling-metric__assessment.is-warning span { color: #f97316; }
+.scheduling-metric__assessment.is-danger span { color: #ef4444; }
+.scheduling-metric__assessment.is-watch span { color: #7c3aed; }
 
 .scheduling-metrics-grid--dashboard .scheduling-metric--indigo .scheduling-metric__top i {
   color: #4f46e5;
@@ -894,6 +1000,50 @@
   line-height: 1.28;
 }
 
+.scheduling-priority-assessment {
+  display: block;
+  margin-top: 0.34rem;
+  padding: 0.32rem 0.42rem;
+  border-radius: 8px;
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.scheduling-priority-assessment.is-good {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.scheduling-priority-assessment.is-warning {
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.scheduling-priority-assessment.is-danger {
+  color: #dc2626;
+  background: #fff1f2;
+}
+
+.scheduling-priority-assessment.is-watch {
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.scheduling-priority-empty {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0.34rem 0.42rem;
+  border: 1px dashed rgba(148, 163, 184, 0.48);
+  border-radius: 9px;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 0.6rem;
+  font-weight: 820;
+}
+
 .scheduling-priority-card--amber {
   border-color: #f3dfb6;
   background: linear-gradient(150deg, #fff7e1 0%, #fffaf0 48%, #ffffff 100%);
@@ -1009,8 +1159,8 @@
 
 .scheduling-table--today .scheduling-table__head,
 .scheduling-table--today .scheduling-table__row {
-  grid-template-columns: 92px minmax(150px, 1.2fr) minmax(105px, 0.82fr) 46px 54px 64px 58px 104px 132px;
-  min-width: 850px;
+  grid-template-columns: 92px minmax(150px, 1.2fr) minmax(105px, 0.82fr) 46px 54px 64px 58px 104px 112px 132px;
+  min-width: 980px;
   gap: 0.52rem;
 }
 
@@ -1033,6 +1183,41 @@
   font-size: 0.68rem;
 }
 
+.scheduling-table-empty {
+  min-width: 980px;
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  align-items: center;
+  column-gap: 0.7rem;
+  padding: 0.78rem 0.86rem;
+  border: 1px dashed rgba(148, 163, 184, 0.48);
+  border-radius: 12px;
+  color: #64748b;
+  background: #f8fbff;
+}
+
+.scheduling-table-empty svg {
+  grid-row: 1 / span 2;
+  width: 34px;
+  height: 34px;
+  padding: 0.42rem;
+  border-radius: 12px;
+  color: #0ea5e9;
+  background: #e0f2fe;
+}
+
+.scheduling-table-empty strong {
+  color: #12233f;
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.scheduling-table-empty span {
+  font-size: 0.66rem;
+  font-weight: 760;
+}
+
 .scheduling-table--today .scheduling-table__row > strong {
   color: #0f2444;
   font-size: 0.72rem;
@@ -1051,6 +1236,39 @@
   min-height: 24px;
   padding: 0 0.52rem;
   font-size: 0.62rem;
+}
+
+.scheduling-row-assessment {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.52rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.scheduling-row-assessment.is-good {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.scheduling-row-assessment.is-warning {
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.scheduling-row-assessment.is-danger {
+  color: #dc2626;
+  background: #fff1f2;
+}
+
+.scheduling-row-assessment.is-watch {
+  color: #6d28d9;
+  background: #f5f3ff;
 }
 
 .scheduling-table--today .scheduling-table__row:hover {
@@ -1136,6 +1354,10 @@
   position: relative;
 }
 
+.scheduling-analysis-actions-menu {
+  position: relative;
+}
+
 .scheduling-operations-analysis__tools button,
 .scheduling-analysis-view-toggle button,
 .scheduling-analysis-export {
@@ -1171,7 +1393,19 @@
   box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.08);
 }
 
-.scheduling-analysis-range__menu {
+.scheduling-analysis-actions-menu__button {
+  width: 32px;
+  padding: 0;
+}
+
+.scheduling-analysis-actions-menu__button[aria-expanded='true'] {
+  border-color: #8fe2d7;
+  color: #0f766e;
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.08);
+}
+
+.scheduling-analysis-range__menu,
+.scheduling-analysis-actions-menu__list {
   position: absolute;
   top: calc(100% + 0.48rem);
   right: 0;
@@ -1187,24 +1421,40 @@
   backdrop-filter: blur(14px);
 }
 
-.scheduling-analysis-range__menu button {
+.scheduling-analysis-actions-menu__list {
+  min-width: 212px;
+}
+
+.scheduling-analysis-range__menu button,
+.scheduling-analysis-actions-menu__list button,
+.scheduling-analysis-actions-menu__list a {
   width: 100%;
   min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   justify-content: flex-start;
   border: 0;
+  border-radius: 10px;
   box-shadow: none;
   background: transparent;
+  color: #44566f;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .scheduling-analysis-range__menu button:hover,
-.scheduling-analysis-range__menu button.is-active {
+.scheduling-analysis-range__menu button.is-active,
+.scheduling-analysis-actions-menu__list button:hover,
+.scheduling-analysis-actions-menu__list button:focus-visible,
+.scheduling-analysis-actions-menu__list a:hover,
+.scheduling-analysis-actions-menu__list a:focus-visible {
+  outline: 0;
   color: #0f766e;
   background: #e6fbf4;
-}
-
-.scheduling-operations-analysis__tools > button:last-child {
-  width: 32px;
-  padding: 0;
 }
 
 .scheduling-analysis-tabs {
@@ -1785,6 +2035,19 @@
   box-shadow: 0 16px 34px rgba(39, 63, 94, 0.09);
 }
 
+.scheduling-analysis-insight-empty {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0.78rem 0.86rem;
+  border: 1px dashed rgba(148, 163, 184, 0.48);
+  border-radius: 14px;
+  color: #64748b;
+  background: #f8fbff;
+  font-size: 0.68rem;
+  font-weight: 830;
+}
+
 .scheduling-analysis-insight-row > div:first-child {
   display: flex;
   align-items: center;
@@ -1986,6 +2249,29 @@
   gap: 0.4rem;
 }
 
+.scheduling-analysis-empty {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.62rem 0.72rem;
+  border: 1px dashed rgba(148, 163, 184, 0.48);
+  border-radius: 12px;
+  color: #64748b;
+  background: #f8fbff;
+  font-size: 0.66rem;
+  font-weight: 820;
+  line-height: 1.32;
+}
+
+.scheduling-analysis-empty--chart {
+  position: relative;
+  z-index: 1;
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: stretch;
+}
+
 .scheduling-analysis-doctor-list > div {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) 42px;
@@ -2144,16 +2430,20 @@
   position: absolute;
   top: 0.72rem;
   bottom: 0.72rem;
-  left: 61px;
+  left: 91px;
   width: 2px;
   border-radius: 999px;
   background: linear-gradient(180deg, #d9eff8, #d7f7ee 52%, #fde7c2);
 }
 
+.scheduling-analysis-activity-list.is-empty::before {
+  display: none;
+}
+
 .scheduling-analysis-activity-list > div {
   position: relative;
   display: grid;
-  grid-template-columns: 52px 18px minmax(0, 1fr);
+  grid-template-columns: 82px 18px minmax(0, 1fr);
   gap: 0.48rem;
   align-items: start;
   min-height: 29px;
@@ -2170,9 +2460,11 @@
 .scheduling-analysis-activity-list time {
   justify-self: end;
   color: #0f9f9a;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 950;
   line-height: 1.15;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .scheduling-analysis-activity-list i {
@@ -2452,6 +2744,665 @@
 
 .scheduling-dashboard-timeline span {
   font-weight: 850;
+}
+
+/* DARK MODE */
+.scheduling-module.is-dark-mode .scheduling-dashboard-page {
+  color: #e7f1ff;
+}
+
+.scheduling-module.is-dark-mode .scheduling-panel,
+.scheduling-module.is-dark-mode .scheduling-command-card,
+.scheduling-module.is-dark-mode .scheduling-action-board .scheduling-panel,
+.scheduling-module.is-dark-mode .scheduling-today-board,
+.scheduling-module.is-dark-mode .scheduling-operations-analysis,
+.scheduling-module.is-dark-mode .scheduling-analysis-main-card,
+.scheduling-module.is-dark-mode .scheduling-analysis-mini-card {
+  border-color: rgba(125, 211, 252, 0.18);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(45, 212, 191, 0.08), transparent 11rem),
+    linear-gradient(180deg, rgba(16, 28, 43, 0.98), rgba(12, 22, 35, 0.98));
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.28);
+}
+
+.scheduling-module.is-dark-mode .scheduling-panel__head h2,
+.scheduling-module.is-dark-mode .scheduling-command-card__head h3,
+.scheduling-module.is-dark-mode .scheduling-analysis-mini-card__head h3,
+.scheduling-module.is-dark-mode .scheduling-analysis-card-head h3,
+.scheduling-module.is-dark-mode .scheduling-dashboard-timeline strong,
+.scheduling-module.is-dark-mode .scheduling-analysis-department strong,
+.scheduling-module.is-dark-mode .scheduling-analysis-doctor-list strong,
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row strong,
+.scheduling-module.is-dark-mode .scheduling-table--today .scheduling-table__row > strong,
+.scheduling-module.is-dark-mode .scheduling-priority-card strong,
+.scheduling-module.is-dark-mode .scheduling-system-rows b {
+  color: #f8fbff;
+}
+
+.scheduling-module.is-dark-mode .scheduling-panel__head span,
+.scheduling-module.is-dark-mode .scheduling-command-card__head p,
+.scheduling-module.is-dark-mode .scheduling-command-card--warning > p,
+.scheduling-module.is-dark-mode .scheduling-command-card--system > p,
+.scheduling-module.is-dark-mode .scheduling-analysis-chart__legend,
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__summary p,
+.scheduling-module.is-dark-mode .scheduling-analysis-department span,
+.scheduling-module.is-dark-mode .scheduling-analysis-doctor-list span,
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row span,
+.scheduling-module.is-dark-mode .scheduling-dashboard-timeline span,
+.scheduling-module.is-dark-mode .scheduling-dashboard-timeline p,
+.scheduling-module.is-dark-mode .scheduling-priority-card p,
+.scheduling-module.is-dark-mode .scheduling-table--today .scheduling-table__row > span,
+.scheduling-module.is-dark-mode .scheduling-analysis-activity-list span {
+  color: #9fb0c7;
+}
+
+.scheduling-module.is-dark-mode .scheduling-sync-banner {
+  border-color: rgba(45, 212, 191, 0.3);
+  color: #c9fbef;
+  background:
+    radial-gradient(circle at 4% 0%, rgba(45, 212, 191, 0.16), transparent 10rem),
+    linear-gradient(135deg, rgba(10, 35, 47, 0.96), rgba(12, 25, 38, 0.96));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
+}
+
+.scheduling-module.is-dark-mode .scheduling-sync-banner strong {
+  color: #5eead4;
+}
+
+.scheduling-module.is-dark-mode .scheduling-sync-banner__content > div span {
+  color: #a7bad1;
+}
+
+.scheduling-module.is-dark-mode .scheduling-sync-banner__icon,
+.scheduling-module.is-dark-mode .scheduling-sync-banner button {
+  color: #5eead4;
+  border-color: rgba(94, 234, 212, 0.34);
+  background: rgba(20, 184, 166, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-sync-banner.is-warning {
+  border-color: rgba(251, 191, 36, 0.42);
+  color: #fde68a;
+  background:
+    radial-gradient(circle at 4% 0%, rgba(251, 191, 36, 0.16), transparent 10rem),
+    linear-gradient(135deg, rgba(45, 31, 12, 0.96), rgba(22, 27, 36, 0.96));
+}
+
+.scheduling-module.is-dark-mode .scheduling-sync-banner.is-warning strong,
+.scheduling-module.is-dark-mode .scheduling-sync-banner.is-warning .scheduling-sync-banner__icon {
+  color: #fbbf24;
+}
+
+.scheduling-module.is-dark-mode .scheduling-sync-banner.is-danger {
+  border-color: rgba(251, 113, 133, 0.52);
+  color: #fecdd3;
+  background:
+    radial-gradient(circle at 4% 0%, rgba(244, 63, 94, 0.2), transparent 10rem),
+    linear-gradient(135deg, rgba(47, 18, 28, 0.98), rgba(22, 27, 36, 0.96));
+}
+
+.scheduling-module.is-dark-mode .scheduling-sync-banner.is-danger strong,
+.scheduling-module.is-dark-mode .scheduling-sync-banner.is-danger .scheduling-sync-banner__icon {
+  color: #fb7185;
+}
+
+.scheduling-module.is-dark-mode .scheduling-dashboard-toast {
+  border-color: rgba(52, 211, 153, 0.34);
+  color: #d1fae5;
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.7), rgba(11, 36, 50, 0.92));
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--flow {
+  background:
+    radial-gradient(circle at 8% 12%, rgba(20, 184, 166, 0.16), transparent 13rem),
+    linear-gradient(150deg, rgba(13, 33, 46, 0.98), rgba(9, 20, 34, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--flow .scheduling-command-card__head span,
+.scheduling-module.is-dark-mode .scheduling-operation-status,
+.scheduling-module.is-dark-mode .scheduling-system-pill,
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__summary > span,
+.scheduling-module.is-dark-mode .scheduling-operations-analysis__head h2,
+.scheduling-module.is-dark-mode .scheduling-analysis-card-head h3 {
+  color: #5eead4;
+}
+
+.scheduling-module.is-dark-mode .scheduling-operation-step__icon {
+  background: #0e1b2b;
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.scheduling-module.is-dark-mode .scheduling-operation-step strong,
+.scheduling-module.is-dark-mode .scheduling-operation-step b,
+.scheduling-module.is-dark-mode .scheduling-operation-step small {
+  color: #dbeafe;
+}
+
+.scheduling-module.is-dark-mode .scheduling-operation-step b {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.scheduling-module.is-dark-mode .scheduling-operation-status,
+.scheduling-module.is-dark-mode .scheduling-system-pill {
+  background: rgba(20, 184, 166, 0.13);
+  box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.26);
+}
+
+.scheduling-module.is-dark-mode .scheduling-operation-status.is-warning,
+.scheduling-module.is-dark-mode .scheduling-system-pill.is-warning {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.28);
+}
+
+.scheduling-module.is-dark-mode .scheduling-operation-status.is-danger,
+.scheduling-module.is-dark-mode .scheduling-system-pill.is-danger {
+  color: #fb7185;
+  background: rgba(244, 63, 94, 0.13);
+  box-shadow: inset 0 0 0 1px rgba(251, 113, 133, 0.3);
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--warning {
+  border-color: rgba(251, 146, 60, 0.28);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.18), transparent 10rem),
+    linear-gradient(150deg, rgba(35, 25, 16, 0.98), rgba(13, 22, 35, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--warning.is-danger {
+  border-color: rgba(251, 113, 133, 0.42);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(244, 63, 94, 0.2), transparent 10rem),
+    linear-gradient(150deg, rgba(42, 17, 29, 0.98), rgba(13, 22, 35, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--warning.is-info,
+.scheduling-module.is-dark-mode .scheduling-command-card--warning.is-good {
+  border-color: rgba(56, 189, 248, 0.28);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.18), transparent 10rem),
+    linear-gradient(150deg, rgba(12, 30, 48, 0.98), rgba(13, 22, 35, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--warning .scheduling-command-card__head span,
+.scheduling-module.is-dark-mode .scheduling-command-card--warning > strong,
+.scheduling-module.is-dark-mode .scheduling-command-card--warning > small {
+  color: #fb923c;
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--warning.is-danger > strong,
+.scheduling-module.is-dark-mode .scheduling-command-card--warning.is-danger > small {
+  color: #fb7185;
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--warning > small {
+  background: rgba(249, 115, 22, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-list,
+.scheduling-module.is-dark-mode .scheduling-system-rows {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(8, 16, 28, 0.58);
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-list a {
+  color: #dbeafe;
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-list a + a,
+.scheduling-module.is-dark-mode .scheduling-system-rows div + div {
+  border-top-color: rgba(148, 163, 184, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-list b {
+  color: #fbbf24;
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-list a.is-danger svg:first-child {
+  color: #fb7185;
+  background: rgba(244, 63, 94, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-list a.is-warning svg:first-child {
+  color: #fb923c;
+  background: rgba(249, 115, 22, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-list a.is-info svg:first-child,
+.scheduling-module.is-dark-mode .scheduling-command-list a.is-good svg:first-child {
+  color: #38bdf8;
+  background: rgba(14, 165, 233, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--system {
+  border-color: rgba(56, 189, 248, 0.24);
+  background:
+    radial-gradient(circle at 84% 18%, rgba(59, 130, 246, 0.2), transparent 11rem),
+    linear-gradient(150deg, rgba(11, 30, 48, 0.98), rgba(12, 21, 34, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-command-card--system .scheduling-command-card__head span,
+.scheduling-module.is-dark-mode .scheduling-command-card--system > strong {
+  color: #60a5fa;
+}
+
+.scheduling-module.is-dark-mode .scheduling-system-visual::before,
+.scheduling-module.is-dark-mode .scheduling-system-visual::after {
+  border-color: rgba(96, 165, 250, 0.34);
+}
+
+.scheduling-module.is-dark-mode .scheduling-system-rows div {
+  color: #bfd2e8;
+}
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric {
+  border-color: rgba(125, 211, 252, 0.16);
+  background:
+    radial-gradient(circle at 100% 100%, rgba(14, 165, 233, 0.16), transparent 4.5rem),
+    linear-gradient(145deg, rgba(17, 30, 46, 0.98), rgba(11, 22, 36, 0.98));
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+}
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric__top span,
+.scheduling-module.is-dark-mode .scheduling-metric__assessment b {
+  color: #9fb0c7;
+}
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric strong {
+  color: #f8fbff;
+}
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric small {
+  color: #38bdf8;
+}
+
+.scheduling-module.is-dark-mode .scheduling-metric__assessment {
+  border-top-color: rgba(148, 163, 184, 0.22);
+}
+
+.scheduling-module.is-dark-mode .scheduling-metric__assessment.is-good span { color: #34d399; }
+.scheduling-module.is-dark-mode .scheduling-metric__assessment.is-warning span { color: #fbbf24; }
+.scheduling-module.is-dark-mode .scheduling-metric__assessment.is-danger span { color: #fb7185; }
+.scheduling-module.is-dark-mode .scheduling-metric__assessment.is-watch span { color: #c084fc; }
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric__top i {
+  color: #38bdf8;
+  background: rgba(14, 165, 233, 0.16);
+}
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric--indigo .scheduling-metric__top i,
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric--violet .scheduling-metric__top i {
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.16);
+}
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric--amber .scheduling-metric__top i {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric--green .scheduling-metric__top i,
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric--mint .scheduling-metric__top i {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-metrics-grid--dashboard .scheduling-metric--red .scheduling-metric__top i {
+  color: #fb7185;
+  background: rgba(244, 63, 94, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-card {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: linear-gradient(150deg, rgba(17, 30, 46, 0.95), rgba(11, 22, 36, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-card--amber {
+  border-color: rgba(251, 191, 36, 0.3);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(251, 191, 36, 0.13), transparent 8rem),
+    linear-gradient(150deg, rgba(31, 25, 16, 0.96), rgba(11, 22, 36, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-card--red {
+  border-color: rgba(251, 113, 133, 0.34);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(244, 63, 94, 0.16), transparent 8rem),
+    linear-gradient(150deg, rgba(37, 18, 28, 0.96), rgba(11, 22, 36, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-card--blue {
+  border-color: rgba(56, 189, 248, 0.3);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.14), transparent 8rem),
+    linear-gradient(150deg, rgba(12, 29, 48, 0.96), rgba(11, 22, 36, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-card--amber .scheduling-priority-card__summary span,
+.scheduling-module.is-dark-mode .scheduling-priority-card span {
+  color: #fbbf24;
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-card--red .scheduling-priority-card__summary span {
+  color: #fb7185;
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-card--blue .scheduling-priority-card__summary span {
+  color: #38bdf8;
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-assessment,
+.scheduling-module.is-dark-mode .scheduling-priority-empty,
+.scheduling-module.is-dark-mode .scheduling-table-empty,
+.scheduling-module.is-dark-mode .scheduling-analysis-empty,
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-empty,
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__empty {
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #a7bad1;
+  background: rgba(8, 16, 28, 0.52);
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-assessment.is-good,
+.scheduling-module.is-dark-mode .scheduling-row-assessment.is-good {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.13);
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-assessment.is-warning,
+.scheduling-module.is-dark-mode .scheduling-row-assessment.is-warning {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.13);
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-assessment.is-danger,
+.scheduling-module.is-dark-mode .scheduling-row-assessment.is-danger {
+  color: #fb7185;
+  background: rgba(244, 63, 94, 0.13);
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-assessment.is-watch,
+.scheduling-module.is-dark-mode .scheduling-row-assessment.is-watch {
+  color: #c084fc;
+  background: rgba(139, 92, 246, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-item {
+  border-color: rgba(148, 163, 184, 0.16);
+  color: #dbeafe;
+  background: rgba(12, 24, 39, 0.76);
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-item span,
+.scheduling-module.is-dark-mode .scheduling-priority-item strong {
+  color: #f8fbff;
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-item small {
+  color: #9fb0c7;
+}
+
+.scheduling-module.is-dark-mode .scheduling-priority-item button,
+.scheduling-module.is-dark-mode .scheduling-priority-item b {
+  color: #5eead4;
+  background: rgba(20, 184, 166, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-table--today .scheduling-table__head,
+.scheduling-module.is-dark-mode .scheduling-table__head {
+  color: #93a8c3;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 27, 43, 0.92);
+}
+
+.scheduling-module.is-dark-mode .scheduling-table--today .scheduling-table__row,
+.scheduling-module.is-dark-mode .scheduling-table__row {
+  border-color: rgba(148, 163, 184, 0.16);
+  color: #b7c7dc;
+  background: rgba(12, 24, 39, 0.88);
+}
+
+.scheduling-module.is-dark-mode .scheduling-table--today .scheduling-table__row:hover {
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
+}
+
+.scheduling-module.is-dark-mode .scheduling-badge--green { color: #34d399; background: rgba(52, 211, 153, 0.13); }
+.scheduling-module.is-dark-mode .scheduling-badge--blue { color: #38bdf8; background: rgba(14, 165, 233, 0.14); }
+.scheduling-module.is-dark-mode .scheduling-badge--amber { color: #fbbf24; background: rgba(251, 191, 36, 0.13); }
+.scheduling-module.is-dark-mode .scheduling-badge--red { color: #fb7185; background: rgba(244, 63, 94, 0.13); }
+.scheduling-module.is-dark-mode .scheduling-badge--slate { color: #cbd5e1; background: rgba(148, 163, 184, 0.13); }
+
+.scheduling-module.is-dark-mode .scheduling-actions a,
+.scheduling-module.is-dark-mode .scheduling-actions button {
+  color: #b7c7dc;
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(15, 27, 43, 0.78);
+}
+
+.scheduling-module.is-dark-mode .scheduling-actions a:hover,
+.scheduling-module.is-dark-mode .scheduling-actions button:hover {
+  color: #5eead4;
+  border-color: rgba(94, 234, 212, 0.34);
+  background: rgba(20, 184, 166, 0.13);
+}
+
+.scheduling-module.is-dark-mode .scheduling-actions button.is-danger:hover {
+  color: #fb7185;
+  border-color: rgba(251, 113, 133, 0.34);
+  background: rgba(244, 63, 94, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-operations-analysis {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(20, 184, 166, 0.1), transparent 16rem),
+    linear-gradient(180deg, rgba(12, 24, 39, 0.98), rgba(8, 16, 28, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-operations-analysis__head p {
+  color: #9fb0c7;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-range__button,
+.scheduling-module.is-dark-mode .scheduling-analysis-actions-menu__button,
+.scheduling-module.is-dark-mode .scheduling-analysis-view-toggle,
+.scheduling-module.is-dark-mode .scheduling-analysis-export {
+  color: #dbeafe;
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(15, 27, 43, 0.78);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-range__menu,
+.scheduling-module.is-dark-mode .scheduling-analysis-actions-menu__list,
+.scheduling-module.is-dark-mode .scheduling-analysis-export-menu__list {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(12, 24, 39, 0.98);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.34);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-range__menu button,
+.scheduling-module.is-dark-mode .scheduling-analysis-actions-menu__list button,
+.scheduling-module.is-dark-mode .scheduling-analysis-actions-menu__list a,
+.scheduling-module.is-dark-mode .scheduling-analysis-export-menu__list button {
+  color: #dbeafe;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-range__menu button:hover,
+.scheduling-module.is-dark-mode .scheduling-analysis-range__menu button.is-active,
+.scheduling-module.is-dark-mode .scheduling-analysis-actions-menu__list button:hover,
+.scheduling-module.is-dark-mode .scheduling-analysis-actions-menu__list a:hover,
+.scheduling-module.is-dark-mode .scheduling-analysis-export-menu__list button:hover {
+  color: #5eead4;
+  background: rgba(20, 184, 166, 0.14);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-tabs {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(15, 27, 43, 0.82);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-tabs button {
+  color: #9fb0c7;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-tabs button.is-active,
+.scheduling-module.is-dark-mode .scheduling-analysis-view-toggle button.is-active,
+.scheduling-module.is-dark-mode .scheduling-analysis-export[aria-expanded='true'] {
+  color: #5eead4;
+  border-color: rgba(94, 234, 212, 0.34);
+  background: linear-gradient(180deg, rgba(20, 184, 166, 0.18), rgba(14, 116, 144, 0.12));
+  box-shadow: 0 12px 28px rgba(20, 184, 166, 0.12);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-arrow {
+  color: #dbeafe;
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 27, 43, 0.9);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-chart__axis,
+.scheduling-module.is-dark-mode .scheduling-analysis-chart__bars small {
+  color: #93a8c3;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-chart__bars {
+  border-color: rgba(148, 163, 184, 0.18);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(20, 184, 166, 0.11), transparent 12rem),
+    linear-gradient(rgba(148, 163, 184, 0.14) 1px, transparent 1px) 0 10% / 100% 25%,
+    linear-gradient(180deg, rgba(13, 25, 40, 0.98), rgba(8, 16, 28, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-chart__bars strong,
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__summary strong,
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__summary em b,
+.scheduling-module.is-dark-mode .scheduling-analysis-department b,
+.scheduling-module.is-dark-mode .scheduling-analysis-doctor-list b,
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row b {
+  color: #f8fbff;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-radar,
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__summary,
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row,
+.scheduling-module.is-dark-mode .scheduling-analysis-slot-card,
+.scheduling-module.is-dark-mode .scheduling-analysis-activity-card {
+  border-color: rgba(148, 163, 184, 0.18);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.1), transparent 8rem),
+    linear-gradient(180deg, rgba(13, 25, 40, 0.98), rgba(8, 16, 28, 0.98));
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__ring {
+  fill: rgba(15, 27, 43, 0.72);
+  stroke: rgba(148, 163, 184, 0.22);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__axis {
+  stroke: rgba(148, 163, 184, 0.2);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-radar text {
+  fill: #dbeafe;
+  stroke: #07111f;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__point,
+.scheduling-module.is-dark-mode .scheduling-analysis-avatar,
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row .scheduling-analysis-avatar {
+  border-color: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(148, 163, 184, 0.2);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__summary em {
+  color: #b7c7dc;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-radar__summary em i,
+.scheduling-module.is-dark-mode .scheduling-analysis-slot-card .scheduling-donut-legend i {
+  box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.82);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-table__head {
+  color: #93a8c3;
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(15, 27, 43, 0.9);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row:hover {
+  border-color: rgba(94, 234, 212, 0.28);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.26);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row small.is-good {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.13);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row small.is-high {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.13);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row small.is-low {
+  color: #fb7185;
+  background: rgba(244, 63, 94, 0.13);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-department em,
+.scheduling-module.is-dark-mode .scheduling-analysis-doctor-list em,
+.scheduling-module.is-dark-mode .scheduling-analysis-insight-row em {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.scheduling-module.is-dark-mode .scheduling-donut {
+  box-shadow:
+    inset 0 0 0 24px rgba(8, 16, 28, 0.92),
+    0 18px 38px rgba(0, 0, 0, 0.3);
+}
+
+.scheduling-module.is-dark-mode .scheduling-donut strong {
+  color: #f8fbff;
+}
+
+.scheduling-module.is-dark-mode .scheduling-donut span,
+.scheduling-module.is-dark-mode .scheduling-analysis-slot-card .scheduling-donut-legend b {
+  color: #a7bad1;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-activity-list::before {
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.28), rgba(45, 212, 191, 0.28) 52%, rgba(251, 191, 36, 0.28));
+}
+
+.scheduling-module.is-dark-mode .scheduling-dashboard-timeline > div > div {
+  border-left-color: rgba(45, 212, 191, 0.24);
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-activity-list time,
+.scheduling-module.is-dark-mode .scheduling-dashboard-timeline time {
+  color: #5eead4;
+}
+
+.scheduling-module.is-dark-mode .scheduling-analysis-activity-list > div:hover {
+  background: rgba(20, 184, 166, 0.09);
+}
+
+.scheduling-module.is-dark-mode .scheduling-dashboard-timeline > div > div::before {
+  border-color: #07111f;
+  background: #5eead4;
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
+}
+
+.scheduling-module.is-dark-mode .scheduling-dashboard-hero {
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.34);
+}
+
+.scheduling-module.is-dark-mode .scheduling-dashboard-hero__console div {
+  border-color: rgba(125, 211, 252, 0.22);
+  background: rgba(8, 16, 28, 0.28);
 }
 
 /* RESPONSIVE */
