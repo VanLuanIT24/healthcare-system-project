@@ -4777,17 +4777,70 @@
 .scheduling-create-field input[type='date'],
 .scheduling-create-field input[type='time'] {
   color-scheme: light;
-  border-color: #d9e5f5;
+  border-color: #cfe2f4;
   color: #10233e;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 252, 255, 0.96)),
+    radial-gradient(circle at 100% 50%, rgba(20, 184, 166, 0.08), transparent 4.4rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 251, 255, 0.98)),
     #ffffff;
   font-size: 0.68rem;
   font-weight: 920;
   letter-spacing: 0;
   box-shadow:
-    0 8px 18px rgba(38, 71, 102, 0.035),
+    0 10px 22px rgba(38, 71, 102, 0.055),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.scheduling-create-field > div:has(input[type='date']),
+.scheduling-create-field > div:has(input[type='time']) {
+  isolation: isolate;
+}
+
+.scheduling-create-field > div:has(input[type='date']) > i,
+.scheduling-create-field > div:has(input[type='time']) > i {
+  color: #0f766e;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.9), transparent 1.25rem),
+    linear-gradient(135deg, #ecfeff, #dcfce7);
+  box-shadow:
+    0 7px 15px rgba(20, 184, 166, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.scheduling-create-field input[type='date']::-webkit-datetime-edit,
+.scheduling-create-field input[type='time']::-webkit-datetime-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  min-height: 30px;
+  padding-top: 0.05rem;
+}
+
+.scheduling-create-field input[type='date']::-webkit-datetime-edit-fields-wrapper,
+.scheduling-create-field input[type='time']::-webkit-datetime-edit-fields-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.08rem;
+  padding: 0.18rem 0.12rem;
+  border-radius: 8px;
+}
+
+.scheduling-create-field input[type='date']::-webkit-datetime-edit-day-field,
+.scheduling-create-field input[type='date']::-webkit-datetime-edit-month-field,
+.scheduling-create-field input[type='date']::-webkit-datetime-edit-year-field,
+.scheduling-create-field input[type='time']::-webkit-datetime-edit-hour-field,
+.scheduling-create-field input[type='time']::-webkit-datetime-edit-minute-field,
+.scheduling-create-field input[type='time']::-webkit-datetime-edit-ampm-field {
+  padding: 0.12rem 0.18rem;
+  border-radius: 6px;
+  color: #0f2343;
+  background: rgba(239, 246, 255, 0.58);
+}
+
+.scheduling-create-field input[type='date']::-webkit-datetime-edit-text,
+.scheduling-create-field input[type='time']::-webkit-datetime-edit-text {
+  color: #7d8da5;
+  font-weight: 800;
 }
 
 .scheduling-create-time-main .scheduling-create-field input[type='time'],
@@ -4800,38 +4853,53 @@
 
 .scheduling-create-field input[type='date']:hover,
 .scheduling-create-field input[type='time']:hover {
-  border-color: #bdd7ef;
+  border-color: #93d6dc;
   background:
-    linear-gradient(180deg, #ffffff, #f3fbff),
+    radial-gradient(circle at 100% 50%, rgba(20, 184, 166, 0.12), transparent 4.6rem),
+    linear-gradient(180deg, #ffffff, #f2fcff),
     #ffffff;
+  transform: translateY(-1px);
 }
 
 .scheduling-create-field input[type='date']:focus,
 .scheduling-create-field input[type='time']:focus {
-  border-color: #8edbd7;
+  border-color: #14b8a6;
   box-shadow:
-    0 0 0 4px rgba(20, 184, 166, 0.08),
-    0 14px 30px rgba(38, 71, 102, 0.08);
+    0 0 0 4px rgba(20, 184, 166, 0.12),
+    0 16px 34px rgba(20, 184, 166, 0.13);
 }
 
 .scheduling-create-field input[type='date']::-webkit-calendar-picker-indicator,
 .scheduling-create-field input[type='time']::-webkit-calendar-picker-indicator {
-  width: 18px;
-  height: 18px;
-  margin-right: -0.12rem;
-  padding: 0.34rem;
-  border-radius: 9px;
+  width: 17px;
+  height: 17px;
+  margin-right: -0.16rem;
+  padding: 0.38rem;
+  border: 1px solid rgba(191, 234, 240, 0.96);
+  border-radius: 10px;
   cursor: pointer;
-  opacity: 0.72;
-  background-color: #eff6ff;
-  transition: opacity 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+  opacity: 0.86;
+  background-color: #ecfeff;
+  box-shadow:
+    0 6px 13px rgba(14, 116, 144, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transition:
+    opacity 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
 .scheduling-create-field input[type='date']::-webkit-calendar-picker-indicator:hover,
 .scheduling-create-field input[type='time']::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
-  background-color: #dcfce7;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+  border-color: #67e8f9;
+  background-color: #dffcf6;
+  box-shadow:
+    0 0 0 3px rgba(20, 184, 166, 0.12),
+    0 8px 16px rgba(14, 116, 144, 0.12);
+  transform: translateY(-1px);
 }
 
 .scheduling-create-field input[type='date']:disabled,
@@ -4842,6 +4910,7 @@
     linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.92)),
     #f8fafc;
   box-shadow: none;
+  transform: none;
 }
 
 @media (max-width: 1380px) {
