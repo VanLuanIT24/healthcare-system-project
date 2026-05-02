@@ -21,6 +21,8 @@ function wrap(serviceMethod, successMessage, statusCode = 200) {
 
 module.exports = {
   createDoctorSchedule: wrap((req) => scheduleService.createDoctorSchedule(req.body, req.auth, requestMeta(req)), 'Tạo lịch làm việc bác sĩ thành công.', 201),
+  getSchedulingCreateOptions: wrap((req) => scheduleService.getSchedulingCreateOptions(req.query), 'Lấy dữ liệu tạo lịch thành công.'),
+  previewCreateDoctorSchedule: wrap((req) => scheduleService.previewCreateDoctorSchedule(req.body), 'Kiểm tra lịch trước khi tạo thành công.'),
   listDoctorSchedules: wrap((req) => scheduleService.listDoctorSchedules(req.query), 'Lấy danh sách lịch làm việc thành công.'),
   bulkCreateDoctorSchedules: wrap(
     (req) => scheduleService.bulkCreateDoctorSchedules(req.body, req.auth, requestMeta(req)),

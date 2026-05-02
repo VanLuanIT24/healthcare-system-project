@@ -77,6 +77,15 @@ async function validateDoctorBelongsToDepartment(doctorId, departmentId) {
 }
 
 async function validateScheduleConflict({ doctor_id, work_date, shift_start, shift_end }, excludeId = null) {
+  const conflicts = await findScheduleConflicts({ doctor_id, work_date, shift_start, shift_end }, excludeId);
+  if (conflicts.length > 0) {
+    throw createError('Bác sĩ đang bị trùng lịch trong khoảng thời gian này.', 409);
+  }
+
+  return true;
+}
+
+async function findScheduleConflicts({ doctor_id, work_date, shift_start, shift_end }, excludeId = null) {
   const filter = {
     doctor_id,
     is_deleted: false,
@@ -90,12 +99,7 @@ async function validateScheduleConflict({ doctor_id, work_date, shift_start, shi
     filter._id = { $ne: excludeId };
   }
 
-  const existing = await DoctorSchedule.findOne(filter).lean();
-  if (existing) {
-    throw createError('Bác sĩ đang bị trùng lịch trong khoảng thời gian này.', 409);
-  }
-
-  return true;
+  return DoctorSchedule.find(filter).sort({ shift_start: 1 }).limit(10).lean();
 }
 
 function calculateScheduleSlots(schedule) {
@@ -115,6 +119,64 @@ function calculateScheduleSlots(schedule) {
   }
 
   return slots;
+}
+
+function normalizeScheduleBreakWindows(schedule, payload = {}) {
+  const rawWindows = Array.isArray(payload.break_windows) ? payload.break_windows : [];
+  const windows = [];
+
+  rawWindows.forEach((item) => {
+    const startInput = item.start_time || item.start || item.range_start;
+    const endInput = item.end_time || item.end || item.range_end;
+    if (!startInput || !endInput) return;
+
+    const startTime = parseScheduleSlotTime(startInput, schedule);
+    const endTime = parseScheduleSlotTime(endInput, schedule);
+    if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime()) || startTime >= endTime) {
+      throw createError('Khoảng nghỉ giữa giờ không hợp lệ.', 400);
+    }
+
+    if (startTime < new Date(schedule.shift_start) || endTime > new Date(schedule.shift_end)) {
+      throw createError('Khoảng nghỉ phải nằm trong khung giờ làm việc.', 400);
+    }
+
+    windows.push({
+      start_time: startTime,
+      end_time: endTime,
+      mode: item.mode || item.break_slot_mode || '',
+    });
+  });
+
+  return windows;
+}
+
+function buildBlockedSlotsFromBreakWindows(schedule, breakWindows = [], actor = {}) {
+  if (!breakWindows.length) return [];
+
+  const blocked = new Map();
+  const theoreticalSlots = calculateScheduleSlots(schedule);
+
+  breakWindows.forEach((window) => {
+    theoreticalSlots.forEach((slot) => {
+      const slotTime = new Date(slot.slot_time);
+      if (slotTime >= new Date(window.start_time) && slotTime < new Date(window.end_time)) {
+        blocked.set(slotTime.toISOString(), {
+          slot_time: slotTime,
+          reason: 'Nghỉ giữa khung giờ',
+          blocked_by: actor.userId,
+          blocked_at: new Date(),
+        });
+      }
+    });
+  });
+
+  return [...blocked.values()];
+}
+
+function formatTimeForSchedulePayload(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 async function buildScheduleDoctorMap(schedules = []) {
@@ -202,6 +264,13 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
     shift_end: schedule.shift_end,
     slot_duration_minutes: schedule.slot_duration_minutes,
     max_patients: schedule.max_patients,
+    schedule_type: schedule.schedule_type || 'Lịch khám',
+    patient_portal_enabled: schedule.patient_portal_enabled !== false,
+    staff_only: schedule.staff_only === true,
+    return_visit_priority: schedule.return_visit_priority === true,
+    early_booking_enabled: schedule.early_booking_enabled !== false,
+    internal_note: schedule.internal_note || '',
+    break_windows: schedule.break_windows || [],
     blocked_slots_count: stats.blocked_slots,
     publish_status: getPublishStatus(schedule),
     slots_summary: stats,
@@ -464,16 +533,28 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
     shift_start: normalized.shiftStart,
     shift_end: normalized.shiftEnd,
   });
-
-  const schedule = await DoctorSchedule.create({
-    doctor_id: payload.doctor_id,
-    department_id: payload.department_id,
+  const scheduleBase = {
     work_date: normalized.workDate,
     shift_start: normalized.shiftStart,
     shift_end: normalized.shiftEnd,
     slot_duration_minutes: normalized.slotDuration,
+  };
+  const breakWindows = normalizeScheduleBreakWindows(scheduleBase, payload);
+  const blockedSlots = buildBlockedSlotsFromBreakWindows(scheduleBase, breakWindows, actor);
+
+  const schedule = await DoctorSchedule.create({
+    doctor_id: payload.doctor_id,
+    department_id: payload.department_id,
+    ...scheduleBase,
     max_patients: payload.max_patients,
-    blocked_slots: [],
+    schedule_type: payload.schedule_type || payload.scheduleType || 'Lịch khám',
+    patient_portal_enabled: payload.patient_portal_enabled !== false,
+    staff_only: payload.staff_only === true,
+    return_visit_priority: payload.return_visit_priority === true,
+    early_booking_enabled: payload.early_booking_enabled !== false,
+    internal_note: payload.internal_note || payload.note || '',
+    break_windows: breakWindows,
+    blocked_slots: blockedSlots,
     status: payload.status || 'draft',
     created_by: actor.userId,
   });
@@ -486,6 +567,11 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
     status: 'success',
     message: 'Tạo lịch làm việc bác sĩ thành công.',
     requestMeta,
+    metadata: {
+      break_windows_count: breakWindows.length,
+      blocked_break_slots_count: blockedSlots.length,
+      schedule_type: schedule.schedule_type,
+    },
   });
 
   return getDoctorScheduleDetail(schedule._id);
@@ -585,6 +671,17 @@ async function updateDoctorSchedule(scheduleId, payload, actor, requestMeta = {}
     schedule._id,
   );
 
+  const nextScheduleBase = {
+    work_date: normalized.workDate,
+    shift_start: normalized.shiftStart,
+    shift_end: normalized.shiftEnd,
+    slot_duration_minutes: normalized.slotDuration,
+  };
+  const shouldUpdateBreakWindows = Array.isArray(payload.break_windows);
+  const nextBreakWindows = shouldUpdateBreakWindows
+    ? normalizeScheduleBreakWindows(nextScheduleBase, payload)
+    : schedule.break_windows || [];
+
   schedule.doctor_id = payload.doctor_id || schedule.doctor_id;
   schedule.department_id = payload.department_id || schedule.department_id;
   schedule.work_date = normalized.workDate;
@@ -592,6 +689,20 @@ async function updateDoctorSchedule(scheduleId, payload, actor, requestMeta = {}
   schedule.shift_end = normalized.shiftEnd;
   schedule.slot_duration_minutes = normalized.slotDuration;
   schedule.max_patients = payload.max_patients !== undefined ? payload.max_patients : schedule.max_patients;
+  schedule.schedule_type = payload.schedule_type || payload.scheduleType || schedule.schedule_type;
+  if (payload.patient_portal_enabled !== undefined) schedule.patient_portal_enabled = payload.patient_portal_enabled !== false;
+  if (payload.staff_only !== undefined) schedule.staff_only = payload.staff_only === true;
+  if (payload.return_visit_priority !== undefined) schedule.return_visit_priority = payload.return_visit_priority === true;
+  if (payload.early_booking_enabled !== undefined) schedule.early_booking_enabled = payload.early_booking_enabled !== false;
+  if (payload.internal_note !== undefined || payload.note !== undefined) schedule.internal_note = payload.internal_note || payload.note || '';
+  if (shouldUpdateBreakWindows) {
+    const manualBlockedSlots = (schedule.blocked_slots || []).filter((slot) => slot.reason !== 'Nghỉ giữa khung giờ');
+    schedule.break_windows = nextBreakWindows;
+    schedule.blocked_slots = [
+      ...manualBlockedSlots,
+      ...buildBlockedSlotsFromBreakWindows(nextScheduleBase, nextBreakWindows, actor),
+    ];
+  }
   schedule.updated_by = actor.userId;
   await schedule.save();
 
@@ -1016,6 +1127,177 @@ function buildOperationAlerts(items = []) {
   return alerts;
 }
 
+function formatDepartmentOption(department) {
+  return {
+    id: String(department._id),
+    department_id: String(department._id),
+    code: department.department_code,
+    name: department.department_name,
+    department_name: department.department_name,
+    type: department.department_type || '',
+    location_note: department.location_note || '',
+    status: department.status,
+  };
+}
+
+async function getSchedulingCreateOptions(query = {}) {
+  const [departments, doctorRole] = await Promise.all([
+    Department.find({ is_deleted: false, status: 'active' }).sort({ department_name: 1 }).lean(),
+    Role.findOne({ role_code: 'doctor', is_deleted: false }).lean(),
+  ]);
+  const departmentMap = new Map(departments.map((department) => [String(department._id), department]));
+
+  if (!doctorRole) {
+    return {
+      departments: departments.map(formatDepartmentOption),
+      doctors: [],
+    };
+  }
+
+  const assignments = await UserRole.find({ role_id: doctorRole._id, is_active: true }).lean();
+  const userIds = assignments.map((item) => item.user_id).filter(Boolean);
+  const filter = {
+    _id: { $in: userIds },
+    is_deleted: false,
+    status: 'active',
+  };
+
+  if (query.department_id) filter.department_id = query.department_id;
+  if (query.search) {
+    const keyword = String(query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.$or = [
+      { full_name: { $regex: keyword, $options: 'i' } },
+      { username: { $regex: keyword, $options: 'i' } },
+      { employee_code: { $regex: keyword, $options: 'i' } },
+    ];
+  }
+
+  const users = await User.find(filter)
+    .select('full_name username employee_code email phone department_id status')
+    .sort({ full_name: 1 })
+    .lean();
+  const doctorIds = users.map((user) => user._id);
+  const loadRows = doctorIds.length
+    ? await DoctorSchedule.aggregate([
+        {
+          $match: {
+            doctor_id: { $in: doctorIds },
+            is_deleted: false,
+            status: { $nin: ['cancelled', 'completed'] },
+            work_date: { $gte: getStartOfDay(new Date()) },
+          },
+        },
+        { $group: { _id: '$doctor_id', active_schedules_count: { $sum: 1 } } },
+      ])
+    : [];
+  const loadMap = new Map(loadRows.map((row) => [String(row._id), row.active_schedules_count]));
+
+  return {
+    departments: departments.map(formatDepartmentOption),
+    doctors: users
+      .filter((user) => !user.department_id || departmentMap.has(String(user.department_id)))
+      .map((user) => {
+        const department = user.department_id ? departmentMap.get(String(user.department_id)) : null;
+        return {
+          id: String(user._id),
+          user_id: String(user._id),
+          name: user.full_name,
+          full_name: user.full_name,
+          username: user.username,
+          employee_code: user.employee_code,
+          email: user.email,
+          phone: user.phone,
+          department_id: user.department_id ? String(user.department_id) : null,
+          department_name: department?.department_name || null,
+          department_code: department?.department_code || null,
+          active_schedules_count: loadMap.get(String(user._id)) || 0,
+          status: user.status,
+        };
+      }),
+  };
+}
+
+function formatConflictSchedule(schedule) {
+  return {
+    schedule_id: String(schedule._id),
+    work_date: schedule.work_date,
+    shift_start: schedule.shift_start,
+    shift_end: schedule.shift_end,
+    status: schedule.status,
+    slot_duration_minutes: schedule.slot_duration_minutes,
+  };
+}
+
+async function previewCreateDoctorSchedule(payload = {}) {
+  const normalized = validateScheduleTimeRange(payload);
+  const { doctor, department } = await validateDoctorBelongsToDepartment(payload.doctor_id, payload.department_id);
+  const scheduleBase = {
+    work_date: normalized.workDate,
+    shift_start: normalized.shiftStart,
+    shift_end: normalized.shiftEnd,
+    slot_duration_minutes: normalized.slotDuration,
+  };
+  const breakWindows = normalizeScheduleBreakWindows(scheduleBase, payload);
+  const blockedBreakSlots = buildBlockedSlotsFromBreakWindows(scheduleBase, breakWindows);
+  const conflicts = await findScheduleConflicts({
+    doctor_id: payload.doctor_id,
+    work_date: normalized.workDate,
+    shift_start: normalized.shiftStart,
+    shift_end: normalized.shiftEnd,
+  });
+  const totalSlots = calculateScheduleSlots(scheduleBase).length;
+  const maxPatients = Number(payload.max_patients || 1);
+  const warnings = [];
+
+  if (conflicts.length > 0) {
+    warnings.push({
+      type: 'conflict',
+      tone: 'danger',
+      message: 'Bác sĩ đang có lịch trùng trong khung giờ đã chọn.',
+    });
+  }
+  if (breakWindows.length > 0 && blockedBreakSlots.length === 0) {
+    warnings.push({
+      type: 'break_window',
+      tone: 'warning',
+      message: 'Khoảng nghỉ không khớp slot nào; kiểm tra lại thời lượng slot hoặc giờ nghỉ.',
+    });
+  }
+  if (totalSlots === 0) {
+    warnings.push({
+      type: 'empty_slots',
+      tone: 'danger',
+      message: 'Khung giờ hiện tại không tạo được slot hợp lệ.',
+    });
+  }
+
+  return {
+    can_create: conflicts.length === 0 && totalSlots > 0,
+    doctor: {
+      user_id: String(doctor._id),
+      full_name: doctor.full_name,
+      employee_code: doctor.employee_code,
+      department_id: doctor.department_id ? String(doctor.department_id) : null,
+    },
+    department: formatDepartmentOption(department),
+    work_date: normalized.workDate,
+    shift_start: normalized.shiftStart,
+    shift_end: normalized.shiftEnd,
+    slot_duration_minutes: normalized.slotDuration,
+    schedule_type: payload.schedule_type || payload.scheduleType || 'Lịch khám',
+    break_windows: breakWindows,
+    slots_summary: {
+      total_slots: totalSlots,
+      blocked_slots: blockedBreakSlots.length,
+      available_slots: Math.max(totalSlots - blockedBreakSlots.length, 0),
+      max_patients_per_slot: maxPatients,
+      total_capacity: totalSlots * maxPatients,
+    },
+    conflicts: conflicts.map(formatConflictSchedule),
+    warnings,
+  };
+}
+
 async function getSchedulingSystemSummary(query = {}) {
   const { dateFrom, dateTo } = resolveSummaryDateRange(query);
   const filter = {
@@ -1204,6 +1486,22 @@ async function duplicateDoctorSchedule(scheduleId, payload = {}, actor, requestM
       shift_end: shiftEnd,
       slot_duration_minutes: payload.slot_duration_minutes || schedule.slot_duration_minutes,
       max_patients: payload.max_patients !== undefined ? payload.max_patients : schedule.max_patients,
+      schedule_type: payload.schedule_type || schedule.schedule_type,
+      patient_portal_enabled:
+        payload.patient_portal_enabled !== undefined ? payload.patient_portal_enabled : schedule.patient_portal_enabled,
+      staff_only: payload.staff_only !== undefined ? payload.staff_only : schedule.staff_only,
+      return_visit_priority:
+        payload.return_visit_priority !== undefined ? payload.return_visit_priority : schedule.return_visit_priority,
+      early_booking_enabled:
+        payload.early_booking_enabled !== undefined ? payload.early_booking_enabled : schedule.early_booking_enabled,
+      internal_note: payload.internal_note !== undefined ? payload.internal_note : schedule.internal_note,
+      break_windows: Array.isArray(payload.break_windows)
+        ? payload.break_windows
+        : (schedule.break_windows || []).map((window) => ({
+            start: formatTimeForSchedulePayload(window.start_time),
+            end: formatTimeForSchedulePayload(window.end_time),
+            mode: window.mode,
+          })),
       status: payload.status || 'draft',
     },
     actor,
@@ -1246,6 +1544,8 @@ async function bulkPublishDoctorSchedules(scheduleIds = [], actor, requestMeta =
 
 module.exports = {
   createDoctorSchedule,
+  getSchedulingCreateOptions,
+  previewCreateDoctorSchedule,
   listDoctorSchedules,
   getDoctorScheduleDetail,
   updateDoctorSchedule,

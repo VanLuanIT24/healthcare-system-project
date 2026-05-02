@@ -9,6 +9,8 @@ router.get('/doctor/:doctorId', scheduleController.listSchedulesByDoctor);
 router.get('/department/:departmentId', scheduleController.listSchedulesByDepartment);
 router.get('/date-range', scheduleController.listSchedulesByDateRange);
 router.get('/calendar/doctor/:doctorId', scheduleController.getDoctorCalendarView);
+router.get('/resources/options', scheduleController.getSchedulingCreateOptions);
+router.post('/preview-create', scheduleController.previewCreateDoctorSchedule);
 router.get('/:scheduleId/available-slots', scheduleController.getAvailableSlots);
 router.get('/:scheduleId/booked-slots', scheduleController.getBookedSlots);
 

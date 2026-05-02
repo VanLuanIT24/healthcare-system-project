@@ -12,6 +12,19 @@ const doctorScheduleSchema = new Schema(
     shift_end: { type: Date, required: true },
     slot_duration_minutes: { type: Number, default: 15, min: 5, required: true },
     max_patients: { type: Number, min: 0 },
+    schedule_type: { type: String, trim: true, default: 'Lịch khám' },
+    patient_portal_enabled: { type: Boolean, default: true },
+    staff_only: { type: Boolean, default: false },
+    return_visit_priority: { type: Boolean, default: false },
+    early_booking_enabled: { type: Boolean, default: true },
+    internal_note: { type: String, trim: true, maxlength: 500 },
+    break_windows: [
+      {
+        start_time: { type: Date, required: true },
+        end_time: { type: Date, required: true },
+        mode: { type: String, trim: true },
+      },
+    ],
     blocked_slots: [
       {
         slot_time: { type: Date, required: true },

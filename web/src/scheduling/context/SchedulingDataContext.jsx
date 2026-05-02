@@ -33,6 +33,31 @@ function buildDateTime(dateValue, timeValue) {
   return new Date(`${dateValue}T${timeValue}:00`).toISOString();
 }
 
+function buildBreakWindowsFromForm(form) {
+  if (!form.hasBreak) return [];
+  const windows = [];
+
+  if (form.breakStart && form.breakEnd) {
+    windows.push({
+      start: form.breakStart,
+      end: form.breakEnd,
+      mode: form.breakSlotMode || '',
+    });
+  }
+
+  (form.extraBreaks || []).forEach((item) => {
+    if (item.start && item.end) {
+      windows.push({
+        start: item.start,
+        end: item.end,
+        mode: item.mode || form.breakSlotMode || '',
+      });
+    }
+  });
+
+  return windows;
+}
+
 function mapScheduleFromApi(item = {}) {
   const stats = item.slots_summary || {};
   return {
@@ -53,6 +78,13 @@ function mapScheduleFromApi(item = {}) {
     utilization: Number(item.utilization_rate || stats.utilization_rate || 0),
     slotDuration: Number(item.slot_duration_minutes || 15),
     capacity: Number(item.max_patients || 1),
+    scheduleType: item.schedule_type || 'Lịch khám',
+    patientPortalEnabled: item.patient_portal_enabled !== false,
+    staffOnly: item.staff_only === true,
+    returnVisitPriority: item.return_visit_priority === true,
+    earlyBookingEnabled: item.early_booking_enabled !== false,
+    internalNote: item.internal_note || '',
+    breakWindows: item.break_windows || [],
     createdBy: item.created_by || 'Máy chủ',
     createdAt: item.created_at || '',
     updatedAt: item.updated_at || '',
@@ -82,6 +114,33 @@ function mapGroupToDepartment(item) {
     totalSlots: Number(item.total_slots || 0),
     availableSlots: Number(item.available_slots || 0),
     schedulesCount: Number(item.schedules_count || 0),
+  };
+}
+
+function mapDoctorOptionFromApi(item) {
+  return {
+    id: item.user_id || item.id,
+    name: item.full_name || item.name || item.username || 'Chưa xác định bác sĩ',
+    department: translateDepartmentName(item.department_name || item.department_code || ''),
+    departmentId: item.department_id || '',
+    employeeCode: item.employee_code || '',
+    email: item.email || '',
+    phone: item.phone || '',
+    activeSchedulesCount: Number(item.active_schedules_count || 0),
+    status: item.status || 'active',
+    raw: item,
+  };
+}
+
+function mapDepartmentOptionFromApi(item) {
+  return {
+    id: item.department_id || item.id,
+    name: translateDepartmentName(item.department_name || item.name || item.code || 'Chưa xác định khoa'),
+    code: item.code || item.department_code || '',
+    type: item.type || item.department_type || '',
+    locationNote: item.location_note || '',
+    status: item.status || 'active',
+    raw: item,
   };
 }
 
@@ -283,6 +342,7 @@ function createFallbackState() {
     calendarEvents: mockCalendarEvents,
     rawSummary: null,
     backendConnected: false,
+    createResourcesLoaded: false,
   };
 }
 
@@ -295,15 +355,31 @@ export function SchedulingDataProvider({ children }) {
     setLoading(true);
     setError('');
     try {
-      const [summary, list] = await Promise.all([
+      const [summaryResult, listResult, resourcesResult] = await Promise.allSettled([
         schedulingApi.getSystemSummary({ preset: 'week' }),
         schedulingApi.listSchedules({ limit: 100 }),
+        schedulingApi.getCreateOptions(),
       ]);
+      const summary = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
+      const list = listResult.status === 'fulfilled' ? listResult.value : null;
+      const resources = resourcesResult.status === 'fulfilled' ? resourcesResult.value : null;
+      const protectedDataLoaded = summaryResult.status === 'fulfilled' || listResult.status === 'fulfilled';
+
+      if (!resources && !protectedDataLoaded) {
+        throw resourcesResult.reason || summaryResult.reason || listResult.reason;
+      }
+
       const schedules = (list?.items || summary?.items || []).map(mapScheduleFromApi);
-      const doctors = summary?.by_doctor?.length ? summary.by_doctor.map(mapGroupToDoctor) : buildDoctorsFromSchedules(schedules);
-      const departments = summary?.by_department?.length
-        ? summary.by_department.map(mapGroupToDepartment)
-        : buildDepartmentsFromSchedules(schedules);
+      const doctors = resources?.doctors?.length
+        ? resources.doctors.map(mapDoctorOptionFromApi)
+        : summary?.by_doctor?.length
+          ? summary.by_doctor.map(mapGroupToDoctor)
+          : buildDoctorsFromSchedules(schedules);
+      const departments = resources?.departments?.length
+        ? resources.departments.map(mapDepartmentOptionFromApi)
+        : summary?.by_department?.length
+          ? summary.by_department.map(mapGroupToDepartment)
+          : buildDepartmentsFromSchedules(schedules);
 
       setState({
         schedules,
@@ -314,8 +390,10 @@ export function SchedulingDataProvider({ children }) {
         utilizationSeries: mapUtilizationSeries(summary?.utilization_series),
         calendarEvents: buildCalendarEventsFromSchedules(schedules),
         rawSummary: summary,
-        backendConnected: true,
+        backendConnected: protectedDataLoaded || Boolean(resources),
+        createResourcesLoaded: Boolean(resources),
       });
+      setError(resourcesResult.status === 'rejected' ? resourcesResult.reason.message : '');
     } catch (loadError) {
       setError(loadError.message);
       setState((current) => ({ ...createFallbackState(), backendConnected: false, rawSummary: current.rawSummary }));
@@ -350,6 +428,13 @@ export function SchedulingDataProvider({ children }) {
         shift_end: buildDateTime(form.date, form.end),
         slot_duration_minutes: Number(form.duration || 15),
         max_patients: Number(form.capacity || 1),
+        schedule_type: form.scheduleType || 'Lịch khám',
+        patient_portal_enabled: form.patientPortalEnabled !== false,
+        staff_only: form.staffOnly === true,
+        return_visit_priority: form.returnVisitPriority === true,
+        early_booking_enabled: form.earlyBookingEnabled !== false,
+        internal_note: form.note || '',
+        break_windows: buildBreakWindowsFromForm(form),
         status: form.status || 'draft',
       };
       const result = await schedulingApi.createSchedule(payload);
@@ -359,9 +444,33 @@ export function SchedulingDataProvider({ children }) {
     [refresh, resolveDepartmentId],
   );
 
+  const previewCreateScheduleFromForm = useCallback(
+    async (form) => {
+      const departmentId = resolveDepartmentId(form.department, form.doctor);
+      return schedulingApi.previewCreateSchedule({
+        doctor_id: form.doctor,
+        department_id: departmentId,
+        work_date: form.date,
+        shift_start: buildDateTime(form.date, form.start),
+        shift_end: buildDateTime(form.date, form.end),
+        slot_duration_minutes: Number(form.duration || 15),
+        max_patients: Number(form.capacity || 1),
+        schedule_type: form.scheduleType || 'Lịch khám',
+        patient_portal_enabled: form.patientPortalEnabled !== false,
+        staff_only: form.staffOnly === true,
+        return_visit_priority: form.returnVisitPriority === true,
+        early_booking_enabled: form.earlyBookingEnabled !== false,
+        internal_note: form.note || '',
+        break_windows: buildBreakWindowsFromForm(form),
+      });
+    },
+    [resolveDepartmentId],
+  );
+
   const actions = useMemo(
     () => ({
       createScheduleFromForm,
+      previewCreateScheduleFromForm,
       bulkCreateSchedules: async (payload) => {
         const result = await schedulingApi.bulkCreateSchedules(payload);
         await refresh();
@@ -398,7 +507,7 @@ export function SchedulingDataProvider({ children }) {
         return result;
       },
     }),
-    [createScheduleFromForm, refresh],
+    [createScheduleFromForm, previewCreateScheduleFromForm, refresh],
   );
 
   const value = useMemo(
