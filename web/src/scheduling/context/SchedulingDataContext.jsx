@@ -12,6 +12,12 @@ import {
   timeline as mockTimeline,
   utilizationSeries as mockUtilizationSeries,
 } from '../data/schedulingData';
+import {
+  DEFAULT_SCHEDULE_TYPE,
+  mapScheduleTypeFromApi,
+  normalizeScheduleType,
+  scheduleTypeCatalog,
+} from '../data/scheduleTypes';
 
 const SchedulingDataContext = createContext(null);
 
@@ -26,7 +32,10 @@ function formatClock(value) {
 function formatDateKey(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value || '').slice(0, 10);
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function buildDateTime(dateValue, timeValue) {
@@ -34,6 +43,16 @@ function buildDateTime(dateValue, timeValue) {
 }
 
 function buildBreakWindowsFromForm(form) {
+  if (Array.isArray(form.breakWindows)) {
+    return form.breakWindows
+      .filter((item) => item.start && item.end)
+      .map((item) => ({
+        start: item.start,
+        end: item.end,
+        mode: item.mode || form.breakSlotMode || '',
+      }));
+  }
+
   if (!form.hasBreak) return [];
   const windows = [];
 
@@ -78,7 +97,7 @@ function mapScheduleFromApi(item = {}) {
     utilization: Number(item.utilization_rate || stats.utilization_rate || 0),
     slotDuration: Number(item.slot_duration_minutes || 15),
     capacity: Number(item.max_patients || 1),
-    scheduleType: item.schedule_type || 'Lịch khám',
+    scheduleType: normalizeScheduleType(item.schedule_type),
     patientPortalEnabled: item.patient_portal_enabled !== false,
     staffOnly: item.staff_only === true,
     returnVisitPriority: item.return_visit_priority === true,
@@ -115,6 +134,15 @@ function mapGroupToDepartment(item) {
     availableSlots: Number(item.available_slots || 0),
     schedulesCount: Number(item.schedules_count || 0),
   };
+}
+
+function upsertSchedule(items, nextItem) {
+  if (!nextItem?.id) return items;
+  const exists = items.some((item) => String(item.id) === String(nextItem.id));
+  if (exists) {
+    return items.map((item) => (String(item.id) === String(nextItem.id) ? nextItem : item));
+  }
+  return [nextItem, ...items];
 }
 
 function mapDoctorOptionFromApi(item) {
@@ -336,6 +364,7 @@ function createFallbackState() {
     schedules: mockSchedules,
     doctors: mockDoctors,
     departments: mockDepartments,
+    scheduleTypes: scheduleTypeCatalog,
     scheduleStats: mockScheduleStats,
     operationAlerts: mockOperationAlerts,
     utilizationSeries: mockUtilizationSeries,
@@ -380,18 +409,25 @@ export function SchedulingDataProvider({ children }) {
         : summary?.by_department?.length
           ? summary.by_department.map(mapGroupToDepartment)
           : buildDepartmentsFromSchedules(schedules);
+      const scheduleTypes = resources?.schedule_types?.length
+        ? resources.schedule_types.map(mapScheduleTypeFromApi)
+        : scheduleTypeCatalog;
 
-      setState({
-        schedules,
-        doctors,
-        departments,
-        scheduleStats: buildStatsFromSummary(summary, schedules),
-        operationAlerts: mapOperationAlerts(summary?.operation_alerts),
-        utilizationSeries: mapUtilizationSeries(summary?.utilization_series),
-        calendarEvents: buildCalendarEventsFromSchedules(schedules),
-        rawSummary: summary,
-        backendConnected: protectedDataLoaded || Boolean(resources),
-        createResourcesLoaded: Boolean(resources),
+      setState((current) => {
+        const nextSchedules = schedules.length || listResult.status === 'fulfilled' ? schedules : current.schedules;
+        return {
+          schedules: nextSchedules,
+          doctors,
+          departments,
+          scheduleTypes,
+          scheduleStats: buildStatsFromSummary(summary, nextSchedules),
+          operationAlerts: mapOperationAlerts(summary?.operation_alerts),
+          utilizationSeries: mapUtilizationSeries(summary?.utilization_series),
+          calendarEvents: buildCalendarEventsFromSchedules(nextSchedules),
+          rawSummary: summary,
+          backendConnected: protectedDataLoaded || Boolean(resources),
+          createResourcesLoaded: Boolean(resources),
+        };
       });
       setError(resourcesResult.status === 'rejected' ? resourcesResult.reason.message : '');
     } catch (loadError) {
@@ -428,7 +464,7 @@ export function SchedulingDataProvider({ children }) {
         shift_end: buildDateTime(form.date, form.end),
         slot_duration_minutes: Number(form.duration || 15),
         max_patients: Number(form.capacity || 1),
-        schedule_type: form.scheduleType || 'Lịch khám',
+        schedule_type: normalizeScheduleType(form.scheduleType || DEFAULT_SCHEDULE_TYPE),
         patient_portal_enabled: form.patientPortalEnabled !== false,
         staff_only: form.staffOnly === true,
         return_visit_priority: form.returnVisitPriority === true,
@@ -438,7 +474,26 @@ export function SchedulingDataProvider({ children }) {
         status: form.status || 'draft',
       };
       const result = await schedulingApi.createSchedule(payload);
-      await refresh();
+      const createdSchedule = result?.schedule ? mapScheduleFromApi(result.schedule) : null;
+      if (createdSchedule) {
+        setState((current) => {
+          const schedules = upsertSchedule(current.schedules, createdSchedule);
+          return {
+            ...current,
+            schedules,
+            scheduleStats: buildStatsFromSchedules(schedules),
+            calendarEvents: buildCalendarEventsFromSchedules(schedules),
+            doctors: current.doctors?.length ? current.doctors : buildDoctorsFromSchedules(schedules),
+            departments: current.departments?.length ? current.departments : buildDepartmentsFromSchedules(schedules),
+            backendConnected: true,
+          };
+        });
+      }
+      try {
+        await refresh();
+      } catch {
+        // Keep the schedule returned by the create API visible even if list refresh fails.
+      }
       return result;
     },
     [refresh, resolveDepartmentId],
@@ -455,7 +510,7 @@ export function SchedulingDataProvider({ children }) {
         shift_end: buildDateTime(form.date, form.end),
         slot_duration_minutes: Number(form.duration || 15),
         max_patients: Number(form.capacity || 1),
-        schedule_type: form.scheduleType || 'Lịch khám',
+        schedule_type: normalizeScheduleType(form.scheduleType || DEFAULT_SCHEDULE_TYPE),
         patient_portal_enabled: form.patientPortalEnabled !== false,
         staff_only: form.staffOnly === true,
         return_visit_priority: form.returnVisitPriority === true,

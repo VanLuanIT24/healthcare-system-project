@@ -701,7 +701,7 @@
 .scheduling-topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 300;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -834,7 +834,7 @@
 .scheduling-notification-menu {
   position: absolute;
   top: calc(100% + 0.48rem);
-  z-index: 45;
+  z-index: 320;
   border: 1px solid #dbe7f3;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.98);
@@ -954,6 +954,7 @@
 .scheduling-topbar__admin,
 .scheduling-topbar__notifications {
   position: relative;
+  z-index: 310;
 }
 
 .scheduling-topbar__notify {
@@ -1052,8 +1053,11 @@
 }
 
 .scheduling-notification-list {
+  max-height: min(430px, calc(100vh - 190px));
   display: grid;
   gap: 0.18rem;
+  overflow: auto;
+  padding-right: 0.12rem;
 }
 
 .scheduling-notification-list button {
@@ -1095,6 +1099,70 @@
 .scheduling-notification-dot--danger { background: #ef4444; }
 .scheduling-notification-dot--success { background: #16a34a; }
 .scheduling-notification-dot--info { background: #0ea5e9; }
+.scheduling-notification-dot--warning { background: #f97316; }
+
+.scheduling-toast {
+  position: fixed;
+  top: 82px;
+  right: 22px;
+  z-index: 80;
+  width: min(390px, calc(100vw - 28px));
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 18px;
+  gap: 0.72rem;
+  align-items: start;
+  padding: 0.86rem 0.9rem;
+  border: 1px solid #cfeee9;
+  border-radius: 14px;
+  color: #13243d;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 22px 58px rgba(30, 64, 90, 0.2);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+  text-align: left;
+  animation: scheduling-toast-in 0.22s ease-out;
+}
+
+.scheduling-toast strong,
+.scheduling-toast small {
+  display: block;
+}
+
+.scheduling-toast strong {
+  font-size: 0.86rem;
+  font-weight: 950;
+  line-height: 1.22;
+}
+
+.scheduling-toast small {
+  margin-top: 0.24rem;
+  color: #63758d;
+  font-size: 0.74rem;
+  font-weight: 760;
+  line-height: 1.38;
+}
+
+.scheduling-toast svg {
+  margin-top: 0.08rem;
+  color: #8aa0b8;
+}
+
+.scheduling-toast--success { border-color: #a7f3d0; background: #f0fdf8; }
+.scheduling-toast--danger { border-color: #fecaca; background: #fff7f7; }
+.scheduling-toast--warning { border-color: #fed7aa; background: #fff8ed; }
+.scheduling-toast--info { border-color: #bae6fd; background: #f0f9ff; }
+
+@keyframes scheduling-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 .scheduling-notification-list strong,
 .scheduling-notification-list small,
@@ -1194,7 +1262,7 @@
   position: absolute;
   top: calc(100% + 0.48rem);
   right: 0;
-  z-index: 30;
+  z-index: 320;
   width: 238px;
   display: grid;
   gap: 0.24rem;

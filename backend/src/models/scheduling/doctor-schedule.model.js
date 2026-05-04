@@ -1,5 +1,6 @@
 const { model } = require('mongoose');
 const { Schema, baseSchemaOptions, auditFields, softDeleteFields } = require('../common/base-model');
+const { DEFAULT_SCHEDULE_TYPE } = require('../../constants/schedule-types');
 
 const scheduleStatuses = ['draft', 'published', 'active', 'cancelled', 'completed'];
 
@@ -12,7 +13,7 @@ const doctorScheduleSchema = new Schema(
     shift_end: { type: Date, required: true },
     slot_duration_minutes: { type: Number, default: 15, min: 5, required: true },
     max_patients: { type: Number, min: 0 },
-    schedule_type: { type: String, trim: true, default: 'Lịch khám' },
+    schedule_type: { type: String, trim: true, default: DEFAULT_SCHEDULE_TYPE },
     patient_portal_enabled: { type: Boolean, default: true },
     staff_only: { type: Boolean, default: false },
     return_visit_priority: { type: Boolean, default: false },

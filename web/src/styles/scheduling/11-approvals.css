@@ -10,6 +10,7 @@
   --approval-amber: #f59e0b;
   --approval-violet: #8b5cf6;
   --approval-cyan: #14b8c4;
+  container: approval-page / inline-size;
   color: var(--approval-text);
 }
 
@@ -21,18 +22,37 @@
 
 .approval-dashboard-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 338px;
-  gap: 0.9rem;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 390px);
+  grid-template-areas:
+    "approval-head approval-head"
+    "approval-kpis approval-kpis"
+    "approval-toolbar approval-toolbar"
+    "approval-table approval-panel"
+    "approval-insights approval-insights"
+    "approval-secondary approval-secondary"
+    "approval-queue approval-queue";
+  gap: 1rem;
   align-items: start;
 }
 
+.approval-dashboard-layout.is-review-closed {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "approval-head"
+    "approval-kpis"
+    "approval-toolbar"
+    "approval-table"
+    "approval-insights"
+    "approval-secondary"
+    "approval-queue";
+}
+
 .approval-main {
-  display: grid;
-  gap: 0.82rem;
-  min-width: 0;
+  display: contents;
 }
 
 .approval-page-head {
+  grid-area: approval-head;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -81,8 +101,9 @@
 }
 
 .approval-kpi-grid {
+  grid-area: approval-kpis;
   display: grid;
-  grid-template-columns: repeat(8, minmax(112px, 1fr));
+  grid-template-columns: repeat(8, minmax(120px, 1fr));
   gap: 0.58rem;
 }
 
@@ -208,6 +229,7 @@
 }
 
 .approval-toolbar {
+  grid-area: approval-toolbar;
   display: flex;
   justify-content: space-between;
   gap: 0.7rem;
@@ -258,6 +280,8 @@
 }
 
 .approval-table-card {
+  grid-area: approval-table;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -551,12 +575,14 @@
 }
 
 .approval-insight-grid {
+  grid-area: approval-insights;
   display: grid;
   grid-template-columns: repeat(4, minmax(210px, 1fr));
   gap: 0.72rem;
 }
 
 .approval-secondary-grid {
+  grid-area: approval-secondary;
   display: grid;
   grid-template-columns: minmax(230px, 0.95fr) minmax(260px, 1fr) minmax(260px, 1.12fr);
   gap: 0.72rem;
@@ -1016,6 +1042,7 @@
 }
 
 .approval-queue-card {
+  grid-area: approval-queue;
   padding: 0.82rem;
 }
 
@@ -1094,12 +1121,15 @@
 }
 
 .approval-review-panel {
+  grid-area: approval-panel;
   position: sticky;
   top: 76px;
+  align-self: start;
   max-height: calc(100vh - 88px);
   display: grid;
   grid-template-rows: auto auto 1fr;
   overflow: auto;
+  min-width: 0;
 }
 
 .approval-review-head {
@@ -1245,57 +1275,92 @@
 }
 
 .approval-compare-table {
-  overflow: hidden;
-  border: 1px solid #e6edf6;
-  border-radius: 8px;
+  display: grid;
+  gap: 0.44rem;
 }
 
 .approval-compare-table > div {
   display: grid;
-  grid-template-columns: 0.9fr 1fr 1fr 0.55fr;
-  gap: 0.34rem;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 0.44rem;
-  border-top: 1px solid #edf2f8;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "compare-label compare-change"
+    "compare-current compare-current"
+    "compare-proposed compare-proposed";
+  gap: 0.28rem 0.6rem;
+  align-items: start;
+  min-height: 0;
+  padding: 0.52rem 0.58rem;
+  border: 1px solid #e6edf6;
+  border-radius: 8px;
+  background: #fbfdff;
 }
 
 .approval-compare-table > div:first-child {
-  border-top: 0;
-  color: #71829a;
-  background: #fbfdff;
-  font-size: 0.56rem;
-  font-weight: 950;
+  display: none;
 }
 
 .approval-compare-table span,
 .approval-compare-table b {
   min-width: 0;
-  overflow: hidden;
   color: #405571;
-  font-size: 0.56rem;
+  font-size: 0.6rem;
   font-weight: 850;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.28;
+  white-space: normal;
+}
+
+.approval-compare-table span:nth-child(1) {
+  grid-area: compare-label;
+  color: #10233d;
+  font-weight: 950;
+}
+
+.approval-compare-table span:nth-child(2) {
+  grid-area: compare-current;
+}
+
+.approval-compare-table span:nth-child(3) {
+  grid-area: compare-proposed;
+}
+
+.approval-compare-table span:nth-child(2)::before,
+.approval-compare-table span:nth-child(3)::before {
+  color: #71829a;
+  font-weight: 950;
+}
+
+.approval-compare-table span:nth-child(2)::before {
+  content: 'Hiện tại: ';
+}
+
+.approval-compare-table span:nth-child(3)::before {
+  content: 'Đề xuất: ';
 }
 
 .approval-compare-table b {
+  grid-area: compare-change;
   justify-self: end;
+  width: max-content;
+  padding: 0.12rem 0.34rem;
+  border-radius: 999px;
   color: #71829a;
+  background: #eef3f8;
 }
 
 .approval-compare-table b.is-positive {
   color: #16a34a;
+  background: #ecfdf5;
 }
 
 .approval-compare-table b.is-negative {
   color: #ef4444;
+  background: #fff1f2;
 }
 
 .approval-auto-checks {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.42rem 0.54rem;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
 }
 
 .approval-auto-checks div {
@@ -1303,6 +1368,10 @@
   grid-template-columns: 16px minmax(0, 1fr);
   gap: 0.2rem 0.36rem;
   align-items: start;
+  padding: 0.5rem 0.56rem;
+  border: 1px solid #e6edf6;
+  border-radius: 8px;
+  background: #fbfdff;
 }
 
 .approval-auto-checks svg {
@@ -1365,7 +1434,7 @@
 
 .approval-review-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.44rem;
   padding: 0.76rem 0.94rem 0.88rem;
   border-top: 1px solid #edf2f8;
@@ -1406,7 +1475,7 @@
 }
 
 .approval-review-actions .is-publish {
-  grid-column: 1 / -1;
+  grid-column: auto;
   --action-line: #0b72d9;
   --action-color: #ffffff;
   --action-bg: linear-gradient(180deg, #147ce5, #075db6);
@@ -1428,6 +1497,57 @@
   color: #0b72d9;
 }
 
+@container approval-page (min-width: 1900px) {
+  .approval-dashboard-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 380px);
+  }
+
+  .approval-kpi-grid {
+    grid-template-columns: repeat(8, minmax(112px, 1fr));
+  }
+}
+
+@container approval-page (max-width: 1420px) {
+  .approval-dashboard-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "approval-head"
+      "approval-kpis"
+      "approval-toolbar"
+      "approval-table"
+      "approval-panel"
+      "approval-insights"
+      "approval-secondary"
+      "approval-queue";
+  }
+
+  .approval-review-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+@container approval-page (max-width: 980px) {
+  .approval-toolbar,
+  .approval-page-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .approval-toolbar__secondary {
+    justify-content: flex-start;
+  }
+
+  .approval-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .approval-secondary-grid,
+  .approval-queue-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1500px) {
   .approval-kpi-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1445,6 +1565,15 @@
 @media (max-width: 1280px) {
   .approval-dashboard-layout {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "approval-head"
+      "approval-kpis"
+      "approval-toolbar"
+      "approval-table"
+      "approval-panel"
+      "approval-insights"
+      "approval-secondary"
+      "approval-queue";
   }
 
   .approval-review-panel {

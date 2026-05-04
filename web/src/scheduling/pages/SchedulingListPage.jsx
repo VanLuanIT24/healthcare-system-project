@@ -68,9 +68,7 @@ const departmentColors = ['#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#ec4899']
 const scheduleCardColors = ['#14b8a6', '#3b82f6', '#8b5cf6', '#f97316', '#22c55e', '#f43f5e'];
 
 function getTodayKey() {
-  const now = new Date();
-  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return localDate.toISOString().slice(0, 10);
+  return formatDateKeyFromDate(new Date());
 }
 
 function normalize(value) {
@@ -105,8 +103,10 @@ function parseDateKey(value) {
 function formatDateKeyFromDate(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localDate.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function addDaysToKey(dateKey, days) {
@@ -133,9 +133,9 @@ function getInitialFilters() {
 
 function getDuplicateDate(value) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+  if (Number.isNaN(date.getTime())) return formatDateKeyFromDate(new Date());
   date.setDate(date.getDate() + 7);
-  return date.toISOString().slice(0, 10);
+  return formatDateKeyFromDate(date);
 }
 
 function formatRatio(value, total) {
@@ -152,6 +152,17 @@ function formatCompactDate(value) {
     month: '2-digit',
     year: 'numeric',
   }).format(date);
+}
+
+function getNewestSortTime(item) {
+  const scheduleDate = parseDateKey(item.date);
+  if (!scheduleDate) return 0;
+  return scheduleDate.getTime() + timeToMinutes(item.start) * 60000;
+}
+
+function timeToMinutes(value) {
+  const [hour = 0, minute = 0] = String(value || '00:00').split(':').map(Number);
+  return hour * 60 + minute;
 }
 
 function formatWeekday(value) {
@@ -321,8 +332,7 @@ function getWeekDays(anchorDate) {
   return ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((label, index) => {
     const date = new Date(monday);
     date.setDate(monday.getDate() + index);
-    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-    return { label, date: localDate, day: date.getDate() };
+    return { label, date: formatDateKeyFromDate(date), day: date.getDate() };
   });
 }
 
@@ -531,7 +541,7 @@ export function SchedulingListPage() {
       if (sortMode === 'oldest') return `${first.date} ${first.start}`.localeCompare(`${second.date} ${second.start}`);
       if (sortMode === 'utilization') return Number(second.utilization || 0) - Number(first.utilization || 0);
       if (sortMode === 'doctor') return first.doctor.localeCompare(second.doctor);
-      return `${second.date} ${second.start}`.localeCompare(`${first.date} ${first.start}`);
+      return getNewestSortTime(second) - getNewestSortTime(first);
     });
   }, [filteredSchedules, sortMode, tableTab]);
 

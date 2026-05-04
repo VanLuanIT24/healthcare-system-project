@@ -613,6 +613,7 @@ export function SchedulingApprovalsPage() {
   const [rows, setRows] = useState(REVIEW_ROWS);
   const [selectedId, setSelectedId] = useState(REVIEW_ROWS[0].id);
   const [activeStatus, setActiveStatus] = useState('all');
+  const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(true);
 
   const selected = rows.find((item) => item.id === selectedId) || rows[0];
   const selectedStatus = STATUS_META[selected.status];
@@ -658,9 +659,14 @@ export function SchedulingApprovalsPage() {
     );
   }
 
+  function handleSelectRow(rowId) {
+    setSelectedId(rowId);
+    setIsReviewPanelOpen(true);
+  }
+
   return (
     <main className="approval-dashboard-page">
-      <div className="approval-dashboard-layout">
+      <div className={`approval-dashboard-layout${isReviewPanelOpen ? '' : ' is-review-closed'}`}>
         <section className="approval-main">
           <header className="approval-page-head">
             <div>
@@ -771,7 +777,7 @@ export function SchedulingApprovalsPage() {
                   key={row.id}
                   row={row}
                   selected={row.id === selected.id}
-                  onSelect={setSelectedId}
+                  onSelect={handleSelectRow}
                 />
               ))}
             </div>
@@ -986,6 +992,7 @@ export function SchedulingApprovalsPage() {
           </section>
         </section>
 
+        {isReviewPanelOpen ? (
         <aside className="approval-review-panel" aria-label="Chi tiết lịch cần duyệt">
           <header className="approval-review-head">
             <div>
@@ -994,7 +1001,7 @@ export function SchedulingApprovalsPage() {
             </div>
             <div>
               <Pill tone={selectedStatus.tone}>{selectedStatus.label}</Pill>
-              <button type="button" aria-label="Đóng chi tiết">
+              <button type="button" aria-label="Đóng chi tiết" onClick={() => setIsReviewPanelOpen(false)}>
                 <X size={16} strokeWidth={2.25} aria-hidden="true" />
               </button>
             </div>
@@ -1115,6 +1122,7 @@ export function SchedulingApprovalsPage() {
             AI đã kiểm tra xung đột lịch, phòng khám, nghỉ phép và quy tắc slot.
           </div>
         </aside>
+        ) : null}
       </div>
     </main>
   );

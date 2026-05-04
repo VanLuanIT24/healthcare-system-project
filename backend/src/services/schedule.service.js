@@ -16,6 +16,12 @@ const {
   getStartOfDay,
   recordAuditLog,
 } = require('./core.service');
+const {
+  DEFAULT_SCHEDULE_TYPE,
+  getScheduleTypeCatalog,
+  getScheduleTypeDefinition,
+  normalizeScheduleType,
+} = require('../constants/schedule-types');
 
 function validateScheduleTimeRange(payload) {
   const shiftStart = new Date(payload.shift_start);
@@ -179,6 +185,58 @@ function formatTimeForSchedulePayload(value) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+function normalizeScheduleIdList(value) {
+  return [
+    ...new Set(
+      (Array.isArray(value) ? value : [])
+        .map((scheduleId) => String(scheduleId || '').trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function isSameScheduleDate(left, right) {
+  return getStartOfDay(left).getTime() === getStartOfDay(right).getTime();
+}
+
+function scheduleOverlapsPreparedItem(schedule, preparedItem) {
+  return (
+    String(schedule.doctor_id) === String(preparedItem.item.doctor_id) &&
+    isSameScheduleDate(schedule.work_date, preparedItem.normalized.workDate) &&
+    new Date(schedule.shift_start) < preparedItem.normalized.shiftEnd &&
+    new Date(schedule.shift_end) > preparedItem.normalized.shiftStart
+  );
+}
+
+function scheduleExactlyMatchesPreparedItem(schedule, preparedItem) {
+  return (
+    scheduleOverlapsPreparedItem(schedule, preparedItem) &&
+    new Date(schedule.shift_start).getTime() === preparedItem.normalized.shiftStart.getTime() &&
+    new Date(schedule.shift_end).getTime() === preparedItem.normalized.shiftEnd.getTime()
+  );
+}
+
+async function prepareBulkCreateItems(items = []) {
+  const preparedItems = [];
+
+  for (const item of items) {
+    const normalized = validateScheduleTimeRange(item);
+    await validateDoctorBelongsToDepartment(item.doctor_id, item.department_id);
+    normalizeScheduleBreakWindows(
+      {
+        work_date: normalized.workDate,
+        shift_start: normalized.shiftStart,
+        shift_end: normalized.shiftEnd,
+        slot_duration_minutes: normalized.slotDuration,
+      },
+      item,
+    );
+    preparedItems.push({ item, normalized });
+  }
+
+  return preparedItems;
+}
+
 async function buildScheduleDoctorMap(schedules = []) {
   const doctorIds = [...new Set(schedules.map((schedule) => String(schedule.doctor_id)).filter(Boolean))];
 
@@ -264,7 +322,7 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
     shift_end: schedule.shift_end,
     slot_duration_minutes: schedule.slot_duration_minutes,
     max_patients: schedule.max_patients,
-    schedule_type: schedule.schedule_type || 'Lịch khám',
+    schedule_type: normalizeScheduleType(schedule.schedule_type),
     patient_portal_enabled: schedule.patient_portal_enabled !== false,
     staff_only: schedule.staff_only === true,
     return_visit_priority: schedule.return_visit_priority === true,
@@ -276,6 +334,8 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
     slots_summary: stats,
     utilization_rate: stats.utilization_rate,
     status: schedule.status,
+    created_at: schedule.created_at,
+    updated_at: schedule.updated_at,
   };
 }
 
@@ -524,15 +584,48 @@ async function getScheduleActivityLog(scheduleId, query = {}) {
   };
 }
 
+function applyCreateSchedulePayloadToExistingSchedule(schedule, payload, scheduleBase, breakWindows, blockedSlots, actor = {}) {
+  schedule.department_id = payload.department_id;
+  schedule.work_date = scheduleBase.work_date;
+  schedule.shift_start = scheduleBase.shift_start;
+  schedule.shift_end = scheduleBase.shift_end;
+  schedule.slot_duration_minutes = scheduleBase.slot_duration_minutes;
+  schedule.max_patients = payload.max_patients;
+  const scheduleType = getScheduleTypeDefinition(payload.schedule_type || payload.scheduleType || DEFAULT_SCHEDULE_TYPE);
+  schedule.schedule_type = scheduleType.value;
+  schedule.patient_portal_enabled = payload.patient_portal_enabled !== undefined ? payload.patient_portal_enabled !== false : scheduleType.patient_portal_enabled !== false;
+  schedule.staff_only = payload.staff_only !== undefined ? payload.staff_only === true : scheduleType.staff_only === true;
+  schedule.return_visit_priority = payload.return_visit_priority !== undefined ? payload.return_visit_priority === true : scheduleType.return_visit_priority === true;
+  schedule.early_booking_enabled = payload.early_booking_enabled !== false;
+  schedule.internal_note = payload.internal_note || payload.note || '';
+  schedule.break_windows = breakWindows;
+  schedule.blocked_slots = blockedSlots;
+  schedule.status = payload.status || 'draft';
+  if (actor.userId) {
+    schedule.updated_by = actor.userId;
+  }
+  return schedule;
+}
+
 async function createDoctorSchedule(payload, actor, requestMeta = {}) {
   const normalized = validateScheduleTimeRange(payload);
-  await validateDoctorBelongsToDepartment(payload.doctor_id, payload.department_id);
-  await validateScheduleConflict({
+  const { doctor, department } = await validateDoctorBelongsToDepartment(payload.doctor_id, payload.department_id);
+  const exactExistingSchedule = await DoctorSchedule.findOne({
     doctor_id: payload.doctor_id,
     work_date: normalized.workDate,
     shift_start: normalized.shiftStart,
     shift_end: normalized.shiftEnd,
+    is_deleted: false,
   });
+  await validateScheduleConflict(
+    {
+      doctor_id: payload.doctor_id,
+      work_date: normalized.workDate,
+      shift_start: normalized.shiftStart,
+      shift_end: normalized.shiftEnd,
+    },
+    exactExistingSchedule?._id || null,
+  );
   const scheduleBase = {
     work_date: normalized.workDate,
     shift_start: normalized.shiftStart,
@@ -541,23 +634,106 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
   };
   const breakWindows = normalizeScheduleBreakWindows(scheduleBase, payload);
   const blockedSlots = buildBlockedSlotsFromBreakWindows(scheduleBase, breakWindows, actor);
+  const theoreticalSlotCount = calculateScheduleSlots(scheduleBase).length;
+  const availableSlotCount = Math.max(theoreticalSlotCount - blockedSlots.length, 0);
+  const totalCapacity = availableSlotCount * Number(payload.max_patients || 1);
+  const scheduleType = getScheduleTypeDefinition(payload.schedule_type || payload.scheduleType || DEFAULT_SCHEDULE_TYPE);
 
-  const schedule = await DoctorSchedule.create({
-    doctor_id: payload.doctor_id,
-    department_id: payload.department_id,
-    ...scheduleBase,
-    max_patients: payload.max_patients,
-    schedule_type: payload.schedule_type || payload.scheduleType || 'Lịch khám',
-    patient_portal_enabled: payload.patient_portal_enabled !== false,
-    staff_only: payload.staff_only === true,
-    return_visit_priority: payload.return_visit_priority === true,
-    early_booking_enabled: payload.early_booking_enabled !== false,
-    internal_note: payload.internal_note || payload.note || '',
-    break_windows: breakWindows,
-    blocked_slots: blockedSlots,
-    status: payload.status || 'draft',
-    created_by: actor.userId,
-  });
+  let schedule;
+  let reusedExistingSchedule = false;
+  if (exactExistingSchedule) {
+    applyCreateSchedulePayloadToExistingSchedule(
+      exactExistingSchedule,
+      payload,
+      scheduleBase,
+      breakWindows,
+      blockedSlots,
+      actor,
+    );
+    schedule = await exactExistingSchedule.save();
+    reusedExistingSchedule = true;
+  } else {
+    try {
+      schedule = await DoctorSchedule.create({
+        doctor_id: payload.doctor_id,
+        department_id: payload.department_id,
+        ...scheduleBase,
+        max_patients: payload.max_patients,
+        schedule_type: scheduleType.value,
+        patient_portal_enabled:
+          payload.patient_portal_enabled !== undefined
+            ? payload.patient_portal_enabled !== false
+            : scheduleType.patient_portal_enabled !== false,
+        staff_only:
+          payload.staff_only !== undefined
+            ? payload.staff_only === true
+            : scheduleType.staff_only === true,
+        return_visit_priority:
+          payload.return_visit_priority !== undefined
+            ? payload.return_visit_priority === true
+            : scheduleType.return_visit_priority === true,
+        early_booking_enabled: payload.early_booking_enabled !== false,
+        internal_note: payload.internal_note || payload.note || '',
+        break_windows: breakWindows,
+        blocked_slots: blockedSlots,
+        status: payload.status || 'draft',
+        created_by: actor.userId,
+      });
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+
+      const existingSchedule = await DoctorSchedule.findOne({
+        doctor_id: payload.doctor_id,
+        work_date: normalized.workDate,
+        shift_start: normalized.shiftStart,
+        shift_end: normalized.shiftEnd,
+        is_deleted: false,
+      });
+
+      if (!existingSchedule) throw error;
+
+      applyCreateSchedulePayloadToExistingSchedule(existingSchedule, payload, scheduleBase, breakWindows, blockedSlots, actor);
+      schedule = await existingSchedule.save();
+      reusedExistingSchedule = true;
+    }
+  }
+  const notification = {
+    type: reusedExistingSchedule ? 'schedule.updated_existing' : 'schedule.created',
+    title: reusedExistingSchedule
+      ? 'Đã cập nhật lịch bác sĩ đã tồn tại'
+      : schedule.status === 'published' ? 'Đã tạo và công khai lịch bác sĩ' : 'Đã lưu nháp lịch bác sĩ',
+    message: `${doctor.full_name || 'Bác sĩ'} - ${department.department_name || 'Khoa'}: ${normalized.shiftStart.toISOString()} đến ${normalized.shiftEnd.toISOString()}.`,
+    status: 'success',
+    schedule_id: String(schedule._id),
+    schedule_status: schedule.status,
+    doctor_id: String(schedule.doctor_id),
+    doctor_name: doctor.full_name || null,
+    doctor_code: doctor.employee_code || null,
+    department_id: String(schedule.department_id),
+    department_name: department.department_name || null,
+    department_code: department.department_code || null,
+    work_date: normalized.workDate,
+    shift_start: normalized.shiftStart,
+    shift_end: normalized.shiftEnd,
+    slot_duration_minutes: normalized.slotDuration,
+    total_slots: theoreticalSlotCount,
+    available_slots: availableSlotCount,
+    blocked_slots: blockedSlots.length,
+    max_patients_per_slot: Number(payload.max_patients || 1),
+    total_capacity: totalCapacity,
+    schedule_type: schedule.schedule_type,
+    patient_portal_enabled: schedule.patient_portal_enabled,
+    staff_only: schedule.staff_only,
+    return_visit_priority: schedule.return_visit_priority,
+    early_booking_enabled: schedule.early_booking_enabled,
+    internal_note: schedule.internal_note || '',
+    break_windows: breakWindows.map((window) => ({
+      start_time: window.start_time,
+      end_time: window.end_time,
+      mode: window.mode || '',
+    })),
+    created_at: schedule.created_at,
+  };
 
   await recordAuditLog({
     actor,
@@ -565,16 +741,43 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
     targetType: 'doctor_schedule',
     targetId: schedule._id,
     status: 'success',
-    message: 'Tạo lịch làm việc bác sĩ thành công.',
+    message: notification.title,
     requestMeta,
     metadata: {
+      notification,
+      doctor_id: notification.doctor_id,
+      doctor_name: notification.doctor_name,
+      doctor_code: notification.doctor_code,
+      department_id: notification.department_id,
+      department_name: notification.department_name,
+      department_code: notification.department_code,
+      work_date: notification.work_date,
+      shift_start: notification.shift_start,
+      shift_end: notification.shift_end,
+      slot_duration_minutes: notification.slot_duration_minutes,
+      total_slots: notification.total_slots,
+      available_slots: notification.available_slots,
+      blocked_slots: notification.blocked_slots,
+      max_patients_per_slot: notification.max_patients_per_slot,
+      total_capacity: notification.total_capacity,
+      schedule_status: notification.schedule_status,
+      reused_existing_schedule: reusedExistingSchedule,
       break_windows_count: breakWindows.length,
       blocked_break_slots_count: blockedSlots.length,
       schedule_type: schedule.schedule_type,
+      patient_portal_enabled: notification.patient_portal_enabled,
+      staff_only: notification.staff_only,
+      return_visit_priority: notification.return_visit_priority,
+      early_booking_enabled: notification.early_booking_enabled,
+      internal_note: notification.internal_note,
     },
   });
 
-  return getDoctorScheduleDetail(schedule._id);
+  const detail = await getDoctorScheduleDetail(schedule._id);
+  return {
+    ...detail,
+    notification,
+  };
 }
 
 async function listDoctorSchedules(query = {}) {
@@ -597,7 +800,11 @@ async function listDoctorSchedules(query = {}) {
   }
 
   const [items, total] = await Promise.all([
-    DoctorSchedule.find(filter).sort({ work_date: 1, shift_start: 1 }).skip(skip).limit(limit).lean(),
+    DoctorSchedule.find(filter)
+      .sort({ work_date: -1, shift_start: -1, updated_at: -1, created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
     DoctorSchedule.countDocuments(filter),
   ]);
   const formattedItems = await formatDoctorSchedulesWithStats(items);
@@ -689,7 +896,9 @@ async function updateDoctorSchedule(scheduleId, payload, actor, requestMeta = {}
   schedule.shift_end = normalized.shiftEnd;
   schedule.slot_duration_minutes = normalized.slotDuration;
   schedule.max_patients = payload.max_patients !== undefined ? payload.max_patients : schedule.max_patients;
-  schedule.schedule_type = payload.schedule_type || payload.scheduleType || schedule.schedule_type;
+  schedule.schedule_type = (payload.schedule_type || payload.scheduleType)
+    ? normalizeScheduleType(payload.schedule_type || payload.scheduleType)
+    : normalizeScheduleType(schedule.schedule_type);
   if (payload.patient_portal_enabled !== undefined) schedule.patient_portal_enabled = payload.patient_portal_enabled !== false;
   if (payload.staff_only !== undefined) schedule.staff_only = payload.staff_only === true;
   if (payload.return_visit_priority !== undefined) schedule.return_visit_priority = payload.return_visit_priority === true;
@@ -1151,6 +1360,7 @@ async function getSchedulingCreateOptions(query = {}) {
     return {
       departments: departments.map(formatDepartmentOption),
       doctors: [],
+      schedule_types: getScheduleTypeCatalog(),
     };
   }
 
@@ -1194,6 +1404,7 @@ async function getSchedulingCreateOptions(query = {}) {
 
   return {
     departments: departments.map(formatDepartmentOption),
+    schedule_types: getScheduleTypeCatalog(),
     doctors: users
       .filter((user) => !user.department_id || departmentMap.has(String(user.department_id)))
       .map((user) => {
@@ -1284,7 +1495,7 @@ async function previewCreateDoctorSchedule(payload = {}) {
     shift_start: normalized.shiftStart,
     shift_end: normalized.shiftEnd,
     slot_duration_minutes: normalized.slotDuration,
-    schedule_type: payload.schedule_type || payload.scheduleType || 'Lịch khám',
+    schedule_type: normalizeScheduleType(payload.schedule_type || payload.scheduleType || DEFAULT_SCHEDULE_TYPE),
     break_windows: breakWindows,
     slots_summary: {
       total_slots: totalSlots,
@@ -1486,7 +1697,9 @@ async function duplicateDoctorSchedule(scheduleId, payload = {}, actor, requestM
       shift_end: shiftEnd,
       slot_duration_minutes: payload.slot_duration_minutes || schedule.slot_duration_minutes,
       max_patients: payload.max_patients !== undefined ? payload.max_patients : schedule.max_patients,
-      schedule_type: payload.schedule_type || schedule.schedule_type,
+      schedule_type: (payload.schedule_type || payload.scheduleType)
+        ? normalizeScheduleType(payload.schedule_type || payload.scheduleType)
+        : normalizeScheduleType(schedule.schedule_type),
       patient_portal_enabled:
         payload.patient_portal_enabled !== undefined ? payload.patient_portal_enabled : schedule.patient_portal_enabled,
       staff_only: payload.staff_only !== undefined ? payload.staff_only : schedule.staff_only,
@@ -1515,13 +1728,107 @@ async function bulkCreateDoctorSchedules(payload = {}, actor, requestMeta = {}) 
     throw createError('items là mảng không rỗng.', 400);
   }
 
+  const preparedItems = await prepareBulkCreateItems(items);
+  const conflictResolution = payload.conflict_resolution || {};
+  const replaceScheduleIds = normalizeScheduleIdList([
+    ...normalizeScheduleIdList(conflictResolution.replace_schedule_ids),
+    ...items.flatMap((item) => normalizeScheduleIdList(item.replace_conflict_schedule_ids)),
+  ]);
+  const replacementSchedules = [];
+  const cancelledConflictSchedules = [];
+  const updatedConflictSchedules = [];
+
+  for (const scheduleId of replaceScheduleIds) {
+    const schedule = await DoctorSchedule.findById(scheduleId);
+    if (!schedule || schedule.is_deleted) {
+      throw createError(`Không tìm thấy lịch cần thay thế: ${scheduleId}.`, 404);
+    }
+
+    const matchesBulkItem = preparedItems.some((preparedItem) => scheduleOverlapsPreparedItem(schedule, preparedItem));
+    if (!matchesBulkItem) {
+      throw createError(`Lịch ${scheduleId} không trùng với payload tạo lịch nên không thể thay thế tự động.`, 409);
+    }
+
+    const cancellationCheck = await checkScheduleCanBeCancelled(schedule._id);
+    if (!cancellationCheck.can_cancel) {
+      throw createError(
+        `Lịch ${scheduleId} đang có ${cancellationCheck.appointments_count} appointment nên chưa thể thay thế tự động.`,
+        409,
+      );
+    }
+
+    replacementSchedules.push(schedule);
+  }
+
+  for (const schedule of replacementSchedules) {
+    const scheduleId = String(schedule._id);
+    const shouldUpdateExisting = preparedItems.some((preparedItem) => scheduleExactlyMatchesPreparedItem(schedule, preparedItem));
+    if (shouldUpdateExisting) {
+      updatedConflictSchedules.push({
+        schedule_id: scheduleId,
+        previous_status: schedule.status,
+      });
+      continue;
+    }
+
+    const previousStatus = schedule.status;
+    if (schedule.status !== 'cancelled') {
+      schedule.status = 'cancelled';
+      schedule.internal_note = [schedule.internal_note, 'Đã hủy do xử lý xung đột từ tạo lịch hàng loạt.']
+        .filter(Boolean)
+        .join(' | ')
+        .slice(0, 500);
+      schedule.updated_by = actor.userId;
+      await schedule.save();
+    }
+
+    cancelledConflictSchedules.push(scheduleId);
+
+    await recordAuditLog({
+      actor,
+      action: 'schedule.bulk_conflict_replace',
+      targetType: 'doctor_schedule',
+      targetId: schedule._id,
+      status: 'success',
+      message: 'Hủy lịch hiện tại do được chọn thay thế khi tạo lịch hàng loạt.',
+      requestMeta,
+      metadata: {
+        replacement_source: 'bulk_create_conflict_resolution',
+        schedule_id: String(schedule._id),
+        previous_status: previousStatus,
+      },
+    });
+  }
+
   const results = [];
   for (const item of items) {
     results.push(await createDoctorSchedule(item, actor, requestMeta));
   }
 
+  for (const schedule of updatedConflictSchedules) {
+    await recordAuditLog({
+      actor,
+      action: 'schedule.bulk_conflict_update_existing',
+      targetType: 'doctor_schedule',
+      targetId: schedule.schedule_id,
+      status: 'success',
+      message: 'Cập nhật lịch hiện tại do được chọn thay thế khi tạo lịch hàng loạt.',
+      requestMeta,
+      metadata: {
+        replacement_source: 'bulk_create_conflict_resolution',
+        schedule_id: schedule.schedule_id,
+        previous_status: schedule.previous_status,
+        updated_status: 'draft',
+      },
+    });
+  }
+
   return {
     created_count: results.length,
+    cancelled_conflict_count: cancelledConflictSchedules.length,
+    cancelled_conflict_schedule_ids: cancelledConflictSchedules,
+    updated_conflict_count: updatedConflictSchedules.length,
+    updated_conflict_schedule_ids: updatedConflictSchedules.map((schedule) => schedule.schedule_id),
     items: results,
   };
 }

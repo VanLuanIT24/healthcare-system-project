@@ -1,4 +1,5 @@
 const scheduleService = require('../services/schedule.service');
+const { recordAuditLog } = require('../services/core.service');
 const { errorResponse, successResponse } = require('../utils/http-response');
 
 function requestMeta(req) {
@@ -20,7 +21,38 @@ function wrap(serviceMethod, successMessage, statusCode = 200) {
 }
 
 module.exports = {
-  createDoctorSchedule: wrap((req) => scheduleService.createDoctorSchedule(req.body, req.auth, requestMeta(req)), 'Tạo lịch làm việc bác sĩ thành công.', 201),
+  createDoctorSchedule: async function createDoctorSchedule(req, res) {
+    try {
+      const result = await scheduleService.createDoctorSchedule(req.body, req.auth, requestMeta(req));
+      return successResponse(res, { statusCode: 201, message: result?.notification?.title || 'Tạo lịch làm việc bác sĩ thành công.', data: result });
+    } catch (error) {
+      await recordAuditLog({
+        actor: req.auth,
+        action: 'schedule.create',
+        targetType: 'doctor_schedule',
+        status: 'failure',
+        message: error.message || 'Tạo lịch làm việc bác sĩ thất bại.',
+        requestMeta: requestMeta(req),
+        metadata: {
+          notification: {
+            type: 'schedule.create_failed',
+            title: 'Tạo lịch bác sĩ thất bại',
+            message: error.message || 'Tạo lịch làm việc bác sĩ thất bại.',
+            status: 'failure',
+            doctor_id: req.body?.doctor_id,
+            department_id: req.body?.department_id,
+            work_date: req.body?.work_date,
+            shift_start: req.body?.shift_start,
+            shift_end: req.body?.shift_end,
+            slot_duration_minutes: req.body?.slot_duration_minutes,
+            max_patients_per_slot: req.body?.max_patients,
+            schedule_type: req.body?.schedule_type,
+          },
+        },
+      });
+      return errorResponse(res, error);
+    }
+  },
   getSchedulingCreateOptions: wrap((req) => scheduleService.getSchedulingCreateOptions(req.query), 'Lấy dữ liệu tạo lịch thành công.'),
   previewCreateDoctorSchedule: wrap((req) => scheduleService.previewCreateDoctorSchedule(req.body), 'Kiểm tra lịch trước khi tạo thành công.'),
   listDoctorSchedules: wrap((req) => scheduleService.listDoctorSchedules(req.query), 'Lấy danh sách lịch làm việc thành công.'),

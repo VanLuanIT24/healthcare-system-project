@@ -1,5 +1,6 @@
 const { corePermissions, coreRoles, rolePermissionMap } = require('../constants/roles');
-const { Department, Permission, Role, RolePermission, User, UserRole } = require('../models');
+const { normalizeScheduleType } = require('../constants/schedule-types');
+const { Department, DoctorSchedule, Permission, Role, RolePermission, User, UserRole } = require('../models');
 const env = require('../config/env');
 const { hashPassword } = require('../utils/password');
 
@@ -226,12 +227,32 @@ async function ensureSampleDepartments() {
   );
 }
 
+async function ensureCanonicalScheduleTypes() {
+  const schedules = await DoctorSchedule.find({ is_deleted: false })
+    .select('schedule_type')
+    .lean();
+
+  const updates = schedules
+    .map((schedule) => {
+      const nextType = normalizeScheduleType(schedule.schedule_type);
+      return nextType !== schedule.schedule_type
+        ? DoctorSchedule.updateOne({ _id: schedule._id }, { $set: { schedule_type: nextType } })
+        : null;
+    })
+    .filter(Boolean);
+
+  if (updates.length) {
+    await Promise.all(updates);
+  }
+}
+
 async function bootstrapSystemAccess() {
   await ensureCoreRoles();
   await ensureCorePermissions();
   await ensureRolePermissions();
   await ensureSuperAdmin();
   await ensureSampleDepartments();
+  await ensureCanonicalScheduleTypes();
 }
 
 module.exports = {

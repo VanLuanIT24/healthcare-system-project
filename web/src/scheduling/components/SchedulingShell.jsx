@@ -38,6 +38,9 @@ import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
 import { SchedulingDataProvider } from '../context/SchedulingDataContext';
 
 const THEME_STORAGE_KEY = 'healthcare.scheduling.theme';
+const NOTIFICATION_STORAGE_KEY = 'healthcare.scheduling.notifications';
+const SCHEDULING_NOTIFICATION_EVENT = 'healthcare:scheduling-notification';
+const SCHEDULING_BULK_CREATE_FOCUS_EVENT = 'healthcare:scheduling-bulk-create-focus';
 
 const navItems = [
   { label: 'Tổng quan', to: '/scheduling/dashboard', hint: 'Toàn bộ hệ thống', icon: House },
@@ -101,6 +104,31 @@ const notificationSeed = [
   },
 ];
 
+function readStoredNotifications() {
+  try {
+    const rawValue = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
+    const storedItems = rawValue ? JSON.parse(rawValue) : [];
+    if (!Array.isArray(storedItems)) return notificationSeed;
+    const mergedItems = [...storedItems, ...notificationSeed];
+    const seenIds = new Set();
+    return mergedItems.filter((item) => {
+      if (!item?.id || seenIds.has(item.id)) return false;
+      seenIds.add(item.id);
+      return true;
+    });
+  } catch (error) {
+    return notificationSeed;
+  }
+}
+
+function storeNotifications(items) {
+  try {
+    localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(items.slice(0, 30)));
+  } catch (error) {
+    // Ignore storage failures in private browsing.
+  }
+}
+
 function readStoredTheme() {
   try {
     return localStorage.getItem(THEME_STORAGE_KEY) || 'light';
@@ -148,7 +176,8 @@ export function SchedulingShell() {
   const [isTopbarAdminMenuOpen, setIsTopbarAdminMenuOpen] = useState(false);
   const [isRailAdminMenuOpen, setIsRailAdminMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState(notificationSeed);
+  const [notifications, setNotifications] = useState(readStoredNotifications);
+  const [toastNotification, setToastNotification] = useState(null);
   const [isScheduleConfigOpen, setIsScheduleConfigOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -181,6 +210,42 @@ export function SchedulingShell() {
       // Ignore storage failures in private browsing.
     }
   }, [theme]);
+
+  useEffect(() => {
+    storeNotifications(notifications);
+  }, [notifications]);
+
+  useEffect(() => {
+    function handleSchedulingNotification(event) {
+      const detail = event.detail || {};
+      const notification = {
+        id: detail.id || `schedule-${Date.now()}`,
+        title: detail.title || 'Thông báo lịch khám',
+        body: detail.body || '',
+        time: detail.time || 'Vừa xong',
+        tone: detail.tone || 'info',
+        read: false,
+        to: detail.to || '/scheduling/schedules',
+        focusTarget: detail.focusTarget || null,
+      };
+
+      setNotifications((current) => [notification, ...current].slice(0, 30));
+      setToastNotification(notification);
+      if (detail.openMenu) {
+        setIsNotificationsOpen(true);
+      }
+      window.clearTimeout(handleSchedulingNotification.dismissTimer);
+      handleSchedulingNotification.dismissTimer = window.setTimeout(() => {
+        setToastNotification((current) => (current?.id === notification.id ? null : current));
+      }, 5200);
+    }
+
+    window.addEventListener(SCHEDULING_NOTIFICATION_EVENT, handleSchedulingNotification);
+    return () => {
+      window.removeEventListener(SCHEDULING_NOTIFICATION_EVENT, handleSchedulingNotification);
+      window.clearTimeout(handleSchedulingNotification.dismissTimer);
+    };
+  }, []);
 
   useEffect(() => {
     function handlePointerDown(event) {
@@ -287,6 +352,17 @@ export function SchedulingShell() {
         notification.id === item.id ? { ...notification, read: true } : notification,
       ),
     );
+
+    if (item.focusTarget) {
+      handleNavigate(item.to || '/scheduling/bulk-create');
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent(SCHEDULING_BULK_CREATE_FOCUS_EVENT, {
+          detail: item.focusTarget,
+        }));
+      }, 180);
+      return;
+    }
+
     handleNavigate(item.to);
   }
 
@@ -461,6 +537,24 @@ export function SchedulingShell() {
         ) : null}
 
         <section className="scheduling-workspace">
+          {toastNotification ? (
+            <button
+              type="button"
+              className={`scheduling-toast scheduling-toast--${toastNotification.tone}`}
+              onClick={() => {
+                setIsNotificationsOpen(true);
+                setToastNotification(null);
+              }}
+            >
+              <span className={`scheduling-notification-dot scheduling-notification-dot--${toastNotification.tone}`} />
+              <div>
+                <strong>{toastNotification.title}</strong>
+                <small>{toastNotification.body}</small>
+              </div>
+              <X size={14} strokeWidth={2.4} aria-hidden="true" />
+            </button>
+          ) : null}
+
           <header className="scheduling-topbar">
             <button
               type="button"

@@ -30,7 +30,8 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { useSchedulingData } from '../context/SchedulingDataContext';
-import { buildSlotPreview, translateDepartmentName } from '../utils/schedulingUi';
+import { DEFAULT_SCHEDULE_TYPE, getScheduleTypeMeta, normalizeScheduleType, scheduleTypeCatalog } from '../data/scheduleTypes';
+import { translateDepartmentName } from '../utils/schedulingUi';
 
 const DOCTOR_AVATAR = '/images/scheduling/doctors/doctor-ai-fallback.png';
 const CREATE_STEPS = [
@@ -39,6 +40,30 @@ const CREATE_STEPS = [
   ['03', 'Tùy chọn nâng cao', 'Cấu hình mở rộng'],
   ['04', 'Xem trước & Công khai', 'Kiểm tra & xác nhận'],
 ];
+const CLINIC_SHIFT_WINDOWS = [
+  { key: 'morning', label: 'Ca sáng', start: '07:00', end: '11:45', bookable: true },
+  { key: 'afternoon', label: 'Ca chiều', start: '13:30', end: '17:00', bookable: true },
+  { key: 'evening', label: 'Ca tối', start: '18:00', end: '22:00', bookable: true },
+  { key: 'nightDuty', label: 'Trực đêm', start: '22:00', end: '23:59', bookable: false },
+];
+const SHIFT_GAPS = [
+  { start: '11:45', end: '13:30', label: 'Nghỉ / chuyển ca' },
+  { start: '17:00', end: '18:00', label: 'Nghỉ / chuyển ca' },
+];
+const SCHEDULING_NOTIFICATION_EVENT = 'healthcare:scheduling-notification';
+
+function emitSchedulingNotification({ title, body, tone = 'info', to = '/scheduling/schedules' }) {
+  window.dispatchEvent(new CustomEvent(SCHEDULING_NOTIFICATION_EVENT, {
+    detail: {
+      id: `schedule-create-${Date.now()}`,
+      title,
+      body,
+      tone,
+      to,
+      time: 'Vừa xong',
+    },
+  }));
+}
 
 function getWorkingDuration(start, end) {
   const [startHour, startMinute] = String(start || '00:00').split(':').map(Number);
@@ -85,6 +110,128 @@ function timeToMinutes(value) {
   return hour * 60 + minute;
 }
 
+function minutesToTime(totalMinutes) {
+  const normalized = Math.max(0, Number(totalMinutes || 0));
+  const hour = Math.floor(normalized / 60);
+  const minute = normalized % 60;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function getShiftWindowForSlot(startMinute, endMinute) {
+  return CLINIC_SHIFT_WINDOWS.find((shift) => {
+    const shiftStart = timeToMinutes(shift.start);
+    const shiftEnd = timeToMinutes(shift.end);
+    return startMinute >= shiftStart && endMinute <= shiftEnd;
+  }) || null;
+}
+
+function isInsideBreakWindow(startMinute, breakWindows = []) {
+  return breakWindows.some((window) => {
+    const breakStart = timeToMinutes(window.start);
+    const breakEnd = timeToMinutes(window.end);
+    return startMinute >= breakStart && startMinute < breakEnd;
+  });
+}
+
+function buildOperationalSlotPreview(form, breakWindows = []) {
+  const startMinute = timeToMinutes(form.start);
+  const endMinute = timeToMinutes(form.end);
+  const duration = Math.max(Number(form.duration || 15), 5);
+  const slots = [];
+  const insertedClosedRanges = new Set();
+
+  for (let cursor = startMinute; cursor + duration <= endMinute && slots.length < 96; cursor += duration) {
+    const slotEnd = cursor + duration;
+    const value = minutesToTime(cursor);
+    const shift = getShiftWindowForSlot(cursor, slotEnd);
+
+    if (isInsideBreakWindow(cursor, breakWindows)) {
+      slots.push({
+        type: 'break',
+        value,
+        label: 'Nghỉ',
+        range: `${value} - ${minutesToTime(slotEnd)}`,
+      });
+      continue;
+    }
+
+    if (!shift) {
+      const nextShift = CLINIC_SHIFT_WINDOWS.find((item) => timeToMinutes(item.start) > cursor);
+      const closedEnd = nextShift ? Math.min(timeToMinutes(nextShift.start), endMinute) : Math.min(slotEnd, endMinute);
+      const key = `${cursor}-${closedEnd}`;
+      if (!insertedClosedRanges.has(key)) {
+        insertedClosedRanges.add(key);
+        slots.push({
+          type: 'closed',
+          value: key,
+          label: 'Nghỉ / chuyển ca',
+          range: `${minutesToTime(cursor)} - ${minutesToTime(closedEnd)}`,
+        });
+      }
+      cursor = Math.max(cursor, closedEnd - duration);
+      continue;
+    }
+
+    slots.push({
+      type: shift.bookable ? 'slot' : 'duty',
+      shift: shift.key,
+      shiftLabel: shift.label,
+      value,
+      range: `${value} - ${minutesToTime(slotEnd)}`,
+    });
+  }
+
+  return slots;
+}
+
+function buildOperationalWarnings(form, previewSlots) {
+  const warnings = [];
+  const startMinute = timeToMinutes(form.start);
+  const endMinute = timeToMinutes(form.end);
+  const hasMorning = previewSlots.some((slot) => slot.shift === 'morning' && slot.type === 'slot');
+  const hasAfternoon = previewSlots.some((slot) => slot.shift === 'afternoon' && slot.type === 'slot');
+  const hasDuty = previewSlots.some((slot) => slot.type === 'duty');
+  const hasClosed = previewSlots.some((slot) => slot.type === 'closed');
+
+  if (startMinute < timeToMinutes('07:00')) {
+    warnings.push('Trước 07:00 là trực đêm, không mở slot đặt lịch khám thông thường.');
+  }
+  if (hasClosed) {
+    warnings.push('Khung giờ đi qua khoảng nghỉ/chuyển ca; hệ thống sẽ không mở slot đặt khám trong khoảng này.');
+  }
+  if (hasDuty) {
+    warnings.push('Sau 22:00 là trực đêm, không mở slot đặt lịch khám.');
+  }
+  if (hasMorning && hasAfternoon) {
+    warnings.push('Bác sĩ đang được xếp nhiều ca trong ngày; xem trước đã tách màu ca sáng, chiều và tối.');
+  }
+
+  return warnings;
+}
+
+function buildOperationalBreaks(form, breakWindows = []) {
+  const startMinute = timeToMinutes(form.start);
+  const endMinute = timeToMinutes(form.end);
+  const windows = [...breakWindows];
+
+  [
+    ...SHIFT_GAPS.map((gap) => [gap.start, gap.end, gap.label]),
+    ['22:00', '23:59', 'Trực đêm'],
+  ].forEach(([start, end, mode]) => {
+    const windowStart = Math.max(startMinute, timeToMinutes(start));
+    const windowEnd = Math.min(endMinute, timeToMinutes(end));
+    if (windowStart < windowEnd) {
+      windows.push({
+        start: minutesToTime(windowStart),
+        end: minutesToTime(windowEnd),
+        mode,
+      });
+    }
+  });
+
+  return windows;
+}
+
 function addDays(dateValue, days) {
   const date = new Date(`${dateValue}T00:00:00`);
   date.setDate(date.getDate() + days);
@@ -92,6 +239,48 @@ function addDays(dateValue, days) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function toInputDateValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getMonthLabel(date) {
+  return new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(date);
+}
+
+function buildCalendarDays(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const gridStart = new Date(year, month, 1 - startOffset);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(gridStart);
+    day.setDate(gridStart.getDate() + index);
+    return {
+      date: day,
+      value: toInputDateValue(day),
+      inCurrentMonth: day.getMonth() === month,
+    };
+  });
+}
+
+function formatTimeDisplay(value) {
+  const [rawHour = 0, rawMinute = 0] = String(value || '00:00').split(':').map(Number);
+  const period = rawHour >= 12 ? 'CH' : 'SA';
+  const hour12 = rawHour % 12 || 12;
+  return `${String(hour12).padStart(2, '0')}:${String(rawMinute).padStart(2, '0')} ${period}`;
+}
+
+function toTimeValue(hour12, minute, period) {
+  const normalizedHour = Number(hour12) % 12;
+  const hour24 = period === 'CH' ? normalizedHour + 12 : normalizedHour;
+  return `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function buildBreakWindows(form, extraBreaks) {
@@ -111,6 +300,23 @@ function buildBreakWindows(form, extraBreaks) {
 function getServerTimeLabel(value) {
   if (!value) return '';
   return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value));
+}
+
+function buildScheduleCreateMessage(notification, fallbackStatus) {
+  if (!notification) {
+    return fallbackStatus === 'published' ? 'Đã tạo và công khai lịch thật trên máy chủ.' : 'Đã lưu bản nháp lịch thật trên máy chủ.';
+  }
+
+  const date = formatVietnameseDate(notification.work_date);
+  const start = getServerTimeLabel(notification.shift_start);
+  const end = getServerTimeLabel(notification.shift_end);
+  const doctor = notification.doctor_name || 'Bác sĩ';
+  const department = notification.department_name || 'Khoa';
+  const slots = Number(notification.available_slots ?? notification.total_slots ?? 0);
+  const blocked = Number(notification.blocked_slots || 0);
+  const title = notification.title || (fallbackStatus === 'published' ? 'Đã tạo và công khai lịch bác sĩ' : 'Đã lưu nháp lịch bác sĩ');
+
+  return `${title}: ${doctor} - ${department}, ngày ${date}, ${start} - ${end}, ${slots} slot đặt khám, ${blocked} slot nghỉ/chuyển ca hoặc trực.`;
 }
 
 function FieldSelect({
@@ -194,6 +400,196 @@ function FieldSelect({
   );
 }
 
+function DatePickerField({ name, value, openSelect, setOpenSelect, onSelect }) {
+  const isOpen = openSelect === name;
+  const selectedDate = value ? new Date(`${value}T00:00:00`) : new Date();
+  const [viewDate, setViewDate] = useState(selectedDate);
+  const todayValue = getTodayInputValue();
+  const days = useMemo(() => buildCalendarDays(viewDate), [viewDate]);
+
+  useEffect(() => {
+    if (isOpen && value) {
+      setViewDate(new Date(`${value}T00:00:00`));
+    }
+  }, [isOpen, value]);
+
+  function closeMenu() {
+    setOpenSelect((current) => (current === name ? '' : current));
+  }
+
+  function moveMonth(direction) {
+    setViewDate((current) => new Date(current.getFullYear(), current.getMonth() + direction, 1));
+  }
+
+  return (
+    <div
+      className={`scheduling-create-date-picker ${isOpen ? 'is-open' : ''}`}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          closeMenu();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') closeMenu();
+      }}
+    >
+      <button
+        type="button"
+        className="scheduling-create-picker-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        onClick={() => setOpenSelect((current) => (current === name ? '' : name))}
+      >
+        <span>
+          <strong>{formatVietnameseDate(value)}</strong>
+          <small>{formatVietnameseWeekday(value) || 'Chọn ngày khám'}</small>
+        </span>
+        <ChevronDown size={15} strokeWidth={2.45} aria-hidden="true" />
+      </button>
+
+      {isOpen ? (
+        <div className="scheduling-create-date-menu" role="dialog" aria-label="Chọn ngày khám">
+          <header>
+            <button type="button" aria-label="Tháng trước" onClick={() => moveMonth(-1)}>‹</button>
+            <strong>{getMonthLabel(viewDate)}</strong>
+            <button type="button" aria-label="Tháng sau" onClick={() => moveMonth(1)}>›</button>
+          </header>
+          <div className="scheduling-create-date-weekdays" aria-hidden="true">
+            {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day) => <span key={day}>{day}</span>)}
+          </div>
+          <div className="scheduling-create-date-grid">
+            {days.map((day) => (
+              <button
+                key={day.value}
+                type="button"
+                className={`${day.inCurrentMonth ? '' : 'is-muted'} ${day.value === value ? 'is-selected' : ''} ${day.value === todayValue ? 'is-today' : ''}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onSelect(name, day.value);
+                  closeMenu();
+                }}
+              >
+                {day.date.getDate()}
+              </button>
+            ))}
+          </div>
+          <footer>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onSelect(name, todayValue);
+                closeMenu();
+              }}
+            >
+              Hôm nay
+            </button>
+          </footer>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TimePickerField({ name, value, openSelect, setOpenSelect, onSelect, disabled = false }) {
+  const isOpen = openSelect === name;
+  const [rawHour = 0, rawMinute = 0] = String(value || '00:00').split(':').map(Number);
+  const period = rawHour >= 12 ? 'CH' : 'SA';
+  const hour12 = rawHour % 12 || 12;
+  const hours = Array.from({ length: 12 }, (_, index) => index + 1);
+  const minutes = Array.from({ length: 60 }, (_, index) => index);
+
+  function closeMenu() {
+    setOpenSelect((current) => (current === name ? '' : current));
+  }
+
+  function choose(nextHour, nextMinute, nextPeriod) {
+    onSelect(name, toTimeValue(nextHour, nextMinute, nextPeriod));
+  }
+
+  return (
+    <div
+      className={`scheduling-create-time-picker ${isOpen ? 'is-open' : ''} ${disabled ? 'is-disabled' : ''}`}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          closeMenu();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') closeMenu();
+      }}
+    >
+      <button
+        type="button"
+        className="scheduling-create-picker-trigger"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setOpenSelect((current) => (current === name ? '' : name))}
+      >
+        <strong>{formatTimeDisplay(value)}</strong>
+        <Clock3 size={15} strokeWidth={2.45} aria-hidden="true" />
+      </button>
+
+      {isOpen ? (
+        <div className="scheduling-create-time-menu" role="dialog" aria-label="Chọn giờ">
+          <div>
+            <span>Giờ</span>
+            <div role="listbox">
+              {hours.map((hour) => (
+                <button
+                  key={hour}
+                  type="button"
+                  className={hour === hour12 ? 'is-selected' : ''}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => choose(hour, rawMinute, period)}
+                >
+                  {String(hour).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span>Phút</span>
+            <div role="listbox">
+              {minutes.map((minute) => (
+                <button
+                  key={minute}
+                  type="button"
+                  className={minute === rawMinute ? 'is-selected' : ''}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => choose(hour12, minute, period)}
+                >
+                  {String(minute).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span>Buổi</span>
+            <div role="listbox">
+              {['SA', 'CH'].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={item === period ? 'is-selected' : ''}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => choose(hour12, rawMinute, item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+          <footer>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={closeMenu}>Xong</button>
+          </footer>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ScheduleCreatePage() {
   const {
     actions,
@@ -202,6 +598,7 @@ export function ScheduleCreatePage() {
     doctors,
     error,
     loading,
+    scheduleTypes,
   } = useSchedulingData();
   const availableDoctors = createResourcesLoaded ? doctors : [];
   const availableDepartments = createResourcesLoaded ? departments : [];
@@ -218,7 +615,7 @@ export function ScheduleCreatePage() {
   const [advancedOptions, setAdvancedOptions] = useState({
     patientPortal: true,
     staffOnly: false,
-    returnVisit: true,
+    returnVisit: false,
     earlyBooking: true,
   });
   const [extraBreaks, setExtraBreaks] = useState([]);
@@ -241,38 +638,29 @@ export function ScheduleCreatePage() {
     breakSlotMode: 'Giữ nguyên',
     breakMinutes: 0,
     status: 'draft',
-    scheduleType: 'Lịch khám',
+    scheduleType: DEFAULT_SCHEDULE_TYPE,
     note: '',
   });
 
-  const slotPreview = useMemo(() => buildSlotPreview(form), [form]);
+  const breakWindows = useMemo(() => buildBreakWindows(form, extraBreaks), [extraBreaks, form]);
+  const visualSlotPreview = useMemo(() => buildOperationalSlotPreview(form, breakWindows), [breakWindows, form]);
+  const slotPreview = useMemo(() => visualSlotPreview.filter((slot) => slot.type === 'slot').map((slot) => slot.value), [visualSlotPreview]);
+  const dutySlotCount = useMemo(() => visualSlotPreview.filter((slot) => slot.type === 'duty').length, [visualSlotPreview]);
+  const closedRangeCount = useMemo(() => visualSlotPreview.filter((slot) => slot.type === 'closed').length, [visualSlotPreview]);
+  const operationalWarnings = useMemo(() => buildOperationalWarnings(form, visualSlotPreview), [form, visualSlotPreview]);
   const selectedSlotSet = useMemo(() => new Set(selectedPreviewSlots), [selectedPreviewSlots]);
-  const visualSlotPreview = useMemo(() => {
-    const preview = slotPreview.slice(0, 16);
-    if (!form.hasBreak || !form.breakStart || !form.breakEnd) {
-      return preview.map((slot) => ({ type: 'slot', value: slot }));
-    }
-
-    return preview.map((slot) => (
-      slot === form.breakStart
-        ? { type: 'break', value: `${form.breakStart} - ${form.breakEnd}` }
-        : { type: 'slot', value: slot }
-    ));
-  }, [form.breakEnd, form.breakStart, form.hasBreak, slotPreview]);
   const selectedDoctor = availableDoctors.find((item) => item.id === form.doctor) || defaultDoctor;
   const selectedDepartment = availableDepartments.find((item) => item.id === form.department)
     || availableDepartments.find((item) => item.id === selectedDoctor.departmentId)
     || null;
-  const serverSlotSummary = previewResult?.slots_summary || {};
-  const totalSlotCount = Number(serverSlotSummary.total_slots || slotPreview.length);
-  const blockedBreakSlots = Number(serverSlotSummary.blocked_slots || 0);
-  const availableSlotCount = Number(serverSlotSummary.available_slots || Math.max(totalSlotCount - blockedBreakSlots, 0));
-  const totalCapacity = Number(serverSlotSummary.total_capacity || totalSlotCount * Number(form.capacity || 1));
+  const blockedBreakSlots = visualSlotPreview.filter((slot) => slot.type === 'break' || slot.type === 'closed' || slot.type === 'duty').length;
+  const totalSlotCount = slotPreview.length;
+  const availableSlotCount = slotPreview.length;
+  const totalCapacity = totalSlotCount * Number(form.capacity || 1);
   const availabilityRate = totalSlotCount ? Math.round((availableSlotCount / totalSlotCount) * 100) : 0;
   const summaryProgress = Math.min(100, Math.max(18, availabilityRate || (slotPreview.length / 24) * 100));
   const conflictCount = Number(previewResult?.conflicts?.length || 0);
   const realDataReady = createResourcesLoaded && availableDoctors.length > 0 && availableDepartments.length > 0;
-  const breakWindows = useMemo(() => buildBreakWindows(form, extraBreaks), [extraBreaks, form]);
   const localWarnings = useMemo(() => {
     const warnings = [];
     if (!createResourcesLoaded) warnings.push('Chưa tải được dữ liệu bác sĩ/khoa từ hệ thống.');
@@ -284,6 +672,7 @@ export function ScheduleCreatePage() {
     if (timeToMinutes(form.start) >= timeToMinutes(form.end)) warnings.push('Giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
     if (Number(form.duration || 0) < 5) warnings.push('Thời lượng slot phải từ 5 phút trở lên.');
     if (Number(form.capacity || 0) < 1) warnings.push('Sức chứa mỗi slot phải từ 1 bệnh nhân trở lên.');
+    if (slotPreview.length === 0) warnings.push('Khung giờ hiện tại không có slot khám hợp lệ trong ca sáng, ca chiều hoặc ca tối.');
     breakWindows.forEach((window, index) => {
       const start = timeToMinutes(window.start);
       const end = timeToMinutes(window.end);
@@ -305,9 +694,19 @@ export function ScheduleCreatePage() {
     form.duration,
     form.end,
     form.start,
+    slotPreview.length,
   ]);
   const serverWarnings = previewResult?.warnings || [];
-  const canSubmit = realDataReady && localWarnings.length === 0 && conflictCount === 0 && totalSlotCount > 0 && !isSubmitting;
+  const submitBlockReason = (() => {
+    if (!realDataReady) return createResourcesLoaded ? 'Chưa có đủ dữ liệu bác sĩ hoặc khoa để tạo lịch.' : 'Đang tải dữ liệu bác sĩ và khoa.';
+    if (localWarnings.length > 0) return localWarnings[0];
+    if (totalSlotCount <= 0) return 'Khung giờ hiện tại không có slot khám hợp lệ.';
+    if (conflictCount > 0) return 'Bác sĩ đang có lịch trùng trong khung giờ này.';
+    if (previewResult?.can_create === false) return previewResult?.warnings?.[0]?.message || 'Lịch chưa đạt điều kiện để tạo.';
+    return '';
+  })();
+  const canSubmit = !submitBlockReason && !isSubmitting;
+  const canTrySubmit = realDataReady && !isSubmitting;
   const serverNotice = createResourcesLoaded ? '' : error;
   const noticeMessage = actionMessage || actionError || serverNotice;
   const noticeIsWarning = Boolean(actionError || serverNotice);
@@ -321,11 +720,11 @@ export function ScheduleCreatePage() {
     label: translateDepartmentName(department.name),
     meta: [department.code, department.type].filter(Boolean).join(' • '),
   }));
-  const scheduleTypeOptions = [
-    { value: 'Lịch khám', label: 'Lịch khám', meta: 'Khám mới và khám thông thường' },
-    { value: 'Tái khám', label: 'Tái khám', meta: 'Ưu tiên bệnh nhân quay lại' },
-    { value: 'Tư vấn', label: 'Tư vấn', meta: 'Tư vấn trực tiếp hoặc từ xa' },
-  ];
+  const scheduleTypeOptions = (scheduleTypes?.length ? scheduleTypes : scheduleTypeCatalog).map((type) => ({
+    value: type.value,
+    label: type.label || type.value,
+    meta: [type.badge, type.meta].filter(Boolean).join(' • '),
+  }));
   const durationOptions = [
     { value: 10, label: '10 phút', meta: 'Khám nhanh' },
     { value: 15, label: '15 phút', meta: 'Mặc định' },
@@ -387,13 +786,13 @@ export function ScheduleCreatePage() {
     (status = form.status) => ({
       ...form,
       status,
-      extraBreaks,
+      breakWindows: buildOperationalBreaks(form, breakWindows),
       patientPortalEnabled: advancedOptions.patientPortal,
       staffOnly: advancedOptions.staffOnly,
       returnVisitPriority: advancedOptions.returnVisit,
       earlyBookingEnabled: advancedOptions.earlyBooking,
     }),
-    [advancedOptions, extraBreaks, form],
+    [advancedOptions, breakWindows, form],
   );
 
   const runPreviewCheck = useCallback(async () => {
@@ -484,18 +883,63 @@ export function ScheduleCreatePage() {
   }
 
   function updateFormValue(name, value) {
+    const selectedTypeMeta = name === 'scheduleType' ? getScheduleTypeMeta(value) : null;
     setForm((current) => {
-      const next = { ...current, [name]: value };
+      const next = { ...current, [name]: name === 'scheduleType' ? normalizeScheduleType(value) : value };
       if (name === 'doctor') {
         const doctor = availableDoctors.find((item) => item.id === value);
         next.department = doctor?.departmentId || '';
       }
+      if (selectedTypeMeta) {
+        next.duration = selectedTypeMeta.suggestedDuration || current.duration;
+      }
       return next;
     });
+    if (selectedTypeMeta) {
+      setAdvancedOptions((current) => ({
+        ...current,
+        patientPortal: selectedTypeMeta.patientPortalEnabled !== false,
+        staffOnly: selectedTypeMeta.staffOnly === true,
+        returnVisit: selectedTypeMeta.returnVisitPriority === true,
+      }));
+    }
     setCreatedScheduleId('');
     setSelectedPreviewSlots([]);
     setActionError('');
     setActionMessage('');
+  }
+
+  function handleResetForm() {
+    setForm({
+      doctor: defaultDoctor.id,
+      department: defaultDoctor.departmentId || '',
+      date: getTodayInputValue(),
+      start: '07:30',
+      end: '11:30',
+      duration: 15,
+      capacity: 1,
+      hasBreak: true,
+      breakStart: '09:30',
+      breakEnd: '09:45',
+      breakSlotMode: 'Giữ nguyên',
+      breakMinutes: 0,
+      status: 'draft',
+      scheduleType: DEFAULT_SCHEDULE_TYPE,
+      note: '',
+    });
+    setAdvancedOptions({
+      patientPortal: true,
+      staffOnly: false,
+      returnVisit: false,
+      earlyBooking: true,
+    });
+    setExtraBreaks([]);
+    setSelectedPreviewSlots([]);
+    setPreviewResult(null);
+    setCreatedScheduleId('');
+    setActionError('');
+    setActionMessage('Đã đặt lại form tạo lịch.');
+    handleStepSelect(1);
   }
 
   async function handleCreate(status) {
@@ -504,29 +948,69 @@ export function ScheduleCreatePage() {
     setIsPublishMenuOpen(false);
 
     if (localWarnings.length > 0) {
-      setActionError(localWarnings[0]);
+      const message = localWarnings[0];
+      setActionError(message);
+      emitSchedulingNotification({
+        title: 'Chưa thể tạo lịch',
+        body: message,
+        tone: 'warning',
+        to: '/scheduling/create',
+      });
+      handleStepSelect(4);
+      return;
+    }
+    if (!realDataReady || totalSlotCount <= 0 || conflictCount > 0) {
+      const message = submitBlockReason || 'Lịch chưa đủ điều kiện để tạo.';
+      setActionError(message);
+      emitSchedulingNotification({
+        title: 'Tạo lịch không thành công',
+        body: message,
+        tone: 'danger',
+        to: '/scheduling/create',
+      });
+      handleStepSelect(4);
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const preview = await runPreviewCheck();
-      if (!preview) {
-        setActionError('Không kiểm tra được lịch với máy chủ. Vui lòng thử lại trước khi tạo.');
-        return;
+      let preview = previewResult;
+      if (!preview || preview.can_create === false) {
+        preview = await runPreviewCheck();
       }
       if (preview && preview.can_create === false) {
-        setActionError(preview.warnings?.[0]?.message || 'Lịch chưa đạt điều kiện để tạo.');
+        const message = preview.warnings?.[0]?.message || 'Lịch chưa đạt điều kiện để tạo.';
+        setActionError(message);
+        emitSchedulingNotification({
+          title: 'Tạo lịch không thành công',
+          body: message,
+          tone: 'danger',
+          to: '/scheduling/create',
+        });
         return;
       }
 
       const result = await actions.createScheduleFromForm(buildActionForm(status));
       const scheduleId = result?.schedule?.doctor_schedule_id || result?.schedule?.id || result?.doctor_schedule_id || '';
+      const message = buildScheduleCreateMessage(result?.notification, status);
       setCreatedScheduleId(scheduleId);
-      setActionMessage(status === 'published' ? 'Đã tạo và công khai lịch thật trên máy chủ.' : 'Đã lưu bản nháp lịch thật trên máy chủ.');
+      setActionMessage(message);
+      emitSchedulingNotification({
+        title: result?.notification?.title || (status === 'published' ? 'Đã công khai lịch bác sĩ' : 'Đã lưu nháp lịch bác sĩ'),
+        body: message,
+        tone: result?.notification?.type === 'schedule.updated_existing' ? 'info' : 'success',
+        to: scheduleId ? `/scheduling/schedules/${scheduleId}` : '/scheduling/schedules',
+      });
       setCreateStep(CREATE_STEPS.length);
     } catch (createError) {
-      setActionError(createError.message);
+      const message = createError.message || 'Máy chủ chưa tạo được lịch. Vui lòng kiểm tra lại.';
+      setActionError(message);
+      emitSchedulingNotification({
+        title: 'Tạo lịch không thành công',
+        body: message,
+        tone: 'danger',
+        to: '/scheduling/create',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -544,6 +1028,9 @@ export function ScheduleCreatePage() {
   function handleContinueStep() {
     const next = Math.min(CREATE_STEPS.length, createStep + 1);
     handleStepSelect(next);
+    if (next === CREATE_STEPS.length) {
+      runPreviewCheck();
+    }
   }
 
   function toggleAdvancedOption(key) {
@@ -651,12 +1138,12 @@ export function ScheduleCreatePage() {
             <Eye size={16} strokeWidth={2.35} aria-hidden="true" />
             {isChecking ? 'Đang kiểm tra' : 'Xem trước lịch'}
           </button>
-          <button type="button" onClick={() => handleCreate('draft')} disabled={!canSubmit}>
+          <button type="button" onClick={() => handleCreate('draft')} disabled={!canTrySubmit}>
             <Save size={16} strokeWidth={2.35} aria-hidden="true" />
             {isSubmitting ? 'Đang lưu' : 'Lưu nháp'}
           </button>
           <div className="scheduling-create-command__publish">
-            <button type="button" className="is-primary" onClick={() => handleCreate('published')} disabled={!canSubmit}>
+            <button type="button" className="is-primary" onClick={() => handleCreate('published')} disabled={!canTrySubmit}>
               <Check size={16} strokeWidth={2.6} aria-hidden="true" />
               {isSubmitting ? 'Đang xử lý' : 'Công khai lịch'}
             </button>
@@ -672,7 +1159,7 @@ export function ScheduleCreatePage() {
 
             {isPublishMenuOpen ? (
               <div className="scheduling-create-command__menu">
-                <button type="button" disabled={!canSubmit} onClick={() => {
+                <button type="button" disabled={!canTrySubmit} onClick={() => {
                   setIsPublishMenuOpen(false);
                   handleCreate('published');
                 }}>
@@ -777,8 +1264,13 @@ export function ScheduleCreatePage() {
                   <span>Ngày khám</span>
                   <div>
                     <i aria-hidden="true"><CalendarDays size={17} strokeWidth={2.25} /></i>
-                    <input type="date" name="date" value={form.date} onChange={handleChange} />
-                    <small>{formatVietnameseWeekday(form.date)}</small>
+                    <DatePickerField
+                      name="date"
+                      value={form.date}
+                      openSelect={openSelect}
+                      setOpenSelect={setOpenSelect}
+                      onSelect={updateFormValue}
+                    />
                   </div>
                 </label>
 
@@ -816,11 +1308,23 @@ export function ScheduleCreatePage() {
                   <div className="scheduling-create-time-grid">
                     <label className="scheduling-create-field is-required">
                       <span>Giờ bắt đầu</span>
-                      <input type="time" name="start" value={form.start} onChange={handleChange} />
+                      <TimePickerField
+                        name="start"
+                        value={form.start}
+                        openSelect={openSelect}
+                        setOpenSelect={setOpenSelect}
+                        onSelect={updateFormValue}
+                      />
                     </label>
                     <label className="scheduling-create-field is-required">
                       <span>Giờ kết thúc</span>
-                      <input type="time" name="end" value={form.end} onChange={handleChange} />
+                      <TimePickerField
+                        name="end"
+                        value={form.end}
+                        openSelect={openSelect}
+                        setOpenSelect={setOpenSelect}
+                        onSelect={updateFormValue}
+                      />
                     </label>
                     <label className="scheduling-create-field is-required">
                       <span>Thời lượng / slot</span>
@@ -886,11 +1390,25 @@ export function ScheduleCreatePage() {
                   <div className="scheduling-create-break-grid">
                     <label className="scheduling-create-field is-required">
                       <span>Bắt đầu nghỉ</span>
-                      <input type="time" name="breakStart" value={form.breakStart} onChange={handleChange} disabled={!form.hasBreak} />
+                      <TimePickerField
+                        name="breakStart"
+                        value={form.breakStart}
+                        openSelect={openSelect}
+                        setOpenSelect={setOpenSelect}
+                        onSelect={updateFormValue}
+                        disabled={!form.hasBreak}
+                      />
                     </label>
                     <label className="scheduling-create-field is-required">
                       <span>Kết thúc nghỉ</span>
-                      <input type="time" name="breakEnd" value={form.breakEnd} onChange={handleChange} disabled={!form.hasBreak} />
+                      <TimePickerField
+                        name="breakEnd"
+                        value={form.breakEnd}
+                        openSelect={openSelect}
+                        setOpenSelect={setOpenSelect}
+                        onSelect={updateFormValue}
+                        disabled={!form.hasBreak}
+                      />
                     </label>
                     <label className="scheduling-create-field">
                       <span>Kích thước slot sau nghỉ</span>
@@ -911,19 +1429,21 @@ export function ScheduleCreatePage() {
                     <div className="scheduling-create-extra-breaks">
                       {extraBreaks.map((item) => (
                         <div key={item.id}>
-                          <input
-                            type="time"
+                          <TimePickerField
+                            name={`extra-${item.id}-start`}
                             value={item.start}
-                            aria-label="Bắt đầu nghỉ bổ sung"
-                            onChange={(event) => handleExtraBreakChange(item.id, 'start', event.target.value)}
+                            openSelect={openSelect}
+                            setOpenSelect={setOpenSelect}
+                            onSelect={(_, nextValue) => handleExtraBreakChange(item.id, 'start', nextValue)}
                           />
-                          <input
-                            type="time"
+                          <TimePickerField
+                            name={`extra-${item.id}-end`}
                             value={item.end}
-                            aria-label="Kết thúc nghỉ bổ sung"
-                            onChange={(event) => handleExtraBreakChange(item.id, 'end', event.target.value)}
+                            openSelect={openSelect}
+                            setOpenSelect={setOpenSelect}
+                            onSelect={(_, nextValue) => handleExtraBreakChange(item.id, 'end', nextValue)}
                           />
-                          <button type="button" aria-label="Xóa khoảng nghỉ" onClick={() => handleRemoveBreak(item.id)}>
+                          <button type="button" className="is-remove" aria-label="Xóa khoảng nghỉ" onClick={() => handleRemoveBreak(item.id)}>
                             <Trash2 size={14} strokeWidth={2.35} />
                           </button>
                         </div>
@@ -996,13 +1516,12 @@ export function ScheduleCreatePage() {
               </div>
 
               <div className="scheduling-create-form-actions">
-                <Link to="/scheduling/schedules">Hủy tạo</Link>
+                <button type="button" onClick={handleResetForm}>Đặt lại form</button>
                 <div>
-                  <button type="button" onClick={() => handleCreate('draft')} disabled={!canSubmit}>Lưu nháp</button>
                   <button type="button" className="is-primary" onClick={handleContinueStep}>
                     <span>
-                      {createStep >= CREATE_STEPS.length ? 'Xem trước' : 'Tiếp tục'}
-                      <small>{CREATE_STEPS[Math.min(createStep, CREATE_STEPS.length - 1)]?.[1]}</small>
+                      {createStep >= CREATE_STEPS.length ? 'Kiểm tra lại' : 'Xem trước & tạo lịch'}
+                      <small>{createStep >= CREATE_STEPS.length ? 'Cập nhật kiểm tra' : 'Sang bước xác nhận'}</small>
                     </span>
                     <ArrowRight size={15} strokeWidth={2.55} aria-hidden="true" />
                   </button>
@@ -1028,7 +1547,10 @@ export function ScheduleCreatePage() {
                   <strong>Xem trước lịch ({slotPreview.length} slot)</strong>
                 </div>
                 <div className="scheduling-create-slot-preview__legend" aria-label="Chú thích slot">
-                  <span><i className="is-active" /> Slot hoạt động</span>
+                  <span><i className="is-morning" /> Ca sáng</span>
+                  <span><i className="is-afternoon" /> Ca chiều</span>
+                  <span><i className="is-evening" /> Ca tối</span>
+                  <span><i className="is-duty" /> Trực đêm</span>
                   <span><i className="is-break" /> Nghỉ giải lao</span>
                 </div>
               </div>
@@ -1037,18 +1559,50 @@ export function ScheduleCreatePage() {
                   <button
                     key={`${slot.type}-${slot.value}-${index}`}
                     type="button"
-                    className={`${slot.type === 'break' ? 'is-break' : ''} ${selectedSlotSet.has(slot.value) ? 'is-selected' : ''}`}
-                    disabled={slot.type === 'break'}
+                    className={`is-${slot.type} ${slot.shift ? `is-${slot.shift}` : ''} ${selectedSlotSet.has(slot.value) ? 'is-selected' : ''}`}
+                    disabled={slot.type !== 'slot'}
                     onClick={() => togglePreviewSlot(slot.value)}
                   >
                     {slot.type === 'break' ? (
                       <>
                         <strong>Nghỉ</strong>
-                        <small>{slot.value}</small>
+                        <small>{slot.range}</small>
+                      </>
+                    ) : slot.type === 'closed' ? (
+                      <>
+                        <strong>{slot.label}</strong>
+                        <small>{slot.range}</small>
+                      </>
+                    ) : slot.type === 'duty' ? (
+                      <>
+                        <strong>{slot.value}</strong>
+                        <small>Trực đêm</small>
                       </>
                     ) : slot.value}
                   </button>
                 ))}
+              </div>
+              <div className="scheduling-create-preview-actions">
+                <div>
+                  <strong>{canSubmit ? 'Lịch đã sẵn sàng để tạo' : 'Chưa thể tạo lịch'}</strong>
+                  <span>
+                    {canSubmit
+                      ? `${totalSlotCount} slot đặt khám, ${blockedBreakSlots} slot nghỉ/chuyển ca hoặc trực.`
+                      : (submitBlockReason || serverWarnings[0]?.message || 'Bấm kiểm tra để cập nhật trạng thái lịch.')}
+                  </span>
+                </div>
+                <button type="button" onClick={runPreviewCheck} disabled={!realDataReady || isChecking}>
+                  <ShieldCheck size={14} strokeWidth={2.4} aria-hidden="true" />
+                  {isChecking ? 'Đang kiểm tra' : 'Kiểm tra'}
+                </button>
+                <button type="button" onClick={() => handleCreate('draft')} disabled={!canTrySubmit}>
+                  <Save size={14} strokeWidth={2.4} aria-hidden="true" />
+                  {isSubmitting ? 'Đang lưu' : 'Lưu nháp'}
+                </button>
+                <button type="button" className="is-primary" onClick={() => handleCreate('published')} disabled={!canTrySubmit}>
+                  <Check size={14} strokeWidth={2.55} aria-hidden="true" />
+                  {isSubmitting ? 'Đang xử lý' : 'Công khai lịch'}
+                </button>
               </div>
             </section>
           </form>
@@ -1137,7 +1691,7 @@ export function ScheduleCreatePage() {
                     <dd>{availableSlotCount} / {totalSlotCount} slot</dd>
                   </div>
                   <div>
-                    <dt>Slot khóa do nghỉ</dt>
+                    <dt>Slot khóa do nghỉ/chuyển ca</dt>
                     <dd>{blockedBreakSlots} slot</dd>
                   </div>
                   <div>
@@ -1165,11 +1719,14 @@ export function ScheduleCreatePage() {
                     <AlertTriangle size={14} strokeWidth={2.6} />{warning.message}
                   </li>
                 ))}
-                {!localWarnings.length && !serverWarnings.length ? (
+                {operationalWarnings.map((warning) => (
+                  <li key={warning} className="is-warning"><AlertTriangle size={14} strokeWidth={2.6} />{warning}</li>
+                ))}
+                {!localWarnings.length && !serverWarnings.length && !operationalWarnings.length ? (
                   <>
                     <li><Check size={14} strokeWidth={2.6} />Không phát hiện xung đột lịch</li>
                     <li><Check size={14} strokeWidth={2.6} />Bác sĩ thuộc khoa đã chọn</li>
-                    <li><Check size={14} strokeWidth={2.6} />Khung giờ làm việc hợp lệ</li>
+                    <li><Check size={14} strokeWidth={2.6} />Khung giờ khám nằm trong ca sáng, chiều hoặc tối</li>
                   </>
                 ) : null}
                 {previewResult?.conflicts?.map((conflict) => (
