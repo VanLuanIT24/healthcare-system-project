@@ -1,6 +1,8 @@
 const { model } = require('mongoose');
 const { baseSchemaOptions, auditFields, Schema } = require('../common/base-model');
 
+// Bảng role_permissions: Lưu quan hệ gán quyền cho từng vai trò.
+
 const rolePermissionSchema = new Schema(
   {
     role_id: { type: Schema.Types.ObjectId, ref: 'Role', required: true },

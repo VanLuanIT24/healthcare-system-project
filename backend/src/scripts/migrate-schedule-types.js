@@ -1,6 +1,6 @@
 const { connectDatabase, mongoose } = require('../config/database');
 const { DoctorSchedule } = require('../models');
-const { normalizeScheduleType } = require('../constants/schedule-types');
+const { normalizeScheduleType } = require('../constants/catalogs/schedule-types');
 
 async function migrateScheduleTypes() {
   await connectDatabase();

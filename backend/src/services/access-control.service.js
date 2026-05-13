@@ -1,4 +1,10 @@
 const { Permission, Role, RolePermission, User, UserRole } = require('../models');
+const {
+  PERMISSION,
+  ROLE_CODE,
+} = require('../constants/permissions');
+const permissionService = require('./permission.service');
+const { PATIENT_PORTAL_PERMISSIONS } = require('./auth/auth.policy');
 
 async function findActiveRolesByUserId(userId) {
   const userRoles = await UserRole.find({ user_id: userId, is_active: true }).lean();
@@ -38,7 +44,7 @@ async function buildUserPermissionMap(userId) {
     is_deleted: false,
   }).lean();
 
-  return new Set(permissions.map((permission) => permission.permission_code));
+  return permissionService.buildPermissionSet(permissions.map((permission) => permission.permission_code));
 }
 
 async function buildUserRoleDetails(userId) {
@@ -50,19 +56,29 @@ async function buildUserRoleDetails(userId) {
     role_name: role.role_name,
     description: role.description,
     status: role.status,
+    is_system: Boolean(role.is_system),
+    priority_level: Number(role.priority_level || 0),
   }));
 }
 
+function getEquivalentPermissionCodes(permissionCode) {
+  return permissionService.getEquivalentPermissionCodes(permissionCode);
+}
+
+function permissionSetHas(permissionSet, permissionCode) {
+  return permissionService.hasPermission([...permissionSet], permissionCode);
+}
+
 function hasPermission(userContext, permissionCode) {
-  return (userContext.permissions || []).includes(permissionCode);
+  return permissionService.hasPermission(userContext.permissions || [], permissionCode);
 }
 
 function hasAnyPermission(userContext, permissionCodes = []) {
-  return permissionCodes.some((permissionCode) => hasPermission(userContext, permissionCode));
+  return permissionService.hasAnyPermission(userContext.permissions || [], permissionCodes);
 }
 
 function hasAllPermissions(userContext, permissionCodes = []) {
-  return permissionCodes.every((permissionCode) => hasPermission(userContext, permissionCode));
+  return permissionService.hasAllPermissions(userContext.permissions || [], permissionCodes);
 }
 
 function requireActorType(userContext, actorTypes = []) {
@@ -81,8 +97,8 @@ async function getCurrentUserContext(auth) {
       actorType: 'patient',
       status: auth.account.status,
       departmentId: null,
-      roles: ['patient'],
-      permissions: ['patients.self.read', 'patients.self.update', 'appointments.self.read', 'appointments.self.create'],
+      roles: [ROLE_CODE.PATIENT],
+      permissions: PATIENT_PORTAL_PERMISSIONS,
     };
   }
 
@@ -107,17 +123,28 @@ async function getCurrentUserContext(auth) {
 
 async function checkPermission({ userId, permissionCode }) {
   const permissions = await buildUserPermissionMap(userId);
-  return permissions.has(permissionCode);
+  return permissionSetHas(permissions, permissionCode);
 }
 
 module.exports = {
+  // findActiveRolesByUserId: Tìm các vai trò đang hoạt động của người dùng theo user id.
   findActiveRolesByUserId,
+  // buildUserPermissionMap: Tạo bản đồ quyền của người dùng để tra cứu phân quyền nhanh.
   buildUserPermissionMap,
+  // buildUserRoleDetails: Tổng hợp chi tiết vai trò đang gán cho người dùng.
   buildUserRoleDetails,
+  // hasPermission: Kiểm tra người dùng/actor có một quyền cụ thể hay không.
   hasPermission,
+  // hasAnyPermission: Kiểm tra người dùng/actor có ít nhất một quyền trong danh sách yêu cầu hay không.
   hasAnyPermission,
+  // hasAllPermissions: Kiểm tra người dùng/actor có đầy đủ tất cả quyền được yêu cầu hay không.
   hasAllPermissions,
+  // requireActorType: Bảo đảm actor thuộc đúng loại tài khoản trước khi xử lý nghiệp vụ.
   requireActorType,
+  // getCurrentUserContext: Lấy ngữ cảnh người dùng hiện tại gồm thông tin định danh, vai trò và quyền.
   getCurrentUserContext,
+  // checkPermission: Kiểm tra quyền truy cập và trả lỗi khi actor không đủ quyền.
   checkPermission,
+  // getEquivalentPermissionCodes: Lấy các mã quyền tương đương để hỗ trợ tương thích quyền cũ và mới.
+  getEquivalentPermissionCodes,
 };

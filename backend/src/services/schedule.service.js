@@ -2,9 +2,11 @@ const {
   Appointment,
   AuditLog,
   Department,
+  DoctorProfile,
   DoctorSchedule,
   Patient,
   Role,
+  ScheduleSlot,
   User,
   UserRole,
 } = require('../models');
@@ -21,7 +23,161 @@ const {
   getScheduleTypeCatalog,
   getScheduleTypeDefinition,
   normalizeScheduleType,
-} = require('../constants/schedule-types');
+} = require('../constants/catalogs/schedule-types');
+const {
+  ACTIVE_APPOINTMENT_STATUSES,
+  APPOINTMENT_STATUS,
+  DOCTOR_PROFILE_STATUS,
+  SCHEDULE_SLOT_STATUS,
+  SCHEDULE_STATUS,
+} = require('../constants/statuses');
+const { PERMISSION } = require('../constants/permissions');
+const permissionService = require('./permission.service');
+
+const FINAL_SCHEDULE_STATUSES = [SCHEDULE_STATUS.CANCELLED, SCHEDULE_STATUS.COMPLETED];
+const ACTIVE_SCHEDULE_STATUSES = [SCHEDULE_STATUS.PUBLISHED, SCHEDULE_STATUS.ACTIVE];
+const TERMINAL_APPOINTMENT_STATUSES = [
+  APPOINTMENT_STATUS.CANCELLED,
+  APPOINTMENT_STATUS.NO_SHOW,
+  APPOINTMENT_STATUS.RESCHEDULED,
+];
+const SCHEDULE_SAFE_UPDATE_FIELDS = new Set([
+  'patient_portal_enabled',
+  'staff_only',
+  'return_visit_priority',
+  'early_booking_enabled',
+  'internal_note',
+  'note',
+  'schedule_type',
+  'scheduleType',
+]);
+const SCHEDULE_DANGEROUS_UPDATE_FIELDS = new Set([
+  'doctor_id',
+  'department_id',
+  'work_date',
+  'shift_start',
+  'shift_end',
+  'slot_duration_minutes',
+  'max_patients',
+  'break_windows',
+]);
+const MAX_QUERY_DATE_RANGE_DAYS = 93;
+
+function actorRoles(actor = {}) {
+  return Array.isArray(actor.roles) ? actor.roles : [];
+}
+
+function hasRole(actor = {}, roleCode) {
+  return actorRoles(actor).includes(roleCode);
+}
+
+function isDoctorActor(actor = {}) {
+  return hasRole(actor, 'doctor');
+}
+
+function hasGlobalScheduleScope(actor = {}) {
+  return hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.SCHEDULES.READ, PERMISSION.APPOINTMENTS.READ]);
+}
+
+function hasAppointmentSlotSensitiveRead(actor = {}) {
+  return hasAnyPermission(actor, [
+    PERMISSION.SYSTEM.FULL_ACCESS,
+    PERMISSION.APPOINTMENTS.READ,
+    PERMISSION.APPOINTMENTS.READ_DEPARTMENT,
+    PERMISSION.APPOINTMENTS.READ_OWN,
+    PERMISSION.PATIENTS.READ,
+    PERMISSION.PATIENTS.READ_ASSIGNED,
+  ]);
+}
+
+function normalizeDuplicateKeyError(error, message = 'Dữ liệu trùng với ràng buộc duy nhất.') {
+  if (error?.code === 11000) {
+    throw createError(message, 409);
+  }
+  throw error;
+}
+
+function errorCodeFromError(error) {
+  if (error?.code) return error.code;
+  if (error?.statusCode === 403) return 'FORBIDDEN';
+  if (error?.statusCode === 404) return 'NOT_FOUND';
+  if (error?.statusCode === 409) return 'CONFLICT';
+  if (error?.statusCode === 400) return 'BAD_REQUEST';
+  return 'ERROR';
+}
+
+function validateDateRangeInput(dateFromValue, dateToValue) {
+  if (!dateFromValue && !dateToValue) return null;
+  const dateFrom = dateFromValue ? getStartOfDay(dateFromValue) : null;
+  const dateTo = dateToValue ? getEndOfDay(dateToValue) : null;
+  if ((dateFrom && Number.isNaN(dateFrom.getTime())) || (dateTo && Number.isNaN(dateTo.getTime()))) {
+    throw createError('date_from/date_to không hợp lệ.', 400);
+  }
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    throw createError('date_from phải nhỏ hơn hoặc bằng date_to.', 400);
+  }
+  if (dateFrom && dateTo) {
+    const rangeDays = Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (24 * 60 * 60 * 1000));
+    if (rangeDays > MAX_QUERY_DATE_RANGE_DAYS) {
+      throw createError(`Khoảng ngày không được vượt quá ${MAX_QUERY_DATE_RANGE_DAYS} ngày.`, 400);
+    }
+  }
+  return { dateFrom, dateTo };
+}
+
+function normalizeCreateScheduleStatus(status) {
+  if (!status) return SCHEDULE_STATUS.DRAFT;
+  if (status === SCHEDULE_STATUS.PUBLISHED || status === SCHEDULE_STATUS.DRAFT) return status;
+  throw createError('Chỉ được tạo lịch ở trạng thái draft hoặc published.', 400);
+}
+
+function actorDepartmentId(actor = {}) {
+  return actor.departmentId || actor.department_id || actor.user?.department_id || null;
+}
+
+function hasPermission(actor = {}, permissionCode) {
+  return permissionService.hasPermission(actor.permissions || [], permissionCode);
+}
+
+function hasAnyPermission(actor = {}, permissionCodes = []) {
+  return permissionService.hasAnyPermission(actor.permissions || [], permissionCodes);
+}
+
+function applyScheduleReadScope(filter, actor = {}) {
+  if (!actor?.actorType && !actor?.actor_type) return filter;
+  if (hasAnyPermission(actor, [PERMISSION.SCHEDULES.READ, PERMISSION.APPOINTMENTS.READ])) {
+    return filter;
+  }
+
+  if (isDoctorActor(actor) || hasAnyPermission(actor, [PERMISSION.SCHEDULES.READ_OWN, PERMISSION.APPOINTMENTS.READ_OWN])) {
+    if (filter.doctor_id && String(filter.doctor_id) !== String(actor.userId)) {
+      filter._id = null;
+      return filter;
+    }
+    filter.doctor_id = actor.userId;
+    return filter;
+  }
+
+  if (hasPermission(actor, PERMISSION.SCHEDULES.READ_DEPARTMENT) || actorDepartmentId(actor)) {
+    const departmentId = actorDepartmentId(actor);
+    if (!departmentId) {
+      filter._id = null;
+      return filter;
+    }
+    if (filter.department_id && String(filter.department_id) !== String(departmentId)) {
+      filter._id = null;
+      return filter;
+    }
+    filter.department_id = departmentId;
+    return filter;
+  }
+
+  return filter;
+}
+
+function sessionOptions(session) {
+  return session ? { session } : {};
+}
 
 function validateScheduleTimeRange(payload) {
   const shiftStart = new Date(payload.shift_start);
@@ -37,12 +193,25 @@ function validateScheduleTimeRange(payload) {
     throw createError('shift_start phải nhỏ hơn shift_end.');
   }
 
+  const workDay = getStartOfDay(workDate);
+  if (getStartOfDay(shiftStart).getTime() !== workDay.getTime() || getStartOfDay(shiftEnd).getTime() !== workDay.getTime()) {
+    throw createError('shift_start và shift_end phải cùng ngày với work_date.', 400);
+  }
+
   if (slotDuration < 5 || slotDuration > 240) {
     throw createError('slot_duration_minutes phải nằm trong khoảng 5 đến 240 phút.');
   }
 
+  if (shiftEnd.getTime() - shiftStart.getTime() < slotDuration * 60 * 1000) {
+    throw createError('Thời lượng ca phải lớn hơn hoặc bằng một slot.', 400);
+  }
+
+  if (payload.max_patients !== undefined && Number(payload.max_patients) < 0) {
+    throw createError('max_patients không được nhỏ hơn 0.', 400);
+  }
+
   return {
-    workDate: getStartOfDay(workDate),
+    workDate: workDay,
     shiftStart,
     shiftEnd,
     slotDuration,
@@ -50,17 +219,21 @@ function validateScheduleTimeRange(payload) {
 }
 
 async function validateDoctorBelongsToDepartment(doctorId, departmentId) {
-  const [doctor, department, doctorRole] = await Promise.all([
+  const [doctor, department, doctorRole, doctorProfile] = await Promise.all([
     User.findById(doctorId).lean(),
     Department.findById(departmentId).lean(),
     Role.findOne({ role_code: 'doctor', is_deleted: false }).lean(),
+    DoctorProfile.findOne({ user_id: doctorId, is_deleted: false }).lean(),
   ]);
 
-  if (!doctor || doctor.is_deleted) {
+  if (!doctor || doctor.is_deleted || doctor.status !== 'active') {
     throw createError('Không tìm thấy bác sĩ.', 404);
   }
   if (!department || department.is_deleted || department.status !== 'active') {
     throw createError('Department không tồn tại hoặc đang inactive.', 404);
+  }
+  if (!doctorProfile || doctorProfile.status !== DOCTOR_PROFILE_STATUS.ACTIVE) {
+    throw createError('Hồ sơ chuyên môn của bác sĩ không tồn tại hoặc chưa active.', 409);
   }
 
   const hasDoctorRole = doctorRole
@@ -78,8 +251,11 @@ async function validateDoctorBelongsToDepartment(doctorId, departmentId) {
   if (doctor.department_id && String(doctor.department_id) !== String(department._id)) {
     throw createError('Bác sĩ không thuộc department này.', 409);
   }
+  if (String(doctorProfile.department_id) !== String(department._id)) {
+    throw createError('Doctor profile không thuộc department này.', 409);
+  }
 
-  return { doctor, department };
+  return { doctor, department, doctorProfile };
 }
 
 async function validateScheduleConflict({ doctor_id, work_date, shift_start, shift_end }, excludeId = null) {
@@ -96,7 +272,7 @@ async function findScheduleConflicts({ doctor_id, work_date, shift_start, shift_
     doctor_id,
     is_deleted: false,
     work_date: getStartOfDay(work_date),
-    status: { $nin: ['cancelled'] },
+    status: { $nin: FINAL_SCHEDULE_STATUSES },
     shift_start: { $lt: new Date(shift_end) },
     shift_end: { $gt: new Date(shift_start) },
   };
@@ -127,6 +303,21 @@ function calculateScheduleSlots(schedule) {
   return slots;
 }
 
+function rangesOverlap(firstStart, firstEnd, secondStart, secondEnd) {
+  return new Date(firstStart) < new Date(secondEnd) && new Date(secondStart) < new Date(firstEnd);
+}
+
+function slotOverlapsBreakWindow(slot, breakWindow) {
+  return rangesOverlap(slot.slot_time, slot.slot_end, breakWindow.start_time, breakWindow.end_time);
+}
+
+function calculateBookableScheduleSlots(schedule) {
+  const breakWindows = Array.isArray(schedule.break_windows) ? schedule.break_windows : [];
+  return calculateScheduleSlots(schedule).filter(
+    (slot) => !breakWindows.some((breakWindow) => slotOverlapsBreakWindow(slot, breakWindow)),
+  );
+}
+
 function normalizeScheduleBreakWindows(schedule, payload = {}) {
   const rawWindows = Array.isArray(payload.break_windows) ? payload.break_windows : [];
   const windows = [];
@@ -153,6 +344,13 @@ function normalizeScheduleBreakWindows(schedule, payload = {}) {
     });
   });
 
+  windows.sort((first, second) => new Date(first.start_time) - new Date(second.start_time));
+  for (let index = 1; index < windows.length; index += 1) {
+    if (rangesOverlap(windows[index - 1].start_time, windows[index - 1].end_time, windows[index].start_time, windows[index].end_time)) {
+      throw createError('Các khoảng nghỉ không được overlap nhau.', 400);
+    }
+  }
+
   return windows;
 }
 
@@ -165,7 +363,7 @@ function buildBlockedSlotsFromBreakWindows(schedule, breakWindows = [], actor = 
   breakWindows.forEach((window) => {
     theoreticalSlots.forEach((slot) => {
       const slotTime = new Date(slot.slot_time);
-      if (slotTime >= new Date(window.start_time) && slotTime < new Date(window.end_time)) {
+      if (slotOverlapsBreakWindow(slot, window)) {
         blocked.set(slotTime.toISOString(), {
           slot_time: slotTime,
           reason: 'Nghỉ giữa khung giờ',
@@ -177,6 +375,65 @@ function buildBlockedSlotsFromBreakWindows(schedule, breakWindows = [], actor = 
   });
 
   return [...blocked.values()];
+}
+
+function getBreakWindowBlockedSlotMap(schedule) {
+  return new Map(
+    buildBlockedSlotsFromBreakWindows(schedule, schedule.break_windows || []).map((slot) => [
+      new Date(slot.slot_time).toISOString(),
+      slot,
+    ]),
+  );
+}
+
+async function getScheduleSlotStateMap(scheduleId) {
+  const slots = await ScheduleSlot.find({
+    doctor_schedule_id: scheduleId,
+    is_deleted: false,
+  }).lean();
+
+  return new Map(slots.map((slot) => [new Date(slot.start_time).toISOString(), slot]));
+}
+
+function findTheoreticalScheduleSlot(schedule, slotTime) {
+  return calculateBookableScheduleSlots(schedule).find((slot) => new Date(slot.slot_time).getTime() === slotTime.getTime());
+}
+
+async function upsertScheduleSlotState(schedule, slot, payload, actor, status) {
+  const update = {
+    doctor_id: schedule.doctor_id,
+    department_id: schedule.department_id,
+    start_time: slot.slot_time,
+    end_time: slot.slot_end,
+    capacity: 1,
+    status,
+    updated_by: actor?.userId,
+  };
+
+  if (status === 'blocked') {
+    update.block_reason = payload.reason || payload.block_reason || 'Khóa khung giờ';
+  }
+
+  const unset = status === 'blocked' ? {} : { block_reason: '' };
+
+  await ScheduleSlot.updateOne(
+    {
+      doctor_schedule_id: schedule._id,
+      start_time: slot.slot_time,
+      is_deleted: false,
+    },
+    {
+      $set: update,
+      ...(Object.keys(unset).length ? { $unset: unset } : {}),
+      $setOnInsert: {
+        doctor_schedule_id: schedule._id,
+        slot_number: calculateBookableScheduleSlots(schedule).findIndex((item) => new Date(item.slot_time).getTime() === new Date(slot.slot_time).getTime()) + 1,
+        booked_count: 0,
+        created_by: actor?.userId,
+      },
+    },
+    { upsert: true },
+  );
 }
 
 function formatTimeForSchedulePayload(value) {
@@ -266,8 +523,8 @@ async function buildScheduleDepartmentMap(schedules = []) {
 }
 
 function getScheduleSlotStats(schedule, bookedCount = 0) {
-  const totalSlots = calculateScheduleSlots(schedule).length;
-  const blockedSlots = (schedule.blocked_slots || []).length;
+  const totalSlots = calculateBookableScheduleSlots(schedule).length;
+  const blockedSlots = 0;
   const bookedSlots = Number(bookedCount || 0);
   const availableSlots = Math.max(totalSlots - bookedSlots - blockedSlots, 0);
 
@@ -278,6 +535,77 @@ function getScheduleSlotStats(schedule, bookedCount = 0) {
     blocked_slots: blockedSlots,
     utilization_rate: totalSlots > 0 ? Number(((bookedSlots / totalSlots) * 100).toFixed(2)) : 0,
   };
+}
+
+async function buildScheduleSlotStatsMap(schedules = []) {
+  const scheduleIds = schedules.map((schedule) => schedule._id).filter(Boolean);
+  if (scheduleIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await ScheduleSlot.aggregate([
+    {
+      $match: {
+        doctor_schedule_id: { $in: scheduleIds },
+        is_deleted: false,
+      },
+    },
+    {
+      $group: {
+        _id: { schedule_id: '$doctor_schedule_id', status: '$status' },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+  const statsMap = new Map();
+
+  for (const schedule of schedules) {
+    statsMap.set(String(schedule._id), {
+      total_slots: 0,
+      booked_slots: 0,
+      available_slots: 0,
+      blocked_slots: 0,
+      completed_slots: 0,
+      cancelled_slots: 0,
+      no_show_slots: 0,
+      utilization_rate: 0,
+    });
+  }
+
+  for (const row of rows) {
+    const scheduleId = String(row._id.schedule_id);
+    const status = row._id.status;
+    const stats = statsMap.get(scheduleId);
+    if (!stats) continue;
+
+    stats.total_slots += row.count;
+    if (status === SCHEDULE_SLOT_STATUS.AVAILABLE) stats.available_slots += row.count;
+    if (status === SCHEDULE_SLOT_STATUS.BOOKED) stats.booked_slots += row.count;
+    if (status === SCHEDULE_SLOT_STATUS.BLOCKED) stats.blocked_slots += row.count;
+    if (status === SCHEDULE_SLOT_STATUS.COMPLETED) {
+      stats.completed_slots += row.count;
+      stats.booked_slots += row.count;
+    }
+    if (status === SCHEDULE_SLOT_STATUS.CANCELLED) stats.cancelled_slots += row.count;
+    if (status === SCHEDULE_SLOT_STATUS.NO_SHOW) {
+      stats.no_show_slots += row.count;
+      stats.booked_slots += row.count;
+    }
+    if (status === SCHEDULE_SLOT_STATUS.HELD) stats.held_slots = Number(stats.held_slots || 0) + row.count;
+  }
+
+  for (const [scheduleId, stats] of statsMap.entries()) {
+    const schedule = schedules.find((item) => String(item._id) === scheduleId);
+    if (stats.total_slots === 0 && schedule) {
+      statsMap.set(scheduleId, getScheduleSlotStats(schedule));
+      continue;
+    }
+    stats.utilization_rate = stats.total_slots > 0
+      ? Number(((stats.booked_slots / stats.total_slots) * 100).toFixed(2))
+      : 0;
+  }
+
+  return statsMap;
 }
 
 async function buildScheduleBookedCountMap(schedules = []) {
@@ -291,7 +619,7 @@ async function buildScheduleBookedCountMap(schedules = []) {
       $match: {
         doctor_schedule_id: { $in: scheduleIds },
         is_deleted: false,
-        status: { $nin: ['cancelled', 'no_show'] },
+        status: { $nin: TERMINAL_APPOINTMENT_STATUSES },
       },
     },
     { $group: { _id: '$doctor_schedule_id', count: { $sum: 1 } } },
@@ -340,14 +668,15 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
 }
 
 async function formatDoctorSchedulesWithStats(schedules = []) {
-  const [doctorMap, departmentMap, bookedCountMap] = await Promise.all([
+  const [doctorMap, departmentMap, bookedCountMap, slotStatsMap] = await Promise.all([
     buildScheduleDoctorMap(schedules),
     buildScheduleDepartmentMap(schedules),
     buildScheduleBookedCountMap(schedules),
+    buildScheduleSlotStatsMap(schedules),
   ]);
 
   return schedules.map((schedule) => {
-    const stats = getScheduleSlotStats(schedule, bookedCountMap.get(String(schedule._id)) || 0);
+    const stats = slotStatsMap.get(String(schedule._id)) || getScheduleSlotStats(schedule, bookedCountMap.get(String(schedule._id)) || 0);
     return formatDoctorSchedule(schedule, doctorMap, departmentMap, stats);
   });
 }
@@ -356,19 +685,120 @@ async function countScheduleAppointments(scheduleId) {
   return Appointment.countDocuments({
     doctor_schedule_id: scheduleId,
     is_deleted: false,
-    status: { $nin: ['cancelled', 'no_show'] },
+    status: { $nin: TERMINAL_APPOINTMENT_STATUSES },
   });
 }
 
-async function getBookedSlots(scheduleId) {
+async function generateScheduleSlots(scheduleId, actor = {}, requestMeta = {}, options = {}) {
+  const schedule = await DoctorSchedule.findById(scheduleId).lean();
+  if (!schedule || schedule.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc.', 404);
+  }
+  if (options.skipWritable !== true) {
+    assertScheduleReadable(schedule, actor);
+    assertScheduleWritable(schedule, actor);
+  }
+
+  if (FINAL_SCHEDULE_STATUSES.includes(schedule.status) && options.allowFinalStatus !== true) {
+    throw createError('Không thể generate slot cho lịch đã hủy hoặc hoàn tất.', 409);
+  }
+
+  const bookableSlots = calculateBookableScheduleSlots(schedule);
+  const desiredKeys = new Set(bookableSlots.map((slot) => new Date(slot.slot_time).toISOString()));
+  const operations = bookableSlots.map((slot, index) => ({
+    updateOne: {
+      filter: {
+        doctor_schedule_id: schedule._id,
+        start_time: slot.slot_time,
+        is_deleted: false,
+      },
+      update: {
+        $set: {
+          doctor_id: schedule.doctor_id,
+          department_id: schedule.department_id,
+          slot_number: index + 1,
+          start_time: slot.slot_time,
+          end_time: slot.slot_end,
+          capacity: 1,
+          updated_by: actor?.userId,
+        },
+        $setOnInsert: {
+          doctor_schedule_id: schedule._id,
+          status: SCHEDULE_SLOT_STATUS.AVAILABLE,
+          booked_count: 0,
+          created_by: actor?.userId,
+        },
+      },
+      upsert: true,
+    },
+  }));
+
+  if (operations.length > 0) {
+    try {
+      await ScheduleSlot.bulkWrite(operations, { ordered: false });
+    } catch (error) {
+      if (error?.code !== 11000 && error?.writeErrors?.some((item) => item.code !== 11000)) {
+        throw error;
+      }
+    }
+  }
+
+  const staleFilter = {
+    doctor_schedule_id: schedule._id,
+    is_deleted: false,
+    start_time: { $nin: [...desiredKeys].map((value) => new Date(value)) },
+    status: { $nin: [SCHEDULE_SLOT_STATUS.BOOKED, SCHEDULE_SLOT_STATUS.COMPLETED, SCHEDULE_SLOT_STATUS.NO_SHOW] },
+  };
+  const staleUpdate = await ScheduleSlot.updateMany(staleFilter, {
+    $set: {
+      status: SCHEDULE_SLOT_STATUS.CANCELLED,
+      booked_count: 0,
+      updated_by: actor?.userId,
+    },
+    $unset: {
+      hold_expires_at: '',
+      block_reason: '',
+      appointment_id: '',
+      patient_id: '',
+    },
+  });
+
+  await recordAuditLog({
+    actor,
+    action: 'schedule.slots_generate',
+    targetType: 'doctor_schedule',
+    targetId: schedule._id,
+    status: 'success',
+    message: 'Đồng bộ slot lịch làm việc thành công.',
+    requestMeta,
+    metadata: {
+      generated_slots: bookableSlots.length,
+      cancelled_stale_slots: staleUpdate.modifiedCount || 0,
+    },
+  });
+
+  return {
+    schedule_id: String(schedule._id),
+    generated_slots: bookableSlots.length,
+    cancelled_stale_slots: staleUpdate.modifiedCount || 0,
+  };
+}
+
+async function getBookedSlots(scheduleId, actor = {}) {
+  const schedule = await DoctorSchedule.findById(scheduleId).lean();
+  if (!schedule || schedule.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc.', 404);
+  }
+  assertScheduleReadable(schedule, actor);
+  const canSeePatientData = hasAppointmentSlotSensitiveRead(actor);
   const items = await Appointment.find({
     doctor_schedule_id: scheduleId,
     is_deleted: false,
-    status: { $nin: ['cancelled', 'no_show'] },
+    status: { $nin: TERMINAL_APPOINTMENT_STATUSES },
   })
     .sort({ appointment_time: 1 })
     .lean();
-  const patientIds = [...new Set(items.map((item) => String(item.patient_id)).filter(Boolean))];
+  const patientIds = canSeePatientData ? [...new Set(items.map((item) => String(item.patient_id)).filter(Boolean))] : [];
   const patients = patientIds.length
     ? await Patient.find({ _id: { $in: patientIds }, is_deleted: false }).select('patient_code full_name phone').lean()
     : [];
@@ -379,12 +809,12 @@ async function getBookedSlots(scheduleId) {
     items: items.map((appointment) => {
       const patient = patientMap.get(String(appointment.patient_id));
       return {
-        appointment_id: String(appointment._id),
+        appointment_id: canSeePatientData ? String(appointment._id) : undefined,
         appointment_time: appointment.appointment_time,
-        patient_id: String(appointment.patient_id),
-        patient_code: patient?.patient_code || null,
-        patient_name: patient?.full_name || null,
-        patient_phone: patient?.phone || null,
+        patient_id: canSeePatientData ? String(appointment.patient_id) : undefined,
+        patient_code: canSeePatientData ? patient?.patient_code || null : undefined,
+        patient_name: canSeePatientData ? patient?.full_name || null : undefined,
+        patient_phone: canSeePatientData ? patient?.phone || null : undefined,
         status: appointment.status,
         source: appointment.source,
       };
@@ -392,39 +822,276 @@ async function getBookedSlots(scheduleId) {
   };
 }
 
-async function getAvailableSlots(scheduleId) {
+async function getAvailableSlots(scheduleId, options = {}) {
   const schedule = await DoctorSchedule.findById(scheduleId).lean();
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
 
+  const publicView = options.publicView === true;
+  if (publicView) {
+    if (!ACTIVE_SCHEDULE_STATUSES.includes(schedule.status) || schedule.patient_portal_enabled === false || schedule.staff_only === true) {
+      return {
+        items: [],
+      };
+    }
+  } else if (options.actor) {
+    assertScheduleReadable(schedule, options.actor);
+  }
+  const canSeeSlotSensitive = !publicView && hasAppointmentSlotSensitiveRead(options.actor || {});
+  const canSeeOperationalSlotData = !publicView && hasAnyPermission(options.actor || {}, [
+    PERMISSION.SYSTEM.FULL_ACCESS,
+    PERMISSION.SCHEDULES.READ,
+    PERMISSION.SCHEDULES.READ_DEPARTMENT,
+    PERMISSION.SCHEDULES.READ_OWN,
+    PERMISSION.SCHEDULE_SLOTS.BLOCK,
+    PERMISSION.SCHEDULE_SLOTS.REOPEN,
+  ]);
+
   const [booked, appointmentsCount] = await Promise.all([
-    getBookedSlots(schedule._id),
+    getBookedSlots(schedule._id, options.actor || {}),
     countScheduleAppointments(schedule._id),
   ]);
 
-  const blockedSet = new Set((schedule.blocked_slots || []).map((item) => new Date(item.slot_time).toISOString()));
+  const [slotStateMap] = await Promise.all([getScheduleSlotStateMap(schedule._id)]);
   const bookedSet = new Set(booked.items.map((item) => new Date(item.appointment_time).toISOString()));
-  const theoreticalSlots = calculateScheduleSlots(schedule);
+  const theoreticalSlots = calculateBookableScheduleSlots(schedule);
 
-  const items = theoreticalSlots.map((slot) => {
+  let items = theoreticalSlots.map((slot) => {
     const key = new Date(slot.slot_time).toISOString();
+    const persistedSlot = slotStateMap.get(key);
+    const holdExpired = persistedSlot?.status === SCHEDULE_SLOT_STATUS.HELD
+      && persistedSlot.hold_expires_at
+      && new Date(persistedSlot.hold_expires_at) <= new Date();
+    const status = holdExpired ? SCHEDULE_SLOT_STATUS.AVAILABLE : persistedSlot?.status || SCHEDULE_SLOT_STATUS.AVAILABLE;
+    const isBlocked = status === SCHEDULE_SLOT_STATUS.BLOCKED || status === SCHEDULE_SLOT_STATUS.CANCELLED;
+    const isHeld = status === SCHEDULE_SLOT_STATUS.HELD;
+    const isBooked = bookedSet.has(key)
+      || [SCHEDULE_SLOT_STATUS.BOOKED, SCHEDULE_SLOT_STATUS.COMPLETED, SCHEDULE_SLOT_STATUS.NO_SHOW].includes(status);
     return {
+      schedule_slot_id: publicView ? undefined : (persistedSlot ? String(persistedSlot._id) : null),
+      appointment_id: canSeeSlotSensitive && persistedSlot?.appointment_id ? String(persistedSlot.appointment_id) : undefined,
+      patient_id: canSeeSlotSensitive && persistedSlot?.patient_id ? String(persistedSlot.patient_id) : undefined,
       slot_time: slot.slot_time,
       slot_end: slot.slot_end,
-      is_blocked: blockedSet.has(key),
-      is_booked: bookedSet.has(key),
-      is_available: !blockedSet.has(key) && !bookedSet.has(key),
+      status: publicView ? undefined : status,
+      block_reason: canSeeOperationalSlotData ? persistedSlot?.block_reason || null : undefined,
+      is_blocked: publicView ? undefined : isBlocked,
+      is_booked: publicView ? undefined : isBooked,
+      is_available: !isBlocked && !isHeld && !isBooked && ACTIVE_SCHEDULE_STATUSES.includes(schedule.status),
     };
   });
 
+  if (options.onlyAvailable || publicView) {
+    items = items.filter((item) => item.is_available);
+  }
+
   return {
-    schedule_id: String(schedule._id),
-    status: schedule.status,
-    max_patients: schedule.max_patients,
-    appointments_count: appointmentsCount,
+    schedule_id: publicView ? undefined : String(schedule._id),
+    status: publicView ? undefined : schedule.status,
+    max_patients: publicView ? undefined : schedule.max_patients,
+    appointments_count: publicView ? undefined : appointmentsCount,
     items,
   };
+}
+
+async function markSlotBookedForAppointment(appointment, actor = {}, requestMeta = {}, options = {}) {
+  if (!appointment?.doctor_schedule_id) {
+    return null;
+  }
+  const session = options.session || null;
+
+  const schedule = await DoctorSchedule.findById(appointment.doctor_schedule_id).session(session).lean();
+  if (!schedule || schedule.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc của appointment.', 404);
+  }
+  if (!ACTIVE_SCHEDULE_STATUSES.includes(schedule.status)) {
+    throw createError('Lịch làm việc chưa được mở để đặt khám.', 409);
+  }
+
+  const slotTime = new Date(appointment.appointment_time);
+  const targetSlot = findTheoreticalScheduleSlot(schedule, slotTime);
+  if (!targetSlot) {
+    throw createError('Appointment time không khớp với slot bookable của schedule.', 409);
+  }
+
+  const existingSlot = await ScheduleSlot.findOne({
+    doctor_schedule_id: schedule._id,
+    start_time: slotTime,
+    is_deleted: false,
+  }).session(session);
+
+  if (existingSlot) {
+    const bookedByOther = existingSlot.appointment_id
+      && String(existingSlot.appointment_id) !== String(appointment._id)
+      && [SCHEDULE_SLOT_STATUS.BOOKED, SCHEDULE_SLOT_STATUS.COMPLETED, SCHEDULE_SLOT_STATUS.NO_SHOW].includes(existingSlot.status);
+    if (bookedByOther) {
+      throw createError('Slot này đã được gắn với appointment khác.', 409);
+    }
+    if (existingSlot.status === SCHEDULE_SLOT_STATUS.BLOCKED || existingSlot.status === SCHEDULE_SLOT_STATUS.CANCELLED) {
+      throw createError('Slot này đang bị khóa hoặc đã hủy.', 409);
+    }
+    if (options.requireUnassignedSlot && existingSlot.appointment_id && String(existingSlot.appointment_id) !== String(appointment._id)) {
+      throw createError('Slot này đang được giữ bởi appointment khác.', 409);
+    }
+  }
+
+  let slot;
+  try {
+    slot = await ScheduleSlot.findOneAndUpdate(
+      {
+        doctor_schedule_id: schedule._id,
+        start_time: slotTime,
+        is_deleted: false,
+        $or: [
+          {
+            status: SCHEDULE_SLOT_STATUS.AVAILABLE,
+            booked_count: { $lt: 1 },
+            appointment_id: { $in: [null, appointment._id] },
+          },
+          {
+            status: SCHEDULE_SLOT_STATUS.HELD,
+            booked_count: { $lt: 1 },
+            appointment_id: { $in: [null, appointment._id] },
+          },
+          {
+            status: SCHEDULE_SLOT_STATUS.BOOKED,
+            appointment_id: appointment._id,
+          },
+          {
+            appointment_id: appointment._id,
+          },
+        ],
+      },
+      {
+        $set: {
+          doctor_id: appointment.doctor_id,
+          department_id: appointment.department_id,
+          start_time: targetSlot.slot_time,
+          end_time: targetSlot.slot_end,
+          capacity: 1,
+          booked_count: 1,
+          appointment_id: appointment._id,
+          patient_id: appointment.patient_id,
+          status: SCHEDULE_SLOT_STATUS.BOOKED,
+          updated_by: actor?.userId,
+        },
+        $unset: {
+          hold_expires_at: '',
+          block_reason: '',
+        },
+        $setOnInsert: {
+          doctor_schedule_id: schedule._id,
+          slot_number: calculateBookableScheduleSlots(schedule).findIndex((item) => new Date(item.slot_time).getTime() === slotTime.getTime()) + 1,
+          created_by: actor?.userId,
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true, ...sessionOptions(session) },
+    );
+  } catch (error) {
+    normalizeDuplicateKeyError(error, 'Slot vừa được đặt bởi giao dịch khác.');
+  }
+  if (!slot) {
+    throw createError('Slot vừa được đặt bởi giao dịch khác.', 409);
+  }
+
+  if (appointment.schedule_slot_id === undefined || String(appointment.schedule_slot_id || '') !== String(slot._id)) {
+    await Appointment.updateOne(
+      { _id: appointment._id },
+      { $set: { schedule_slot_id: slot._id, updated_by: actor?.userId } },
+      sessionOptions(session),
+    );
+  }
+
+  await recordAuditLog({
+    actor,
+    action: 'schedule.slot_book',
+    targetType: 'schedule_slot',
+    targetId: slot._id,
+    status: 'success',
+    message: 'Đồng bộ slot booked theo appointment thành công.',
+    requestMeta,
+    metadata: {
+      doctor_schedule_id: String(schedule._id),
+      appointment_id: String(appointment._id),
+      patient_id: String(appointment.patient_id),
+      slot_time: slotTime,
+    },
+  });
+
+  return slot;
+}
+
+async function releaseSlotForAppointment(appointment, actor = {}, requestMeta = {}, finalSlotStatus = SCHEDULE_SLOT_STATUS.AVAILABLE, options = {}) {
+  if (!appointment?.doctor_schedule_id) {
+    return null;
+  }
+  const session = options.session || null;
+
+  const slotTime = new Date(appointment.appointment_time);
+  const slot = await ScheduleSlot.findOne({
+    $or: [
+      { appointment_id: appointment._id },
+      {
+        doctor_schedule_id: appointment.doctor_schedule_id,
+        start_time: slotTime,
+      },
+    ],
+    is_deleted: false,
+  }).session(session);
+  if (!slot) {
+    return null;
+  }
+
+  const otherActiveAppointment = await Appointment.findOne({
+    _id: { $ne: appointment._id },
+    doctor_schedule_id: appointment.doctor_schedule_id,
+    appointment_time: slot.start_time,
+    is_deleted: false,
+    status: { $in: ACTIVE_APPOINTMENT_STATUSES },
+  }).session(session).lean();
+
+  if (otherActiveAppointment) {
+    slot.status = SCHEDULE_SLOT_STATUS.BOOKED;
+    slot.booked_count = 1;
+    slot.appointment_id = otherActiveAppointment._id;
+    slot.patient_id = otherActiveAppointment.patient_id;
+  } else if (finalSlotStatus === SCHEDULE_SLOT_STATUS.COMPLETED || finalSlotStatus === SCHEDULE_SLOT_STATUS.NO_SHOW) {
+    slot.status = finalSlotStatus;
+    slot.booked_count = 1;
+    slot.appointment_id = appointment._id;
+    slot.patient_id = appointment.patient_id;
+  } else {
+    slot.status = SCHEDULE_SLOT_STATUS.AVAILABLE;
+    slot.booked_count = 0;
+    slot.appointment_id = undefined;
+    slot.patient_id = undefined;
+  }
+  slot.updated_by = actor?.userId;
+  await slot.save(sessionOptions(session));
+
+  await recordAuditLog({
+    actor,
+    action: 'schedule.slot_release',
+    targetType: 'schedule_slot',
+    targetId: slot._id,
+    status: 'success',
+    message: 'Đồng bộ slot sau khi appointment đổi trạng thái thành công.',
+    requestMeta,
+    metadata: {
+      appointment_id: String(appointment._id),
+      final_slot_status: slot.status,
+    },
+  });
+
+  return slot;
+}
+
+async function markSlotOutcomeForAppointment(appointment, outcomeStatus, actor = {}, requestMeta = {}, options = {}) {
+  const finalSlotStatus = outcomeStatus === APPOINTMENT_STATUS.NO_SHOW
+    ? SCHEDULE_SLOT_STATUS.NO_SHOW
+    : SCHEDULE_SLOT_STATUS.COMPLETED;
+  return releaseSlotForAppointment(appointment, actor, requestMeta, finalSlotStatus, options);
 }
 
 async function validateScheduleBeforePublish(scheduleId) {
@@ -433,32 +1100,96 @@ async function validateScheduleBeforePublish(scheduleId) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
 
-  if (!['draft', 'published'].includes(schedule.status)) {
+  if (schedule.status !== SCHEDULE_STATUS.DRAFT && schedule.status !== SCHEDULE_STATUS.PUBLISHED) {
     throw createError('Chỉ lịch draft hoặc published mới được mở cho đặt lịch.', 409);
+  }
+
+  validateScheduleTimeRange(schedule);
+  await validateDoctorBelongsToDepartment(schedule.doctor_id, schedule.department_id);
+  await validateScheduleConflict(
+    {
+      doctor_id: schedule.doctor_id,
+      work_date: schedule.work_date,
+      shift_start: schedule.shift_start,
+      shift_end: schedule.shift_end,
+    },
+    schedule._id,
+  );
+
+  const slotCount = await ScheduleSlot.countDocuments({
+    doctor_schedule_id: schedule._id,
+    is_deleted: false,
+    status: { $ne: SCHEDULE_SLOT_STATUS.CANCELLED },
+  });
+  if (slotCount === 0) {
+    throw createError('Không thể publish lịch chưa có slot.', 409);
   }
 
   return schedule;
 }
 
-async function checkScheduleCanBeUpdated(scheduleId) {
+async function checkScheduleCanBeUpdated(scheduleId, payload = {}) {
+  const schedule = await DoctorSchedule.findById(scheduleId).lean();
+  if (!schedule || schedule.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc.', 404);
+  }
+
   const appointmentsCount = await countScheduleAppointments(scheduleId);
+  const activeAppointmentsCount = await Appointment.countDocuments(getActiveAppointmentFilter(scheduleId));
+  const requestedFields = Object.keys(payload || {});
+  const dangerousFields = requestedFields.filter((field) => SCHEDULE_DANGEROUS_UPDATE_FIELDS.has(field));
+  const safeOnly = requestedFields.length === 0 || requestedFields.every((field) => SCHEDULE_SAFE_UPDATE_FIELDS.has(field));
+  const reasons = [];
+
+  if (FINAL_SCHEDULE_STATUSES.includes(schedule.status)) {
+    reasons.push('Lịch đã hủy hoặc hoàn tất không thể cập nhật.');
+  }
+  if (activeAppointmentsCount > 0 && dangerousFields.length > 0) {
+    reasons.push('Lịch đã có appointment active nên không thể sửa doctor/department/thời gian/duration/break.');
+  }
+
   return {
     schedule_id: String(scheduleId),
-    can_update: appointmentsCount === 0,
+    can_update: reasons.length === 0,
     appointments_count: appointmentsCount,
+    active_appointments_count: activeAppointmentsCount,
+    safe_update_only: safeOnly,
+    blocked_fields: dangerousFields,
+    reasons,
   };
 }
 
 async function checkScheduleCanBeCancelled(scheduleId) {
+  const schedule = await DoctorSchedule.findById(scheduleId).lean();
+  if (!schedule || schedule.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc.', 404);
+  }
+
   const appointmentsCount = await countScheduleAppointments(scheduleId);
+  const activeAppointmentsCount = await Appointment.countDocuments(getActiveAppointmentFilter(scheduleId));
+  const reasons = [];
+  if (FINAL_SCHEDULE_STATUSES.includes(schedule.status)) {
+    reasons.push('Lịch đã hủy hoặc hoàn tất.');
+  }
+  if (activeAppointmentsCount > 0) {
+    reasons.push('Lịch còn appointment active, cần reschedule hoặc cancel appointment trước.');
+  }
+
   return {
     schedule_id: String(scheduleId),
-    can_cancel: appointmentsCount === 0,
+    can_cancel: reasons.length === 0,
     appointments_count: appointmentsCount,
+    active_appointments_count: activeAppointmentsCount,
+    reasons,
   };
 }
 
-async function checkDoctorHasFutureAppointmentsInSchedule(scheduleId) {
+async function checkDoctorHasFutureAppointmentsInSchedule(scheduleId, actor = {}) {
+  const schedule = await DoctorSchedule.findById(scheduleId).lean();
+  if (!schedule || schedule.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc.', 404);
+  }
+  assertScheduleReadable(schedule, actor);
   const count = await Appointment.countDocuments({
     doctor_schedule_id: scheduleId,
     is_deleted: false,
@@ -537,15 +1268,23 @@ function getActiveAppointmentFilter(scheduleId) {
   return {
     doctor_schedule_id: scheduleId,
     is_deleted: false,
-    status: { $in: ['booked', 'confirmed', 'checked_in', 'in_consultation'] },
+    status: { $in: ACTIVE_APPOINTMENT_STATUSES },
   };
 }
 
-async function getScheduleActivityLog(scheduleId, query = {}) {
+async function getScheduleActivityLog(scheduleId, query = {}, actor = {}) {
+  const schedule = await DoctorSchedule.findById(scheduleId).lean();
+  if (!schedule || schedule.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc.', 404);
+  }
+  assertScheduleReadable(schedule, actor);
   const { page, limit, skip } = getPagination(query, 20, 100);
+  const slotIds = await ScheduleSlot.distinct('_id', { doctor_schedule_id: schedule._id, is_deleted: false });
   const filter = {
-    target_type: 'doctor_schedule',
-    target_id: scheduleId,
+    $or: [
+      { target_type: 'doctor_schedule', target_id: { $in: [scheduleId, schedule._id] } },
+      { target_type: 'schedule_slot', target_id: { $in: slotIds } },
+    ],
   };
 
   if (query.action) {
@@ -584,7 +1323,7 @@ async function getScheduleActivityLog(scheduleId, query = {}) {
   };
 }
 
-function applyCreateSchedulePayloadToExistingSchedule(schedule, payload, scheduleBase, breakWindows, blockedSlots, actor = {}) {
+function applyCreateSchedulePayloadToExistingSchedule(schedule, payload, scheduleBase, breakWindows, actor = {}) {
   schedule.department_id = payload.department_id;
   schedule.work_date = scheduleBase.work_date;
   schedule.shift_start = scheduleBase.shift_start;
@@ -599,17 +1338,17 @@ function applyCreateSchedulePayloadToExistingSchedule(schedule, payload, schedul
   schedule.early_booking_enabled = payload.early_booking_enabled !== false;
   schedule.internal_note = payload.internal_note || payload.note || '';
   schedule.break_windows = breakWindows;
-  schedule.blocked_slots = blockedSlots;
-  schedule.status = payload.status || 'draft';
+  schedule.status = normalizeCreateScheduleStatus(payload.status);
   if (actor.userId) {
     schedule.updated_by = actor.userId;
   }
   return schedule;
 }
 
-async function createDoctorSchedule(payload, actor, requestMeta = {}) {
+async function createDoctorScheduleInternal(payload, actor, requestMeta = {}) {
   const normalized = validateScheduleTimeRange(payload);
   const { doctor, department } = await validateDoctorBelongsToDepartment(payload.doctor_id, payload.department_id);
+  assertScheduleTargetWritable({ doctor_id: payload.doctor_id, department_id: payload.department_id }, actor);
   const exactExistingSchedule = await DoctorSchedule.findOne({
     doctor_id: payload.doctor_id,
     work_date: normalized.workDate,
@@ -633,21 +1372,29 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
     slot_duration_minutes: normalized.slotDuration,
   };
   const breakWindows = normalizeScheduleBreakWindows(scheduleBase, payload);
-  const blockedSlots = buildBlockedSlotsFromBreakWindows(scheduleBase, breakWindows, actor);
-  const theoreticalSlotCount = calculateScheduleSlots(scheduleBase).length;
-  const availableSlotCount = Math.max(theoreticalSlotCount - blockedSlots.length, 0);
+  const scheduleBaseWithBreaks = { ...scheduleBase, break_windows: breakWindows };
+  const blockedSlots = buildBlockedSlotsFromBreakWindows(scheduleBaseWithBreaks, breakWindows, actor);
+  const theoreticalSlotCount = calculateBookableScheduleSlots(scheduleBaseWithBreaks).length;
+  const availableSlotCount = theoreticalSlotCount;
   const totalCapacity = availableSlotCount * Number(payload.max_patients || 1);
   const scheduleType = getScheduleTypeDefinition(payload.schedule_type || payload.scheduleType || DEFAULT_SCHEDULE_TYPE);
 
   let schedule;
   let reusedExistingSchedule = false;
   if (exactExistingSchedule) {
+    if (payload.conflict_strategy !== 'update_existing') {
+      throw createError('Lịch này đã tồn tại. Dùng conflict_strategy=update_existing nếu muốn cập nhật lịch hiện có.', 409);
+    }
+    assertScheduleWritable(exactExistingSchedule, actor);
+    const existingAppointmentsCount = await countScheduleAppointments(exactExistingSchedule._id);
+    if (existingAppointmentsCount > 0) {
+      throw createError('Lịch này đã tồn tại và có appointment, không thể ghi đè bằng create.', 409);
+    }
     applyCreateSchedulePayloadToExistingSchedule(
       exactExistingSchedule,
       payload,
       scheduleBase,
       breakWindows,
-      blockedSlots,
       actor,
     );
     schedule = await exactExistingSchedule.save();
@@ -675,12 +1422,14 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
         early_booking_enabled: payload.early_booking_enabled !== false,
         internal_note: payload.internal_note || payload.note || '',
         break_windows: breakWindows,
-        blocked_slots: blockedSlots,
-        status: payload.status || 'draft',
+        status: normalizeCreateScheduleStatus(payload.status),
         created_by: actor.userId,
       });
     } catch (error) {
       if (error?.code !== 11000) throw error;
+      if (payload.conflict_strategy !== 'update_existing') {
+        throw createError('Lịch này đã tồn tại. Dùng conflict_strategy=update_existing nếu muốn cập nhật lịch hiện có.', 409);
+      }
 
       const existingSchedule = await DoctorSchedule.findOne({
         doctor_id: payload.doctor_id,
@@ -692,11 +1441,13 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
 
       if (!existingSchedule) throw error;
 
-      applyCreateSchedulePayloadToExistingSchedule(existingSchedule, payload, scheduleBase, breakWindows, blockedSlots, actor);
+      assertScheduleWritable(existingSchedule, actor);
+      applyCreateSchedulePayloadToExistingSchedule(existingSchedule, payload, scheduleBase, breakWindows, actor);
       schedule = await existingSchedule.save();
       reusedExistingSchedule = true;
     }
   }
+  await generateScheduleSlots(schedule._id, actor, requestMeta);
   const notification = {
     type: reusedExistingSchedule ? 'schedule.updated_existing' : 'schedule.created',
     title: reusedExistingSchedule
@@ -780,9 +1531,50 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
   };
 }
 
-async function listDoctorSchedules(query = {}) {
+async function recordCreateDoctorScheduleFailure(payload = {}, actor = {}, requestMeta = {}, error = {}) {
+  try {
+    await recordAuditLog({
+      actor,
+      action: 'schedule.create',
+      targetType: 'doctor_schedule',
+      status: 'failure',
+      message: error.message || 'Tạo lịch làm việc bác sĩ thất bại.',
+      requestMeta,
+      metadata: {
+        notification: {
+          type: 'schedule.create_failed',
+          title: 'Tạo lịch bác sĩ thất bại',
+          message: error.message || 'Tạo lịch làm việc bác sĩ thất bại.',
+          status: 'failure',
+          doctor_id: payload?.doctor_id,
+          department_id: payload?.department_id,
+          work_date: payload?.work_date,
+          shift_start: payload?.shift_start,
+          shift_end: payload?.shift_end,
+          slot_duration_minutes: payload?.slot_duration_minutes,
+          max_patients_per_slot: payload?.max_patients,
+          schedule_type: payload?.schedule_type,
+        },
+      },
+    });
+  } catch (_) {
+    // Failure audit is best-effort and must not hide the original schedule error.
+  }
+}
+
+async function createDoctorSchedule(payload, actor, requestMeta = {}) {
+  try {
+    return await createDoctorScheduleInternal(payload, actor, requestMeta);
+  } catch (error) {
+    await recordCreateDoctorScheduleFailure(payload, actor, requestMeta, error);
+    throw error;
+  }
+}
+
+async function listDoctorSchedules(query = {}, actor = {}) {
   const { page, limit, skip } = getPagination(query);
   const filter = { is_deleted: false };
+  const range = validateDateRangeInput(query.date_from, query.date_to);
 
   if (query.doctor_id) filter.doctor_id = query.doctor_id;
   if (query.department_id) filter.department_id = query.department_id;
@@ -793,11 +1585,12 @@ async function listDoctorSchedules(query = {}) {
       .filter(Boolean);
     filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
   }
-  if (query.date_from || query.date_to) {
+  if (range) {
     filter.work_date = {};
-    if (query.date_from) filter.work_date.$gte = getStartOfDay(query.date_from);
-    if (query.date_to) filter.work_date.$lte = getEndOfDay(query.date_to);
+    if (range.dateFrom) filter.work_date.$gte = range.dateFrom;
+    if (range.dateTo) filter.work_date.$lte = range.dateTo;
   }
+  applyScheduleReadScope(filter, actor);
 
   const [items, total] = await Promise.all([
     DoctorSchedule.find(filter)
@@ -815,11 +1608,60 @@ async function listDoctorSchedules(query = {}) {
   };
 }
 
-async function getDoctorScheduleDetail(scheduleId) {
+function assertScheduleReadable(schedule, actor = {}) {
+  if (!actor?.actorType && !actor?.actor_type) return true;
+  const filter = {
+    _id: schedule._id,
+    doctor_id: schedule.doctor_id,
+    department_id: schedule.department_id,
+  };
+  applyScheduleReadScope(filter, actor);
+  if (filter._id === null) {
+    throw createError('Bạn không có quyền xem lịch này.', 403);
+  }
+  if (filter.doctor_id && String(filter.doctor_id) !== String(schedule.doctor_id)) {
+    throw createError('Bạn không có quyền xem lịch này.', 403);
+  }
+  if (filter.department_id && String(filter.department_id) !== String(schedule.department_id)) {
+    throw createError('Bạn không có quyền xem lịch này.', 403);
+  }
+  return true;
+}
+
+function assertScheduleWritable(schedule, actor = {}) {
+  if (!actor?.actorType && !actor?.actor_type) {
+    throw createError('Bạn chưa được xác thực.', 401);
+  }
+
+  if (hasGlobalScheduleScope(actor)) {
+    return true;
+  }
+
+  if (isDoctorActor(actor) || hasPermission(actor, PERMISSION.SCHEDULES.READ_OWN)) {
+    if (actor.userId && String(schedule.doctor_id) === String(actor.userId)) {
+      return true;
+    }
+    throw createError('Bác sĩ chỉ được thao tác lịch của chính mình.', 403);
+  }
+
+  const departmentId = actorDepartmentId(actor);
+  if (departmentId && String(schedule.department_id) === String(departmentId)) {
+    return true;
+  }
+
+  throw createError('Bạn không có quyền thao tác lịch này.', 403);
+}
+
+function assertScheduleTargetWritable({ doctor_id, department_id }, actor = {}) {
+  return assertScheduleWritable({ doctor_id, department_id }, actor);
+}
+
+async function getDoctorScheduleDetail(scheduleId, actor = {}) {
   const schedule = await DoctorSchedule.findById(scheduleId).lean();
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
 
   const [availableSlots, appointmentsCount, doctorMap, departmentMap] = await Promise.all([
     getAvailableSlots(schedule._id),
@@ -841,7 +1683,13 @@ async function getDoctorScheduleDetail(scheduleId) {
   return {
     schedule: {
       ...formatDoctorSchedule(schedule, doctorMap, departmentMap, slotStats),
-      blocked_slots: schedule.blocked_slots || [],
+      blocked_slots: availableSlots.items
+        .filter((item) => item.is_blocked)
+        .map((item) => ({
+          schedule_slot_id: item.schedule_slot_id,
+          slot_time: item.slot_time,
+          reason: item.block_reason,
+        })),
     },
     appointments_count: appointmentsCount,
     slots_summary: slotStats,
@@ -853,49 +1701,62 @@ async function updateDoctorSchedule(scheduleId, payload, actor, requestMeta = {}
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
+  assertScheduleWritable(schedule, actor);
 
-  const updateCheck = await checkScheduleCanBeUpdated(schedule._id);
+  const updateCheck = await checkScheduleCanBeUpdated(schedule._id, payload);
   if (!updateCheck.can_update) {
-    throw createError('Lịch đã có appointment nên không thể sửa mạnh.', 409);
+    throw createError(updateCheck.reasons[0] || 'Lịch hiện không thể cập nhật.', 409);
   }
 
-  const mergedPayload = {
-    work_date: payload.work_date || schedule.work_date,
-    shift_start: payload.shift_start || schedule.shift_start,
-    shift_end: payload.shift_end || schedule.shift_end,
-    slot_duration_minutes: payload.slot_duration_minutes || schedule.slot_duration_minutes,
-  };
+  const hasDangerousChange = Object.keys(payload || {}).some((field) => SCHEDULE_DANGEROUS_UPDATE_FIELDS.has(field));
+  let shouldRegenerateSlots = false;
 
-  const normalized = validateScheduleTimeRange(mergedPayload);
-  await validateDoctorBelongsToDepartment(payload.doctor_id || schedule.doctor_id, payload.department_id || schedule.department_id);
-  await validateScheduleConflict(
-    {
-      doctor_id: payload.doctor_id || schedule.doctor_id,
+  if (hasDangerousChange) {
+    const mergedPayload = {
+      work_date: payload.work_date || schedule.work_date,
+      shift_start: payload.shift_start || schedule.shift_start,
+      shift_end: payload.shift_end || schedule.shift_end,
+      slot_duration_minutes: payload.slot_duration_minutes || schedule.slot_duration_minutes,
+      max_patients: payload.max_patients !== undefined ? payload.max_patients : schedule.max_patients,
+    };
+
+    const normalized = validateScheduleTimeRange(mergedPayload);
+    await validateDoctorBelongsToDepartment(payload.doctor_id || schedule.doctor_id, payload.department_id || schedule.department_id);
+    await validateScheduleConflict(
+      {
+        doctor_id: payload.doctor_id || schedule.doctor_id,
+        work_date: normalized.workDate,
+        shift_start: normalized.shiftStart,
+        shift_end: normalized.shiftEnd,
+      },
+      schedule._id,
+    );
+
+    const nextScheduleBase = {
       work_date: normalized.workDate,
       shift_start: normalized.shiftStart,
       shift_end: normalized.shiftEnd,
-    },
-    schedule._id,
-  );
+      slot_duration_minutes: normalized.slotDuration,
+    };
+    const shouldUpdateBreakWindows = Array.isArray(payload.break_windows);
+    const nextBreakWindows = shouldUpdateBreakWindows
+      ? normalizeScheduleBreakWindows(nextScheduleBase, payload)
+      : schedule.break_windows || [];
 
-  const nextScheduleBase = {
-    work_date: normalized.workDate,
-    shift_start: normalized.shiftStart,
-    shift_end: normalized.shiftEnd,
-    slot_duration_minutes: normalized.slotDuration,
-  };
-  const shouldUpdateBreakWindows = Array.isArray(payload.break_windows);
-  const nextBreakWindows = shouldUpdateBreakWindows
-    ? normalizeScheduleBreakWindows(nextScheduleBase, payload)
-    : schedule.break_windows || [];
+    schedule.doctor_id = payload.doctor_id || schedule.doctor_id;
+    schedule.department_id = payload.department_id || schedule.department_id;
+    schedule.work_date = normalized.workDate;
+    schedule.shift_start = normalized.shiftStart;
+    schedule.shift_end = normalized.shiftEnd;
+    schedule.slot_duration_minutes = normalized.slotDuration;
+    schedule.max_patients = payload.max_patients !== undefined ? payload.max_patients : schedule.max_patients;
+    if (shouldUpdateBreakWindows) {
+      schedule.break_windows = nextBreakWindows;
+    }
+    shouldRegenerateSlots = true;
+  }
 
-  schedule.doctor_id = payload.doctor_id || schedule.doctor_id;
-  schedule.department_id = payload.department_id || schedule.department_id;
-  schedule.work_date = normalized.workDate;
-  schedule.shift_start = normalized.shiftStart;
-  schedule.shift_end = normalized.shiftEnd;
-  schedule.slot_duration_minutes = normalized.slotDuration;
-  schedule.max_patients = payload.max_patients !== undefined ? payload.max_patients : schedule.max_patients;
   schedule.schedule_type = (payload.schedule_type || payload.scheduleType)
     ? normalizeScheduleType(payload.schedule_type || payload.scheduleType)
     : normalizeScheduleType(schedule.schedule_type);
@@ -904,16 +1765,12 @@ async function updateDoctorSchedule(scheduleId, payload, actor, requestMeta = {}
   if (payload.return_visit_priority !== undefined) schedule.return_visit_priority = payload.return_visit_priority === true;
   if (payload.early_booking_enabled !== undefined) schedule.early_booking_enabled = payload.early_booking_enabled !== false;
   if (payload.internal_note !== undefined || payload.note !== undefined) schedule.internal_note = payload.internal_note || payload.note || '';
-  if (shouldUpdateBreakWindows) {
-    const manualBlockedSlots = (schedule.blocked_slots || []).filter((slot) => slot.reason !== 'Nghỉ giữa khung giờ');
-    schedule.break_windows = nextBreakWindows;
-    schedule.blocked_slots = [
-      ...manualBlockedSlots,
-      ...buildBlockedSlotsFromBreakWindows(nextScheduleBase, nextBreakWindows, actor),
-    ];
-  }
   schedule.updated_by = actor.userId;
   await schedule.save();
+
+  if (shouldRegenerateSlots) {
+    await generateScheduleSlots(schedule._id, actor, requestMeta);
+  }
 
   await recordAuditLog({
     actor,
@@ -929,9 +1786,16 @@ async function updateDoctorSchedule(scheduleId, payload, actor, requestMeta = {}
 }
 
 async function publishDoctorSchedule(scheduleId, actor, requestMeta = {}) {
+  const before = await DoctorSchedule.findById(scheduleId).lean();
+  if (!before || before.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc.', 404);
+  }
+  assertScheduleReadable(before, actor);
+  assertScheduleWritable(before, actor);
+  await generateScheduleSlots(scheduleId, actor, requestMeta);
   const schedule = await validateScheduleBeforePublish(scheduleId);
   const document = await DoctorSchedule.findById(schedule._id);
-  document.status = 'active';
+  document.status = SCHEDULE_STATUS.PUBLISHED;
   document.updated_by = actor.userId;
   await document.save();
 
@@ -943,6 +1807,8 @@ async function publishDoctorSchedule(scheduleId, actor, requestMeta = {}) {
     status: 'success',
     message: 'Mở lịch làm việc cho đặt khám thành công.',
     requestMeta,
+    before: { status: before.status },
+    after: { status: document.status },
   });
 
   return getDoctorScheduleDetail(document._id);
@@ -953,15 +1819,38 @@ async function cancelDoctorSchedule(scheduleId, actor, requestMeta = {}) {
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
+  assertScheduleWritable(schedule, actor);
+  const beforeStatus = schedule.status;
 
   const cancellationCheck = await checkScheduleCanBeCancelled(schedule._id);
   if (!cancellationCheck.can_cancel) {
     throw createError('Lịch đang có appointment nên chưa thể hủy trực tiếp.', 409);
   }
 
-  schedule.status = 'cancelled';
+  schedule.status = SCHEDULE_STATUS.CANCELLED;
   schedule.updated_by = actor.userId;
   await schedule.save();
+  await ScheduleSlot.updateMany(
+    {
+      doctor_schedule_id: schedule._id,
+      is_deleted: false,
+      status: { $in: [SCHEDULE_SLOT_STATUS.AVAILABLE, SCHEDULE_SLOT_STATUS.HELD, SCHEDULE_SLOT_STATUS.BLOCKED] },
+    },
+    {
+      $set: {
+        status: SCHEDULE_SLOT_STATUS.CANCELLED,
+        booked_count: 0,
+        updated_by: actor?.userId,
+      },
+      $unset: {
+        hold_expires_at: '',
+        block_reason: '',
+        appointment_id: '',
+        patient_id: '',
+      },
+    },
+  );
 
   await recordAuditLog({
     actor,
@@ -971,6 +1860,8 @@ async function cancelDoctorSchedule(scheduleId, actor, requestMeta = {}) {
     status: 'success',
     message: 'Hủy lịch làm việc bác sĩ thành công.',
     requestMeta,
+    before: { status: beforeStatus },
+    after: { status: schedule.status },
   });
 
   return getDoctorScheduleDetail(schedule._id);
@@ -981,10 +1872,38 @@ async function completeDoctorSchedule(scheduleId, actor, requestMeta = {}) {
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
+  assertScheduleWritable(schedule, actor);
+  const beforeStatus = schedule.status;
 
-  schedule.status = 'completed';
+  if (![SCHEDULE_STATUS.PUBLISHED, SCHEDULE_STATUS.ACTIVE].includes(schedule.status)) {
+    throw createError('Chỉ lịch published hoặc active mới được hoàn tất.', 409);
+  }
+  const activeAppointmentsCount = await Appointment.countDocuments(getActiveAppointmentFilter(schedule._id));
+  if (activeAppointmentsCount > 0) {
+    throw createError('Lịch còn appointment active nên chưa thể hoàn tất.', 409);
+  }
+
+  schedule.status = SCHEDULE_STATUS.COMPLETED;
   schedule.updated_by = actor.userId;
   await schedule.save();
+  await ScheduleSlot.updateMany(
+    {
+      doctor_schedule_id: schedule._id,
+      is_deleted: false,
+      status: { $in: [SCHEDULE_SLOT_STATUS.AVAILABLE, SCHEDULE_SLOT_STATUS.HELD, SCHEDULE_SLOT_STATUS.BLOCKED] },
+    },
+    {
+      $set: {
+        status: SCHEDULE_SLOT_STATUS.COMPLETED,
+        updated_by: actor?.userId,
+      },
+      $unset: {
+        hold_expires_at: '',
+        block_reason: '',
+      },
+    },
+  );
 
   await recordAuditLog({
     actor,
@@ -994,6 +1913,8 @@ async function completeDoctorSchedule(scheduleId, actor, requestMeta = {}) {
     status: 'success',
     message: 'Hoàn tất lịch làm việc bác sĩ thành công.',
     requestMeta,
+    before: { status: beforeStatus },
+    after: { status: schedule.status },
   });
 
   return getDoctorScheduleDetail(schedule._id);
@@ -1004,29 +1925,38 @@ async function blockScheduleSlot(scheduleId, payload, actor, requestMeta = {}) {
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
+  assertScheduleWritable(schedule, actor);
+  if (FINAL_SCHEDULE_STATUSES.includes(schedule.status)) {
+    throw createError('Không thể chặn slot thuộc lịch đã hủy hoặc hoàn tất.', 409);
+  }
 
   const slotTime = new Date(payload.slot_time);
   if (Number.isNaN(slotTime.getTime())) {
     throw createError('slot_time không hợp lệ.');
   }
 
-  const availableSlots = calculateScheduleSlots(schedule);
-  const targetSlot = availableSlots.find((slot) => new Date(slot.slot_time).getTime() === slotTime.getTime());
+  const targetSlot = findTheoreticalScheduleSlot(schedule, slotTime);
   if (!targetSlot) {
     throw createError('Slot cần chặn không thuộc lịch làm việc này.', 404);
   }
 
-  const exists = (schedule.blocked_slots || []).some((item) => new Date(item.slot_time).getTime() === slotTime.getTime());
-  if (!exists) {
-    schedule.blocked_slots.push({
-      slot_time: slotTime,
-      reason: payload.reason,
-      blocked_by: actor.userId,
-      blocked_at: new Date(),
-    });
-    schedule.updated_by = actor.userId;
-    await schedule.save();
+  const bookedAppointment = await Appointment.findOne({
+    ...getActiveAppointmentFilter(schedule._id),
+    appointment_time: slotTime,
+  }).lean();
+  if (bookedAppointment) {
+    throw createError('Slot này đã có lịch hẹn nên không thể chặn.', 409);
   }
+
+  const existingSlot = await ScheduleSlot.findOne({
+    doctor_schedule_id: schedule._id,
+    start_time: slotTime,
+    is_deleted: false,
+  }).lean();
+  const beforeStatus = existingSlot?.status || SCHEDULE_SLOT_STATUS.AVAILABLE;
+  const changed = existingSlot?.status !== SCHEDULE_SLOT_STATUS.BLOCKED;
+  await upsertScheduleSlotState(schedule, targetSlot, payload, actor, SCHEDULE_SLOT_STATUS.BLOCKED);
 
   await recordAuditLog({
     actor,
@@ -1036,7 +1966,9 @@ async function blockScheduleSlot(scheduleId, payload, actor, requestMeta = {}) {
     status: 'success',
     message: 'Chặn slot lịch làm việc thành công.',
     requestMeta,
-    metadata: { slot_time: slotTime },
+    before: { status: beforeStatus },
+    after: { status: SCHEDULE_SLOT_STATUS.BLOCKED },
+    metadata: { slot_time: slotTime, changed },
   });
 
   return getAvailableSlots(schedule._id);
@@ -1047,13 +1979,37 @@ async function reopenScheduleSlot(scheduleId, payload, actor, requestMeta = {}) 
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
+  assertScheduleWritable(schedule, actor);
+  if (!ACTIVE_SCHEDULE_STATUSES.includes(schedule.status)) {
+    throw createError('Chỉ mở lại slot khi lịch đã published hoặc active.', 409);
+  }
 
   const slotTime = new Date(payload.slot_time);
-  schedule.blocked_slots = (schedule.blocked_slots || []).filter(
-    (item) => new Date(item.slot_time).getTime() !== slotTime.getTime(),
-  );
-  schedule.updated_by = actor.userId;
-  await schedule.save();
+  if (Number.isNaN(slotTime.getTime())) {
+    throw createError('slot_time không hợp lệ.');
+  }
+
+  const targetSlot = findTheoreticalScheduleSlot(schedule, slotTime);
+  if (!targetSlot) {
+    throw createError('Slot cần mở lại không thuộc lịch làm việc này.', 404);
+  }
+
+  const bookedAppointment = await Appointment.findOne({
+    ...getActiveAppointmentFilter(schedule._id),
+    appointment_time: slotTime,
+  }).lean();
+  if (bookedAppointment) {
+    throw createError('Slot đang có appointment active nên không thể mở lại bằng endpoint thường.', 409);
+  }
+  const existingSlot = await ScheduleSlot.findOne({
+    doctor_schedule_id: schedule._id,
+    start_time: slotTime,
+    is_deleted: false,
+  }).lean();
+  const beforeStatus = existingSlot?.status || SCHEDULE_SLOT_STATUS.AVAILABLE;
+  const changed = existingSlot?.status === SCHEDULE_SLOT_STATUS.BLOCKED;
+  await upsertScheduleSlotState(schedule, targetSlot, payload, actor, SCHEDULE_SLOT_STATUS.AVAILABLE);
 
   await recordAuditLog({
     actor,
@@ -1063,7 +2019,9 @@ async function reopenScheduleSlot(scheduleId, payload, actor, requestMeta = {}) 
     status: 'success',
     message: 'Mở lại slot lịch làm việc thành công.',
     requestMeta,
-    metadata: { slot_time: slotTime },
+    before: { status: beforeStatus },
+    after: { status: SCHEDULE_SLOT_STATUS.AVAILABLE },
+    metadata: { slot_time: slotTime, changed },
   });
 
   return getAvailableSlots(schedule._id);
@@ -1074,27 +2032,44 @@ async function batchBlockScheduleSlots(scheduleId, payload, actor, requestMeta =
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
+  assertScheduleWritable(schedule, actor);
+  if (FINAL_SCHEDULE_STATUSES.includes(schedule.status)) {
+    throw createError('Không thể chặn slot thuộc lịch đã hủy hoặc hoàn tất.', 409);
+  }
 
   const slotTimes = resolveSlotTimesFromPayload(schedule, payload);
-  const existingBlockedSet = new Set((schedule.blocked_slots || []).map((item) => new Date(item.slot_time).toISOString()));
+  const existingSlotMap = await getScheduleSlotStateMap(schedule._id);
+  const activeAppointments = await Appointment.find({
+    ...getActiveAppointmentFilter(schedule._id),
+    appointment_time: { $in: slotTimes },
+  }).lean();
+  const bookedSet = new Set(activeAppointments.map((appointment) => new Date(appointment.appointment_time).toISOString()));
   let changedCount = 0;
+  const items = [];
 
   for (const slotTime of slotTimes) {
     const key = slotTime.toISOString();
-    if (!existingBlockedSet.has(key)) {
-      schedule.blocked_slots.push({
+    if (bookedSet.has(key)) {
+      items.push({
         slot_time: slotTime,
-        reason: payload.reason,
-        blocked_by: actor.userId,
-        blocked_at: new Date(),
+        success: false,
+        error_code: 'CONFLICT',
+        message: 'Slot này đã có lịch hẹn nên không thể chặn.',
       });
-      changedCount += 1;
+      continue;
     }
-  }
 
-  if (changedCount > 0) {
-    schedule.updated_by = actor.userId;
-    await schedule.save();
+    const targetSlot = findTheoreticalScheduleSlot(schedule, slotTime);
+    if (!targetSlot) continue;
+
+    if (existingSlotMap.get(key)?.status !== SCHEDULE_SLOT_STATUS.BLOCKED) changedCount += 1;
+    await upsertScheduleSlotState(schedule, targetSlot, payload, actor, SCHEDULE_SLOT_STATUS.BLOCKED);
+    items.push({
+      slot_time: slotTime,
+      success: true,
+      status: SCHEDULE_SLOT_STATUS.BLOCKED,
+    });
   }
 
   await recordAuditLog({
@@ -1114,6 +2089,9 @@ async function batchBlockScheduleSlots(scheduleId, payload, actor, requestMeta =
 
   return {
     changed_count: changedCount,
+    success_count: items.filter((item) => item.success).length,
+    failed_count: items.filter((item) => !item.success).length,
+    items,
     slots: await getAvailableSlots(schedule._id),
   };
 }
@@ -1123,19 +2101,43 @@ async function batchReopenScheduleSlots(scheduleId, payload, actor, requestMeta 
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
+  assertScheduleWritable(schedule, actor);
+  if (!ACTIVE_SCHEDULE_STATUSES.includes(schedule.status)) {
+    throw createError('Chỉ mở lại slot khi lịch đã published hoặc active.', 409);
+  }
 
   const slotTimes = resolveSlotTimesFromPayload(schedule, payload);
-  const reopenSet = new Set(slotTimes.map((slotTime) => slotTime.toISOString()));
-  const beforeCount = (schedule.blocked_slots || []).length;
+  const existingSlotMap = await getScheduleSlotStateMap(schedule._id);
+  const activeAppointments = await Appointment.find({
+    ...getActiveAppointmentFilter(schedule._id),
+    appointment_time: { $in: slotTimes },
+  }).lean();
+  const bookedSet = new Set(activeAppointments.map((appointment) => new Date(appointment.appointment_time).toISOString()));
+  let changedCount = 0;
+  const items = [];
 
-  schedule.blocked_slots = (schedule.blocked_slots || []).filter(
-    (item) => !reopenSet.has(new Date(item.slot_time).toISOString()),
-  );
-  const changedCount = beforeCount - schedule.blocked_slots.length;
+  for (const slotTime of slotTimes) {
+    const key = slotTime.toISOString();
+    const targetSlot = findTheoreticalScheduleSlot(schedule, slotTime);
+    if (!targetSlot) continue;
+    if (bookedSet.has(key)) {
+      items.push({
+        slot_time: slotTime,
+        success: false,
+        error_code: 'CONFLICT',
+        message: 'Slot đang có appointment active nên không thể mở lại.',
+      });
+      continue;
+    }
 
-  if (changedCount > 0) {
-    schedule.updated_by = actor.userId;
-    await schedule.save();
+    if (existingSlotMap.get(key)?.status === SCHEDULE_SLOT_STATUS.BLOCKED) changedCount += 1;
+    await upsertScheduleSlotState(schedule, targetSlot, payload, actor, SCHEDULE_SLOT_STATUS.AVAILABLE);
+    items.push({
+      slot_time: slotTime,
+      success: true,
+      status: SCHEDULE_SLOT_STATUS.AVAILABLE,
+    });
   }
 
   await recordAuditLog({
@@ -1154,31 +2156,35 @@ async function batchReopenScheduleSlots(scheduleId, payload, actor, requestMeta 
 
   return {
     changed_count: changedCount,
+    success_count: items.filter((item) => item.success).length,
+    failed_count: items.filter((item) => !item.success).length,
+    items,
     slots: await getAvailableSlots(schedule._id),
   };
 }
 
-async function listSchedulesByDoctor(doctorId, query = {}) {
-  return listDoctorSchedules({ ...query, doctor_id: doctorId });
+async function listSchedulesByDoctor(doctorId, query = {}, actor = {}) {
+  return listDoctorSchedules({ ...query, doctor_id: doctorId }, actor);
 }
 
-async function listSchedulesByDepartment(departmentId, query = {}) {
-  return listDoctorSchedules({ ...query, department_id: departmentId });
+async function listSchedulesByDepartment(departmentId, query = {}, actor = {}) {
+  return listDoctorSchedules({ ...query, department_id: departmentId }, actor);
 }
 
-async function listSchedulesByDateRange(dateFrom, dateTo, query = {}) {
-  return listDoctorSchedules({ ...query, date_from: dateFrom, date_to: dateTo });
+async function listSchedulesByDateRange(dateFrom, dateTo, query = {}, actor = {}) {
+  return listDoctorSchedules({ ...query, date_from: dateFrom, date_to: dateTo }, actor);
 }
 
-async function getDoctorCalendarView(doctorId, query = {}) {
-  return listSchedulesByDoctor(doctorId, query);
+async function getDoctorCalendarView(doctorId, query = {}, actor = {}) {
+  return listSchedulesByDoctor(doctorId, query, actor);
 }
 
-async function getScheduleUtilization(scheduleId) {
+async function getScheduleUtilization(scheduleId, actor = {}) {
   const schedule = await DoctorSchedule.findById(scheduleId).lean();
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
 
   const availableSlots = await getAvailableSlots(schedule._id);
   const total = availableSlots.items.length || 1;
@@ -1194,10 +2200,10 @@ async function getScheduleUtilization(scheduleId) {
   };
 }
 
-async function getDoctorScheduleSummary(scheduleId) {
+async function getDoctorScheduleSummary(scheduleId, actor = {}) {
   const [detail, utilization, futureAppointments] = await Promise.all([
-    getDoctorScheduleDetail(scheduleId),
-    getScheduleUtilization(scheduleId),
+    getDoctorScheduleDetail(scheduleId, actor),
+    getScheduleUtilization(scheduleId, actor),
     checkDoctorHasFutureAppointmentsInSchedule(scheduleId),
   ]);
 
@@ -1211,9 +2217,10 @@ async function getDoctorScheduleSummary(scheduleId) {
 function resolveSummaryDateRange(query = {}) {
   const now = new Date();
   if (query.date_from || query.date_to) {
+    const range = validateDateRangeInput(query.date_from || now, query.date_to || query.date_from || now);
     return {
-      dateFrom: getStartOfDay(query.date_from || now),
-      dateTo: getEndOfDay(query.date_to || query.date_from || now),
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
     };
   }
 
@@ -1372,7 +2379,6 @@ async function getSchedulingCreateOptions(query = {}) {
     status: 'active',
   };
 
-  if (query.department_id) filter.department_id = query.department_id;
   if (query.search) {
     const keyword = String(query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     filter.$or = [
@@ -1387,6 +2393,15 @@ async function getSchedulingCreateOptions(query = {}) {
     .sort({ full_name: 1 })
     .lean();
   const doctorIds = users.map((user) => user._id);
+  const profiles = doctorIds.length
+    ? await DoctorProfile.find({
+        user_id: { $in: doctorIds },
+        is_deleted: false,
+        status: DOCTOR_PROFILE_STATUS.ACTIVE,
+        ...(query.department_id ? { department_id: query.department_id } : {}),
+      }).select('user_id department_id specialty consultation_duration_minutes status').lean()
+    : [];
+  const profileMap = new Map(profiles.map((profile) => [String(profile.user_id), profile]));
   const loadRows = doctorIds.length
     ? await DoctorSchedule.aggregate([
         {
@@ -1406,9 +2421,10 @@ async function getSchedulingCreateOptions(query = {}) {
     departments: departments.map(formatDepartmentOption),
     schedule_types: getScheduleTypeCatalog(),
     doctors: users
-      .filter((user) => !user.department_id || departmentMap.has(String(user.department_id)))
+      .filter((user) => profileMap.has(String(user._id)))
       .map((user) => {
-        const department = user.department_id ? departmentMap.get(String(user.department_id)) : null;
+        const profile = profileMap.get(String(user._id));
+        const department = profile?.department_id ? departmentMap.get(String(profile.department_id)) : null;
         return {
           id: String(user._id),
           user_id: String(user._id),
@@ -1418,9 +2434,11 @@ async function getSchedulingCreateOptions(query = {}) {
           employee_code: user.employee_code,
           email: user.email,
           phone: user.phone,
-          department_id: user.department_id ? String(user.department_id) : null,
+          department_id: profile?.department_id ? String(profile.department_id) : null,
           department_name: department?.department_name || null,
           department_code: department?.department_code || null,
+          specialty: profile?.specialty || null,
+          consultation_duration_minutes: profile?.consultation_duration_minutes || null,
           active_schedules_count: loadMap.get(String(user._id)) || 0,
           status: user.status,
         };
@@ -1449,14 +2467,16 @@ async function previewCreateDoctorSchedule(payload = {}) {
     slot_duration_minutes: normalized.slotDuration,
   };
   const breakWindows = normalizeScheduleBreakWindows(scheduleBase, payload);
-  const blockedBreakSlots = buildBlockedSlotsFromBreakWindows(scheduleBase, breakWindows);
+  const scheduleBaseWithBreaks = { ...scheduleBase, break_windows: breakWindows };
+  const blockedBreakSlots = buildBlockedSlotsFromBreakWindows(scheduleBaseWithBreaks, breakWindows);
   const conflicts = await findScheduleConflicts({
     doctor_id: payload.doctor_id,
     work_date: normalized.workDate,
     shift_start: normalized.shiftStart,
     shift_end: normalized.shiftEnd,
   });
-  const totalSlots = calculateScheduleSlots(scheduleBase).length;
+  const rawSlots = calculateScheduleSlots(scheduleBase).length;
+  const totalSlots = calculateBookableScheduleSlots(scheduleBaseWithBreaks).length;
   const maxPatients = Number(payload.max_patients || 1);
   const warnings = [];
 
@@ -1499,8 +2519,9 @@ async function previewCreateDoctorSchedule(payload = {}) {
     break_windows: breakWindows,
     slots_summary: {
       total_slots: totalSlots,
+      raw_slots: rawSlots,
       blocked_slots: blockedBreakSlots.length,
-      available_slots: Math.max(totalSlots - blockedBreakSlots.length, 0),
+      available_slots: totalSlots,
       max_patients_per_slot: maxPatients,
       total_capacity: totalSlots * maxPatients,
     },
@@ -1509,7 +2530,7 @@ async function previewCreateDoctorSchedule(payload = {}) {
   };
 }
 
-async function getSchedulingSystemSummary(query = {}) {
+async function getSchedulingSystemSummary(query = {}, actor = {}) {
   const { dateFrom, dateTo } = resolveSummaryDateRange(query);
   const filter = {
     is_deleted: false,
@@ -1518,6 +2539,7 @@ async function getSchedulingSystemSummary(query = {}) {
 
   if (query.department_id) filter.department_id = query.department_id;
   if (query.doctor_id) filter.doctor_id = query.doctor_id;
+  applyScheduleReadScope(filter, actor);
 
   const schedules = await DoctorSchedule.find(filter).sort({ work_date: 1, shift_start: 1 }).lean();
   const items = await formatDoctorSchedulesWithStats(schedules);
@@ -1552,16 +2574,16 @@ async function getSchedulingSystemSummary(query = {}) {
   };
 }
 
-async function getScheduleSummaryByDepartment(query = {}) {
-  const summary = await getSchedulingSystemSummary(query);
+async function getScheduleSummaryByDepartment(query = {}, actor = {}) {
+  const summary = await getSchedulingSystemSummary(query, actor);
   return {
     range: summary.range,
     items: summary.by_department,
   };
 }
 
-async function getScheduleSummaryByDateRange(query = {}) {
-  const summary = await getSchedulingSystemSummary(query);
+async function getScheduleSummaryByDateRange(query = {}, actor = {}) {
+  const summary = await getSchedulingSystemSummary(query, actor);
   return {
     range: summary.range,
     overview: summary.overview,
@@ -1580,7 +2602,7 @@ async function getMyTodaySchedule(actor, query = {}) {
     date_from: getStartOfDay(today),
     date_to: getEndOfDay(today),
     limit: query.limit || 100,
-  });
+  }, actor);
 }
 
 async function getMyWeekSchedule(actor, query = {}) {
@@ -1594,14 +2616,15 @@ async function getMyWeekSchedule(actor, query = {}) {
     date_from: query.date_from || start,
     date_to: query.date_to || end,
     limit: query.limit || 100,
-  });
+  }, actor);
 }
 
-async function previewRescheduleImpact(scheduleId, payload = {}) {
+async function previewRescheduleImpact(scheduleId, payload = {}, actor = {}) {
   const schedule = await DoctorSchedule.findById(scheduleId).lean();
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
 
   const mergedPayload = {
     work_date: payload.work_date || schedule.work_date,
@@ -1617,7 +2640,7 @@ async function previewRescheduleImpact(scheduleId, payload = {}) {
     shift_end: normalized.shiftEnd,
     slot_duration_minutes: normalized.slotDuration,
   };
-  const proposedSlots = calculateScheduleSlots(proposedSchedule);
+  const proposedSlots = calculateBookableScheduleSlots(proposedSchedule);
   const proposedSlotSet = new Set(proposedSlots.map((slot) => new Date(slot.slot_time).toISOString()));
   const appointments = await Appointment.find(getActiveAppointmentFilter(schedule._id)).sort({ appointment_time: 1 }).lean();
 
@@ -1640,9 +2663,18 @@ async function previewRescheduleImpact(scheduleId, payload = {}) {
     })
     .filter(Boolean);
 
-  const affectedBlockedSlots = (schedule.blocked_slots || []).filter(
-    (slot) => !proposedSlotSet.has(new Date(slot.slot_time).toISOString()),
-  );
+  const blockedSlotDocs = await ScheduleSlot.find({
+    doctor_schedule_id: schedule._id,
+    status: 'blocked',
+    is_deleted: false,
+  }).lean();
+  const affectedBlockedSlots = blockedSlotDocs
+    .filter((slot) => !proposedSlotSet.has(new Date(slot.start_time).toISOString()))
+    .map((slot) => ({
+      schedule_slot_id: String(slot._id),
+      slot_time: slot.start_time,
+      reason: slot.block_reason,
+    }));
 
   return {
     schedule_id: String(schedule._id),
@@ -1674,6 +2706,8 @@ async function duplicateDoctorSchedule(scheduleId, payload = {}, actor, requestM
   if (!schedule || schedule.is_deleted) {
     throw createError('Không tìm thấy lịch làm việc.', 404);
   }
+  assertScheduleReadable(schedule, actor);
+  assertScheduleWritable(schedule, actor);
 
   const targetDate = payload.work_date;
   if (!targetDate) {
@@ -1688,7 +2722,7 @@ async function duplicateDoctorSchedule(scheduleId, payload = {}, actor, requestM
   const shiftEnd = new Date(baseDate);
   shiftEnd.setHours(originalEnd.getHours(), originalEnd.getMinutes(), originalEnd.getSeconds(), 0);
 
-  return createDoctorSchedule(
+  return createDoctorScheduleInternal(
     {
       doctor_id: payload.doctor_id || schedule.doctor_id,
       department_id: payload.department_id || schedule.department_id,
@@ -1728,7 +2762,26 @@ async function bulkCreateDoctorSchedules(payload = {}, actor, requestMeta = {}) 
     throw createError('items là mảng không rỗng.', 400);
   }
 
-  const preparedItems = await prepareBulkCreateItems(items);
+  const preparedItems = [];
+  const preflightFailures = new Map();
+  for (let index = 0; index < items.length; index += 1) {
+    try {
+      const [preparedItem] = await prepareBulkCreateItems([items[index]]);
+      preparedItems.push({ ...preparedItem, index });
+    } catch (error) {
+      preflightFailures.set(index, {
+        schedule_id: null,
+        success: false,
+        error_code: errorCodeFromError(error),
+        message: error.message || 'Dữ liệu tạo lịch không hợp lệ.',
+        doctor_id: items[index].doctor_id ? String(items[index].doctor_id) : null,
+        department_id: items[index].department_id ? String(items[index].department_id) : null,
+        work_date: items[index].work_date || null,
+        shift_start: items[index].shift_start || null,
+        shift_end: items[index].shift_end || null,
+      });
+    }
+  }
   const conflictResolution = payload.conflict_resolution || {};
   const replaceScheduleIds = normalizeScheduleIdList([
     ...normalizeScheduleIdList(conflictResolution.replace_schedule_ids),
@@ -1743,6 +2796,7 @@ async function bulkCreateDoctorSchedules(payload = {}, actor, requestMeta = {}) 
     if (!schedule || schedule.is_deleted) {
       throw createError(`Không tìm thấy lịch cần thay thế: ${scheduleId}.`, 404);
     }
+    assertScheduleWritable(schedule, actor);
 
     const matchesBulkItem = preparedItems.some((preparedItem) => scheduleOverlapsPreparedItem(schedule, preparedItem));
     if (!matchesBulkItem) {
@@ -1801,9 +2855,35 @@ async function bulkCreateDoctorSchedules(payload = {}, actor, requestMeta = {}) 
   }
 
   const results = [];
-  for (const item of items) {
-    results.push(await createDoctorSchedule(item, actor, requestMeta));
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (preflightFailures.has(index)) {
+      results.push(preflightFailures.get(index));
+      continue;
+    }
+    try {
+      const result = await createDoctorScheduleInternal(item, actor, requestMeta);
+      results.push({
+        schedule_id: result?.schedule?.doctor_schedule_id || result?.schedule?.schedule_id || null,
+        success: true,
+        status: result?.schedule?.status || null,
+        data: result,
+      });
+    } catch (error) {
+      results.push({
+        schedule_id: null,
+        success: false,
+        error_code: errorCodeFromError(error),
+        message: error.message || 'Tạo lịch thất bại.',
+        doctor_id: item.doctor_id ? String(item.doctor_id) : null,
+        department_id: item.department_id ? String(item.department_id) : null,
+        work_date: item.work_date || null,
+        shift_start: item.shift_start || null,
+        shift_end: item.shift_end || null,
+      });
+    }
   }
+  const successCount = results.filter((item) => item.success).length;
 
   for (const schedule of updatedConflictSchedules) {
     await recordAuditLog({
@@ -1824,7 +2904,9 @@ async function bulkCreateDoctorSchedules(payload = {}, actor, requestMeta = {}) 
   }
 
   return {
-    created_count: results.length,
+    success_count: successCount,
+    failed_count: results.length - successCount,
+    created_count: successCount,
     cancelled_conflict_count: cancelledConflictSchedules.length,
     cancelled_conflict_schedule_ids: cancelledConflictSchedules,
     updated_conflict_count: updatedConflictSchedules.length,
@@ -1840,54 +2922,138 @@ async function bulkPublishDoctorSchedules(scheduleIds = [], actor, requestMeta =
 
   const items = [];
   for (const scheduleId of [...new Set(scheduleIds)]) {
-    items.push(await publishDoctorSchedule(scheduleId, actor, requestMeta));
+    try {
+      const result = await publishDoctorSchedule(scheduleId, actor, requestMeta);
+      items.push({
+        schedule_id: String(scheduleId),
+        success: true,
+        status: result?.schedule?.status || SCHEDULE_STATUS.PUBLISHED,
+      });
+    } catch (error) {
+      items.push({
+        schedule_id: String(scheduleId),
+        success: false,
+        error_code: errorCodeFromError(error),
+        message: error.message || 'Publish lịch thất bại.',
+      });
+    }
   }
+  const successCount = items.filter((item) => item.success).length;
+
+  await recordAuditLog({
+    actor,
+    action: 'schedule.bulk_publish',
+    targetType: 'doctor_schedule',
+    status: 'success',
+    message: 'Publish hàng loạt lịch làm việc hoàn tất.',
+    requestMeta,
+    metadata: {
+      success_count: successCount,
+      failed_count: items.length - successCount,
+      schedule_ids: items.map((item) => item.schedule_id),
+    },
+  });
 
   return {
-    published_count: items.length,
+    success_count: successCount,
+    failed_count: items.length - successCount,
     items,
   };
 }
 
 module.exports = {
+  // createDoctorSchedule: Tạo lịch làm việc của bác sĩ.
   createDoctorSchedule,
+  // getSchedulingCreateOptions: Lấy tùy chọn tạo lịch làm việc.
   getSchedulingCreateOptions,
+  // previewCreateDoctorSchedule: Xem trước việc tạo lịch làm việc của bác sĩ.
   previewCreateDoctorSchedule,
+  // listDoctorSchedules: Liệt kê lịch làm việc của bác sĩ.
   listDoctorSchedules,
+  // getDoctorScheduleDetail: Lấy chi tiết lịch làm việc của bác sĩ.
   getDoctorScheduleDetail,
+  // updateDoctorSchedule: Cập nhật lịch làm việc của bác sĩ.
   updateDoctorSchedule,
+  // publishDoctorSchedule: Công bố lịch làm việc của bác sĩ.
   publishDoctorSchedule,
+  // cancelDoctorSchedule: Hủy lịch làm việc của bác sĩ.
   cancelDoctorSchedule,
+  // completeDoctorSchedule: Hoàn tất lịch làm việc của bác sĩ.
   completeDoctorSchedule,
+  // getAvailableSlots: Lấy khung giờ trống.
   getAvailableSlots,
+  // generateScheduleSlots: Sinh/tạo khung giờ lịch làm việc.
+  generateScheduleSlots,
+  // markSlotBookedForAppointment: Đánh dấu khung giờ đã được đặt bởi lịch hẹn.
+  markSlotBookedForAppointment,
+  // releaseSlotForAppointment: Giải phóng khung giờ khi lịch hẹn được hủy hoặc đổi.
+  releaseSlotForAppointment,
+  // markSlotOutcomeForAppointment: Cập nhật kết quả sử dụng khung giờ theo lịch hẹn.
+  markSlotOutcomeForAppointment,
+  // blockScheduleSlot: Khóa khung giờ lịch làm việc để không cho đặt lịch.
   blockScheduleSlot,
+  // reopenScheduleSlot: Mở lại khung giờ lịch làm việc đã bị khóa.
   reopenScheduleSlot,
+  // getBookedSlots: Lấy khung giờ đã đặt.
   getBookedSlots,
+  // countScheduleAppointments: Đếm lịch hẹn thuộc lịch làm việc.
   countScheduleAppointments,
+  // calculateScheduleSlots: Tính toán khung giờ lịch làm việc.
   calculateScheduleSlots,
+  // calculateBookableScheduleSlots: Tính toán khung giờ lịch làm việc có thể đặt.
+  calculateBookableScheduleSlots,
+  // validateScheduleConflict: Kiểm tra tính hợp lệ của xung đột lịch làm việc.
   validateScheduleConflict,
+  // validateDoctorBelongsToDepartment: Kiểm tra tính hợp lệ của bác sĩ thuộc khoa/phòng ban.
   validateDoctorBelongsToDepartment,
+  // validateScheduleTimeRange: Kiểm tra tính hợp lệ của khoảng thời gian lịch làm việc.
   validateScheduleTimeRange,
+  // validateScheduleBeforePublish: Kiểm tra tính hợp lệ của lịch làm việc trước khi công bố.
   validateScheduleBeforePublish,
+  // checkScheduleCanBeUpdated: Kiểm tra điều kiện cập nhật lịch làm việc.
   checkScheduleCanBeUpdated,
+  // checkScheduleCanBeCancelled: Kiểm tra điều kiện hủy lịch làm việc.
   checkScheduleCanBeCancelled,
+  // getScheduleActivityLog: Lấy nhật ký hoạt động lịch làm việc.
   getScheduleActivityLog,
+  // listSchedulesByDoctor: Liệt kê lịch làm việc theo bác sĩ.
   listSchedulesByDoctor,
+  // listSchedulesByDepartment: Liệt kê lịch làm việc theo khoa/phòng ban.
   listSchedulesByDepartment,
+  // listSchedulesByDateRange: Liệt kê lịch làm việc theo khoảng ngày.
   listSchedulesByDateRange,
+  // getDoctorCalendarView: Lấy lịch hiển thị của bác sĩ.
   getDoctorCalendarView,
+  // getScheduleUtilization: Lấy mức sử dụng của lịch làm việc.
   getScheduleUtilization,
+  // duplicateDoctorSchedule: Sao chép lịch làm việc của bác sĩ.
   duplicateDoctorSchedule,
+  // bulkCreateDoctorSchedules: Tạo nhiều lịch làm việc của bác sĩ trong một thao tác.
   bulkCreateDoctorSchedules,
+  // bulkPublishDoctorSchedules: Công bố nhiều lịch làm việc của bác sĩ trong một thao tác.
   bulkPublishDoctorSchedules,
+  // batchBlockScheduleSlots: Khóa nhiều khung giờ lịch làm việc trong một thao tác.
   batchBlockScheduleSlots,
+  // batchReopenScheduleSlots: Mở lại nhiều khung giờ lịch làm việc trong một thao tác.
   batchReopenScheduleSlots,
+  // getDoctorScheduleSummary: Lấy tổng hợp lịch làm việc của bác sĩ.
   getDoctorScheduleSummary,
+  // getSchedulingSystemSummary: Lấy tổng hợp toàn hệ thống lập lịch.
   getSchedulingSystemSummary,
+  // getScheduleSummaryByDepartment: Lấy tổng hợp lịch làm việc theo khoa/phòng ban.
   getScheduleSummaryByDepartment,
+  // getScheduleSummaryByDateRange: Lấy tổng hợp lịch làm việc theo khoảng ngày.
   getScheduleSummaryByDateRange,
+  // getMyTodaySchedule: Lấy lịch làm việc hôm nay của người dùng hiện tại.
   getMyTodaySchedule,
+  // getMyWeekSchedule: Lấy lịch làm việc trong tuần của người dùng hiện tại.
   getMyWeekSchedule,
+  // previewRescheduleImpact: Xem trước tác động khi đổi lịch.
   previewRescheduleImpact,
+  // checkDoctorHasFutureAppointmentsInSchedule: Kiểm tra bác sĩ còn lịch hẹn tương lai trong lịch làm việc.
   checkDoctorHasFutureAppointmentsInSchedule,
+  // assertScheduleReadable: Enforce read scope for schedule/slot probing.
+  assertScheduleReadable,
+  // assertScheduleWritable: Enforce write scope for schedule mutations.
+  assertScheduleWritable,
 };

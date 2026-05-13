@@ -1,6 +1,8 @@
 const { model } = require('mongoose');
 const { Schema, baseSchemaOptions, auditFields } = require('../common/base-model');
 
+// Bảng user_roles: Lưu quan hệ gán vai trò cho từng tài khoản nhân viên.
+
 const userRoleSchema = new Schema(
   {
     user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },

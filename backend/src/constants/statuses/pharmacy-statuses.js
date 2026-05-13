@@ -1,0 +1,112 @@
+const MEDICATION_STATUS = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+  RECALLED: 'recalled',
+  DISCONTINUED: 'discontinued',
+};
+
+const MEDICATION_STATUSES = Object.values(MEDICATION_STATUS);
+
+const PRESCRIPTION_STATUS = {
+  DRAFT: 'draft',
+  ACTIVE: 'active',
+  VERIFIED: 'verified',
+  PARTIALLY_DISPENSED: 'partially_dispensed',
+  FULLY_DISPENSED: 'fully_dispensed',
+  CANCELLED: 'cancelled',
+  COMPLETED: 'completed',
+};
+
+const PRESCRIPTION_STATUSES = Object.values(PRESCRIPTION_STATUS);
+
+const PRESCRIPTION_ITEM_STATUS = {
+  ACTIVE: 'active',
+  HELD: 'held',
+  STOPPED: 'stopped',
+  CANCELLED: 'cancelled',
+  COMPLETED: 'completed',
+};
+
+const PRESCRIPTION_ITEM_STATUSES = Object.values(PRESCRIPTION_ITEM_STATUS);
+
+const DISPENSE_STATUS = {
+  DRAFT: 'draft',
+  PARTIALLY_DISPENSED: 'partially_dispensed',
+  DISPENSED: 'dispensed',
+  CANCELLED: 'cancelled',
+  RETURNED: 'returned',
+};
+
+const DISPENSE_STATUSES = Object.values(DISPENSE_STATUS);
+
+const DISPENSE_ITEM_STATUS = {
+  PLANNED: 'planned',
+  DISPENSED: 'dispensed',
+  CANCELLED: 'cancelled',
+  RETURNED: 'returned',
+};
+
+const DISPENSE_ITEM_STATUSES = Object.values(DISPENSE_ITEM_STATUS);
+
+const ADMINISTRATION_STATUS = {
+  SCHEDULED: 'scheduled',
+  GIVEN: 'given',
+  HELD: 'held',
+  REFUSED: 'refused',
+  OMITTED: 'omitted',
+  CANCELLED: 'cancelled',
+  ENTERED_IN_ERROR: 'entered_in_error',
+};
+
+const ADMINISTRATION_STATUSES = Object.values(ADMINISTRATION_STATUS);
+
+const STOCK_BATCH_STATUS = {
+  AVAILABLE: 'available',
+  QUARANTINED: 'quarantined',
+  EXPIRED: 'expired',
+  RECALLED: 'recalled',
+  DEPLETED: 'depleted',
+};
+
+const STOCK_BATCH_STATUSES = Object.values(STOCK_BATCH_STATUS);
+
+const INVENTORY_TRANSACTION_TYPE = {
+  RECEIPT: 'receipt',
+  DISPENSE: 'dispense',
+  ADJUSTMENT: 'adjustment',
+  RETURN: 'return',
+  TRANSFER: 'transfer',
+  WASTE: 'waste',
+  EXPIRE: 'expire',
+  RECALL: 'recall',
+};
+
+const INVENTORY_TRANSACTION_TYPES = Object.values(INVENTORY_TRANSACTION_TYPE);
+
+const INVENTORY_TRANSACTION_DIRECTION = {
+  IN: 'in',
+  OUT: 'out',
+};
+
+const INVENTORY_TRANSACTION_DIRECTIONS = Object.values(INVENTORY_TRANSACTION_DIRECTION);
+
+module.exports = {
+  MEDICATION_STATUS,
+  MEDICATION_STATUSES,
+  PRESCRIPTION_STATUS,
+  PRESCRIPTION_STATUSES,
+  PRESCRIPTION_ITEM_STATUS,
+  PRESCRIPTION_ITEM_STATUSES,
+  DISPENSE_STATUS,
+  DISPENSE_STATUSES,
+  DISPENSE_ITEM_STATUS,
+  DISPENSE_ITEM_STATUSES,
+  ADMINISTRATION_STATUS,
+  ADMINISTRATION_STATUSES,
+  STOCK_BATCH_STATUS,
+  STOCK_BATCH_STATUSES,
+  INVENTORY_TRANSACTION_TYPE,
+  INVENTORY_TRANSACTION_TYPES,
+  INVENTORY_TRANSACTION_DIRECTION,
+  INVENTORY_TRANSACTION_DIRECTIONS,
+};

@@ -1,7 +1,8 @@
 const { model } = require('mongoose');
-const { Schema, baseSchemaOptions } = require('../common/base-model');
+const { Schema, baseSchemaOptions, auditFields } = require('../common/base-model');
+const { PRESCRIPTION_ITEM_STATUS, PRESCRIPTION_ITEM_STATUSES } = require('../../constants/statuses');
 
-const prescriptionItemStatuses = ['active', 'held', 'stopped', 'cancelled', 'completed'];
+// Bảng prescription_items: Lưu từng thuốc trong đơn, liều dùng, số lượng và hướng dẫn dùng thuốc.
 
 const prescriptionItemSchema = new Schema(
   {
@@ -11,10 +12,12 @@ const prescriptionItemSchema = new Schema(
     frequency: { type: String, trim: true },
     route: { type: String, trim: true },
     duration_days: { type: Number, min: 0 },
-    quantity: { type: Number, min: 0 },
+    quantity: { type: Number, required: true, min: 0 },
+    unit: { type: String, required: true, trim: true },
+    dispensed_quantity: { type: Number, default: 0, min: 0, required: true },
     instructions: { type: String },
-    status: { type: String, enum: prescriptionItemStatuses, default: 'active', required: true },
-    updated_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    status: { type: String, enum: PRESCRIPTION_ITEM_STATUSES, default: PRESCRIPTION_ITEM_STATUS.ACTIVE, required: true },
+    ...auditFields(),
   },
   { ...baseSchemaOptions, collection: 'prescription_items' },
 );
@@ -22,6 +25,20 @@ const prescriptionItemSchema = new Schema(
 prescriptionItemSchema.index({ prescription_id: 1 });
 prescriptionItemSchema.index({ medication_id: 1 });
 prescriptionItemSchema.index({ status: 1 });
-prescriptionItemSchema.index({ prescription_id: 1, medication_id: 1 });
+prescriptionItemSchema.index(
+  { prescription_id: 1, medication_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: {
+        $in: [
+          PRESCRIPTION_ITEM_STATUS.ACTIVE,
+          PRESCRIPTION_ITEM_STATUS.HELD,
+          PRESCRIPTION_ITEM_STATUS.COMPLETED,
+        ],
+      },
+    },
+  },
+);
 
 module.exports = model('PrescriptionItem', prescriptionItemSchema);

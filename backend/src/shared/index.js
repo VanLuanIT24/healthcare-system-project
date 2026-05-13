@@ -1,0 +1,15 @@
+module.exports = {
+  BaseRepository: require('../repositories/base.repository'),
+  transactionHelper: require('./db/transaction.helper'),
+  codeGeneratorService: require('../services/code-generator.service'),
+  auditService: require('../services/audit.service'),
+  permissionService: require('../services/permission.service'),
+  scopeService: require('../services/scope.service'),
+  actorContext: require('../common/actors'),
+  permissionChecker: require('../common/permissions'),
+  scopeChecker: require('../common/scopes'),
+  auditContext: require('../common/audit'),
+  statusTransitionUtil: require('./utils/status-transition'),
+  asyncHandler: require('./utils/async-handler'),
+  safeJsonUtil: require('./utils/safe-json.util'),
+};

@@ -1,13 +1,14 @@
-const { mongoose } = require('../config/database');
-const { AuditLog } = require('../models');
+const auditService = require('./audit.service');
+const codeGeneratorService = require('./code-generator.service');
+const { runInTransaction: runWithTransaction } = require('../shared/utils/transaction');
+const { createError: createFoundationError } = require('../common/errors/error-factory');
+const { startOfDay, endOfDay } = require('../common/helpers/date-time.helper');
 
 const requestIdempotencyStore = new Map();
 const bookingLockStore = new Map();
 
 function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
+  return createFoundationError(statusCode, message);
 }
 
 function normalizeString(value) {
@@ -105,28 +106,28 @@ async function recordAuditLog({
   status,
   message,
   requestMeta,
+  before,
+  after,
   metadata,
 }) {
-  try {
-    await AuditLog.create({
-      actor_type: actor?.actorType || actorType,
-      actor_id: actor?.userId || actor?.patientAccountId || actorId,
-      action,
-      target_type: targetType,
-      target_id: targetId,
-      status,
-      message,
-      ip_address: requestMeta?.ipAddress,
-      user_agent: requestMeta?.userAgent,
-      metadata,
-    });
-  } catch (error) {
-    console.error('Audit log write failed:', error.message);
-  }
+  return auditService.recordAuditLog({
+    actor,
+    actorType,
+    actorId,
+    action,
+    targetType,
+    targetId,
+    status,
+    message,
+    requestMeta,
+    before,
+    after,
+    metadata,
+  });
 }
 
 async function logAuditAction(payload) {
-  return recordAuditLog(payload);
+  return auditService.logAuditAction(payload);
 }
 
 async function recordWorkflowEvent({
@@ -139,19 +140,15 @@ async function recordWorkflowEvent({
   requestMeta,
   metadata,
 }) {
-  return recordAuditLog({
+  return auditService.recordWorkflowEvent({
     actor,
-    action: `workflow.${entityType}.${action}`,
-    targetType: entityType,
-    targetId: entityId,
-    status: 'success',
-    message: `Workflow ${entityType} chuyển từ ${fromStatus || 'unknown'} sang ${toStatus || 'unknown'}.`,
+    entityType,
+    entityId,
+    action,
+    fromStatus,
+    toStatus,
     requestMeta,
-    metadata: {
-      from_status: fromStatus,
-      to_status: toStatus,
-      ...metadata,
-    },
+    metadata,
   });
 }
 
@@ -203,18 +200,7 @@ function sanitizeOutput(payload, hiddenFields = ['password_hash', 'refresh_token
 }
 
 async function runInTransaction(work) {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const result = await work(session);
-    await session.commitTransaction();
-    return result;
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  return runWithTransaction(work);
 }
 
 function acquireBookingLock(lockKey, ttlMs = 15000) {
@@ -271,45 +257,66 @@ function assertValidStatusTransition(statusMap, currentStatus, nextStatus, entit
 }
 
 function generateCode(prefix) {
-  return `${prefix}${Date.now()}${Math.floor(100 + Math.random() * 900)}`;
+  return codeGeneratorService.generateCode(prefix);
 }
 
 function getStartOfDay(value) {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
+  return startOfDay(value);
 }
 
 function getEndOfDay(value) {
-  const date = new Date(value);
-  date.setHours(23, 59, 59, 999);
-  return date;
+  return endOfDay(value);
 }
 
 module.exports = {
+  // createError: Tạo lỗi nghiệp vụ chuẩn.
   createError,
+  // normalizeString: Chuẩn hóa chuỗi.
   normalizeString,
+  // normalizeLower: Chuẩn hóa chữ thường.
   normalizeLower,
+  // normalizePhone: Chuẩn hóa số điện thoại.
   normalizePhone,
+  // normalizeHumanName: Chuẩn hóa người tên.
   normalizeHumanName,
+  // escapeRegex: Escape chuỗi đầu vào để dùng an toàn trong biểu thức chính quy.
   escapeRegex,
+  // getPagination: Lấy thông tin phân trang.
   getPagination,
+  // validatePaginationParams: Kiểm tra tính hợp lệ của tham số phân trang.
   validatePaginationParams,
+  // buildListQueryOptions: Xây dựng tùy chọn truy vấn danh sách.
   buildListQueryOptions,
+  // buildPagination: Xây dựng thông tin phân trang.
   buildPagination,
+  // assertEntityExists: Bảo đảm đối tượng exists.
   assertEntityExists,
+  // assertEntityActive: Bảo đảm đối tượng đang hoạt động.
   assertEntityActive,
+  // sanitizeOutput: Làm sạch dữ liệu dữ liệu trả về.
   sanitizeOutput,
+  // recordAuditLog: Ghi nhận nhật ký kiểm toán.
   recordAuditLog,
+  // logAuditAction: Ghi log hành động audit.
   logAuditAction,
+  // recordWorkflowEvent: Ghi nhận sự kiện quy trình.
   recordWorkflowEvent,
+  // runInTransaction: Chạy trong giao dịch.
   runInTransaction,
+  // acquireBookingLock: Tạo/giữ khóa đặt lịch.
   acquireBookingLock,
+  // releaseBookingLock: Giải phóng khóa đặt lịch.
   releaseBookingLock,
+  // ensureIdempotency: Bảo đảm tính idempotent của thao tác.
   ensureIdempotency,
+  // getAllowedStatusTransitions: Lấy các chuyển trạng thái được phép.
   getAllowedStatusTransitions,
+  // assertValidStatusTransition: Bảo đảm chuyển trạng thái hợp lệ.
   assertValidStatusTransition,
+  // generateCode: Sinh/tạo mã.
   generateCode,
+  // getStartOfDay: Lấy mốc đầu ngày.
   getStartOfDay,
+  // getEndOfDay: Lấy mốc cuối ngày.
   getEndOfDay,
 };

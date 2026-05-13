@@ -1,12 +1,15 @@
 const {
   Appointment,
   Department,
+  DoctorProfile,
   DoctorSchedule,
   Encounter,
   Role,
   User,
   UserRole,
 } = require('../models');
+const { PERMISSION } = require('../constants/permissions');
+const permissionService = require('./permission.service');
 const {
   buildPagination,
   createError,
@@ -19,9 +22,46 @@ const {
   recordAuditLog,
 } = require('./core.service');
 
+const BLOCKING_SCHEDULE_STATUSES = ['draft', 'published', 'active'];
+
+function getActorDepartmentId(actor = {}) {
+  return actor.department_id || actor.departmentId || actor.user?.department_id || null;
+}
+
+function hasGlobalDepartmentRead(actor = {}) {
+  return permissionService.hasPermission(actor.permissions || [], PERMISSION.DEPARTMENTS.READ);
+}
+
+function hasScopedDepartmentRead(actor = {}) {
+  return permissionService.hasAnyPermission(actor.permissions || [], [
+    PERMISSION.DEPARTMENTS.READ_OWN,
+    PERMISSION.DEPARTMENTS.STAFF_READ,
+    PERMISSION.USERS.READ_DEPARTMENT,
+    PERMISSION.REPORTS.DEPARTMENT_PERFORMANCE_READ,
+  ]);
+}
+
+function assertCanAccessDepartment(departmentId, actor = {}) {
+  if (!actor || Object.keys(actor).length === 0 || hasGlobalDepartmentRead(actor)) return true;
+
+  if (hasScopedDepartmentRead(actor) && String(getActorDepartmentId(actor)) === String(departmentId)) {
+    return true;
+  }
+
+  throw createError('Bạn không được truy cập department ngoài phạm vi của mình.', 403);
+}
+
+function rejectUnknownFields(payload = {}, allowedFields = []) {
+  const allowed = new Set(allowedFields);
+  const unknown = Object.keys(payload || {}).filter((field) => !allowed.has(field));
+  if (unknown.length > 0) {
+    throw createError(`Trường không được phép: ${unknown.join(', ')}.`, 422);
+  }
+}
+
 async function validateDepartmentCodeUnique(departmentCode, excludeId = null) {
   const filter = {
-    department_code: normalizeString(departmentCode),
+    department_code: normalizeString(departmentCode)?.toUpperCase(),
     is_deleted: false,
   };
 
@@ -47,15 +87,44 @@ async function validateDepartmentHeadEligible(userId, departmentId = null) {
     throw createError('Chỉ được gán trưởng khoa cho tài khoản staff đang active.', 409);
   }
 
-  if (departmentId && user.department_id && String(user.department_id) !== String(departmentId)) {
-    throw createError('Staff được chọn không thuộc department này.', 409);
+  if (departmentId) {
+    if (!user.department_id) {
+      throw createError('Staff được chọn chưa thuộc department nào.', 409);
+    }
+    if (String(user.department_id) !== String(departmentId)) {
+      throw createError('Staff được chọn không thuộc department này.', 409);
+    }
+  }
+
+  const departmentHeadRole = await Role.findOne({ role_code: 'department_head', status: 'active', is_deleted: false }).lean();
+  if (departmentHeadRole) {
+    const hasHeadRole = await UserRole.exists({
+      user_id: user._id,
+      role_id: departmentHeadRole._id,
+      is_active: true,
+    });
+    if (!hasHeadRole) {
+      throw createError('Staff được chọn chưa có role department_head.', 409);
+    }
   }
 
   return user;
 }
 
 async function createDepartment(payload, actor, requestMeta = {}) {
-  const department_code = normalizeString(payload.department_code);
+  rejectUnknownFields(payload, [
+    'department_code',
+    'department_name',
+    'department_type',
+    'location_note',
+    'status',
+  ]);
+
+  if (payload.head_user_id !== undefined) {
+    throw createError('Không được gán head khi tạo department. Hãy dùng endpoint assign head sau khi staff thuộc department.', 403);
+  }
+
+  const department_code = normalizeString(payload.department_code)?.toUpperCase();
   const department_name = normalizeHumanName(payload.department_name);
 
   if (!department_code) {
@@ -67,15 +136,10 @@ async function createDepartment(payload, actor, requestMeta = {}) {
 
   await validateDepartmentCodeUnique(department_code);
 
-  if (payload.head_user_id) {
-    await validateDepartmentHeadEligible(payload.head_user_id);
-  }
-
   const department = await Department.create({
     department_code,
     department_name,
     department_type: normalizeString(payload.department_type) || undefined,
-    head_user_id: payload.head_user_id || undefined,
     location_note: normalizeString(payload.location_note) || undefined,
     status: payload.status || 'active',
     created_by: actor.userId,
@@ -83,7 +147,7 @@ async function createDepartment(payload, actor, requestMeta = {}) {
 
   await recordAuditLog({
     actor,
-    action: 'department.create',
+    action: 'departments.create',
     targetType: 'department',
     targetId: department._id,
     status: 'success',
@@ -91,13 +155,21 @@ async function createDepartment(payload, actor, requestMeta = {}) {
     requestMeta,
   });
 
-  return getDepartmentDetail(department._id);
+  return getDepartmentDetail(department._id, actor);
 }
 
-async function listDepartments(query = {}) {
+async function listDepartments(query = {}, actor = {}) {
   const { page, limit, skip } = getPagination(query);
   const filter = { is_deleted: false };
   const keyword = normalizeString(query.search);
+
+  if (!hasGlobalDepartmentRead(actor) && hasScopedDepartmentRead(actor)) {
+    const actorDepartmentId = getActorDepartmentId(actor);
+    if (!actorDepartmentId) {
+      throw createError('Tài khoản hiện tại chưa có department scope.', 403);
+    }
+    filter._id = actorDepartmentId;
+  }
 
   if (query.status) {
     filter.status = query.status;
@@ -151,11 +223,12 @@ async function listActiveDepartments() {
   };
 }
 
-async function getDepartmentDetail(departmentId) {
+async function getDepartmentDetail(departmentId, actor = {}) {
   const department = await Department.findById(departmentId).lean();
   if (!department || department.is_deleted) {
     throw createError('Không tìm thấy department.', 404);
   }
+  assertCanAccessDepartment(department._id, actor);
 
   const [head, staffCount] = await Promise.all([
     department.head_user_id ? User.findById(department.head_user_id).lean() : null,
@@ -189,14 +262,23 @@ async function getDepartmentDetail(departmentId) {
 }
 
 async function updateDepartment(departmentId, payload, actor, requestMeta = {}) {
+  rejectUnknownFields(payload, [
+    'department_code',
+    'department_name',
+    'department_type',
+    'location_note',
+  ]);
+
   const department = await Department.findById(departmentId);
   if (!department || department.is_deleted) {
     throw createError('Không tìm thấy department.', 404);
   }
 
+  const before = department.toObject();
+
   if (payload.department_code && payload.department_code !== department.department_code) {
     await validateDepartmentCodeUnique(payload.department_code, department._id);
-    department.department_code = normalizeString(payload.department_code);
+    department.department_code = normalizeString(payload.department_code)?.toUpperCase();
   }
 
   if (payload.department_name) {
@@ -211,29 +293,22 @@ async function updateDepartment(departmentId, payload, actor, requestMeta = {}) 
     department.location_note = normalizeString(payload.location_note) || undefined;
   }
 
-  if (payload.head_user_id !== undefined) {
-    if (payload.head_user_id) {
-      await validateDepartmentHeadEligible(payload.head_user_id, department._id);
-      department.head_user_id = payload.head_user_id;
-    } else {
-      department.head_user_id = undefined;
-    }
-  }
-
   department.updated_by = actor.userId;
   await department.save();
 
   await recordAuditLog({
     actor,
-    action: 'department.update',
+    action: 'departments.update',
     targetType: 'department',
     targetId: department._id,
     status: 'success',
     message: 'Cập nhật department thành công.',
     requestMeta,
+    before,
+    after: department.toObject(),
   });
 
-  return getDepartmentDetail(department._id);
+  return getDepartmentDetail(department._id, actor);
 }
 
 async function checkDepartmentHasActiveStaff(departmentId) {
@@ -252,17 +327,48 @@ async function checkDepartmentHasActiveStaff(departmentId) {
 
 async function checkDepartmentCanBeDeactivated(departmentId) {
   const now = new Date();
-  const activeSchedules = await DoctorSchedule.countDocuments({
-    department_id: departmentId,
-    is_deleted: false,
-    work_date: { $gte: getStartOfDay(now) },
-    status: { $in: ['published', 'active'] },
-  });
+  const [activeStaff, activeSchedules, futureAppointments, openEncounters, activeDoctors] = await Promise.all([
+    User.countDocuments({
+      department_id: departmentId,
+      is_deleted: false,
+      status: 'active',
+    }),
+    DoctorSchedule.countDocuments({
+      department_id: departmentId,
+      is_deleted: false,
+      work_date: { $gte: getStartOfDay(now) },
+      status: { $in: BLOCKING_SCHEDULE_STATUSES },
+    }),
+    Appointment.countDocuments({
+      department_id: departmentId,
+      is_deleted: false,
+      appointment_time: { $gte: now },
+      status: { $in: ['booked', 'confirmed', 'checked_in', 'in_consultation'] },
+    }),
+    Encounter.countDocuments({
+      department_id: departmentId,
+      status: { $in: ['planned', 'arrived', 'in_progress', 'on_hold'] },
+    }),
+    DoctorProfile.countDocuments({
+      department_id: departmentId,
+      is_deleted: false,
+      status: 'active',
+    }),
+  ]);
 
   return {
     department_id: String(departmentId),
-    can_deactivate: activeSchedules === 0,
+    can_deactivate:
+      activeStaff === 0 &&
+      activeSchedules === 0 &&
+      futureAppointments === 0 &&
+      openEncounters === 0 &&
+      activeDoctors === 0,
+    active_staff_count: activeStaff,
     active_schedule_count: activeSchedules,
+    future_appointment_count: futureAppointments,
+    open_encounter_count: openEncounters,
+    active_doctor_profile_count: activeDoctors,
   };
 }
 
@@ -271,7 +377,7 @@ async function checkDepartmentHasFutureSchedules(departmentId) {
     department_id: departmentId,
     is_deleted: false,
     work_date: { $gte: getStartOfDay(new Date()) },
-    status: { $in: ['draft', 'published', 'active'] },
+    status: { $in: BLOCKING_SCHEDULE_STATUSES },
   });
 
   return {
@@ -329,26 +435,29 @@ async function updateDepartmentStatus(departmentId, status, actor, requestMeta =
   if (status === 'inactive') {
     const deactivationCheck = await checkDepartmentCanBeDeactivated(department._id);
     if (!deactivationCheck.can_deactivate) {
-      throw createError('Department đang có lịch làm việc active/published nên chưa thể inactive.', 409);
+      throw createError('Department đang có staff/lịch/hẹn/encounter active nên chưa thể inactive.', 409);
     }
   }
 
+  const before = department.toObject();
   department.status = status;
   department.updated_by = actor.userId;
   await department.save();
 
   await recordAuditLog({
     actor,
-    action: 'department.update_status',
+    action: 'departments.status_update',
     targetType: 'department',
     targetId: department._id,
     status: 'success',
     message: 'Cập nhật trạng thái department thành công.',
     requestMeta,
     metadata: { status },
+    before,
+    after: department.toObject(),
   });
 
-  return getDepartmentDetail(department._id);
+  return getDepartmentDetail(department._id, actor);
 }
 
 async function deleteDepartmentSoft(departmentId, actor, requestMeta = {}) {
@@ -362,6 +471,7 @@ async function deleteDepartmentSoft(departmentId, actor, requestMeta = {}) {
     throw createError('Department vẫn đang được sử dụng, chưa thể xóa mềm.', 409);
   }
 
+  const before = department.toObject();
   department.is_deleted = true;
   department.deleted_at = new Date();
   department.deleted_by = actor.userId;
@@ -371,12 +481,14 @@ async function deleteDepartmentSoft(departmentId, actor, requestMeta = {}) {
 
   await recordAuditLog({
     actor,
-    action: 'department.soft_delete',
+    action: 'departments.delete_soft',
     targetType: 'department',
     targetId: department._id,
     status: 'success',
     message: 'Xóa mềm department thành công.',
     requestMeta,
+    before,
+    after: department.toObject(),
   });
 
   return { success: true };
@@ -389,22 +501,25 @@ async function assignDepartmentHead(departmentId, userId, actor, requestMeta = {
   }
 
   await validateDepartmentHeadEligible(userId, department._id);
+  const before = department.toObject();
   department.head_user_id = userId;
   department.updated_by = actor.userId;
   await department.save();
 
   await recordAuditLog({
     actor,
-    action: 'department.assign_head',
+    action: 'departments.assign_head',
     targetType: 'department',
     targetId: department._id,
     status: 'success',
     message: 'Gán trưởng khoa/phòng thành công.',
     requestMeta,
     metadata: { head_user_id: userId },
+    before,
+    after: department.toObject(),
   });
 
-  return getDepartmentDetail(department._id);
+  return getDepartmentDetail(department._id, actor);
 }
 
 async function removeDepartmentHead(departmentId, actor, requestMeta = {}) {
@@ -413,36 +528,40 @@ async function removeDepartmentHead(departmentId, actor, requestMeta = {}) {
     throw createError('Không tìm thấy department.', 404);
   }
 
+  const before = department.toObject();
   department.head_user_id = undefined;
   department.updated_by = actor.userId;
   await department.save();
 
   await recordAuditLog({
     actor,
-    action: 'department.remove_head',
+    action: 'departments.remove_head',
     targetType: 'department',
     targetId: department._id,
     status: 'success',
     message: 'Gỡ trưởng khoa/phòng thành công.',
     requestMeta,
+    before,
+    after: department.toObject(),
   });
 
-  return getDepartmentDetail(department._id);
+  return getDepartmentDetail(department._id, actor);
 }
 
-async function getDepartmentHead(departmentId) {
-  const detail = await getDepartmentDetail(departmentId);
+async function getDepartmentHead(departmentId, actor = {}) {
+  const detail = await getDepartmentDetail(departmentId, actor);
   return {
     department_id: detail.department.department_id,
     head: detail.head,
   };
 }
 
-async function listDepartmentStaff(departmentId, query = {}) {
+async function listDepartmentStaff(departmentId, query = {}, actor = {}) {
   const department = await Department.findById(departmentId).lean();
   if (!department || department.is_deleted) {
     throw createError('Không tìm thấy department.', 404);
   }
+  assertCanAccessDepartment(department._id, actor);
 
   const { page, limit, skip } = getPagination(query);
   const filter = { department_id: department._id, is_deleted: false };
@@ -455,25 +574,34 @@ async function listDepartmentStaff(departmentId, query = {}) {
     User.countDocuments(filter),
   ]);
 
+  const canReadFullStaff = permissionService.hasPermission(actor.permissions || [], PERMISSION.USERS.READ);
+
   return {
     department: {
       department_id: String(department._id),
       department_name: department.department_name,
     },
-    items: items.map((user) => ({
-      user_id: String(user._id),
-      username: user.username,
-      full_name: user.full_name,
-      email: user.email,
-      phone: user.phone,
-      employee_code: user.employee_code,
-      status: user.status,
-    })),
+    items: items.map((user) => {
+      const base = {
+        user_id: String(user._id),
+        full_name: user.full_name,
+        status: user.status,
+      };
+      if (!canReadFullStaff) return base;
+      return {
+        ...base,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+        employee_code: user.employee_code,
+      };
+    }),
     pagination: buildPagination(page, limit, total),
   };
 }
 
-async function countDepartmentStaff(departmentId) {
+async function countDepartmentStaff(departmentId, actor = {}) {
+  assertCanAccessDepartment(departmentId, actor);
   const total = await User.countDocuments({ department_id: departmentId, is_deleted: false });
   const active = await User.countDocuments({ department_id: departmentId, is_deleted: false, status: 'active' });
   return {
@@ -483,18 +611,19 @@ async function countDepartmentStaff(departmentId) {
   };
 }
 
-async function getDepartmentSummary(departmentId, query = {}) {
+async function getDepartmentSummary(departmentId, query = {}, actor = {}) {
   const department = await Department.findById(departmentId).lean();
   if (!department || department.is_deleted) {
     throw createError('Không tìm thấy department.', 404);
   }
+  assertCanAccessDepartment(department._id, actor);
 
   const todayStart = getStartOfDay(query.date || new Date());
   const todayEnd = getEndOfDay(query.date || new Date());
 
   const [staff, doctorRole, schedulesToday, appointmentsToday, activeStaffCheck, futureSchedules, futureAppointments] =
     await Promise.all([
-      countDepartmentStaff(department._id),
+      countDepartmentStaff(department._id, actor),
       Role.findOne({ role_code: 'doctor', is_deleted: false }).lean(),
       DoctorSchedule.countDocuments({
         department_id: department._id,
@@ -546,25 +675,48 @@ async function getDepartmentSummary(departmentId, query = {}) {
 }
 
 module.exports = {
+  // createDepartment: Tạo khoa/phòng ban.
   createDepartment,
+  // listDepartments: Liệt kê khoa/phòng ban.
   listDepartments,
+  // searchDepartments: Tìm kiếm khoa/phòng ban.
   searchDepartments,
+  // listActiveDepartments: Liệt kê khoa/phòng ban đang hoạt động.
   listActiveDepartments,
+  // getDepartmentDetail: Lấy chi tiết khoa/phòng ban.
   getDepartmentDetail,
+  // updateDepartment: Cập nhật khoa/phòng ban.
   updateDepartment,
+  // updateDepartmentStatus: Cập nhật trạng thái khoa/phòng ban.
   updateDepartmentStatus,
+  // deleteDepartmentSoft: Xóa mềm khoa/phòng ban.
   deleteDepartmentSoft,
+  // assignDepartmentHead: Gán trưởng khoa/phòng ban.
   assignDepartmentHead,
+  // removeDepartmentHead: Gỡ/xóa trưởng khoa/phòng ban.
   removeDepartmentHead,
+  // getDepartmentHead: Lấy trưởng khoa/phòng ban.
   getDepartmentHead,
+  // listDepartmentStaff: Liệt kê nhân sự thuộc khoa/phòng ban.
   listDepartmentStaff,
+  // countDepartmentStaff: Đếm nhân sự thuộc khoa/phòng ban.
   countDepartmentStaff,
+  // validateDepartmentCodeUnique: Kiểm tra tính hợp lệ của tính duy nhất của mã khoa/phòng ban.
   validateDepartmentCodeUnique,
+  // validateDepartmentHeadEligible: Kiểm tra tính hợp lệ của điều kiện làm trưởng khoa/phòng ban.
   validateDepartmentHeadEligible,
+  // assertCanAccessDepartment: Bảo đảm quyền truy cập khoa/phòng ban.
+  assertCanAccessDepartment,
+  // checkDepartmentHasActiveStaff: Kiểm tra khoa/phòng ban còn nhân sự đang hoạt động.
   checkDepartmentHasActiveStaff,
+  // checkDepartmentCanBeDeactivated: Kiểm tra điều kiện vô hiệu hóa khoa/phòng ban.
   checkDepartmentCanBeDeactivated,
+  // checkDepartmentHasFutureSchedules: Kiểm tra khoa/phòng ban có lịch làm việc tương lai.
   checkDepartmentHasFutureSchedules,
+  // checkDepartmentHasFutureAppointments: Kiểm tra khoa/phòng ban có lịch hẹn tương lai.
   checkDepartmentHasFutureAppointments,
+  // checkDepartmentInUse: Kiểm tra việc khoa/phòng ban đang được sử dụng.
   checkDepartmentInUse,
+  // getDepartmentSummary: Lấy tổng hợp khoa/phòng ban.
   getDepartmentSummary,
 };

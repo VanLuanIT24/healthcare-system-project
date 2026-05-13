@@ -1,37 +1,21 @@
 const prescriptionService = require('../services/prescription.service');
-const { errorResponse, successResponse } = require('../utils/http-response');
-
-function requestMeta(req) {
-  return {
-    userAgent: req.get('user-agent'),
-    ipAddress: req.ip,
-  };
-}
-
-function wrap(serviceMethod, successMessage, statusCode = 200) {
-  return async function wrapped(req, res) {
-    try {
-      const result = await serviceMethod(req, res);
-      return successResponse(res, { statusCode, message: successMessage, data: result });
-    } catch (error) {
-      return errorResponse(res, error);
-    }
-  };
-}
+const { controllerHandler: wrap, markLegacyControllerError, requestMeta, sendSuccess } = require('../common/controllers');
 
 module.exports = {
   createPrescription: wrap((req) => prescriptionService.createPrescription(req.body, req.auth, requestMeta(req)), 'Tạo đơn thuốc thành công.', 201),
-  listPrescriptions: wrap((req) => prescriptionService.listPrescriptions(req.query), 'Lấy danh sách đơn thuốc thành công.'),
-  searchPrescriptions: wrap((req) => prescriptionService.searchPrescriptions(req.query), 'Tìm kiếm đơn thuốc thành công.'),
-  getPrescriptionSummary: wrap((req) => prescriptionService.getPrescriptionSummary(req.params.prescriptionId), 'Lấy tóm tắt đơn thuốc thành công.'),
-  getPrescriptionDetail: wrap((req) => prescriptionService.getPrescriptionDetail(req.params.prescriptionId), 'Lấy chi tiết đơn thuốc thành công.'),
+  listPrescriptions: wrap((req) => prescriptionService.listPrescriptions(req.query, req.auth), 'Lấy danh sách đơn thuốc thành công.'),
+  searchPrescriptions: wrap((req) => prescriptionService.searchPrescriptions(req.query, req.auth), 'Tìm kiếm đơn thuốc thành công.'),
+  getPrescriptionSummary: wrap((req) => prescriptionService.getPrescriptionSummary(req.params.prescriptionId, req.auth), 'Lấy tóm tắt đơn thuốc thành công.'),
+  getPrescriptionDetail: wrap((req) => prescriptionService.getPrescriptionDetail(req.params.prescriptionId, req.auth), 'Lấy chi tiết đơn thuốc thành công.'),
   updatePrescription: wrap((req) => prescriptionService.updatePrescription(req.params.prescriptionId, req.body, req.auth, requestMeta(req)), 'Cập nhật đơn thuốc thành công.'),
   activatePrescription: wrap((req) => prescriptionService.activatePrescription(req.params.prescriptionId, req.auth, requestMeta(req)), 'Kích hoạt đơn thuốc thành công.'),
-  cancelPrescription: wrap((req) => prescriptionService.cancelPrescription(req.params.prescriptionId, req.auth, requestMeta(req)), 'Hủy đơn thuốc thành công.'),
+  verifyPrescription: wrap((req) => prescriptionService.verifyPrescription(req.params.prescriptionId, req.body, req.auth, requestMeta(req)), 'Verify đơn thuốc thành công.'),
+  cancelPrescription: wrap((req) => prescriptionService.cancelPrescription(req.params.prescriptionId, req.body, req.auth, requestMeta(req)), 'Hủy đơn thuốc thành công.'),
   completePrescription: wrap((req) => prescriptionService.completePrescription(req.params.prescriptionId, req.auth, requestMeta(req)), 'Hoàn tất đơn thuốc thành công.'),
   addPrescriptionItem: wrap((req) => prescriptionService.addPrescriptionItem(req.body, req.auth, requestMeta(req)), 'Thêm thuốc vào đơn thành công.', 201),
-  listPrescriptionItems: wrap((req) => prescriptionService.listPrescriptionItems(req.params.prescriptionId), 'Lấy danh sách thuốc trong đơn thành công.'),
-  getPrescriptionItemDetail: wrap((req) => prescriptionService.getPrescriptionItemDetail(req.params.itemId), 'Lấy chi tiết item thuốc thành công.'),
+  addPrescriptionItems: wrap((req) => prescriptionService.addPrescriptionItems(req.params.prescriptionId, req.body.items, req.auth, requestMeta(req)), 'Thêm thuốc vào đơn thành công.', 201),
+  listPrescriptionItems: wrap((req) => prescriptionService.listPrescriptionItems(req.params.prescriptionId, req.auth), 'Lấy danh sách thuốc trong đơn thành công.'),
+  getPrescriptionItemDetail: wrap((req) => prescriptionService.getPrescriptionItemDetail(req.params.itemId, req.auth), 'Lấy chi tiết item thuốc thành công.'),
   updatePrescriptionItem: wrap((req) => prescriptionService.updatePrescriptionItem(req.params.itemId, req.body, req.auth, requestMeta(req)), 'Cập nhật item thuốc thành công.'),
   stopPrescriptionItem: wrap((req) => prescriptionService.stopPrescriptionItem(req.params.itemId, req.auth, requestMeta(req)), 'Dừng thuốc trong đơn thành công.'),
   cancelPrescriptionItem: wrap((req) => prescriptionService.cancelPrescriptionItem(req.params.itemId, req.auth, requestMeta(req)), 'Hủy thuốc trong đơn thành công.'),
@@ -43,10 +27,31 @@ module.exports = {
   getMedicationDetail: wrap((req) => prescriptionService.getMedicationDetail(req.params.medicationId), 'Lấy chi tiết thuốc thành công.'),
   updateMedication: wrap((req) => prescriptionService.updateMedication(req.params.medicationId, req.body, req.auth, requestMeta(req)), 'Cập nhật thuốc thành công.'),
   updateMedicationStatus: wrap((req) => prescriptionService.updateMedicationStatus(req.params.medicationId, req.body.status, req.auth, requestMeta(req)), 'Cập nhật trạng thái thuốc thành công.'),
-  getEncounterPrescriptions: wrap((req) => prescriptionService.getEncounterPrescriptions(req.params.encounterId, req.query), 'Lấy đơn thuốc theo encounter thành công.'),
-  getPatientPrescriptionHistory: wrap((req) => prescriptionService.getPatientPrescriptionHistory(req.params.patientId, req.query), 'Lấy lịch sử đơn thuốc của bệnh nhân thành công.'),
-  getPatientActivePrescriptions: wrap((req) => prescriptionService.getPatientActivePrescriptions(req.params.patientId, req.query), 'Lấy đơn thuốc active của bệnh nhân thành công.'),
-  getDoctorPrescriptions: wrap((req) => prescriptionService.getDoctorPrescriptions(req.params.doctorId, req.query), 'Lấy đơn thuốc theo bác sĩ thành công.'),
+  retireMedication: wrap((req) => prescriptionService.retireMedication(req.params.medicationId, req.body, req.auth, requestMeta(req)), 'Retire thuốc thành công.'),
+
+  createStockBatch: wrap((req) => prescriptionService.createStockBatch(req.body, req.auth, requestMeta(req)), 'Tạo stock batch thành công.', 201),
+  listStockBatches: wrap((req) => prescriptionService.listStockBatches(req.query), 'Lấy danh sách stock batch thành công.'),
+  getStockBatchDetail: wrap((req) => prescriptionService.getStockBatchDetail(req.params.batchId), 'Lấy chi tiết stock batch thành công.'),
+  updateStockBatch: wrap((req) => prescriptionService.updateStockBatch(req.params.batchId, req.body, req.auth, requestMeta(req)), 'Cập nhật stock batch thành công.'),
+  markBatchExpired: wrap((req) => prescriptionService.markBatchExpired(req.params.batchId, req.body, req.auth, requestMeta(req)), 'Mark stock batch expired thành công.'),
+  recallStockBatch: wrap((req) => prescriptionService.recallStockBatch(req.params.batchId, req.body, req.auth, requestMeta(req)), 'Recall stock batch thành công.'),
+
+  receiveInventory: wrap((req) => prescriptionService.receiveInventory(req.body, req.auth, requestMeta(req)), 'Nhập kho thuốc thành công.', 201),
+  adjustInventory: wrap((req) => prescriptionService.adjustInventory(req.params.batchId || req.body.batch_id, req.body, req.auth, requestMeta(req)), 'Điều chỉnh tồn kho thành công.'),
+  listInventoryTransactions: wrap((req) => prescriptionService.listInventoryTransactions(req.query), 'Lấy inventory transactions thành công.'),
+
+  createDispense: wrap((req) => prescriptionService.createDispense(req.params.prescriptionId, req.body, req.auth, requestMeta(req)), 'Tạo dispense thành công.', 201),
+  listDispenses: wrap((req) => prescriptionService.listDispenses(req.query, req.auth), 'Lấy danh sách dispense thành công.'),
+  getDispenseDetail: wrap((req) => prescriptionService.getDispenseDetail(req.params.dispenseId, req.auth), 'Lấy chi tiết dispense thành công.'),
+  completeDispense: wrap((req) => prescriptionService.completeDispense(req.params.dispenseId, req.body, req.auth, requestMeta(req)), 'Complete dispense thành công.'),
+  cancelDispense: wrap((req) => prescriptionService.cancelDispense(req.params.dispenseId, req.body, req.auth, requestMeta(req)), 'Cancel dispense thành công.'),
+  selectStockBatch: wrap((req) => prescriptionService.selectStockBatch(req.params.medicationId || req.body.medication_id, req.query.quantity || req.body.quantity, req.query), 'Chọn stock batch FEFO thành công.'),
+
+  getEncounterPrescriptions: wrap((req) => prescriptionService.getEncounterPrescriptions(req.params.encounterId, req.query, req.auth), 'Lấy đơn thuốc theo encounter thành công.'),
+  getPatientPrescriptionHistory: wrap((req) => prescriptionService.getPatientPrescriptionHistory(req.params.patientId, req.query, req.auth), 'Lấy lịch sử đơn thuốc của bệnh nhân thành công.'),
+  getPatientActivePrescriptions: wrap((req) => prescriptionService.getPatientActivePrescriptions(req.params.patientId, req.query, req.auth), 'Lấy đơn thuốc active của bệnh nhân thành công.'),
+  getDoctorPrescriptions: wrap((req) => prescriptionService.getDoctorPrescriptions(req.params.doctorId, req.query, req.auth), 'Lấy đơn thuốc theo bác sĩ thành công.'),
+  getMyPrescriptions: wrap((req) => prescriptionService.getPatientPrescriptionHistory(req.auth.patientId || req.auth.patient_id, req.query, req.auth), 'Lấy đơn thuốc của tôi thành công.'),
   duplicatePrescription: wrap(
     (req) => prescriptionService.duplicatePrescription(req.params.prescriptionId, req.body, req.auth, requestMeta(req)),
     'Nhân bản đơn thuốc thành công.',

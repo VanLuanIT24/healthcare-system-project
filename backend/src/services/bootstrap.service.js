@@ -1,8 +1,8 @@
 const { corePermissions, coreRoles, rolePermissionMap } = require('../constants/roles');
-const { normalizeScheduleType } = require('../constants/schedule-types');
+const { normalizeScheduleType } = require('../constants/catalogs/schedule-types');
 const { Department, DoctorSchedule, Permission, Role, RolePermission, User, UserRole } = require('../models');
 const env = require('../config/env');
-const { hashPassword } = require('../utils/password');
+const { hashPassword } = require('../common/auth/password-hash');
 
 const sampleDepartments = [
   {
@@ -100,6 +100,8 @@ async function ensureCoreRoles() {
           $set: {
             role_name: role.role_name,
             status: 'active',
+            is_system: role.is_system !== false,
+            priority_level: role.priority_level || 0,
           },
           $setOnInsert: {
             description: `${role.role_name} role`,
@@ -121,11 +123,12 @@ async function ensureCorePermissions() {
           $set: {
             permission_name: permission.permission_name,
             module_key: permission.module_key,
+            action_key: permission.action_key,
+            is_system: permission.is_system !== false,
+            is_deleted: false,
           },
           $setOnInsert: {
             description: permission.permission_name,
-            is_system: true,
-            is_deleted: false,
           },
         },
         { upsert: true },
@@ -170,6 +173,23 @@ async function ensureRolePermissions() {
   }
 
   await Promise.all(upserts);
+
+  const [allActiveRoles, allActivePermissions] = await Promise.all([
+    Role.find({ is_deleted: false }).select('_id'),
+    Permission.find({ is_deleted: false }).select('_id'),
+  ]);
+  const validRoleIds = allActiveRoles.map((role) => role._id);
+  const validPermissionIds = allActivePermissions.map((permission) => permission._id);
+  await RolePermission.updateMany(
+    {
+      is_active: true,
+      $or: [
+        { role_id: { $nin: validRoleIds } },
+        { permission_id: { $nin: validPermissionIds } },
+      ],
+    },
+    { $set: { is_active: false } },
+  );
 }
 
 async function ensureSuperAdmin() {
@@ -256,5 +276,6 @@ async function bootstrapSystemAccess() {
 }
 
 module.exports = {
+  // bootstrapSystemAccess: Khởi tạo ban đầu cho quyền truy cập hệ thống mặc định.
   bootstrapSystemAccess,
 };

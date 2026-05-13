@@ -5,7 +5,21 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node src/scripts/check-auth-hardening.js && node src/scripts/check-iam-hardening.js && node src/scripts/check-admin-staff-hardening.js && node src/scripts/check-department-patient-hardening.js && node src/scripts/check-scheduling-hardening.js && node src/scripts/check-queue-encounter-clinical-hardening.js && node src/scripts/check-order-laboratory-hardening.js && node src/scripts/check-prescription-billing-hardening.js",
+    "check:auth": "node src/scripts/check-auth-hardening.js",
+    "check:iam": "node src/scripts/check-iam-hardening.js",
+    "check:admin-staff": "node src/scripts/check-admin-staff-hardening.js",
+    "check:department-patient": "node src/scripts/check-department-patient-hardening.js",
+    "check:scheduling": "node src/scripts/check-scheduling-hardening.js",
+    "check:queue-encounter-clinical": "node src/scripts/check-queue-encounter-clinical-hardening.js",
+    "check:order-laboratory": "node src/scripts/check-order-laboratory-hardening.js",
+    "check:prescription-billing": "node src/scripts/check-prescription-billing-hardening.js",
+    "sync:indexes": "node src/scripts/sync-indexes.js",
+    "check:rbac": "node src/scripts/check-rbac-integrity.js",
+    "check:permissions": "node src/scripts/check-permission-usage.js",
+    "check:routes": "node src/scripts/check-route-guards.js",
+    "audit:backend": "node src/scripts/audit-backend.js --markdown"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -15,6 +29,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "nodemailer": "^8.0.7"
   }
 }

@@ -1,8 +1,9 @@
 const { model } = require('mongoose');
 const { Schema, baseSchemaOptions, auditFields, softDeleteFields } = require('../common/base-model');
-const { DEFAULT_SCHEDULE_TYPE } = require('../../constants/schedule-types');
+const { DEFAULT_SCHEDULE_TYPE } = require('../../constants/catalogs/schedule-types');
+const { SCHEDULE_STATUS, SCHEDULE_STATUSES } = require('../../constants/statuses');
 
-const scheduleStatuses = ['draft', 'published', 'active', 'cancelled', 'completed'];
+// Bảng doctor_schedules: Lưu ca làm việc tổng của bác sĩ theo ngày, khoa và khung giờ.
 
 const doctorScheduleSchema = new Schema(
   {
@@ -26,15 +27,7 @@ const doctorScheduleSchema = new Schema(
         mode: { type: String, trim: true },
       },
     ],
-    blocked_slots: [
-      {
-        slot_time: { type: Date, required: true },
-        reason: { type: String, trim: true },
-        blocked_by: { type: Schema.Types.ObjectId, ref: 'User' },
-        blocked_at: { type: Date, default: Date.now },
-      },
-    ],
-    status: { type: String, enum: scheduleStatuses, default: 'draft', required: true },
+    status: { type: String, enum: SCHEDULE_STATUSES, default: SCHEDULE_STATUS.DRAFT, required: true },
     ...auditFields(),
     ...softDeleteFields(),
   },
@@ -45,6 +38,9 @@ doctorScheduleSchema.index({ doctor_id: 1 });
 doctorScheduleSchema.index({ department_id: 1 });
 doctorScheduleSchema.index({ work_date: 1 });
 doctorScheduleSchema.index({ status: 1 });
-doctorScheduleSchema.index({ doctor_id: 1, work_date: 1, shift_start: 1, shift_end: 1 }, { unique: true });
+doctorScheduleSchema.index(
+  { doctor_id: 1, work_date: 1, shift_start: 1, shift_end: 1 },
+  { unique: true, partialFilterExpression: { is_deleted: false } },
+);
 
 module.exports = model('DoctorSchedule', doctorScheduleSchema);
