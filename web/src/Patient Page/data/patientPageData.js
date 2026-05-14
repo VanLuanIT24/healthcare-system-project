@@ -1,20 +1,46 @@
-export const navItems = [
-  { key: 'dashboard', icon: 'dashboard', label: 'Tổng quan' },
-  { key: 'trends', icon: 'insights', label: 'Xu hướng sức khỏe' },
-  { key: 'medications', icon: 'medication', label: 'Theo dõi thuốc' },
-  { key: 'directory', icon: 'medical_services', label: 'Danh bạ phòng khám' },
-  { key: 'notifications', icon: 'notifications', label: 'Thông báo' },
-  { key: 'messages', icon: 'forum', label: 'Tin nhắn' },
-  { key: 'documents', icon: 'description', label: 'Kho tài liệu' },
-  { key: 'appointments', icon: 'calendar_today', label: 'Lịch hẹn' },
-  { key: 'history', icon: 'history_edu', label: 'Lịch sử khám' },
-  { key: 'billing', icon: 'payments', label: 'Thanh toán' },
-  { key: 'profile', icon: 'help_clinic', label: 'Hồ sơ' },
-]
-
-export const utilityItems = [
-  { key: 'profile', icon: 'settings', label: 'Cài đặt' },
-  { key: 'support', icon: 'help_outline', label: 'Hỗ trợ' },
+export const sidebarSections = [
+  {
+    key: 'care',
+    title: 'CHĂM SÓC',
+    items: [
+      { key: 'appointments', icon: 'calendar_today', label: 'Lịch hẹn' },
+      { key: 'book-appointment', icon: 'calendar_add_on', label: 'Đặt lịch khám' },
+      { key: 'history', icon: 'history_edu', label: 'Lịch sử khám' },
+      { key: 'medications', icon: 'medication', label: 'Đơn thuốc' },
+      { key: 'lab-results', icon: 'biotech', label: 'Kết quả xét nghiệm' },
+      { key: 'imaging', icon: 'radiology', label: 'Chẩn đoán hình ảnh' },
+    ],
+  },
+  {
+    key: 'records',
+    title: 'HỒ SƠ',
+    items: [
+      { key: 'medical-records', icon: 'folder_shared', label: 'Hồ sơ y tế' },
+      { key: 'documents', icon: 'description', label: 'Kho tài liệu' },
+      { key: 'profile', icon: 'person', label: 'Hồ sơ cá nhân' },
+    ],
+  },
+  {
+    key: 'finance',
+    title: 'TÀI CHÍNH',
+    items: [
+      { key: 'billing', icon: 'payments', label: 'Thanh toán' },
+      { key: 'insurance', icon: 'shield_plus', label: 'Bảo hiểm' },
+    ],
+  },
+  {
+    key: 'contact',
+    title: 'LIÊN LẠC',
+    items: [
+      { key: 'notifications', icon: 'notifications', label: 'Thông báo' },
+      { key: 'support', icon: 'help_outline', label: 'Hỗ trợ' },
+    ],
+  },
+  {
+    key: 'account',
+    title: 'TÀI KHOẢN',
+    items: [{ key: 'settings', icon: 'settings', label: 'Cài đặt' }],
+  },
 ]
 
 export const metrics = [
@@ -22,75 +48,6 @@ export const metrics = [
   { label: 'Nhịp tim', value: '72', unit: 'bpm', state: 'Ổn định', tone: 'good' },
   { label: 'Chỉ số BMI', value: '22.4', unit: 'kg/m²', state: 'Lý tưởng', tone: 'soft' },
 ]
-
-export const healthTrendMetrics = [
-  {
-    id: 'blood-pressure',
-    icon: 'monitor_heart',
-    tone: 'primary',
-    label: 'Huyết áp',
-    badge: 'Tối ưu',
-    badgeTone: 'good',
-    value: '120',
-    accent: '/',
-    secondaryValue: '80',
-    unit: 'mmHg',
-    note: 'Đo lần cuối 2 giờ trước',
-    trend: 'Ổn định từ tháng trước',
-    trendIcon: 'trending_flat',
-    trendTone: 'good',
-  },
-  {
-    id: 'heart-rate',
-    icon: 'favorite',
-    tone: 'danger',
-    label: 'Nhịp tim',
-    badge: 'Nghỉ ngơi',
-    badgeTone: 'soft',
-    value: '72',
-    unit: 'bpm',
-    note: 'Trung bình: 68 - 75 bpm',
-    trend: 'Thấp hơn 4% so với tuần trước',
-    trendIcon: 'trending_down',
-    trendTone: 'primary',
-  },
-  {
-    id: 'bmi',
-    icon: 'accessibility_new',
-    tone: 'secondary',
-    label: 'Chỉ số BMI',
-    badge: 'Khỏe mạnh',
-    badgeTone: 'good',
-    value: '22.4',
-    unit: '',
-    note: 'Chiều cao: 182 cm | Cân nặng: 74 kg',
-    trend: 'Trong ngưỡng mục tiêu (18,5 - 24,9)',
-    trendIcon: 'check_circle',
-    trendTone: 'good',
-  },
-]
-
-export const healthTrendChartFilters = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'bp', label: 'Huyết áp' },
-  { key: 'hr', label: 'Nhịp tim' },
-]
-
-export const healthTrendSeries = [
-  { month: 'Th1', bp: 72, hr: 54 },
-  { month: 'Th2', bp: 78, hr: 60 },
-  { month: 'Th3', bp: 84, hr: 68 },
-  { month: 'Th4', bp: 70, hr: 46 },
-  { month: 'Th5', bp: 90, hr: 74 },
-  { month: 'Th6', bp: 80, hr: 62 },
-]
-
-export const healthRecommendations = {
-  title: 'Khuyến nghị sức khỏe',
-  body:
-    'Dựa trên xu hướng huyết áp gần đây, chúng tôi khuyến nghị bạn tăng cường uống nước và kiểm soát lượng muối trong bữa ăn hằng ngày.',
-  action: 'Xem kế hoạch hành động',
-}
 
 export const upcomingTests = [
   {
@@ -106,45 +63,6 @@ export const upcomingTests = [
     tone: 'mint',
     title: 'Nghiệm pháp gắng sức',
     subtitle: 'Sẵn sàng để đặt lịch',
-  },
-]
-
-export const historicalBiometrics = [
-  {
-    id: 'bio-1',
-    date: '24/06/2023',
-    category: 'Huyết áp',
-    value: '118/78 mmHg',
-    status: 'Tối ưu',
-    tone: 'good',
-    clinician: 'BS. Marcus Thorne',
-  },
-  {
-    id: 'bio-2',
-    date: '12/06/2023',
-    category: 'Nhịp tim',
-    value: '74 bpm',
-    status: 'Tối ưu',
-    tone: 'good',
-    clinician: 'Tự cập nhật',
-  },
-  {
-    id: 'bio-3',
-    date: '28/05/2023',
-    category: 'Huyết áp',
-    value: '126/82 mmHg',
-    status: 'Bình thường',
-    tone: 'soft',
-    clinician: 'BS. Marcus Thorne',
-  },
-  {
-    id: 'bio-4',
-    date: '15/05/2023',
-    category: 'Cân nặng',
-    value: '74.2 kg',
-    status: 'Khỏe mạnh',
-    tone: 'good',
-    clinician: 'Cổng thông tin lâm sàng',
   },
 ]
 
@@ -1181,15 +1099,46 @@ const oldPaymentMethods = [
 ]
 
 export const sectionMeta = {
+  'book-appointment': {
+    eyebrow: 'Đặt lịch',
+    title: 'Đặt lịch khám',
+    body:
+      'Chọn bệnh viện, chuyên khoa và khung giờ phù hợp từ màn hình đặt lịch nhanh của cổng bệnh nhân.',
+  },
+  'lab-results': {
+    eyebrow: 'Chưa có giao diện',
+    title: 'Kết quả xét nghiệm',
+    body:
+      'Backend đã có API /lab/me/results, nhưng màn hình riêng cho kết quả xét nghiệm chưa được thiết kế nên chưa điều hướng sang giao diện giả.',
+  },
+  imaging: {
+    eyebrow: 'Chưa có giao diện',
+    title: 'Chẩn đoán hình ảnh',
+    body:
+      'Chưa có API patient riêng cho chẩn đoán hình ảnh và chưa có màn hình chi tiết, nên mục này tạm hiển thị trạng thái chưa có giao diện.',
+  },
+  'medical-records': {
+    eyebrow: 'Hồ sơ y tế',
+    title: 'Hồ sơ y tế',
+    body:
+      'Tổng hợp lịch sử khám, chẩn đoán, chỉ định và các ghi chú lâm sàng quan trọng.',
+  },
+  insurance: {
+    eyebrow: 'Chưa có giao diện',
+    title: 'Bảo hiểm y tế',
+    body:
+      'Backend đã có API bảo hiểm cho bệnh nhân, nhưng chưa có UI riêng; dữ liệu sẽ không bị gắn sang màn hình khác.',
+  },
+  settings: {
+    eyebrow: 'Tài khoản',
+    title: 'Cài đặt',
+    body:
+      'Cập nhật đặc quyền, bảo mật và tuỳ chỉnh tài khoản của bạn tại trung tâm cổng bệnh nhân.',
+  },
   emergency: {
     eyebrow: 'Khẩn cấp',
     title: 'Thông tin y tế cấp cứu',
     body: 'Thông tin y tế ưu tiên dành cho tình huống khẩn cấp, giúp đội cấp cứu truy cập nhanh dữ liệu cần thiết.',
-  },
-  trends: {
-    eyebrow: 'Phân tích',
-    title: 'Xu hướng sức khỏe',
-    body: 'Tổng hợp xu hướng sinh hiệu, lịch sử đo và khuyến nghị để bệnh nhân theo dõi sức khỏe liên tục.',
   },
   directory: {
     eyebrow: 'Mạng lưới chăm sóc',

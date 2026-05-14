@@ -569,10 +569,12 @@
 .patient-notification-panel-featured {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-self: stretch;
-  min-height: 470px;
+  height: clamp(680px, 52vw, 790px);
+  min-height: 0;
   margin-bottom: 0;
+  overflow: hidden;
 }
 
 .patient-notification-list {
@@ -582,7 +584,29 @@
 }
 
 .patient-notification-list-featured {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 8px;
   gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(13, 99, 243, 0.36) rgba(232, 237, 247, 0.72);
+}
+
+.patient-notification-list-featured::-webkit-scrollbar {
+  width: 6px;
+}
+
+.patient-notification-list-featured::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(232, 237, 247, 0.72);
+}
+
+.patient-notification-list-featured::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(13, 99, 243, 0.36);
 }
 
 .patient-notification-item {
@@ -595,7 +619,12 @@
 }
 
 .patient-notification-item-featured {
+  flex: 0 0 auto;
   padding: 18px 0;
+}
+
+.patient-notification-item-featured > div:last-child {
+  min-width: 0;
 }
 
 .patient-notification-item:last-child {
@@ -630,6 +659,9 @@
 .patient-notification-item h3 {
   font-size: clamp(14px, 0.35vw + 12px, 16px);
   margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .patient-notification-title-wrap {
@@ -645,6 +677,10 @@
 .patient-notification-item p {
   font-size: clamp(13px, 0.2vw + 12px, 14px);
   line-height: 1.65;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .patient-notification-item span {
@@ -658,6 +694,7 @@
 }
 
 .patient-outline-button-featured {
+  flex: 0 0 auto;
   margin-top: 22px;
 }
 
@@ -922,7 +959,8 @@
   }
 
   .patient-notification-panel-featured {
-    min-height: 390px;
+    height: clamp(680px, 52vw, 790px);
+    min-height: 0;
   }
 
   .patient-notification-list-featured {
@@ -1040,7 +1078,8 @@
 
   .patient-notification-panel-featured {
     grid-row: auto;
-    min-height: auto;
+    height: clamp(360px, 48vh, 440px);
+    min-height: 360px;
     margin-bottom: 0;
   }
 }
@@ -1066,7 +1105,8 @@
 
   .patient-notification-panel-featured {
     grid-row: auto;
-    min-height: auto;
+    height: min(480px, 72vh);
+    min-height: 360px;
     margin-bottom: 0;
   }
 

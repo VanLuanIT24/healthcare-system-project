@@ -1,120 +1,9 @@
-import { startTransition, useDeferredValue, useRef, useState } from 'react'
+import { useDeferredValue, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
-import {
-  defaultSelectedDocumentIds,
-  documentCategories,
-  documentLibrary,
-} from '../data/patientPageData'
+import { documentCategories } from '../data/patientPageData'
 
 function getCategoryCount(documents, categoryId) {
   return documents.filter((document) => document.category === categoryId).length
-}
-
-const crcTable = Array.from({ length: 256 }, (_, index) => {
-  let value = index
-
-  for (let bit = 0; bit < 8; bit += 1) {
-    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1
-  }
-
-  return value >>> 0
-})
-
-function crc32(bytes) {
-  let crc = 0xffffffff
-
-  for (const byte of bytes) {
-    crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8)
-  }
-
-  return (crc ^ 0xffffffff) >>> 0
-}
-
-function writeUint16(view, offset, value) {
-  view.setUint16(offset, value, true)
-}
-
-function writeUint32(view, offset, value) {
-  view.setUint32(offset, value >>> 0, true)
-}
-
-function getDosDateTime(value) {
-  const date = value ? new Date(value) : new Date()
-  const year = Math.max(1980, date.getFullYear())
-
-  return {
-    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
-    time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
-  }
-}
-
-function createZipBlob(files) {
-  const encoder = new TextEncoder()
-  const chunks = []
-  const centralDirectory = []
-  let offset = 0
-
-  files.forEach((file) => {
-    const nameBytes = encoder.encode(file.name)
-    const dataBytes = encoder.encode(file.content)
-    const { date, time } = getDosDateTime(file.modifiedAt)
-    const crc = crc32(dataBytes)
-
-    const localHeader = new Uint8Array(30 + nameBytes.length)
-    const localView = new DataView(localHeader.buffer)
-    writeUint32(localView, 0, 0x04034b50)
-    writeUint16(localView, 4, 20)
-    writeUint16(localView, 6, 0)
-    writeUint16(localView, 8, 0)
-    writeUint16(localView, 10, time)
-    writeUint16(localView, 12, date)
-    writeUint32(localView, 14, crc)
-    writeUint32(localView, 18, dataBytes.length)
-    writeUint32(localView, 22, dataBytes.length)
-    writeUint16(localView, 26, nameBytes.length)
-    writeUint16(localView, 28, 0)
-    localHeader.set(nameBytes, 30)
-
-    const centralHeader = new Uint8Array(46 + nameBytes.length)
-    const centralView = new DataView(centralHeader.buffer)
-    writeUint32(centralView, 0, 0x02014b50)
-    writeUint16(centralView, 4, 20)
-    writeUint16(centralView, 6, 20)
-    writeUint16(centralView, 8, 0)
-    writeUint16(centralView, 10, 0)
-    writeUint16(centralView, 12, time)
-    writeUint16(centralView, 14, date)
-    writeUint32(centralView, 16, crc)
-    writeUint32(centralView, 20, dataBytes.length)
-    writeUint32(centralView, 24, dataBytes.length)
-    writeUint16(centralView, 28, nameBytes.length)
-    writeUint16(centralView, 30, 0)
-    writeUint16(centralView, 32, 0)
-    writeUint16(centralView, 34, 0)
-    writeUint16(centralView, 36, 0)
-    writeUint32(centralView, 38, 0)
-    writeUint32(centralView, 42, offset)
-    centralHeader.set(nameBytes, 46)
-
-    chunks.push(localHeader, dataBytes)
-    centralDirectory.push(centralHeader)
-    offset += localHeader.length + dataBytes.length
-  })
-
-  const centralOffset = offset
-  const centralSize = centralDirectory.reduce((total, chunk) => total + chunk.length, 0)
-  const endRecord = new Uint8Array(22)
-  const endView = new DataView(endRecord.buffer)
-  writeUint32(endView, 0, 0x06054b50)
-  writeUint16(endView, 4, 0)
-  writeUint16(endView, 6, 0)
-  writeUint16(endView, 8, files.length)
-  writeUint16(endView, 10, files.length)
-  writeUint32(endView, 12, centralSize)
-  writeUint32(endView, 16, centralOffset)
-  writeUint16(endView, 20, 0)
-
-  return new Blob([...chunks, ...centralDirectory, endRecord], { type: 'application/zip' })
 }
 
 function slugify(value) {
@@ -123,8 +12,6 @@ function slugify(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D')
-    .replace(/Ä‘/g, 'd')
-    .replace(/Ä/g, 'D')
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase()
@@ -161,35 +48,41 @@ function formatFileSize(size) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function buildDocumentContent(document) {
-  return [
-    `Ten tai lieu: ${document.title}`,
-    `Mo ta: ${document.subtitle}`,
-    `Ngay tao: ${document.date}`,
-    `Dung luong: ${document.size}`,
-    `Phan loai: ${document.category}`,
-    '',
-    'Noi dung mau duoc tao tu Kho tai lieu HealthCare.',
-  ].join('\n')
+function getAttachmentId(document) {
+  return document.attachment_id || document._id || document.id
 }
 
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
+function getAttachmentTitle(document) {
+  return document.original_name || document.file_name || document.title || 'Tài liệu y tế'
 }
 
-function getDocumentDownloadName(document) {
-  return `${slugify(document.title)}-${document.id}.txt`
+function mapAttachmentToDocument(document) {
+  const mimeType = String(document.mime_type || '').toLowerCase()
+  const category = document.category || document.entity_type || 'records'
+  const isPdf = mimeType.includes('pdf') || getAttachmentTitle(document).toLowerCase().endsWith('.pdf')
+  const isImage = mimeType.startsWith('image/')
+
+  return {
+    id: getAttachmentId(document),
+    backendId: getAttachmentId(document),
+    title: getAttachmentTitle(document),
+    subtitle: document.description || document.entity_type || 'Tài liệu từ backend',
+    category: documentCategories.some((item) => item.id === category) ? category : 'records',
+    date: document.created_at ? new Date(document.created_at).toLocaleDateString('vi-VN') : '',
+    size: formatFileSize(document.file_size),
+    icon: isPdf ? 'picture_as_pdf' : isImage ? 'image' : 'description',
+    tone: isPdf ? 'pdf' : isImage ? 'image' : 'record',
+  }
 }
 
-export default function PatientDocumentsPage({ onBookAppointment }) {
-  const [documents, setDocuments] = useState(documentLibrary)
+export default function PatientDocumentsPage({
+  documents: backendDocuments = [],
+  error = '',
+  loading = false,
+  onBookAppointment,
+  onDownloadDocument,
+}) {
+  const documents = backendDocuments.map(mapAttachmentToDocument)
   const [activeCategory, setActiveCategory] = useState('all')
   const [searchValue, setSearchValue] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -198,8 +91,7 @@ export default function PatientDocumentsPage({ onBookAppointment }) {
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [viewedDocument, setViewedDocument] = useState(null)
   const [feedback, setFeedback] = useState('')
-  const [selectedIds, setSelectedIds] = useState(defaultSelectedDocumentIds)
-  const uploadInputRef = useRef(null)
+  const [selectedIds, setSelectedIds] = useState([])
   const deferredSearch = useDeferredValue(searchValue)
 
   const normalizedSearch = deferredSearch.trim().toLowerCase()
@@ -237,82 +129,34 @@ export default function PatientDocumentsPage({ onBookAppointment }) {
   }
 
   const deleteSelection = () => {
-    startTransition(() => {
-      setDocuments((current) => current.filter((document) => !selectedIds.includes(document.id)))
-      setSelectedIds([])
-    })
-    setFeedback('Đã xóa tài liệu đã chọn.')
+    setFeedback('Chức năng xóa tài liệu từ cổng bệnh nhân chưa có API backend.')
   }
 
-  const downloadDocument = (document) => {
-    downloadBlob(
-      new Blob([buildDocumentContent(document)], { type: 'text/plain;charset=utf-8' }),
-      getDocumentDownloadName(document),
-    )
-    setFeedback(`Đang tải ${document.title}.`)
+  const downloadDocument = async (document) => {
+    if (!document.backendId || !onDownloadDocument) {
+      setFeedback('Tài liệu này chưa có API tải xuống từ backend.')
+      return
+    }
+
+    try {
+      const downloadData = await onDownloadDocument(document.backendId)
+      const fileName = downloadData?.download?.file_name || document.title
+      setFeedback(`Backend đã xác nhận quyền tải xuống ${fileName}; API hiện trả metadata, chưa stream file thật.`)
+    } catch (error) {
+      setFeedback(error.message || 'Không thể tải tài liệu từ backend.')
+    }
   }
 
   const downloadZip = (documentsToDownload = selectedDocuments) => {
-    if (!documentsToDownload.length) {
-      setFeedback('Chọn ít nhất một tài liệu để tải ZIP.')
-      return
-    }
-
-    const zipFiles = documentsToDownload.map((document) => ({
-      name: getDocumentDownloadName(document),
-      content: buildDocumentContent(document),
-      modifiedAt: parseDocumentDate(document.date),
-    }))
-
-    downloadBlob(createZipBlob(zipFiles), `healthcare-documents-${documentsToDownload.length}.zip`)
-    setFeedback(`Đang tải ZIP gồm ${documentsToDownload.length} tài liệu.`)
-  }
-
-  const handleUploadFiles = (event) => {
-    const files = Array.from(event.target.files || [])
-
-    if (!files.length) {
-      return
-    }
-
-    const today = new Date().toLocaleDateString('vi-VN')
-    const uploadedDocuments = files.map((file, index) => {
-      const isImage = file.type.startsWith('image/')
-      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-      const title = file.name.replace(/\.[^.]+$/, '')
-
-      return {
-        id: `uploaded-${Date.now()}-${index}`,
-        title,
-        subtitle: isPdf ? 'Tài liệu tải lên | PDF' : isImage ? 'Hình ảnh tải lên' : 'Tài liệu tải lên',
-        category: isImage ? 'labs' : 'records',
-        date: today,
-        size: formatFileSize(file.size),
-        icon: isPdf ? 'picture_as_pdf' : isImage ? 'image' : 'description',
-        tone: isPdf ? 'pdf' : isImage ? 'image' : 'record',
-      }
-    })
-
-    startTransition(() => {
-      setDocuments((current) => [...uploadedDocuments, ...current])
-      setSelectedIds((current) => [...uploadedDocuments.map((document) => document.id), ...current])
-    })
-
-    setFeedback(`Đã thêm ${uploadedDocuments.length} tài liệu mới.`)
-    event.target.value = ''
+    setFeedback(
+      documentsToDownload.length
+        ? 'Backend chưa có API tải ZIP cho nhiều tài liệu từ cổng bệnh nhân.'
+        : 'Chọn ít nhất một tài liệu để tải ZIP.',
+    )
   }
 
   return (
     <div className="patient-documents-page">
-      <input
-        ref={uploadInputRef}
-        type="file"
-        hidden
-        multiple
-        accept=".pdf,image/*"
-        onChange={handleUploadFiles}
-      />
-
       <section className="patient-documents-head">
         <div>
           <h1>Kho tài liệu của bạn</h1>
@@ -435,6 +279,20 @@ export default function PatientDocumentsPage({ onBookAppointment }) {
         </div>
       ) : null}
 
+      {loading ? (
+        <div className="patient-documents-feedback" role="status">
+          <PatientIcon name="hourglass_top" aria-hidden="true" />
+          <span>Đang tải tài liệu từ backend...</span>
+        </div>
+      ) : null}
+
+      {!loading && error ? (
+        <div className="patient-documents-feedback" role="alert">
+          <PatientIcon name="warning" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+
       <section className="patient-documents-category-grid">
         {documentCategories.map((category) => (
           <button
@@ -524,13 +382,13 @@ export default function PatientDocumentsPage({ onBookAppointment }) {
         <button
           className="patient-documents-upload-card"
           type="button"
-          onClick={() => uploadInputRef.current?.click()}
+          onClick={() => setFeedback('Chưa có API upload tài liệu từ cổng bệnh nhân.')}
         >
           <div className="patient-documents-upload-icon">
             <PatientIcon name="upload_file" aria-hidden="true" />
           </div>
-          <strong>Tải lên tài liệu mới</strong>
-          <p>Kéo thả tệp PDF hoặc hình ảnh vào đây để lưu trữ bảo mật.</p>
+          <strong>Chưa có API upload</strong>
+          <p>Backend patient portal hiện chỉ hỗ trợ xem và lấy metadata tải xuống tài liệu đã release.</p>
         </button>
       </section>
 

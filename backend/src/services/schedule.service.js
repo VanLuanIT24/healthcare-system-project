@@ -632,12 +632,13 @@ function getPublishStatus(schedule) {
   return ['active', 'published'].includes(schedule.status) ? 'visible' : 'hidden';
 }
 
-function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = new Map(), slotStats = null) {
+function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = new Map(), slotStats = null, options = {}) {
+  const publicView = options.publicView === true;
   const doctor = doctorMap.get(String(schedule.doctor_id));
   const department = departmentMap.get(String(schedule.department_id));
   const stats = slotStats || getScheduleSlotStats(schedule);
 
-  return {
+  const formatted = {
     doctor_schedule_id: String(schedule._id),
     doctor_id: String(schedule.doctor_id),
     doctor_name: doctor?.full_name || null,
@@ -665,9 +666,29 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
     created_at: schedule.created_at,
     updated_at: schedule.updated_at,
   };
+
+  if (!publicView) {
+    return formatted;
+  }
+
+  return {
+    doctor_schedule_id: formatted.doctor_schedule_id,
+    doctor_id: formatted.doctor_id,
+    doctor_name: formatted.doctor_name,
+    doctor_code: formatted.doctor_code,
+    department_id: formatted.department_id,
+    department_name: formatted.department_name,
+    department_code: formatted.department_code,
+    work_date: formatted.work_date,
+    shift_start: formatted.shift_start,
+    shift_end: formatted.shift_end,
+    status: formatted.status,
+    created_at: formatted.created_at,
+    updated_at: formatted.updated_at,
+  };
 }
 
-async function formatDoctorSchedulesWithStats(schedules = []) {
+async function formatDoctorSchedulesWithStats(schedules = [], options = {}) {
   const [doctorMap, departmentMap, bookedCountMap, slotStatsMap] = await Promise.all([
     buildScheduleDoctorMap(schedules),
     buildScheduleDepartmentMap(schedules),
@@ -677,7 +698,7 @@ async function formatDoctorSchedulesWithStats(schedules = []) {
 
   return schedules.map((schedule) => {
     const stats = slotStatsMap.get(String(schedule._id)) || getScheduleSlotStats(schedule, bookedCountMap.get(String(schedule._id)) || 0);
-    return formatDoctorSchedule(schedule, doctorMap, departmentMap, stats);
+    return formatDoctorSchedule(schedule, doctorMap, departmentMap, stats, options);
   });
 }
 
@@ -1571,14 +1592,23 @@ async function createDoctorSchedule(payload, actor, requestMeta = {}) {
   }
 }
 
-async function listDoctorSchedules(query = {}, actor = {}) {
+async function listDoctorSchedules(query = {}, actor = {}, options = {}) {
+  const publicView = options.publicView === true;
   const { page, limit, skip } = getPagination(query);
   const filter = { is_deleted: false };
   const range = validateDateRangeInput(query.date_from, query.date_to);
 
   if (query.doctor_id) filter.doctor_id = query.doctor_id;
   if (query.department_id) filter.department_id = query.department_id;
-  if (query.status) {
+  if (publicView) {
+    const statuses = String(query.status || '')
+      .split(',')
+      .map((status) => status.trim())
+      .filter((status) => ACTIVE_SCHEDULE_STATUSES.includes(status));
+    filter.status = statuses.length > 0 ? { $in: statuses } : { $in: ACTIVE_SCHEDULE_STATUSES };
+    filter.patient_portal_enabled = { $ne: false };
+    filter.staff_only = { $ne: true };
+  } else if (query.status) {
     const statuses = String(query.status)
       .split(',')
       .map((status) => status.trim())
@@ -1590,7 +1620,9 @@ async function listDoctorSchedules(query = {}, actor = {}) {
     if (range.dateFrom) filter.work_date.$gte = range.dateFrom;
     if (range.dateTo) filter.work_date.$lte = range.dateTo;
   }
-  applyScheduleReadScope(filter, actor);
+  if (!publicView) {
+    applyScheduleReadScope(filter, actor);
+  }
 
   const [items, total] = await Promise.all([
     DoctorSchedule.find(filter)
@@ -1600,7 +1632,7 @@ async function listDoctorSchedules(query = {}, actor = {}) {
       .lean(),
     DoctorSchedule.countDocuments(filter),
   ]);
-  const formattedItems = await formatDoctorSchedulesWithStats(items);
+  const formattedItems = await formatDoctorSchedulesWithStats(items, { publicView });
 
   return {
     items: formattedItems,

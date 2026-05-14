@@ -1,0 +1,1190 @@
+.patient-insurance-page {
+  max-width: min(1510px, 100%);
+  margin: 0 auto;
+  color: #111827;
+}
+
+.patient-insurance-page,
+.patient-insurance-page *,
+.patient-insurance-page *::before,
+.patient-insurance-page *::after {
+  box-sizing: border-box;
+}
+
+.pi-card-shell {
+  min-height: calc(100vh - 130px);
+  padding: 24px 24px 18px;
+  border: 1px solid rgba(203, 213, 225, 0.58);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 4% 18%, rgba(13, 99, 243, 0.08), transparent 24%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow:
+    0 18px 42px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.pi-header {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.pi-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.pi-title-row h1 {
+  margin: 0;
+  color: #050b18;
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(20px, 0.74vw + 15px, 26px);
+  font-weight: 900;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.pi-toolbar {
+  display: grid;
+  grid-template-columns: auto minmax(270px, 1fr) minmax(260px, 320px);
+  align-items: center;
+  gap: 14px;
+}
+
+.pi-add-button,
+.pi-detail-button,
+.pi-back-button,
+.pi-segmented button {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pi-add-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #15c86b 0%, #0a9e54 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow:
+    0 14px 26px rgba(8, 153, 81, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.pi-add-button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 16px 30px rgba(8, 153, 81, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.pi-add-button .patient-lucide-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.pi-filter-group,
+.pi-company-filter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pi-segmented {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 3px;
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.pi-segmented button {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.pi-segmented button.is-active {
+  background: #eef5ff;
+  color: #0d63f3;
+  box-shadow: inset 0 0 0 1px rgba(13, 99, 243, 0.08);
+}
+
+.pi-company-filter select {
+  width: 100%;
+  min-width: 170px;
+  height: 38px;
+  padding: 0 36px 0 12px;
+  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 11px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+}
+
+.pi-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(13, 99, 243, 0.16);
+  border-radius: 12px;
+  background: #f3f8ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pi-policy-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pi-usage-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.045);
+}
+
+.pi-usage-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.pi-section-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #0d63f3;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.pi-usage-head h2 {
+  margin: 0;
+  color: #07152f;
+  font-family: 'Manrope', sans-serif;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.pi-usage-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(92px, auto));
+  gap: 8px;
+}
+
+.pi-usage-summary div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.pi-usage-summary span,
+.pi-usage-amounts dt {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.pi-usage-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.pi-usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pi-usage-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(300px, 0.72fr);
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.82);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.pi-usage-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #0d63f3;
+  background: #eaf3ff;
+}
+
+.pi-usage-icon .patient-lucide-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.pi-usage-copy {
+  min-width: 0;
+}
+
+.pi-usage-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pi-usage-copy h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pi-usage-copy p,
+.pi-usage-copy small {
+  display: block;
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.pi-usage-copy small {
+  color: #be123c;
+}
+
+.pi-claim-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pi-claim-status--active {
+  background: #d8f8e4;
+  color: #118846;
+}
+
+.pi-claim-status--pending {
+  background: #fff2bd;
+  color: #8a6100;
+}
+
+.pi-claim-status--partial {
+  background: #eaf3ff;
+  color: #0d63f3;
+}
+
+.pi-claim-status--rejected {
+  background: #ffe3e8;
+  color: #c03246;
+}
+
+.pi-usage-amounts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.pi-usage-amounts div {
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: #f8fafc;
+}
+
+.pi-usage-amounts dd {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #172033;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pi-usage-empty {
+  display: grid;
+  place-items: center;
+  min-height: 92px;
+  border: 1px dashed rgba(148, 163, 184, 0.72);
+  border-radius: 14px;
+  background: #f8fbff;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.pi-policy-row {
+  display: grid;
+  grid-template-columns: minmax(330px, 0.95fr) minmax(330px, 1fr);
+  gap: 16px;
+  min-height: 96px;
+}
+
+.pi-policy-card,
+.pi-detail-card {
+  width: 100%;
+  min-width: 0;
+  min-height: 96px;
+  border: 1px solid rgba(203, 213, 225, 0.68);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+}
+
+.pi-policy-card {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.pi-policy-card:hover,
+.pi-policy-card.is-selected {
+  border-color: rgba(13, 99, 243, 0.26);
+  box-shadow:
+    0 16px 32px rgba(13, 99, 243, 0.08),
+    inset 0 0 0 1px rgba(13, 99, 243, 0.05);
+  transform: translateY(-1px);
+}
+
+.pi-provider-logo {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  padding: 6px;
+  border-radius: 15px;
+  color: #ffffff;
+  text-align: center;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 12px 20px rgba(15, 23, 42, 0.12);
+}
+
+.pi-provider-logo strong {
+  align-self: end;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.pi-provider-logo span {
+  align-self: start;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.pi-provider-logo.is-compact {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+}
+
+.pi-provider-logo.is-compact strong {
+  font-size: 10px;
+}
+
+.pi-provider-logo.is-compact span {
+  font-size: 7px;
+}
+
+.pi-provider-logo--navy {
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.34), transparent 32%),
+    linear-gradient(145deg, #13265f, #e04a5e);
+}
+
+.pi-provider-logo--teal {
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.38), transparent 34%),
+    linear-gradient(145deg, #18a6a5, #93e3d3);
+}
+
+.pi-provider-logo--rose {
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.38), transparent 34%),
+    linear-gradient(145deg, #c6283c, #ff8a9a);
+}
+
+.pi-provider-logo--amber {
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.38), transparent 34%),
+    linear-gradient(145deg, #1d4e89, #f3c74c);
+}
+
+.pi-provider-logo--blue {
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.38), transparent 34%),
+    linear-gradient(145deg, #0d63f3, #7fb5ff);
+}
+
+.pi-policy-copy {
+  min-width: 0;
+}
+
+.pi-policy-copy h2 {
+  margin: 0;
+  color: #07152f;
+  font-family: 'Manrope', sans-serif;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.pi-policy-copy p,
+.pi-policy-copy span {
+  display: block;
+  margin: 5px 0 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pi-policy-copy span {
+  color: #334155;
+  font-weight: 600;
+}
+
+.pi-policy-meta {
+  min-width: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.pi-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.pi-status--active {
+  background: #d8f8e4;
+  color: #118846;
+}
+
+.pi-status--expired {
+  background: #ffe3e8;
+  color: #c03246;
+}
+
+.pi-status--pending {
+  background: #fff2bd;
+  color: #8a6100;
+}
+
+.pi-inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 12px 22px rgba(13, 99, 243, 0.18);
+}
+
+.pi-inline-action--expired {
+  background: linear-gradient(180deg, #0d63f3, #0757da);
+}
+
+.pi-inline-action--pending {
+  background: #ffffff;
+  color: #2d5360;
+  border: 1px solid #9bb5bf;
+  box-shadow: none;
+}
+
+.pi-detail-card {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.pi-detail-card.is-selected {
+  justify-content: space-between;
+}
+
+.pi-detail-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pi-verified-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8f9ee;
+  color: #27a95c;
+  flex: 0 0 auto;
+}
+
+.pi-verified-mark .patient-lucide-icon {
+  width: 30px;
+  height: 30px;
+  stroke-width: 3;
+}
+
+.pi-detail-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pi-detail-copy strong {
+  color: #172033;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.pi-detail-copy span,
+.pi-detail-copy small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.pi-detail-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #0d63f3 0%, #0755d8 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 12px 24px rgba(13, 99, 243, 0.22);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.pi-detail-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 15px 28px rgba(13, 99, 243, 0.28);
+}
+
+.pi-info-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.pi-info-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid rgba(203, 213, 225, 0.74);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.045);
+}
+
+.pi-info-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.pi-info-head-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  color: #0d63f3;
+  background: #eaf3ff;
+}
+
+.pi-info-head-icon .patient-lucide-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.pi-info-card-head h2 {
+  min-width: 0;
+  margin: 0;
+  color: #172033;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.pi-info-close {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  border: 0;
+  border-radius: 9px;
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.pi-info-close:hover {
+  background: #eaf3ff;
+  color: #0d63f3;
+}
+
+.pi-info-close .patient-lucide-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.pi-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin: 0;
+}
+
+.pi-info-list div {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.7fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.pi-info-list dt {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.pi-info-list dd {
+  margin: 0;
+  color: #172033;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.pi-validity-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  background: #ecfdf5;
+}
+
+.pi-validity-box > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: #ffffff;
+  background: #10b981;
+}
+
+.pi-validity-box .patient-lucide-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.pi-validity-box strong {
+  display: block;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.pi-validity-box p {
+  margin: 3px 0 0;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.pi-validity-box--expired {
+  border-color: rgba(239, 68, 68, 0.18);
+  background: #fff1f2;
+}
+
+.pi-validity-box--expired > span {
+  background: #ef4444;
+}
+
+.pi-validity-box--expired strong {
+  color: #be123c;
+}
+
+.pi-validity-box--expired p {
+  color: #e11d48;
+}
+
+.pi-validity-box--pending {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: #fffbeb;
+}
+
+.pi-validity-box--pending > span {
+  background: #f59e0b;
+}
+
+.pi-validity-box--pending strong {
+  color: #92400e;
+}
+
+.pi-validity-box--pending p {
+  color: #a16207;
+}
+
+.pi-empty-state {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  margin-top: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.72);
+  border-radius: 16px;
+  background: #f8fbff;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pi-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.pi-back-button {
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #4b8dff 0%, #1f6fed 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 14px 28px rgba(31, 111, 237, 0.24);
+}
+
+@media (min-width: 1081px) {
+  .pi-card-shell {
+    min-height: calc(100vh - 104px);
+    padding: 20px 20px 16px;
+    border-radius: 20px;
+  }
+
+  .pi-header {
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .pi-toolbar {
+    grid-template-columns: auto minmax(250px, 1fr) minmax(230px, 300px);
+    gap: 12px;
+  }
+
+  .pi-add-button {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-size: 11px;
+  }
+
+  .pi-filter-group,
+  .pi-company-filter {
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .pi-segmented {
+    min-height: 34px;
+    border-radius: 10px;
+  }
+
+  .pi-segmented button {
+    min-height: 27px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .pi-company-filter select {
+    height: 34px;
+    border-radius: 10px;
+    font-size: 11px;
+  }
+
+  .pi-policy-grid {
+    gap: 12px;
+  }
+
+  .pi-usage-panel {
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: 15px;
+  }
+
+  .pi-usage-head {
+    margin-bottom: 12px;
+  }
+
+  .pi-usage-head h2 {
+    font-size: 16px;
+  }
+
+  .pi-usage-item {
+    grid-template-columns: 38px minmax(0, 1fr) minmax(280px, 0.72fr);
+    gap: 12px;
+    padding: 11px;
+  }
+
+  .pi-usage-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+
+  .pi-usage-copy h3 {
+    font-size: 13px;
+  }
+
+  .pi-usage-copy p,
+  .pi-usage-copy small,
+  .pi-usage-amounts dd {
+    font-size: 11px;
+  }
+
+  .pi-policy-row {
+    min-height: 82px;
+    gap: 14px;
+  }
+
+  .pi-policy-card,
+  .pi-detail-card {
+    min-height: 82px;
+    border-radius: 15px;
+  }
+
+  .pi-policy-card {
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .pi-provider-logo {
+    width: 50px;
+    height: 50px;
+    border-radius: 13px;
+  }
+
+  .pi-provider-logo.is-compact {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .pi-policy-copy h2 {
+    font-size: 15px;
+  }
+
+  .pi-policy-copy p,
+  .pi-policy-copy span {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .pi-policy-meta {
+    min-width: 102px;
+    gap: 8px;
+  }
+
+  .pi-status {
+    min-height: 25px;
+    padding: 0 10px;
+    font-size: 10px;
+  }
+
+  .pi-inline-action,
+  .pi-detail-button {
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 9px;
+    font-size: 11px;
+  }
+
+  .pi-detail-card {
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .pi-detail-main {
+    gap: 12px;
+  }
+
+  .pi-verified-mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pi-verified-mark .patient-lucide-icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .pi-detail-copy strong {
+    font-size: 13px;
+  }
+
+  .pi-detail-copy span,
+  .pi-detail-copy small {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .pi-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .pi-filter-group,
+  .pi-company-filter {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .pi-company-filter select {
+    max-width: 360px;
+  }
+
+  .pi-policy-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-usage-head {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-usage-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pi-usage-item {
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .pi-usage-amounts {
+    grid-column: 1 / -1;
+  }
+
+  .pi-info-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .patient-insurance-page {
+    margin: 0;
+  }
+
+  .pi-card-shell {
+    min-height: auto;
+    padding: 18px 14px;
+    border-radius: 20px;
+  }
+
+  .pi-title-row h1 {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .pi-add-button {
+    width: 100%;
+  }
+
+  .pi-segmented {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .pi-segmented button {
+    flex: 1 0 auto;
+  }
+
+  .pi-company-filter select {
+    max-width: none;
+  }
+
+  .pi-policy-card {
+    grid-template-columns: 52px minmax(0, 1fr);
+    align-items: flex-start;
+  }
+
+  .pi-policy-meta {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .pi-detail-card,
+  .pi-detail-card.is-selected {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .pi-detail-main {
+    align-items: flex-start;
+  }
+
+  .pi-detail-button,
+  .pi-back-button {
+    width: 100%;
+  }
+
+  .pi-usage-panel {
+    padding: 16px;
+  }
+
+  .pi-usage-summary,
+  .pi-usage-amounts {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-usage-item {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-usage-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .pi-usage-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .pi-usage-copy h3 {
+    white-space: normal;
+  }
+
+  .pi-info-card {
+    padding: 16px;
+  }
+
+  .pi-info-list div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .pi-info-list dd {
+    text-align: left;
+  }
+}

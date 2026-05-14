@@ -1,13 +1,75 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
 import paymentGiftImage from '../assets/payment-gift.png'
-import { checkoutItems, paymentMethods } from '../data/patientPageData'
+import { paymentMethods } from '../data/patientPageData'
 
-export default function PatientBillingPage() {
-  const [selectedItem, setSelectedItem] = useState(checkoutItems[0]?.id || '')
+function formatMoney(value) {
+  const amount = Number(value || 0)
+
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0)
+}
+
+function getInvoiceId(invoice) {
+  return invoice.invoice_id || invoice._id || invoice.id || invoice.invoice_no
+}
+
+function mapInvoiceToCheckoutItem(invoice) {
+  const balanceDue = invoice.balance_due ?? invoice.total_amount ?? 0
+  const status = invoice.status || 'unknown'
+
+  return {
+    id: getInvoiceId(invoice),
+    label: invoice.invoice_no ? `Hóa đơn ${invoice.invoice_no}` : 'Hóa đơn bệnh viện',
+    subLabel: status === 'paid' ? 'Đã thanh toán' : status === 'partially_paid' ? 'Còn một phần cần thanh toán' : 'Chờ thanh toán',
+    amount: formatMoney(balanceDue),
+    rawAmount: Number(balanceDue || 0),
+    issuedAt: invoice.issued_at || invoice.created_at,
+    status,
+    icon: 'receipt_long',
+    iconTone: status === 'paid' ? 'green' : 'blue',
+  }
+}
+
+function summarizeBillingAmount(summary, groupKey, amountKey = 'total_amount') {
+  const rows = Array.isArray(summary?.[groupKey]) ? summary[groupKey] : []
+  return rows.reduce((total, row) => total + Number(row?.[amountKey] || 0), 0)
+}
+
+export default function PatientBillingPage({
+  billingSummary,
+  error = '',
+  invoices = [],
+  loading = false,
+  payments = [],
+}) {
+  const checkoutItems = useMemo(() => invoices.map(mapInvoiceToCheckoutItem), [invoices])
+  const [selectedItem, setSelectedItem] = useState('')
   const [selectedMethod, setSelectedMethod] = useState(paymentMethods[0]?.id || '')
 
-  const currentItem = checkoutItems.find(i => i.id === selectedItem) || checkoutItems[0]
+  const currentItem = checkoutItems.find(i => i.id === selectedItem) || checkoutItems[0] || {
+    label: 'Chưa có hóa đơn',
+    subLabel: 'Không có khoản thanh toán từ backend',
+    amount: formatMoney(0),
+    rawAmount: 0,
+    status: 'none',
+  }
+  const totalDue = summarizeBillingAmount(billingSummary, 'invoices', 'balance_due')
+  const totalPaid = summarizeBillingAmount(billingSummary, 'payments')
+
+  useEffect(() => {
+    if (!checkoutItems.length) {
+      setSelectedItem('')
+      return
+    }
+
+    if (!checkoutItems.some((item) => item.id === selectedItem)) {
+      setSelectedItem(checkoutItems[0].id)
+    }
+  }, [checkoutItems, selectedItem])
 
   return (
     <div className="patient-billing-page">
@@ -15,6 +77,14 @@ export default function PatientBillingPage() {
         <h1>Thanh toán</h1>
         <p>Thanh toán nhanh chóng, an toàn và tiện lợi.</p>
       </header>
+
+      {loading ? (
+        <div className="patient-dashboard-state">Đang tải hóa đơn từ backend...</div>
+      ) : null}
+
+      {!loading && error ? (
+        <div className="patient-dashboard-state patient-dashboard-state-error">{error}</div>
+      ) : null}
 
       <div className="pb-layout">
         <div className="pb-main">
@@ -83,6 +153,11 @@ export default function PatientBillingPage() {
                       </label>
                     )
                   })}
+                  {!loading && checkoutItems.length === 0 ? (
+                    <div className="patient-empty-state">
+                      Chưa có hóa đơn nào được backend trả về cho tài khoản này.
+                    </div>
+                  ) : null}
                 </div>
                 <div className="pb-history-link">
                   <PatientIcon name="info" aria-hidden="true" className="pb-info-icon" />
@@ -213,9 +288,21 @@ export default function PatientBillingPage() {
               </div>
               <div className="pb-summary-row">
                 <span>Ngày tạo</span>
-                <strong>20/05/2024 10:30</strong>
+                <strong>
+                  {currentItem.issuedAt
+                    ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(currentItem.issuedAt))
+                    : 'Chưa có dữ liệu'}
+                </strong>
               </div>
               <div className="pb-divider"></div>
+              <div className="pb-summary-row">
+                <span>Đã thanh toán</span>
+                <strong>{formatMoney(totalPaid)}</strong>
+              </div>
+              <div className="pb-summary-row">
+                <span>Còn phải thu</span>
+                <strong>{formatMoney(totalDue)}</strong>
+              </div>
               <div className="pb-summary-row">
                 <span>Tạm tính</span>
                 <strong>{currentItem.amount}</strong>
@@ -229,9 +316,12 @@ export default function PatientBillingPage() {
                 <span>Tổng thanh toán</span>
                 <strong>{currentItem.amount}</strong>
               </div>
-              <button className="pb-btn-primary pb-btn-full pb-btn-pay">
-                <PatientIcon name="lock" aria-hidden="true" className="pb-btn-icon" /> Thanh toán ngay
+              <button className="pb-btn-primary pb-btn-full pb-btn-pay" type="button" disabled>
+                <PatientIcon name="lock" aria-hidden="true" className="pb-btn-icon" /> Chưa có API thanh toán online
               </button>
+              <p className="pb-security-text">
+                Backend hiện hỗ trợ bệnh nhân xem hóa đơn và lịch sử thanh toán; tạo payment vẫn là luồng nhân viên.
+              </p>
             </div>
           </div>
 

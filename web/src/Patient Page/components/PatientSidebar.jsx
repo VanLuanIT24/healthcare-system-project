@@ -1,65 +1,94 @@
 import PatientIcon from './PatientIcon'
-import { navItems, utilityItems } from '../data/patientPageData'
+import { sidebarSections } from '../data/patientPageData'
+
+function SidebarItem({ item, activeSection, onSectionChange, variant = 'default' }) {
+  const isActive = activeSection === item.key
+
+  return (
+    <button
+      className={`patient-sidebar__item patient-sidebar__item--${variant}${
+        isActive ? ' is-active' : ''
+      }`}
+      type="button"
+      onClick={() => onSectionChange(item.key)}
+      aria-current={isActive ? 'page' : undefined}
+    >
+      <span className="patient-sidebar__item-icon" aria-hidden="true">
+        <PatientIcon name={item.icon} />
+      </span>
+      <span className="patient-sidebar__item-label">{item.label}</span>
+    </button>
+  )
+}
+
+function SidebarSection({ section, activeSection, onSectionChange }) {
+  return (
+    <section className="patient-sidebar__section" aria-label={section.title}>
+      <div className="patient-sidebar__section-head">
+        <span>{section.title}</span>
+        <span className="patient-sidebar__section-line" aria-hidden="true" />
+      </div>
+
+      <div className="patient-sidebar__section-list">
+        {section.items.map((item) => (
+          <SidebarItem
+            key={item.key}
+            item={item}
+            activeSection={activeSection}
+            onSectionChange={onSectionChange}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
 
 export default function PatientSidebar({ activeSection, onSectionChange, onLogout }) {
   return (
     <aside className="patient-sidebar">
-      <div className="patient-sidebar-top">
-        <div className="patient-brand">
-          <div className="patient-brand-mark" aria-hidden="true">
-            <PatientIcon name="monitor_heart" />
-          </div>
-          <div>
-            <p className="patient-brand-name">HealthCare</p>
-            <p className="patient-brand-subtitle">Cổng bệnh nhân</p>
-          </div>
+      <div className="patient-sidebar__brand">
+        <div className="patient-sidebar__brand-mark" aria-hidden="true">
+          <PatientIcon name="monitor_heart" />
+        </div>
+
+        <div className="patient-sidebar__brand-copy">
+          <p className="patient-sidebar__brand-name">HealthCare</p>
+          <p className="patient-sidebar__brand-subtitle">CỔNG BỆNH NHÂN</p>
         </div>
       </div>
 
-      <nav className="patient-nav patient-nav-scroll" aria-label="Điều hướng bệnh nhân">
-        {navItems.map((item) => (
-          <button
-            key={item.key}
-            className={`patient-nav-link${activeSection === item.key ? ' is-active' : ''}`}
-            type="button"
-            onClick={() => onSectionChange(item.key)}
-          >
-            <span className="patient-nav-icon" aria-hidden="true">
-              <PatientIcon name={item.icon} />
-            </span>
-            <span>{item.label}</span>
-          </button>
+      <div className="patient-sidebar__overview">
+        <SidebarItem
+          item={{ key: 'dashboard', icon: 'dashboard', label: 'Tổng quan' }}
+          activeSection={activeSection}
+          onSectionChange={onSectionChange}
+          variant="overview"
+        />
+      </div>
+
+      <nav className="patient-sidebar__sections" aria-label="Điều hướng bệnh nhân">
+        {sidebarSections.map((section) => (
+          <SidebarSection
+            key={section.key}
+            section={section}
+            activeSection={activeSection}
+            onSectionChange={onSectionChange}
+          />
         ))}
       </nav>
 
-      <div className="patient-sidebar-footer">
-        {utilityItems.map((item) => (
-          <button
-            key={item.key}
-            className={`patient-muted-link${activeSection === item.key ? ' is-active' : ''}`}
-            type="button"
-            onClick={() => onSectionChange(item.key)}
-          >
-            <span className="patient-nav-icon" aria-hidden="true">
-              <PatientIcon name={item.icon} />
-            </span>
-            <span>{item.label}</span>
-          </button>
-        ))}
+      <div className="patient-sidebar__footer">
+        <button
+          className="patient-danger-button patient-sidebar__emergency"
+          type="button"
+          onClick={() => onSectionChange('emergency')}
+        >
+          <PatientIcon name="emergency" aria-hidden="true" />
+          <span>Cấp cứu</span>
+        </button>
 
-        <div className="patient-sidebar-cta">
-          <button
-            className="patient-danger-button"
-            type="button"
-            onClick={() => onSectionChange('emergency')}
-          >
-            <PatientIcon name="emergency" aria-hidden="true" />
-            <span>Cấp cứu</span>
-          </button>
-        </div>
-
-        <button className="patient-muted-link" type="button" onClick={onLogout}>
-          <span className="patient-nav-icon" aria-hidden="true">
+        <button className="patient-sidebar__logout" type="button" onClick={onLogout}>
+          <span className="patient-sidebar__logout-icon" aria-hidden="true">
             <PatientIcon name="logout" />
           </span>
           <span>Đăng xuất</span>

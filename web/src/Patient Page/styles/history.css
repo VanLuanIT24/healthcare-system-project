@@ -16,6 +16,177 @@
   font-size: 13px;
 }
 
+.patient-records-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.patient-records-overview-card {
+  min-width: 0;
+  min-height: 104px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(173, 189, 220, 0.36);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.045);
+}
+
+.patient-records-overview-card > span {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 16px;
+  color: var(--patient-primary);
+  background: #eaf3ff;
+}
+
+.patient-records-overview-card > span .patient-lucide-icon {
+  width: 27px;
+  height: 27px;
+}
+
+.patient-records-overview-card strong {
+  display: block;
+  color: #111a31;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.patient-records-overview-card p {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+  color: #52617a;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.patient-records-overview-card b {
+  color: #07152f;
+  font-family: 'Manrope', sans-serif;
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 0.9;
+}
+
+.patient-records-panel {
+  padding: 20px;
+  border: 1px solid rgba(173, 189, 220, 0.36);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.045);
+}
+
+.patient-records-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.patient-records-panel-head h2 {
+  color: #111a31;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.patient-records-panel-head p {
+  margin-top: 4px;
+  color: #64728c;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.patient-records-panel-head > span {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: var(--patient-primary);
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.patient-records-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.patient-records-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(173, 189, 220, 0.3);
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+.patient-records-row-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #74aaff, #0d63f3);
+  box-shadow: 0 12px 24px rgba(13, 99, 243, 0.16);
+}
+
+.patient-records-row-icon .patient-lucide-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.patient-records-row strong {
+  display: block;
+  overflow: hidden;
+  color: #111a31;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-records-row p {
+  display: -webkit-box;
+  margin-top: 6px;
+  overflow: hidden;
+  color: #52617a;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.patient-records-row small {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  color: #64728c;
+  font-size: 11px;
+  font-weight: 750;
+}
+
 .patient-history-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 370px;
@@ -615,6 +786,10 @@
 }
 
 @media (max-width: 1280px) {
+  .patient-records-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .patient-history-workspace {
     grid-template-columns: 1fr;
   }
@@ -626,6 +801,10 @@
 }
 
 @media (max-width: 980px) {
+  .patient-records-list {
+    grid-template-columns: 1fr;
+  }
+
   .patient-history-filterbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -647,6 +826,18 @@
 }
 
 @media (max-width: 720px) {
+  .patient-records-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-records-panel {
+    padding: 16px;
+  }
+
+  .patient-records-panel-head {
+    flex-direction: column;
+  }
+
   .patient-history-filterbar {
     grid-template-columns: 1fr;
   }

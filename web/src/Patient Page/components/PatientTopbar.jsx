@@ -1,19 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { navItems } from '../data/patientPageData'
+import { sidebarSections } from '../data/patientPageData'
 import PatientIcon from './PatientIcon'
 
 const mobileNavItems = [
-  navItems.find((item) => item.key === 'trends'),
-  navItems.find((item) => item.key === 'dashboard'),
-  navItems.find((item) => item.key === 'appointments'),
-  navItems.find((item) => item.key === 'directory'),
-  navItems.find((item) => item.key === 'notifications'),
-  navItems.find((item) => item.key === 'messages'),
-  navItems.find((item) => item.key === 'documents'),
-  navItems.find((item) => item.key === 'history'),
-  navItems.find((item) => item.key === 'billing'),
-  { key: 'emergency', label: 'Khẩn cấp' },
-].filter(Boolean)
+  { key: 'dashboard', icon: 'dashboard', label: 'Tổng quan' },
+  ...sidebarSections.flatMap((section) => section.items),
+  { key: 'emergency', icon: 'emergency', label: 'Cấp cứu' },
+]
 
 export default function PatientTopbar({
   activeSection,
@@ -54,36 +47,47 @@ export default function PatientTopbar({
 
   const titleMap = {
     dashboard: 'Tổng quan',
+    'book-appointment': 'Đặt lịch khám',
+    'lab-results': '',
     emergency: 'Thông tin y tế cấp cứu',
-    trends: 'Xu hướng sức khỏe',
+    imaging: 'Chẩn đoán hình ảnh',
     medications: 'Theo dõi thuốc',
     directory: 'Danh bạ phòng khám',
     documents: 'Kho tài liệu',
+    'medical-records': 'Hồ sơ y tế',
     messages: 'Tin nhắn',
     notifications: 'Thông báo',
-    appointments: 'Lịch hẹn',
+    appointments: '',
     history: 'Lịch sử khám',
     billing: 'Thanh toán và hóa đơn',
-    profile: 'Hồ sơ và cài đặt',
+    insurance: 'Bảo hiểm',
+    profile: 'Hồ sơ cá nhân',
     support: 'Hỗ trợ',
+    settings: 'Cài đặt',
   }
 
   const searchPlaceholderMap = {
     profile: 'Tìm kiếm hồ sơ...',
+    settings: 'Tìm cài đặt...',
     emergency: 'Tìm thông tin cấp cứu...',
-    trends: 'Tìm dữ liệu sức khỏe...',
+    'book-appointment': 'Tìm lịch khám phù hợp...',
+    'lab-results': 'Tìm kết quả xét nghiệm...',
+    imaging: 'Tìm chẩn đoán hình ảnh...',
+    'medical-records': 'Tìm hồ sơ y tế...',
     medications: 'Tìm thuốc và phác đồ...',
     directory: 'Tìm phòng khám hoặc nhà thuốc...',
-    appointments: 'Tìm lịch hẹn...',
+    appointments: 'Tìm hồ sơ y tế...',
     documents: 'Tìm tài liệu...',
     messages: 'Tìm cuộc trò chuyện...',
     notifications: 'Tìm thông báo...',
     history: 'Tìm lịch sử khám...',
     billing: 'Tìm dịch vụ, hóa đơn, hoặc mã thanh toán...',
+    insurance: 'Tìm thông tin bảo hiểm...',
   }
 
   const searchPlaceholder =
     searchPlaceholderMap[activeSection] || 'Tìm hồ sơ và tài liệu y tế...'
+  const topbarTitle = titleMap[activeSection] ?? 'Tổng quan'
 
   const handleNotificationItemClick = (notificationId) => {
     onMarkNotificationAsRead(notificationId)
@@ -94,9 +98,11 @@ export default function PatientTopbar({
   return (
     <header className="patient-topbar">
       <div className="patient-topbar-title">
-        <span className="patient-topbar-brand patient-topbar-brand-desktop">
-          {titleMap[activeSection] || 'Tổng quan'}
-        </span>
+        {topbarTitle ? (
+          <span className="patient-topbar-brand patient-topbar-brand-desktop">
+            {topbarTitle}
+          </span>
+        ) : null}
         <span className="patient-topbar-brand patient-topbar-brand-mobile">HealthCare</span>
       </div>
 
@@ -281,7 +287,10 @@ export default function PatientTopbar({
               type="button"
               onClick={() => (isEmergency ? onEmergencyOpen() : onSectionChange(item.key))}
             >
-              {item.label}
+              <span className="patient-mobile-nav-pill-icon" aria-hidden="true">
+                <PatientIcon name={item.icon} />
+              </span>
+              <span>{item.label}</span>
             </button>
           )
         })}

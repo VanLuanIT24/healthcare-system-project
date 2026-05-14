@@ -1,7 +1,11 @@
 import { sectionMeta } from '../data/patientPageData'
 
 export default function PatientPlaceholderPage({ activeSection, onBackToDashboard }) {
-  const meta = sectionMeta[activeSection]
+  const meta = sectionMeta[activeSection] || {
+    eyebrow: 'Chưa có giao diện',
+    title: 'Chưa có giao diện',
+    body: 'Mục này chưa có màn hình hoặc API phù hợp nên chưa được liên kết sang giao diện khác.',
+  }
 
   return (
     <section className="patient-placeholder patient-panel">

@@ -12,6 +12,7 @@ router.param('doctorId', validateObjectIdParam);
 router.param('departmentId', validateObjectIdParam);
 
 router.get('/:scheduleId/available-slots', scheduleController.getAvailableSlots);
+router.get('/public/date-range', scheduleController.listPublicSchedulesByDateRange);
 
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));

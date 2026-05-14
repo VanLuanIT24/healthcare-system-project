@@ -26,6 +26,61 @@ const onlineDoctorAvatars = [
   'https://randomuser.me/api/portraits/men/41.jpg',
 ]
 
+const appointmentShowcaseRows = [
+  {
+    id: 'showcase-apt-1',
+    title: 'Khám chuyên khoa Tim mạch',
+    doctor: 'BS. Nguyễn Văn An',
+    specialty: 'Tim mạch',
+    date: '28/05/2024',
+    time: '09:30',
+    facility: 'Bệnh viện Đa khoa HealthCare',
+    location: 'Phòng 302 - Tầng 3',
+    status: 'Sắp tới',
+    tone: 'upcoming',
+    isPast: false,
+  },
+  {
+    id: 'showcase-apt-2',
+    title: 'Tái khám',
+    doctor: 'BS. Trần Thị Mai',
+    specialty: 'Nội tổng quát',
+    date: '31/05/2024',
+    time: '10:00',
+    facility: 'Bệnh viện Đa khoa HealthCare',
+    location: 'Phòng 201 - Tầng 2',
+    status: 'Sắp tới',
+    tone: 'upcoming',
+    isPast: false,
+  },
+  {
+    id: 'showcase-apt-3',
+    title: 'Khám tổng quát định kỳ',
+    doctor: 'BS. Lê Hoàng Nam',
+    specialty: 'Khám tổng quát',
+    date: '10/06/2024',
+    time: '08:00',
+    facility: 'Bệnh viện Đa khoa HealthCare',
+    location: 'Phòng 101 - Tầng 1',
+    status: 'Đã xác nhận',
+    tone: 'good',
+    isPast: false,
+  },
+  {
+    id: 'showcase-apt-4',
+    title: 'Khám chuyên khoa Hô hấp',
+    doctor: 'BS. Phạm Thị Thu',
+    specialty: 'Hô hấp',
+    date: '20/05/2024',
+    time: '09:00',
+    facility: 'Bệnh viện Đa khoa HealthCare',
+    location: 'Phòng 205 - Tầng 2',
+    status: 'Đã hoàn thành',
+    tone: 'good',
+    isPast: true,
+  },
+]
+
 const defaultPatientSpecialties = [
   'Khám tổng quát',
   'Nội tổng quát',
@@ -120,6 +175,57 @@ function formatDateOnly(value) {
   }
 
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(date)
+}
+
+function parseAppointmentDate(value, timeValue) {
+  if (!value && !timeValue) {
+    return null
+  }
+
+  const directDate = value instanceof Date ? value : new Date(value)
+
+  if (!Number.isNaN(directDate.getTime())) {
+    return directDate
+  }
+
+  const dateMatch = String(value || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+
+  if (!dateMatch) {
+    return null
+  }
+
+  const [, day, month, year] = dateMatch
+  const timeMatch = String(timeValue || '').match(/^(\d{1,2}):(\d{2})$/)
+  const hours = timeMatch ? Number.parseInt(timeMatch[1], 10) : 0
+  const minutes = timeMatch ? Number.parseInt(timeMatch[2], 10) : 0
+
+  const date = new Date(
+    Number.parseInt(year, 10),
+    Number.parseInt(month, 10) - 1,
+    Number.parseInt(day, 10),
+    hours,
+    minutes,
+  )
+
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function getAppointmentDateParts(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    return {
+      day: '--',
+      month: 'Tháng --',
+      weekday: '--',
+    }
+  }
+
+  const dayIndex = value.getDay()
+
+  return {
+    day: String(value.getDate()),
+    month: `Tháng ${value.getMonth() + 1}`,
+    weekday: dayIndex === 0 ? 'CN' : `Thứ ${dayIndex + 1}`,
+  }
 }
 
 function getLocalDateKey(date) {
@@ -250,7 +356,7 @@ function isPastSlotTime(value) {
 
 function getAppointmentStatusMeta(status) {
   const map = {
-    booked: { label: 'Đã đặt', tone: 'soft' },
+    booked: { label: 'Sắp tới', tone: 'upcoming' },
     confirmed: { label: 'Đã xác nhận', tone: 'good' },
     checked_in: { label: 'Đã check-in', tone: 'good' },
     in_consultation: { label: 'Đang khám', tone: 'good' },
@@ -265,19 +371,58 @@ function getAppointmentStatusMeta(status) {
 
 function mapApiAppointment(appointment) {
   const status = getAppointmentStatusMeta(appointment.status)
+  const startsAt = parseAppointmentDate(appointment.appointment_time)
+  const specialty =
+    translateMedicalLabel(appointment.department_name) ||
+    translateMedicalLabel(appointment.appointment_type) ||
+    `Khoa ${String(appointment.department_id || '').slice(-6)}`
+  const title =
+    appointment.appointment_title ||
+    appointment.reason ||
+    appointment.visit_reason ||
+    (specialty ? `Khám chuyên khoa ${specialty}` : 'Lịch hẹn khám')
 
   return {
     id: appointment.appointment_id || `${appointment.doctor_id}-${appointment.appointment_time}`,
+    startsAt,
+    isPast: Boolean(startsAt && startsAt.getTime() <= Date.now()),
+    dateParts: getAppointmentDateParts(startsAt),
+    facility: appointment.facility_name || appointment.hospital_name || 'Bệnh viện Đa khoa HealthCare',
+    location:
+      appointment.room_name ||
+      appointment.room ||
+      appointment.clinic_room ||
+      appointment.department_name ||
+      'Đang cập nhật',
+    title,
     doctor: appointment.doctor_name || `Bác sĩ ${String(appointment.doctor_id || '').slice(-6)}`,
-    specialty:
-      translateMedicalLabel(appointment.department_name) ||
-      translateMedicalLabel(appointment.appointment_type) ||
-      `Khoa ${String(appointment.department_id || '').slice(-6)}`,
+    specialty,
     date: formatAppointmentDate(appointment.appointment_time),
     time: formatAppointmentTime(appointment.appointment_time),
     status: status.label,
     tone: status.tone,
     icon: 'medical_services',
+  }
+}
+
+function mapLegacyAppointment(appointment) {
+  const startsAt = parseAppointmentDate(appointment.date, appointment.time)
+
+  return {
+    id: appointment.id,
+    startsAt,
+    isPast: appointment.isPast ?? Boolean(startsAt && startsAt.getTime() <= Date.now()),
+    dateParts: getAppointmentDateParts(startsAt),
+    facility: appointment.facility || 'Bệnh viện Đa khoa HealthCare',
+    location: appointment.location || appointment.specialty || 'Khu khám chuyên khoa',
+    title: appointment.title || `Khám chuyên khoa ${appointment.specialty || ''}`.trim(),
+    doctor: appointment.doctor,
+    specialty: appointment.specialty,
+    date: appointment.date,
+    time: appointment.time,
+    status: appointment.status,
+    tone: appointment.tone || 'soft',
+    icon: appointment.icon || 'medical_services',
   }
 }
 
@@ -648,6 +793,7 @@ export default function PatientAppointmentsPage({
   patientProfile,
   schedules = [],
   user,
+  viewMode = 'booking',
 }) {
   const defaultDoctor =
     appointmentDoctors.find((doctor) => doctor.id === 'doc-2')?.id || appointmentDoctors[0]?.id
@@ -672,12 +818,95 @@ export default function PatientAppointmentsPage({
   const [bookingError, setBookingError] = useState('')
   const [confirmedAppointment, setConfirmedAppointment] = useState(null)
   const [hasSyncedApiDefaultDoctor, setHasSyncedApiDefaultDoctor] = useState(false)
-  const [showAllAppointments, setShowAllAppointments] = useState(false)
+  const [appointmentTab, setAppointmentTab] = useState('upcoming')
   const appointmentRows = useMemo(
     () => appointments.map(mapApiAppointment),
     [appointments],
   )
-  const visibleAppointmentRows = showAllAppointments ? appointmentRows : appointmentRows.slice(0, 4)
+  const appointmentTimelineRows = useMemo(() => {
+    const fallbackRows = appointmentShowcaseRows.length ? appointmentShowcaseRows : appointmentHistory
+    const source = appointmentRows.length > 0 ? appointmentRows : fallbackRows.map(mapLegacyAppointment)
+
+    return [...source].sort((left, right) => {
+      const leftTime = left.startsAt instanceof Date ? left.startsAt.getTime() : 0
+      const rightTime = right.startsAt instanceof Date ? right.startsAt.getTime() : 0
+
+      return leftTime - rightTime
+    })
+  }, [appointmentRows])
+  const upcomingAppointments = useMemo(
+    () => appointmentTimelineRows.filter((appointment) => !appointment.isPast),
+    [appointmentTimelineRows],
+  )
+  const pastAppointments = useMemo(
+    () => appointmentTimelineRows.filter((appointment) => appointment.isPast),
+    [appointmentTimelineRows],
+  )
+  const appointmentSections = useMemo(
+    () => [
+      {
+        key: 'upcoming',
+        label: 'Lịch hẹn sắp tới',
+        description: 'Các cuộc hẹn chưa diễn ra và những lượt cần theo dõi tiếp theo.',
+        icon: 'event',
+        rows: upcomingAppointments,
+      },
+      {
+        key: 'past',
+        label: 'Lịch hẹn đã qua',
+        description: 'Lịch sử khám gần đây và các cuộc hẹn đã hoàn tất.',
+        icon: 'calendar_today',
+        rows: pastAppointments,
+      },
+    ],
+    [pastAppointments, upcomingAppointments],
+  )
+  const appointmentSummaryCards = useMemo(() => {
+    const pendingCount = appointmentTimelineRows.filter((appointment) => {
+      const status = String(appointment.status || '').toLowerCase()
+      return appointment.tone === 'soft' || status.includes('chờ') || status.includes('pending')
+    }).length
+
+    return [
+      {
+        id: 'upcoming',
+        icon: 'calendar_today',
+        tone: 'blue',
+        label: 'Sắp tới',
+        count: upcomingAppointments.length,
+        unit: 'lịch hẹn',
+      },
+      {
+        id: 'completed',
+        icon: 'check_circle',
+        tone: 'green',
+        label: 'Đã hoàn thành',
+        count: pastAppointments.length,
+        unit: 'lịch hẹn',
+      },
+      {
+        id: 'pending',
+        icon: 'schedule',
+        tone: 'orange',
+        label: 'Đang chờ',
+        count: pendingCount,
+        unit: 'lịch hẹn',
+      },
+      {
+        id: 'reminder',
+        icon: 'info',
+        tone: 'soft',
+        label: 'Nhắc nhở',
+        note: 'Vui lòng đến sớm 15 phút trước giờ hẹn và mang theo giấy tờ tùy thân.',
+      },
+    ]
+  }, [appointmentTimelineRows, pastAppointments.length, upcomingAppointments.length])
+  const orderedAppointmentSections = useMemo(() => {
+    const activeSection = appointmentSections.find((section) => section.key === appointmentTab)
+    const otherSections = appointmentSections.filter((section) => section.key !== appointmentTab)
+
+    return activeSection ? [activeSection, ...otherSections] : appointmentSections
+  }, [appointmentSections, appointmentTab])
   const scheduleOptions = useMemo(
     () =>
       schedules
@@ -1128,6 +1357,7 @@ export default function PatientAppointmentsPage({
   if (step === 1) {
     return (
       <>
+        {viewMode !== 'history' && (
         <section className="patient-booking-layout">
           <ProgressBar />
           <div className="patient-booking-grid">
@@ -1285,7 +1515,7 @@ export default function PatientAppointmentsPage({
                 </div>
                 <div className="patient-booking-perk">
                   <PatientIcon name="schedule" aria-hidden="true" />
-                  <span>Thời gian khám ≈ 45 phút</span>
+                  <span>Thời gian khám â‰ˆ 45 phút</span>
                 </div>
               </div>
 
@@ -1300,78 +1530,150 @@ export default function PatientAppointmentsPage({
             </section>
           </div>
         </section>
+        )}
 
-        <section className="patient-appointments-history">
-          <div className="patient-appointments-headline">
+        {viewMode !== 'booking' && (
+        <section className="patient-panel patient-appointments-history patient-appointments-shell">
+          <div className="patient-appointments-hero">
             <div>
-              <h2>Danh sách lịch đã đặt</h2>
+              <h1>Lịch hẹn</h1>
+            </div>
+            <div className="patient-appointments-tabs" role="tablist" aria-label="Lịch hẹn">
+              {appointmentSections.map((section) => {
+                const active = section.key === appointmentTab
+
+                return (
+                  <button
+                    key={section.key}
+                    className={`patient-appointments-tab${active ? ' is-active' : ''}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setAppointmentTab(section.key)}
+                  >
+                    <span>{section.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="patient-appointments-summary-grid" aria-label="Tổng quan lịch hẹn">
+            {appointmentSummaryCards.map((card) => (
+              <article
+                key={card.id}
+                className={`patient-appointments-summary-card ${card.tone}${card.note ? ' is-reminder' : ''}`}
+              >
+                <span className="patient-appointments-summary-icon" aria-hidden="true">
+                  <PatientIcon name={card.icon} />
+                </span>
+                <div>
+                  <strong>{card.label}</strong>
+                  {card.note ? (
+                    <p>{card.note}</p>
+                  ) : (
+                    <span>
+                      <b>{card.count}</b>
+                      {card.unit}
+                    </span>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="patient-appointments-stack">
+            {loading ? (
+              <div className="patient-appointments-history-shell">
+                <div className="patient-empty-state">Đang tải lịch hẹn từ backend...</div>
+              </div>
+            ) : null}
+
+            {!loading &&
+              orderedAppointmentSections.map((section) => (
+                <div key={section.key} className="patient-appointments-group">
+                  <div className="patient-appointments-section-head">
+                    <div className="patient-appointments-section-title">
+                      <span className="patient-appointments-section-icon">
+                        <PatientIcon name={section.icon} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <h3>{section.label}</h3>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="patient-appointments-history-shell">
+                    {section.rows.length === 0 ? (
+                      <div className="patient-empty-state">
+                        {section.key === 'upcoming'
+                          ? 'Chưa có lịch hẹn sắp tới.'
+                          : 'Chưa có lịch hẹn đã qua.'}
+                      </div>
+                    ) : (
+                      <div className="patient-appointment-list">
+                        {section.rows.map((appointment) => (
+                          <article key={appointment.id} className="patient-appointment-card">
+                            <div className="patient-appointment-date">
+                              <span>{appointment.dateParts.weekday}</span>
+                              <strong>{appointment.dateParts.day}</strong>
+                              <em>{appointment.dateParts.month}</em>
+                            </div>
+
+                            <div className="patient-appointment-body">
+                              <div className="patient-appointment-title-row">
+                                <div>
+                                  <h4>{appointment.title}</h4>
+                                  <p>{appointment.doctor}</p>
+                                  <span>{appointment.facility}</span>
+                                </div>
+                              </div>
+
+                              <div className="patient-appointment-meta">
+                                <div className="patient-appointment-meta-item">
+                                  <PatientIcon name="schedule" aria-hidden="true" />
+                                  <span>{appointment.time}</span>
+                                </div>
+                                <div className="patient-appointment-meta-item">
+                                  <PatientIcon name="location_on" aria-hidden="true" />
+                                  <span>{appointment.location}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="patient-appointment-aside">
+                              <span className={`patient-status-pill ${appointment.tone}`}>
+                                {appointment.status}
+                              </span>
+                              <button
+                                className="patient-appointment-action"
+                                type="button"
+                                aria-label={`Xem chi tiết lịch hẹn ${appointment.title}`}
+                              >
+                                <PatientIcon name="chevron_right" aria-hidden="true" />
+                              </button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+            <div className="patient-appointments-note">
+              <div className="patient-appointments-note-icon">
+                <PatientIcon name="info" aria-hidden="true" />
+              </div>
               <p>
-                {appointmentRows.length > 0
-                  ? `Đang hiển thị ${visibleAppointmentRows.length}/${appointmentRows.length} lịch hẹn`
-                  : 'Xem và quản lý các cuộc hẹn sắp tới của bạn'}
+                Vui lòng đến sớm 15 phút trước giờ hẹn và mang theo giấy tờ tùy thân. Nếu bạn không thể
+                đến, hãy hủy hoặc đổi lịch sớm để hệ thống cập nhật kịp thời.
               </p>
             </div>
-            {appointmentRows.length > 4 ? (
-              <button
-                className="patient-inline-link patient-inline-link-icon"
-                type="button"
-                onClick={() => setShowAllAppointments((value) => !value)}
-              >
-                <span>{showAllAppointments ? 'Thu gọn' : 'Xem tất cả lịch sử'}</span>
-                <PatientIcon name={showAllAppointments ? 'expand_less' : 'arrow_forward'} aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
 
-          <div className="patient-panel patient-appointments-table-shell">
-            {loading ? (
-              <div className="patient-empty-state">Đang tải lịch hẹn từ backend...</div>
-            ) : appointmentRows.length === 0 ? (
-              <div className="patient-empty-state">Chưa có lịch hẹn nào từ backend.</div>
-            ) : (
-              <table className="patient-appointments-table">
-                <thead>
-                  <tr>
-                    <th>Bác sĩ và chuyên khoa</th>
-                    <th>Ngày khám</th>
-                    <th>Giờ</th>
-                    <th>Trạng thái</th>
-                    <th>Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleAppointmentRows.map((appointment) => (
-                    <tr key={appointment.id}>
-                      <td data-label="Bác sĩ và chuyên khoa">
-                        <div className="patient-history-doctor">
-                          <div className="patient-history-icon">
-                            <PatientIcon name={appointment.icon} aria-hidden="true" />
-                          </div>
-                          <div>
-                            <strong>{appointment.doctor}</strong>
-                            <p>{appointment.specialty}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td data-label="Ngày khám">{appointment.date}</td>
-                      <td data-label="Giờ">{appointment.time}</td>
-                      <td data-label="Trạng thái">
-                        <span className={`patient-status-pill ${appointment.tone}`}>
-                          {appointment.status}
-                        </span>
-                      </td>
-                      <td className="patient-history-actions" data-label="Hành động">
-                        <button type="button" aria-label="Tùy chọn khác">
-                          <PatientIcon name="more_vert" aria-hidden="true" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
           </div>
         </section>
+        )}
       </>
     )
   }

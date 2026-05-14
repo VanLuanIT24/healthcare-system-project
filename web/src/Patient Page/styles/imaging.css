@@ -1,0 +1,423 @@
+.patient-imaging-shell {
+  min-height: calc(100vh - 104px);
+  padding: 22px 24px 24px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(178, 195, 226, 0.42);
+  box-shadow:
+    0 18px 45px rgba(17, 34, 64, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.patient-imaging-head h1 {
+  margin: 0 0 18px;
+  color: #07152f;
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.patient-imaging-tabs {
+  display: flex;
+  width: 100%;
+  gap: 34px;
+  padding: 0 0 0 16px;
+  border-bottom: 1px solid rgba(159, 175, 205, 0.34);
+}
+
+.patient-imaging-tab {
+  position: relative;
+  min-height: 36px;
+  padding: 0 2px 11px;
+  border: 0;
+  background: transparent;
+  color: #69758f;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.patient-imaging-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background-color 0.18s ease;
+}
+
+.patient-imaging-tab.is-active {
+  color: var(--patient-primary);
+}
+
+.patient-imaging-tab.is-active::after {
+  background: var(--patient-primary);
+}
+
+.patient-imaging-table {
+  margin-top: 26px;
+}
+
+.patient-imaging-row {
+  display: grid;
+  grid-template-columns: 104px minmax(210px, 1.35fr) minmax(128px, 0.72fr) minmax(110px, 0.56fr) minmax(140px, 0.64fr) 30px;
+  column-gap: 22px;
+  align-items: center;
+}
+
+.patient-imaging-row-head {
+  padding: 0 18px 12px;
+  color: #7a869f;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.patient-imaging-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.patient-imaging-card {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 18px;
+  border: 1px solid rgba(176, 194, 225, 0.5);
+  border-radius: 13px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(17, 34, 64, 0.035);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.patient-imaging-card + .patient-imaging-card {
+  margin-top: -1px;
+}
+
+.patient-imaging-card:hover {
+  z-index: 1;
+  transform: translateY(-1px);
+  border-color: rgba(13, 99, 243, 0.22);
+  box-shadow: 0 14px 28px rgba(17, 34, 64, 0.07);
+}
+
+.patient-imaging-card.is-selected {
+  border-color: rgba(13, 99, 243, 0.36);
+  background: #f8fbff;
+}
+
+.patient-imaging-thumb {
+  position: relative;
+  width: 74px;
+  height: 62px;
+  display: block;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #111827;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 8px 16px rgba(15, 23, 42, 0.12);
+}
+
+.patient-imaging-thumb::before,
+.patient-imaging-thumb::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.patient-imaging-thumb.chest {
+  background:
+    radial-gradient(ellipse at 31% 46%, rgba(255, 255, 255, 0.8) 0 14%, transparent 32%),
+    radial-gradient(ellipse at 69% 46%, rgba(255, 255, 255, 0.8) 0 14%, transparent 32%),
+    radial-gradient(ellipse at 50% 44%, rgba(235, 240, 248, 0.55) 0 18%, transparent 34%),
+    linear-gradient(120deg, #050608 0%, #d5dbe4 50%, #0d1117 100%);
+}
+
+.patient-imaging-thumb.chest::before {
+  left: 50%;
+  top: 8px;
+  width: 5px;
+  height: 49px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  transform: translateX(-50%);
+  box-shadow:
+    -18px 5px 13px rgba(0, 0, 0, 0.42),
+    18px 5px 13px rgba(0, 0, 0, 0.42);
+}
+
+.patient-imaging-thumb.ultrasound {
+  background:
+    radial-gradient(ellipse at 50% 68%, rgba(238, 244, 251, 0.72) 0 18%, transparent 40%),
+    repeating-radial-gradient(ellipse at 50% 70%, rgba(255, 255, 255, 0.18) 0 2px, transparent 3px 8px),
+    linear-gradient(180deg, #05070a 0%, #1b2027 58%, #05070a 100%);
+}
+
+.patient-imaging-thumb.ultrasound::before {
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  height: 34px;
+  border-radius: 50% 50% 6px 6px;
+  background: radial-gradient(ellipse at center, rgba(225, 232, 240, 0.55), rgba(72, 82, 96, 0.25) 56%, transparent 70%);
+}
+
+.patient-imaging-thumb.brain {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(242, 246, 252, 0.86) 0 31%, rgba(91, 99, 112, 0.35) 32% 38%, transparent 39%),
+    linear-gradient(135deg, #07090d 0%, #29313d 50%, #090b0f 100%);
+}
+
+.patient-imaging-thumb.brain::before {
+  inset: 14px 20px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+}
+
+.patient-imaging-thumb.brain::after {
+  left: 50%;
+  top: 20px;
+  width: 2px;
+  height: 25px;
+  background: rgba(255, 255, 255, 0.62);
+  transform: translateX(-50%);
+}
+
+.patient-imaging-thumb.spine {
+  background:
+    radial-gradient(ellipse at 50% 12%, rgba(255, 255, 255, 0.52), transparent 28%),
+    linear-gradient(90deg, #07090d 0%, #c8cfd9 50%, #080b10 100%);
+}
+
+.patient-imaging-thumb.spine::before {
+  left: 50%;
+  top: 6px;
+  width: 8px;
+  height: 52px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0 5px, rgba(70, 76, 86, 0.82) 6px 8px);
+  transform: translateX(-50%);
+  box-shadow:
+    -11px 18px 14px rgba(255, 255, 255, 0.22),
+    11px 18px 14px rgba(255, 255, 255, 0.22);
+}
+
+.patient-imaging-name {
+  min-width: 0;
+  color: #07152f;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-imaging-date,
+.patient-imaging-type {
+  color: #4f5d78;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.patient-imaging-status {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 25px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.patient-imaging-status.normal {
+  color: #0b9f61;
+  background: #e2f8ec;
+  border: 1px solid rgba(16, 185, 129, 0.18);
+}
+
+.patient-imaging-status.watch {
+  color: #d38100;
+  background: #fff4dd;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.patient-imaging-status.critical {
+  color: #c7373f;
+  background: #fff1f2;
+  border: 1px solid rgba(225, 29, 72, 0.18);
+}
+
+.patient-imaging-empty {
+  padding: 28px 18px;
+  border: 1px dashed rgba(159, 175, 205, 0.55);
+  border-radius: 12px;
+  color: #52607a;
+  background: #fbfdff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.patient-imaging-action {
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  color: #52607a;
+}
+
+.patient-imaging-action .patient-lucide-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.patient-imaging-note {
+  position: relative;
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding: 14px 20px;
+  overflow: hidden;
+  border: 1px solid rgba(13, 99, 243, 0.12);
+  border-radius: 12px;
+  background: #f4f8ff;
+}
+
+.patient-imaging-note-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #0d63f3;
+  color: #ffffff;
+}
+
+.patient-imaging-note-icon .patient-lucide-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.patient-imaging-note p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: #3d4d68;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.patient-imaging-note strong {
+  color: #07152f;
+}
+
+.patient-imaging-note-art {
+  position: absolute;
+  right: 34px;
+  top: 50%;
+  color: rgba(13, 99, 243, 0.09);
+  transform: translateY(-50%);
+}
+
+.patient-imaging-note-art .patient-lucide-icon {
+  width: 58px;
+  height: 58px;
+  stroke-width: 1.9;
+}
+
+@media (max-width: 1180px) {
+  .patient-imaging-row {
+    grid-template-columns: 88px minmax(180px, 1.25fr) minmax(112px, 0.7fr) minmax(96px, 0.56fr) minmax(122px, 0.6fr) 28px;
+    column-gap: 14px;
+  }
+}
+
+@media (max-width: 900px) {
+  .patient-imaging-row-head {
+    display: none;
+  }
+
+  .patient-imaging-table {
+    margin-top: 18px;
+  }
+
+  .patient-imaging-card {
+    grid-template-columns: 82px minmax(0, 1fr) auto;
+    row-gap: 5px;
+    padding: 12px;
+  }
+
+  .patient-imaging-thumb {
+    grid-row: span 3;
+  }
+
+  .patient-imaging-name,
+  .patient-imaging-date,
+  .patient-imaging-type,
+  .patient-imaging-status {
+    grid-column: 2;
+  }
+
+  .patient-imaging-status {
+    justify-self: start;
+  }
+
+  .patient-imaging-action {
+    grid-column: 3;
+    grid-row: 1 / span 3;
+  }
+}
+
+@media (max-width: 640px) {
+  .patient-imaging-shell {
+    min-height: auto;
+    padding: 20px;
+  }
+
+  .patient-imaging-head h1 {
+    font-size: 25px;
+  }
+
+  .patient-imaging-tabs {
+    gap: 24px;
+    padding-left: 0;
+    overflow-x: auto;
+  }
+
+  .patient-imaging-card {
+    grid-template-columns: 70px minmax(0, 1fr) 24px;
+  }
+
+  .patient-imaging-thumb {
+    width: 62px;
+    height: 54px;
+  }
+
+  .patient-imaging-note {
+    align-items: flex-start;
+    padding: 14px;
+  }
+
+  .patient-imaging-note-art {
+    display: none;
+  }
+}

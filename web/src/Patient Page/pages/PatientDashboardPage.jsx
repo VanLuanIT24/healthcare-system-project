@@ -230,9 +230,9 @@ export default function PatientDashboardPage({
             </div>
 
             <div className="patient-notification-list patient-notification-list-featured">
-              {notifications.map((item) => (
+              {notifications.map((item, index) => (
                 <article
-                  key={item.title}
+                  key={item.id || `${item.title}-${item.time}-${index}`}
                   className="patient-notification-item patient-notification-item-featured"
                 >
                   <div className={`patient-notification-icon ${item.tone || item.iconTone || 'slate'}`}>

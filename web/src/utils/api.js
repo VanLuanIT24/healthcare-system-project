@@ -71,15 +71,25 @@ export function getApiErrorMessage(error, fallback = 'Không thể xử lý yêu
 export const authAPI = {
   getMe: () => request('/auth/me'),
   updateMyProfile: (body) => request('/auth/me', { method: 'PATCH', body }),
+  getMyRoles: () => request('/auth/me/roles'),
+  getMyPermissions: () => request('/auth/me/permissions'),
+  getCurrentSession: () => request('/auth/me/session'),
   getMySessions: () => request('/auth/me/sessions'),
   getLoginHistory: (params) => request('/auth/me/login-history', { params }),
   changePassword: (body) => request('/auth/change-password', { method: 'POST', body }),
+  updatePatientAccountEmail: (body) => request('/auth/patient/account/email', { method: 'PATCH', body }),
+  updatePatientAccountPhone: (body) => request('/auth/patient/account/phone', { method: 'PATCH', body }),
+  updatePatientAccountUsername: (body) => request('/auth/patient/account/username', { method: 'PATCH', body }),
   logout: (refreshToken) =>
     request('/auth/logout', {
       method: 'POST',
       body: refreshToken ? { refresh_token: refreshToken } : {},
     }),
   logoutAllDevices: () => request('/auth/logout-all-devices', { method: 'POST', body: {} }),
+  revokeOtherSessions: () => request('/auth/me/sessions/others', { method: 'DELETE' }),
+  renameMySessionDevice: (sessionId, body) =>
+    request(`/auth/me/sessions/${encodeURIComponent(sessionId)}/device`, { method: 'PATCH', body }),
+  revokeMySession: (sessionId) => request(`/auth/me/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
   revokeSession: (sessionId) =>
     request('/auth/sessions/revoke', { method: 'POST', body: { session_id: sessionId } }),
 }
@@ -99,8 +109,69 @@ export const patientAPI = {
   timeline: (patientId) => request(`/patients/${encodeURIComponent(patientId)}/timeline`),
 }
 
+export const recordsAPI = {
+  getMyMedicalRecords: (params) => request('/records/me/medical-records', { params }),
+  getMyMedicalRecordDetail: (recordId) =>
+    request(`/records/me/medical-records/${encodeURIComponent(recordId)}`),
+  getMyAttachments: (params) => request('/records/me/attachments', { params }),
+  getMyAttachmentDetail: (attachmentId) => request(`/records/me/attachments/${encodeURIComponent(attachmentId)}`),
+  getMyDocumentTimeline: (params) => request('/records/me/document-timeline', { params }),
+  getMyAttachmentDownloadMetadata: (attachmentId) =>
+    request(`/records/me/attachments/${encodeURIComponent(attachmentId)}/download`),
+}
+
+export const labAPI = {
+  getMyResults: (params) => request('/lab/me/results', { params }),
+  getResultDetail: (resultId) => request(`/lab/me/results/${encodeURIComponent(resultId)}`),
+}
+
+export const imagingAPI = {
+  getMyReports: (params) => request('/imaging/me/reports', { params }),
+  getReportDetail: (reportId) => request(`/imaging/me/reports/${encodeURIComponent(reportId)}`),
+}
+
+export const inpatientAPI = {
+  getMyAdmissions: (params) => request('/inpatient/me/admissions', { params }),
+  getAdmissionDetail: (admissionId) => request(`/inpatient/me/admissions/${encodeURIComponent(admissionId)}`),
+}
+
+export const procedureAPI = {
+  getMyHistory: (params) => request('/procedures/me/history', { params }),
+  getOrderDetail: (procedureOrderId) => request(`/procedures/me/orders/${encodeURIComponent(procedureOrderId)}`),
+}
+
+export const billingAPI = {
+  getMySummary: () => request('/billing/me/summary'),
+  getMyInvoices: (params) => request('/billing/me/invoices', { params }),
+  getMyInvoiceDetail: (invoiceId) => request(`/billing/me/invoices/${encodeURIComponent(invoiceId)}`),
+  getMyPayments: (params) => request('/billing/me/payments', { params }),
+  getMyPaymentDetail: (paymentId) => request(`/billing/me/payments/${encodeURIComponent(paymentId)}`),
+  getMyInsurancePolicies: () => request('/billing/me/insurance-policies'),
+  getMyInsurancePolicyDetail: (policyId) =>
+    request(`/billing/me/insurance-policies/${encodeURIComponent(policyId)}`),
+  getMyInsuranceClaims: (params) => request('/billing/me/insurance-claims', { params }),
+  getMyInsuranceClaimDetail: (claimId) =>
+    request(`/billing/me/insurance-claims/${encodeURIComponent(claimId)}`),
+}
+
+export const notificationAPI = {
+  getMyNotifications: (params) => request('/notifications', { params }),
+  getUnreadCount: () => request('/notifications/unread-count'),
+  markAllRead: () => request('/notifications/read-all', { method: 'POST', body: {} }),
+  markRead: (notificationId) =>
+    request(`/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'POST', body: {} }),
+  listMine: (params) => request('/notifications', { params }),
+  markAllReadWithParams: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
+  clearAll: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
+}
+
 export const appointmentAPI = {
   getMyAppointments: (params) => request('/appointments/my', { params }),
+  getMyAppointmentDetail: (appointmentId) => request(`/appointments/my/${encodeURIComponent(appointmentId)}`),
+  cancelMyAppointment: (appointmentId, body = {}) =>
+    request(`/appointments/my/${encodeURIComponent(appointmentId)}/cancel`, { method: 'POST', body }),
+  rescheduleMyAppointment: (appointmentId, body = {}) =>
+    request(`/appointments/my/${encodeURIComponent(appointmentId)}/reschedule`, { method: 'POST', body }),
   listAppointments: (params) => request('/appointments', { params }),
   list: (params) => request('/appointments', { params }),
   search: (params) => request('/appointments/search', { params }),
@@ -131,7 +202,7 @@ export const departmentAPI = {
 
 export const scheduleAPI = {
   list: (params) => request('/schedules', { params }),
-  getByDateRange: (params) => request('/schedules/date-range', { params, auth: false }),
+  getByDateRange: (params) => request('/schedules/public/date-range', { params, auth: false }),
   listByDoctor: (doctorId, params) => request(`/schedules/doctor/${encodeURIComponent(doctorId)}`, { params }),
   calendarByDoctor: (doctorId, params) => request(`/schedules/calendar/doctor/${encodeURIComponent(doctorId)}`, { params }),
   getAvailableSlots: (scheduleId) =>
@@ -176,12 +247,6 @@ export const queueAPI = {
 
 export const dashboardAPI = {
   doctorMe: (params) => request('/dashboard/doctor/me', { params }),
-}
-
-export const notificationAPI = {
-  listMine: (params) => request('/notifications', { params }),
-  markAllRead: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
-  clearAll: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
 }
 
 export const encounterAPI = {
@@ -253,6 +318,8 @@ export const clinicalAPI = {
 }
 
 export const prescriptionAPI = {
+  getMyPrescriptions: (params) => request('/prescriptions/me', { params }),
+  getMyPrescriptionDetail: (prescriptionId) => request(`/prescriptions/me/${encodeURIComponent(prescriptionId)}`),
   list: (params) => request('/prescriptions', { params }),
   listByEncounter: (encounterId, params) => request(`/prescriptions/encounter/${encodeURIComponent(encounterId)}`, { params }),
   listByPatient: (patientId, params) => request(`/prescriptions/patient/${encodeURIComponent(patientId)}`, { params }),

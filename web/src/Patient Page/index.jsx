@@ -1,17 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { appointmentAPI, authAPI, departmentAPI, patientAPI, scheduleAPI } from '../utils/api'
+import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  appointmentAPI,
+  authAPI,
+  billingAPI,
+  departmentAPI,
+  imagingAPI,
+  labAPI,
+  notificationAPI,
+  patientAPI,
+  prescriptionAPI,
+  recordsAPI,
+  scheduleAPI,
+} from '../utils/api'
 import { clearStoredAuth, readStoredAuth, writeStoredAuth } from '../lib/storage'
 import PatientIcon from './components/PatientIcon'
 import PatientSidebar from './components/PatientSidebar'
 import PatientTopbar from './components/PatientTopbar'
+import { notificationFeed } from './data/patientPageData'
 import PatientAppointmentsPage from './pages/PatientAppointmentsPage'
 import PatientBillingPage from './pages/PatientBillingPage'
 import PatientDashboardPage from './pages/PatientDashboardPage'
 import PatientDirectoryPage from './pages/PatientDirectoryPage'
 import PatientDocumentsPage from './pages/PatientDocumentsPage'
 import PatientEmergencyIdentityPage from './pages/PatientEmergencyIdentityPage'
-import PatientHealthTrendsPage from './pages/PatientHealthTrendsPage'
+import PatientImagingPage from './pages/PatientImagingPage'
+import PatientInsurancePage from './pages/PatientInsurancePage'
+import PatientLabResultsPage from './pages/PatientLabResultsPage'
 import PatientMedicalHistoryPage from './pages/PatientMedicalHistoryPage'
 import PatientMedicationsPage from './pages/PatientMedicationsPage'
 import PatientMessagesPage from './pages/PatientMessagesPage'
@@ -19,7 +34,6 @@ import PatientNotificationsPage from './pages/PatientNotificationsPage'
 import PatientProfileSettingsPage from './pages/PatientProfileSettingsPage'
 import PatientPlaceholderPage from './pages/PatientPlaceholderPage'
 import PatientSupportPage from './pages/PatientSupportPage'
-import { notificationFeed } from './data/patientPageData'
 import { getInitials } from './utils/patientHelpers'
 import './styles/base.css'
 import './styles/appointments.css'
@@ -29,12 +43,14 @@ import './styles/directory.css'
 import './styles/documents.css'
 import './styles/emergency.css'
 import './styles/history.css'
+import './styles/imaging.css'
+import './styles/insurance.css'
+import './styles/lab-results.css'
 import './styles/medications.css'
 import './styles/messages.css'
 import './styles/notifications.css'
 import './styles/profile-settings.css'
 import './styles/support.css'
-import './styles/trends.css'
 import './styles/compact-desktop.css'
 
 function getApiErrorMessage(error, fallback) {
@@ -53,6 +69,53 @@ function normalizeClearableText(value) {
 
 function getResponseData(result) {
   return result.status === 'fulfilled' ? result.value.data?.data : null
+}
+
+function getRelativeTime(value) {
+  if (!value) {
+    return 'Chưa có thời gian'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Chưa có thời gian'
+  }
+
+  const diffMs = Date.now() - date.getTime()
+  const diffMinutes = Math.max(1, Math.round(diffMs / 60000))
+  if (diffMinutes < 60) return `${diffMinutes} phút trước`
+  const diffHours = Math.round(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} giờ trước`
+  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(date)
+}
+
+function getNotificationCategory(item) {
+  const type = String(item.notification_type || item.created_by_module || '').toLowerCase()
+  if (type.includes('appointment') || type.includes('schedule')) return 'appointments'
+  if (type.includes('lab') || type.includes('result')) return 'labs'
+  return 'hospital'
+}
+
+function mapApiNotification(item) {
+  const category = getNotificationCategory(item)
+  const iconByCategory = {
+    appointments: 'calendar_today',
+    labs: 'biotech',
+    hospital: 'campaign',
+  }
+
+  return {
+    id: item.notification_id || item._id,
+    category,
+    icon: iconByCategory[category] || 'notifications',
+    iconTone: category === 'appointments' ? 'mint' : category === 'labs' ? 'soft' : 'neutral',
+    title: item.title || 'Thông báo',
+    time: getRelativeTime(item.created_at || item.sent_at || item.delivered_at),
+    body: item.message || '',
+    unread: item.status !== 'read' && !item.read_at,
+    actions: [],
+    apiBacked: Boolean(item.notification_id || item._id),
+  }
 }
 
 function normalizePatientUser(patient) {
@@ -83,12 +146,43 @@ function readPatientAuth() {
   }
 }
 
+const patientSectionKeys = new Set([
+  'dashboard',
+  'book-appointment',
+  'appointments',
+  'medical-records',
+  'emergency',
+  'imaging',
+  'lab-results',
+  'insurance',
+  'medications',
+  'directory',
+  'notifications',
+  'messages',
+  'documents',
+  'history',
+  'billing',
+  'profile',
+  'settings',
+  'support',
+])
+
+function getPatientSectionFromSearch(search) {
+  const section = new URLSearchParams(search || '').get('section')
+  return patientSectionKeys.has(section) ? section : ''
+}
+
+function getInitialPatientSection(search) {
+  return getPatientSectionFromSearch(search) || 'dashboard'
+}
+
 export default function PatientPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const mainColumnRef = useRef(null)
   const [authState, setAuthState] = useState(readPatientAuth)
 
-  const [activeSection, setActiveSection] = useState('dashboard')
+  const [activeSection, setActiveSection] = useState(() => getInitialPatientSection(location.search))
   const [profileForm, setProfileForm] = useState({
     fullName: '',
     phone: '',
@@ -107,13 +201,23 @@ export default function PatientPage() {
   })
   const [sessions, setSessions] = useState([])
   const [loginHistory, setLoginHistory] = useState([])
-  const [notificationItems, setNotificationItems] = useState(notificationFeed)
+  const [notificationItems, setNotificationItems] = useState(() => notificationFeed)
   const [patientProfile, setPatientProfile] = useState(null)
   const [patientAppointments, setPatientAppointments] = useState([])
   const [patientEncounters, setPatientEncounters] = useState([])
   const [patientPrescriptions, setPatientPrescriptions] = useState([])
   const [patientDepartments, setPatientDepartments] = useState([])
   const [patientSchedules, setPatientSchedules] = useState([])
+  const [patientMedicalRecords, setPatientMedicalRecords] = useState([])
+  const [patientDocuments, setPatientDocuments] = useState([])
+  const [patientDocumentTimeline, setPatientDocumentTimeline] = useState([])
+  const [patientLabResults, setPatientLabResults] = useState([])
+  const [patientImagingReports, setPatientImagingReports] = useState([])
+  const [patientBillingSummary, setPatientBillingSummary] = useState(null)
+  const [patientInvoices, setPatientInvoices] = useState([])
+  const [patientPayments, setPatientPayments] = useState([])
+  const [patientInsurancePolicies, setPatientInsurancePolicies] = useState([])
+  const [patientInsuranceClaims, setPatientInsuranceClaims] = useState([])
   const [accountLoading, setAccountLoading] = useState(true)
   const [patientDataLoading, setPatientDataLoading] = useState(true)
   const [accountError, setAccountError] = useState('')
@@ -175,16 +279,36 @@ export default function PatientPage() {
     }
   }
 
-  const markAllNotificationsAsRead = () => {
+  useEffect(() => {
+    const nextSection = getPatientSectionFromSearch(location.search)
+    if (!nextSection) return
+    setActiveSection((current) => (current === nextSection ? current : nextSection))
+  }, [location.search])
+
+  const markAllNotificationsAsRead = async () => {
+    const shouldSyncApi = notificationItems.some((item) => item.apiBacked && item.unread)
+
     setNotificationItems((current) =>
       current.map((item) => ({
         ...item,
         unread: false,
       })),
     )
+
+    if (!shouldSyncApi) {
+      return
+    }
+
+    try {
+      await notificationAPI.markAllRead()
+    } catch (error) {
+      setPatientDataError(getApiErrorMessage(error, 'Không thể đồng bộ trạng thái thông báo đã đọc.'))
+    }
   }
 
-  const markNotificationAsRead = (notificationId) => {
+  const markNotificationAsRead = async (notificationId) => {
+    const notification = notificationItems.find((item) => item.id === notificationId)
+
     setNotificationItems((current) =>
       current.map((item) =>
         item.id === notificationId
@@ -195,6 +319,16 @@ export default function PatientPage() {
           : item,
       ),
     )
+
+    if (!notification?.apiBacked) {
+      return
+    }
+
+    try {
+      await notificationAPI.markRead(notificationId)
+    } catch (error) {
+      setPatientDataError(getApiErrorMessage(error, 'Không thể đồng bộ trạng thái thông báo đã đọc.'))
+    }
   }
 
   useEffect(() => {
@@ -262,6 +396,17 @@ export default function PatientPage() {
       setPatientPrescriptions([])
       setPatientDepartments([])
       setPatientSchedules([])
+      setPatientMedicalRecords([])
+      setPatientDocuments([])
+      setPatientDocumentTimeline([])
+      setPatientLabResults([])
+      setPatientImagingReports([])
+      setPatientBillingSummary(null)
+      setPatientInvoices([])
+      setPatientPayments([])
+      setPatientInsurancePolicies([])
+      setPatientInsuranceClaims([])
+      setNotificationItems(notificationFeed)
       setPatientDataLoading(false)
       return
     }
@@ -277,7 +422,7 @@ export default function PatientPage() {
       patientAPI.getMyProfile(),
       appointmentAPI.getMyAppointments({ limit: 100 }),
       patientAPI.getMyEncounters({ limit: 30 }),
-      patientAPI.getMyPrescriptions({ limit: 30 }),
+      prescriptionAPI.getMyPrescriptions({ limit: 30 }),
       departmentAPI.getActiveDepartments(),
       scheduleAPI.getByDateRange({
         date_from: dateFrom,
@@ -285,6 +430,17 @@ export default function PatientPage() {
         status: 'published,active',
         limit: 50,
       }),
+      recordsAPI.getMyMedicalRecords({ limit: 30 }),
+      recordsAPI.getMyAttachments({ limit: 100 }),
+      recordsAPI.getMyDocumentTimeline({ limit: 50 }),
+      labAPI.getMyResults({ limit: 30 }),
+      imagingAPI.getMyReports({ limit: 30 }),
+      billingAPI.getMySummary(),
+      billingAPI.getMyInvoices({ limit: 100 }),
+      billingAPI.getMyPayments({ limit: 50 }),
+      billingAPI.getMyInsurancePolicies(),
+      billingAPI.getMyInsuranceClaims({ limit: 50 }),
+      notificationAPI.getMyNotifications({ limit: 20 }),
     ])
 
     const profileData = getResponseData(results[0])
@@ -293,6 +449,17 @@ export default function PatientPage() {
     const prescriptionsData = getResponseData(results[3])
     const departmentsData = getResponseData(results[4])
     const schedulesData = getResponseData(results[5])
+    const medicalRecordsData = getResponseData(results[6])
+    const documentsData = getResponseData(results[7])
+    const documentTimelineData = getResponseData(results[8])
+    const labResultsData = getResponseData(results[9])
+    const imagingReportsData = getResponseData(results[10])
+    const billingSummaryData = getResponseData(results[11])
+    const invoicesData = getResponseData(results[12])
+    const paymentsData = getResponseData(results[13])
+    const insurancePoliciesData = getResponseData(results[14])
+    const insuranceClaimsData = getResponseData(results[15])
+    const notificationsData = getResponseData(results[16])
 
     setPatientProfile(profileData || null)
     setPatientAppointments(appointmentsData?.items || [])
@@ -300,6 +467,19 @@ export default function PatientPage() {
     setPatientPrescriptions(prescriptionsData?.items || [])
     setPatientDepartments(departmentsData?.items || [])
     setPatientSchedules(schedulesData?.items || [])
+    setPatientMedicalRecords(medicalRecordsData?.items || [])
+    setPatientDocuments(documentsData?.items || [])
+    setPatientDocumentTimeline(documentTimelineData?.items || [])
+    setPatientLabResults(labResultsData?.items || [])
+    setPatientImagingReports(imagingReportsData?.items || [])
+    setPatientBillingSummary(billingSummaryData || null)
+    setPatientInvoices(invoicesData?.items || [])
+    setPatientPayments(paymentsData?.items || [])
+    setPatientInsurancePolicies(Array.isArray(insurancePoliciesData) ? insurancePoliciesData : insurancePoliciesData?.items || [])
+    setPatientInsuranceClaims(insuranceClaimsData?.items || [])
+    if (Array.isArray(notificationsData?.items)) {
+      setNotificationItems(notificationsData.items.map(mapApiNotification))
+    }
 
     const failed = results.find((result) => result.status === 'rejected')
     if (failed) {
@@ -468,6 +648,15 @@ export default function PatientPage() {
     }
   }
 
+  const handleDocumentDownload = async (attachmentId) => {
+    if (!attachmentId) {
+      throw new Error('Tài liệu này chưa có mã attachment từ backend.')
+    }
+
+    const response = await recordsAPI.getMyAttachmentDownloadMetadata(attachmentId)
+    return response.data?.data
+  }
+
   const renderContent = () => {
     if (activeSection === 'dashboard') {
       return (
@@ -478,7 +667,7 @@ export default function PatientPage() {
           loginHistory={loginHistory}
           loading={accountLoading || authLoading}
           notifications={notificationItems}
-          onBookAppointment={() => openSection('appointments')}
+          onBookAppointment={() => openSection('book-appointment')}
           onOpenHistory={() => openSection('history')}
           onOpenNotifications={() => openSection('notifications')}
           onOpenProfile={() => openSection('profile')}
@@ -488,6 +677,21 @@ export default function PatientPage() {
           patientDataLoading={patientDataLoading}
           sessions={sessions}
           user={user}
+        />
+      )
+    }
+
+    if (activeSection === 'book-appointment') {
+      return (
+        <PatientAppointmentsPage
+          appointments={patientAppointments}
+          departments={patientDepartments}
+          loading={patientDataLoading}
+          onAppointmentCreated={loadPatientPortalData}
+          patientProfile={patientProfile}
+          schedules={patientSchedules}
+          user={user}
+          viewMode="booking"
         />
       )
     }
@@ -502,6 +706,20 @@ export default function PatientPage() {
           patientProfile={patientProfile}
           schedules={patientSchedules}
           user={user}
+          viewMode="history"
+        />
+      )
+    }
+
+    if (activeSection === 'medical-records') {
+      return (
+        <PatientMedicalHistoryPage
+          encounters={patientEncounters}
+          labResults={patientLabResults}
+          loading={patientDataLoading}
+          medicalRecords={patientMedicalRecords}
+          prescriptions={patientPrescriptions}
+          viewMode="records"
         />
       )
     }
@@ -510,8 +728,34 @@ export default function PatientPage() {
       return <PatientEmergencyIdentityPage />
     }
 
-    if (activeSection === 'trends') {
-      return <PatientHealthTrendsPage patientName={patientName} />
+    if (activeSection === 'imaging') {
+      return (
+        <PatientImagingPage
+          loading={patientDataLoading}
+          reports={patientImagingReports}
+        />
+      )
+    }
+
+    if (activeSection === 'lab-results') {
+      return (
+        <PatientLabResultsPage
+          labResults={patientLabResults}
+          loading={patientDataLoading}
+        />
+      )
+    }
+
+    if (activeSection === 'insurance') {
+      return (
+        <PatientInsurancePage
+          claims={patientInsuranceClaims}
+          error={patientDataError}
+          loading={patientDataLoading}
+          onBackToDashboard={() => setActiveSection('dashboard')}
+          policies={patientInsurancePolicies}
+        />
+      )
     }
 
     if (activeSection === 'medications') {
@@ -543,24 +787,43 @@ export default function PatientPage() {
     }
 
     if (activeSection === 'documents') {
-      return <PatientDocumentsPage onBookAppointment={() => openSection('appointments')} />
+      return (
+        <PatientDocumentsPage
+          documents={patientDocuments}
+          error={patientDataError}
+          loading={patientDataLoading}
+          onBookAppointment={() => openSection('book-appointment')}
+          onDownloadDocument={handleDocumentDownload}
+        />
+      )
     }
 
     if (activeSection === 'history') {
       return (
         <PatientMedicalHistoryPage
           encounters={patientEncounters}
+          labResults={patientLabResults}
           loading={patientDataLoading}
+          medicalRecords={patientMedicalRecords}
           prescriptions={patientPrescriptions}
+          viewMode="history"
         />
       )
     }
 
     if (activeSection === 'billing') {
-      return <PatientBillingPage />
+      return (
+        <PatientBillingPage
+          billingSummary={patientBillingSummary}
+          error={patientDataError}
+          invoices={patientInvoices}
+          loading={patientDataLoading}
+          payments={patientPayments}
+        />
+      )
     }
 
-    if (activeSection === 'profile') {
+    if (activeSection === 'profile' || activeSection === 'settings') {
       return (
         <PatientProfileSettingsPage
           accountError={accountError}

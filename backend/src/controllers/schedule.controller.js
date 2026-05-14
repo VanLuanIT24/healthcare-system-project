@@ -23,6 +23,10 @@ module.exports = {
   getSchedulingSystemSummary: wrap((req) => scheduleService.getSchedulingSystemSummary(req.query, req.auth), 'Lấy tổng quan scheduling toàn hệ thống thành công.'),
   getScheduleSummaryByDepartment: wrap((req) => scheduleService.getScheduleSummaryByDepartment(req.query, req.auth), 'Lấy tổng quan scheduling theo khoa thành công.'),
   getScheduleSummaryByDateRange: wrap((req) => scheduleService.getScheduleSummaryByDateRange(req.query, req.auth), 'Lấy tổng quan scheduling theo khoảng ngày thành công.'),
+  listPublicSchedulesByDateRange: wrap(
+    (req) => scheduleService.listDoctorSchedules(req.query, {}, { publicView: true }),
+    'Lấy lịch công khai theo khoảng ngày thành công.',
+  ),
   getScheduleActivityLog: wrap((req) => scheduleService.getScheduleActivityLog(req.params.scheduleId, req.query, req.auth), 'Lấy lịch sử thay đổi lịch làm việc thành công.'),
   getMyTodaySchedule: wrap((req) => scheduleService.getMyTodaySchedule(req.auth, req.query), 'Lấy lịch hôm nay của tôi thành công.'),
   getMyWeekSchedule: wrap((req) => scheduleService.getMyWeekSchedule(req.auth, req.query), 'Lấy lịch tuần này của tôi thành công.'),

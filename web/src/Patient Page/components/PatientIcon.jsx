@@ -282,6 +282,7 @@ const iconMap = {
   send: 'Send',
   settings: 'Settings',
   settings_suggest: 'SlidersHorizontal',
+  shield_plus: 'ShieldPlus',
   star: 'Star',
   thermometer: 'Thermometer',
   trending_down: 'TrendingDown',

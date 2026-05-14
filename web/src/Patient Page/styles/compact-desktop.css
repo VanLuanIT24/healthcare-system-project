@@ -1,69 +1,125 @@
 @media (min-width: 1081px) {
   .patient-shell {
+    --patient-sidebar-width: 280px;
+    --patient-sidebar-gap: 10px;
     --patient-page-title-size: clamp(23px, 0.86vw + 14px, 30px);
     --patient-hero-title-size: clamp(25px, 1vw + 15px, 34px);
     --patient-section-title-size: clamp(18px, 0.52vw + 13px, 22px);
     --patient-card-title-size: clamp(15px, 0.32vw + 12px, 18px);
     --patient-body-size: 12.5px;
-    padding-left: 260px;
+    padding-left: calc(var(--patient-sidebar-width) + (var(--patient-sidebar-gap) * 2));
     font-size: 12.5px;
   }
 
   .patient-sidebar {
-    width: 260px;
-    min-width: 260px;
-    padding: 13px 14px 12px;
+    width: var(--patient-sidebar-width);
+    min-width: var(--patient-sidebar-width);
+    padding: 12px 11px 11px;
     gap: 7px;
+    border-radius: 22px;
+    box-shadow:
+      0 18px 48px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
 
-  .patient-sidebar-top {
-    gap: 6px;
+  .patient-sidebar__brand {
+    gap: 10px;
+    padding: 0 4px 5px;
   }
 
-  .patient-brand {
+  .patient-sidebar__brand-mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+  }
+
+  .patient-sidebar__brand-mark .patient-lucide-icon {
+    width: 21px;
+    height: 21px;
+  }
+
+  .patient-sidebar__brand-name {
+    font-size: 20px;
+  }
+
+  .patient-sidebar__brand-subtitle {
+    font-size: 8.5px;
+    letter-spacing: 0.16em;
+  }
+
+  .patient-sidebar__overview {
+    padding-top: 0;
+  }
+
+  .patient-sidebar__sections {
+    gap: 5px;
+    margin-right: -4px;
+    padding-right: 4px;
+  }
+
+  .patient-sidebar__section {
+    gap: 3px;
+  }
+
+  .patient-sidebar__section-head {
+    min-height: 14px;
     gap: 8px;
-    padding: 3px 6px;
+    padding: 0 3px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
   }
 
-  .patient-brand-logo,
-  .patient-brand-mark {
-    width: 32px;
-    height: 32px;
+  .patient-sidebar__section-list {
+    gap: 2px;
   }
 
-  .patient-brand-name {
-    font-size: 16px;
-  }
-
-  .patient-brand-subtitle {
-    font-size: 8px;
-  }
-
-  .patient-nav {
-    gap: 1px;
-  }
-
-  .patient-nav-link,
-  .patient-muted-link {
+  .patient-sidebar__item {
     gap: 8px;
-    padding: 6px 10px;
-    border-radius: 11px;
-    font-size: 12px;
+    min-height: 34px;
+    padding: 0 10px 0 14px;
+    border-radius: 10px;
+    font-size: 14px;
   }
 
-  .patient-nav-icon {
-    width: 18px;
-    min-width: 18px;
+  .patient-sidebar__item--overview {
+    min-height: 36px;
+    margin-bottom: 2px;
   }
 
-  .patient-danger-button {
-    padding: 8px 12px;
-    border-radius: 12px;
-    font-size: 12px;
+  .patient-sidebar__item-icon {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
   }
 
-  .patient-sidebar-cta {
+  .patient-sidebar__item-icon .patient-lucide-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .patient-sidebar__item-label {
+    font-size: 14px;
+    line-height: 1.14;
+  }
+
+  .patient-sidebar__footer {
+    gap: 5px;
     padding-top: 7px;
+  }
+
+  .patient-sidebar__emergency {
+    min-height: 36px;
+    border-radius: 12px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  .patient-sidebar__logout {
+    min-height: 28px;
+    gap: 8px;
+    padding: 5px 9px;
+    border-radius: 10px;
+    font-size: 13.5px;
   }
 
   .patient-topbar {
@@ -151,8 +207,7 @@
   .patient-documents-head,
   .patient-emergency-head,
   .patient-medications-head,
-  .patient-notifications-header,
-  .patient-trends-header {
+  .patient-notifications-header {
     gap: 13px;
     margin-bottom: 14px;
   }
@@ -162,7 +217,6 @@
   .patient-emergency-head h1,
   .patient-medications-head h1,
   .patient-notifications-header h1,
-  .patient-trends-header h1,
   .patient-hero h1,
   .patient-placeholder h1 {
     font-size: var(--patient-page-title-size);
@@ -174,7 +228,6 @@
   .patient-emergency-head p,
   .patient-medications-head p,
   .patient-notifications-header p,
-  .patient-trends-header p,
   .patient-placeholder p {
     margin-top: 6px;
     font-size: 12.5px;
@@ -189,7 +242,6 @@
   .patient-messages-page,
   .patient-notifications-page,
   .patient-support-page,
-  .patient-trends-page,
   .patient-profile-column,
   .patient-history-page {
     gap: 14px;
@@ -339,39 +391,50 @@
   }
 
   .patient-doctor-card {
-    padding: 9px;
+    min-height: 108px;
+    padding: 7px;
   }
 
   .patient-doctor-main {
-    grid-template-columns: 46px minmax(0, 1fr);
-    gap: 9px;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 8px;
   }
 
   .patient-doctor-avatar {
-    width: 46px;
-    height: 62px;
+    width: 44px;
+    height: 52px;
   }
 
   .patient-doctor-head h3 {
-    font-size: 13px;
+    font-size: 12px;
   }
 
-  .patient-doctor-content p,
-  .patient-doctor-rating,
+  .patient-doctor-content {
+    gap: 2px;
+  }
+
+  .patient-doctor-content p {
+    font-size: 9.5px;
+  }
+
+  .patient-doctor-rating {
+    font-size: 10px;
+  }
+
   .patient-doctor-next-slot {
-    font-size: 11px;
+    font-size: 9px;
   }
 
   .patient-doctor-schedule-button {
     min-height: 24px;
+    margin-top: 6px;
     font-size: 10px;
   }
 
   .patient-billing-summary-grid,
   .patient-billing-layout,
   .patient-profile-grid,
-  .patient-medications-layout,
-  .patient-trends-analytics-grid {
+  .patient-medications-layout {
     gap: 14px;
   }
 
@@ -916,51 +979,6 @@
     font-size: clamp(25px, 1vw + 17px, 34px);
   }
 
-  .patient-trends-metric-grid {
-    gap: 11px;
-  }
-
-  .patient-trend-card {
-    padding: 18px;
-    border-radius: 20px;
-  }
-
-  .patient-trend-card-top {
-    margin-bottom: 16px;
-  }
-
-  .patient-trend-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 13px;
-  }
-
-  .patient-trend-value strong {
-    font-size: clamp(24px, 1vw + 15px, 34px);
-  }
-
-  .patient-trend-value em {
-    font-size: 18px;
-  }
-
-  .patient-trend-value span {
-    font-size: 14px;
-  }
-
-  .patient-trend-footer {
-    margin-top: 18px;
-    padding-top: 14px;
-  }
-
-  .patient-trend-chart-head {
-    margin-bottom: 20px;
-  }
-
-  .patient-trend-chart-stage,
-  .patient-trend-chart-empty {
-    min-height: 230px;
-  }
-
   .patient-history-workspace {
     grid-template-columns: minmax(0, 1fr) 318px;
     gap: 14px;
@@ -1102,5 +1120,104 @@
   .patient-medications-dose-copy h3 span,
   .patient-medications-dose-copy p {
     font-size: 13px;
+  }
+}
+
+@media (min-width: 1081px) and (max-height: 860px) {
+  .patient-sidebar {
+    padding: 10px 11px;
+    gap: 5px;
+  }
+
+  .patient-sidebar__brand {
+    gap: 9px;
+    padding: 0 3px 3px;
+  }
+
+  .patient-sidebar__brand-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+  }
+
+  .patient-sidebar__brand-mark .patient-lucide-icon {
+    width: 19px;
+    height: 19px;
+  }
+
+  .patient-sidebar__brand-name {
+    font-size: 18px;
+  }
+
+  .patient-sidebar__brand-subtitle {
+    font-size: 8px;
+    letter-spacing: 0.16em;
+  }
+
+  .patient-sidebar__overview {
+    padding-top: 0;
+  }
+
+  .patient-sidebar__sections {
+    gap: 4px;
+  }
+
+  .patient-sidebar__section {
+    gap: 2px;
+  }
+
+  .patient-sidebar__section-head {
+    min-height: 12px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+  }
+
+  .patient-sidebar__section-list {
+    gap: 1px;
+  }
+
+  .patient-sidebar__item {
+    min-height: 31px;
+    gap: 7px;
+    padding: 0 8px 0 12px;
+    border-radius: 9px;
+    font-size: 13px;
+  }
+
+  .patient-sidebar__item--overview {
+    min-height: 33px;
+  }
+
+  .patient-sidebar__item-icon {
+    width: 21px;
+    min-width: 21px;
+    height: 21px;
+  }
+
+  .patient-sidebar__item-icon .patient-lucide-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .patient-sidebar__item-label {
+    font-size: 13px;
+  }
+
+  .patient-sidebar__footer {
+    gap: 4px;
+    padding-top: 6px;
+  }
+
+  .patient-sidebar__emergency {
+    min-height: 34px;
+    border-radius: 11px;
+    padding: 0 10px;
+    font-size: 11.5px;
+  }
+
+  .patient-sidebar__logout {
+    min-height: 26px;
+    padding: 4px 8px;
+    font-size: 12.5px;
   }
 }
