@@ -61,6 +61,7 @@ import ReceptionistDailyReportPage from '../Receptionist/ReceptionistDailyReport
 import ReceptionistProductivityPage from '../Receptionist/ReceptionistProductivity';
 import ReceptionistSystemSettingsPage from '../Receptionist/ReceptionistSystemSettings';
 import ReceptionistAccountPage from '../Receptionist/ReceptionistAccount';
+import DoctorWorkspace from '../DoctorWorkspace';
 import {
   ScheduleBulkCreatePage,
   ScheduleCreatePage,
@@ -81,7 +82,6 @@ import {
 } from '../scheduling';
 
 const devPlaceholderRoutes = [
-  { path: '/doctor/dashboard', title: 'Bác sĩ lâm sàng', workspaceKey: 'doctor', guard: 'staff' },
   { path: '/nurse/dashboard', title: 'Điều dưỡng', workspaceKey: 'nurse', guard: 'staff' },
   { path: '/pharmacy/dashboard', title: 'Nhà thuốc', workspaceKey: 'pharmacy', guard: 'staff' },
   { path: '/lab/dashboard', title: 'Xét nghiệm & CĐHA', workspaceKey: 'lab', guard: 'staff' },
@@ -187,6 +187,14 @@ export function AppRouter() {
             }
           />
         ))}
+        <Route
+          path="/doctor/*"
+          element={
+            <StaffRoute requiredWorkspaceKey="doctor">
+              <DoctorWorkspace />
+            </StaffRoute>
+          }
+        />
         <Route
           path="/reception/dashboard"
           element={
