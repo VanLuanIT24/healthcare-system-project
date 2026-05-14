@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 720" role="img" aria-label="Minh họa đơn thuốc và thuốc">
+  <defs>
+    <radialGradient id="softBackdrop" cx="52%" cy="48%" r="57%">
+      <stop offset="0" stop-color="#edf6ff" stop-opacity="0.98"/>
+      <stop offset="0.62" stop-color="#e7f1ff" stop-opacity="0.74"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="boardBlue" x1="16%" y1="8%" x2="86%" y2="92%">
+      <stop offset="0" stop-color="#82b7ff"/>
+      <stop offset="0.42" stop-color="#2f7cff"/>
+      <stop offset="1" stop-color="#0552d6"/>
+    </linearGradient>
+    <linearGradient id="boardSide" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c74ff"/>
+      <stop offset="1" stop-color="#003dae"/>
+    </linearGradient>
+    <linearGradient id="paperFace" x1="8%" y1="0" x2="88%" y2="100%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.56" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eaf3ff"/>
+    </linearGradient>
+    <linearGradient id="bottleBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#72c7ff"/>
+      <stop offset="0.34" stop-color="#1679ff"/>
+      <stop offset="1" stop-color="#034fc9"/>
+    </linearGradient>
+    <linearGradient id="bottleGlass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.62"/>
+      <stop offset="0.48" stop-color="#d9ecff" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="leafBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1f7ff"/>
+      <stop offset="1" stop-color="#a8c7fb"/>
+    </linearGradient>
+    <linearGradient id="pillGreen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#40e0c2"/>
+      <stop offset="1" stop-color="#05a982"/>
+    </linearGradient>
+    <linearGradient id="pillBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eaf4ff"/>
+      <stop offset="0.49" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#2d82ff"/>
+      <stop offset="1" stop-color="#075be2"/>
+    </linearGradient>
+    <filter id="dropBlue" x="-20%" y="-20%" width="140%" height="155%">
+      <feDropShadow dx="0" dy="22" stdDeviation="18" flood-color="#0b63df" flood-opacity="0.22"/>
+    </filter>
+    <filter id="dropSoft" x="-18%" y="-18%" width="136%" height="146%">
+      <feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#0b63df" flood-opacity="0.13"/>
+    </filter>
+    <filter id="innerPaper">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#ffffff" flood-opacity="0.9"/>
+    </filter>
+  </defs>
+
+  <rect width="900" height="720" fill="#ffffff"/>
+  <ellipse cx="464" cy="354" rx="333" ry="259" fill="url(#softBackdrop)"/>
+  <ellipse cx="450" cy="609" rx="358" ry="38" fill="#dbeafe" opacity="0.72"/>
+
+  <g opacity="0.94">
+    <path d="M92 502c32-96 83-153 153-172 9 93-28 157-111 193z" fill="url(#leafBlue)"/>
+    <path d="M154 590c67-83 142-119 226-107-38 93-108 139-209 134z" fill="url(#leafBlue)"/>
+    <path d="M802 483c-38-83-91-126-160-128 5 84 49 140 130 159z" fill="url(#leafBlue)"/>
+    <path d="M731 581c-66-67-137-92-212-75 39 76 104 112 194 100z" fill="url(#leafBlue)"/>
+    <path d="M106 519c52 4 103 26 154 65" fill="none" stroke="#7fa7ef" stroke-width="4" stroke-linecap="round" opacity="0.48"/>
+    <path d="M764 506c-54 13-98 39-134 78" fill="none" stroke="#7fa7ef" stroke-width="4" stroke-linecap="round" opacity="0.48"/>
+    <path d="M138 426c31 42 51 89 58 141" fill="none" stroke="#7fa7ef" stroke-width="4" stroke-linecap="round" opacity="0.45"/>
+    <path d="M772 412c-25 48-39 98-39 151" fill="none" stroke="#7fa7ef" stroke-width="4" stroke-linecap="round" opacity="0.45"/>
+  </g>
+
+  <g filter="url(#dropBlue)">
+    <path d="M392 160h226c18 0 34 16 34 34v337c0 20-16 36-36 36H391c-20 0-36-16-36-36V197c0-20 16-37 37-37z" fill="url(#boardSide)"/>
+    <path d="M418 184h199c14 0 25 11 25 25v306c0 15-12 27-27 27H418c-15 0-27-12-27-27V211c0-15 12-27 27-27z" fill="url(#paperFace)" filter="url(#innerPaper)"/>
+    <path d="M423 116h140c17 0 31 14 31 31v39c0 17-14 31-31 31H423c-17 0-31-14-31-31v-39c0-17 14-31 31-31z" fill="url(#boardBlue)"/>
+    <path d="M491 78c37 0 67 30 67 67h-37c0-17-13-30-30-30s-30 13-30 30h-37c0-37 30-67 67-67z" fill="url(#boardBlue)"/>
+    <circle cx="491" cy="145" r="28" fill="#f8fbff" stroke="#1f74f6" stroke-width="11"/>
+    <path d="M392 150c11 18 30 28 56 28h95c27 0 46-10 56-28" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.32"/>
+    <text x="427" y="320" fill="#6199f8" font-family="Georgia, 'Times New Roman', serif" font-size="83" font-weight="700">Rx</text>
+    <rect x="435" y="379" width="186" height="20" rx="10" fill="#d6e3f7"/>
+    <rect x="431" y="435" width="171" height="19" rx="9.5" fill="#d6e3f7"/>
+    <rect x="431" y="489" width="117" height="19" rx="9.5" fill="#d6e3f7"/>
+  </g>
+
+  <g filter="url(#dropBlue)">
+    <rect x="164" y="365" width="168" height="238" rx="42" fill="url(#bottleBlue)"/>
+    <path d="M174 425h148v96H174z" fill="url(#bottleGlass)"/>
+    <path d="M181 361h134c13 0 23 11 23 24v35H158v-35c0-13 10-24 23-24z" fill="#0a66df"/>
+    <rect x="177" y="311" width="142" height="72" rx="29" fill="#f8fbff"/>
+    <path d="M179 348h138" stroke="#e2ecfb" stroke-width="3" opacity="0.75"/>
+    <g stroke="#d2def2" stroke-width="2" opacity="0.62">
+      <path d="M193 318v54"/>
+      <path d="M208 314v60"/>
+      <path d="M224 312v63"/>
+      <path d="M241 312v64"/>
+      <path d="M258 312v63"/>
+      <path d="M276 314v60"/>
+      <path d="M294 318v54"/>
+    </g>
+    <rect x="210" y="442" width="81" height="82" rx="17" fill="#ffffff" opacity="0.96"/>
+    <rect x="239" y="418" width="23" height="128" rx="11.5" fill="#2e7cff"/>
+    <rect x="186" y="472" width="128" height="23" rx="11.5" fill="#2e7cff"/>
+    <path d="M183 386c30 19 99 19 130 0" fill="none" stroke="#75c9ff" stroke-width="8" stroke-linecap="round" opacity="0.72"/>
+  </g>
+
+  <g filter="url(#dropSoft)">
+    <rect x="654" y="358" width="186" height="252" rx="30" fill="#f6faff" stroke="#bfd4f5" stroke-width="6"/>
+    <path d="M672 375h150" stroke="#c9d9f4" stroke-width="3" opacity="0.7"/>
+    <g fill="#ffffff" stroke="#d2dff4" stroke-width="5">
+      <circle cx="704" cy="418" r="29"/>
+      <circle cx="788" cy="418" r="29"/>
+      <circle cx="704" cy="492" r="29"/>
+      <circle cx="788" cy="492" r="29"/>
+      <circle cx="704" cy="566" r="29"/>
+      <circle cx="788" cy="566" r="29"/>
+    </g>
+    <g stroke="#c9d7ee" stroke-width="3" stroke-linecap="round" opacity="0.95">
+      <path d="M685 438l38-39"/>
+      <path d="M770 438l37-39"/>
+      <path d="M685 512l38-39"/>
+      <path d="M770 512l37-39"/>
+      <path d="M685 586l38-39"/>
+      <path d="M770 586l37-39"/>
+    </g>
+    <g stroke="#dce8fb" stroke-width="3" opacity="0.9">
+      <path d="M658 389l174 58"/>
+      <path d="M660 452l174 58"/>
+      <path d="M660 516l174 58"/>
+      <path d="M674 365l-14 239"/>
+      <path d="M719 360l-14 250"/>
+      <path d="M766 361l-14 250"/>
+      <path d="M812 366l-14 235"/>
+    </g>
+  </g>
+
+  <g filter="url(#dropSoft)">
+    <rect x="535" y="574" width="143" height="50" rx="25" fill="url(#pillGreen)" transform="rotate(-24 606 599)"/>
+    <path d="M606 575c-11 16-10 34 3 49" stroke="#09997e" stroke-width="3" opacity="0.35"/>
+    <rect x="660" y="590" width="151" height="55" rx="27.5" fill="url(#pillBlue)" transform="rotate(-18 735 618)"/>
+    <path d="M726 573c-6 18-2 35 13 50" stroke="#c7d9f4" stroke-width="4" opacity="0.75"/>
+  </g>
+
+  <g opacity="0.92">
+    <path d="M139 172l15 41 41 15-41 15-15 41-15-41-41-15 41-15z" fill="#a7c8fb" stroke="#7faaf2" stroke-width="2"/>
+    <path d="M796 141l12 32 32 12-32 12-12 32-12-32-32-12 32-12z" fill="#a7c8fb" stroke="#7faaf2" stroke-width="2"/>
+    <path d="M257 259l7 18 18 7-18 7-7 18-7-18-18-7 18-7z" fill="#a7c8fb" opacity="0.92"/>
+    <path d="M715 285l7 18 18 7-18 7-7 18-7-18-18-7 18-7z" fill="#a7c8fb" opacity="0.92"/>
+    <path d="M855 267l13 34 34 13-34 13-13 34-13-34-34-13 34-13z" fill="#9fc1f7" opacity="0.86"/>
+  </g>
+</svg>

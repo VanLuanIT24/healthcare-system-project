@@ -1,28 +1,149 @@
 @media (min-width: 1081px) {
   .patient-shell {
-    --patient-page-title-size: clamp(25px, 0.95vw + 15px, 33px);
-    --patient-hero-title-size: clamp(27px, 1.15vw + 16px, 37px);
-    --patient-section-title-size: clamp(20px, 0.58vw + 14px, 24px);
-    --patient-card-title-size: clamp(16px, 0.36vw + 13px, 20px);
-    --patient-body-size: 13px;
-    font-size: 13px;
+    --patient-page-title-size: clamp(23px, 0.86vw + 14px, 30px);
+    --patient-hero-title-size: clamp(25px, 1vw + 15px, 34px);
+    --patient-section-title-size: clamp(18px, 0.52vw + 13px, 22px);
+    --patient-card-title-size: clamp(15px, 0.32vw + 12px, 18px);
+    --patient-body-size: 12.5px;
+    padding-left: 260px;
+    font-size: 12.5px;
+  }
+
+  .patient-sidebar {
+    width: 260px;
+    min-width: 260px;
+    padding: 13px 14px 12px;
+    gap: 7px;
+  }
+
+  .patient-sidebar-top {
+    gap: 6px;
+  }
+
+  .patient-brand {
+    gap: 8px;
+    padding: 3px 6px;
+  }
+
+  .patient-brand-logo,
+  .patient-brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .patient-brand-name {
+    font-size: 16px;
+  }
+
+  .patient-brand-subtitle {
+    font-size: 8px;
+  }
+
+  .patient-nav {
+    gap: 1px;
+  }
+
+  .patient-nav-link,
+  .patient-muted-link {
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 11px;
+    font-size: 12px;
+  }
+
+  .patient-nav-icon {
+    width: 18px;
+    min-width: 18px;
+  }
+
+  .patient-danger-button {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+  }
+
+  .patient-sidebar-cta {
+    padding-top: 7px;
   }
 
   .patient-topbar {
-    min-height: 58px;
+    min-height: 52px;
+    padding: 9px 22px 8px;
+    gap: 12px;
+  }
+
+  .patient-search input {
+    padding: 9px 14px 9px 38px;
+    font-size: 12px;
+  }
+
+  .patient-search-icon {
+    left: 12px;
+  }
+
+  .patient-notify {
+    width: 36px;
+    height: 36px;
+  }
+
+  .patient-notify .material-symbols-outlined {
+    font-size: 19px;
+  }
+
+  .patient-notify-dot {
+    top: 7px;
+    right: 7px;
+    width: 10px;
+    height: 10px;
+  }
+
+  .patient-emergency {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .patient-profile-card {
+    min-width: 158px;
+    max-width: 198px;
+    padding: 4px 8px 4px 5px;
+  }
+
+  .patient-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 12px;
+  }
+
+  .patient-profile-copy p {
+    font-size: 12px;
+  }
+
+  .patient-profile-copy span {
+    font-size: 8px;
   }
 
   .patient-content {
-    padding: 16px 26px 32px;
+    padding: 13px 22px 28px;
   }
 
   .patient-panel {
-    border-radius: 22px;
-    padding: 20px;
+    border-radius: 20px;
+    padding: 17px;
   }
 
   .patient-panel-head {
-    margin-bottom: 16px;
+    margin-bottom: 13px;
+  }
+
+  .patient-primary-button,
+  .patient-hero-button,
+  .patient-secondary-button,
+  .patient-soft-button,
+  .patient-outline-button {
+    min-height: 36px;
+    padding: 9px 13px;
+    border-radius: 13px;
+    font-size: 12px;
   }
 
   .patient-page-intro,
@@ -32,8 +153,8 @@
   .patient-medications-head,
   .patient-notifications-header,
   .patient-trends-header {
-    gap: 16px;
-    margin-bottom: 18px;
+    gap: 13px;
+    margin-bottom: 14px;
   }
 
   .patient-page-intro h1,
@@ -55,9 +176,9 @@
   .patient-notifications-header p,
   .patient-trends-header p,
   .patient-placeholder p {
-    margin-top: 8px;
-    font-size: 13px;
-    line-height: 1.55;
+    margin-top: 6px;
+    font-size: 12.5px;
+    line-height: 1.5;
   }
 
   .patient-booking-layout,
@@ -71,17 +192,107 @@
   .patient-trends-page,
   .patient-profile-column,
   .patient-history-page {
-    gap: 18px;
+    gap: 14px;
+  }
+
+  .patient-dashboard-shell,
+  .patient-grid {
+    gap: 14px;
+  }
+
+  .patient-dashboard-main-column,
+  .patient-dashboard-side-column {
+    gap: 14px;
+  }
+
+  .patient-dashboard-side-cards {
+    gap: 11px;
+  }
+
+  .patient-dashboard-media-panel {
+    height: clamp(180px, 16vw, 230px);
+    min-height: 180px;
+    border-radius: 20px;
+  }
+
+  .patient-dashboard-media-content {
+    max-width: 410px;
+    padding: 16px;
+  }
+
+  .patient-dashboard-media-content .patient-eyebrow {
+    padding: 5px 9px;
+    font-size: 8px;
+  }
+
+  .patient-dashboard-media-content h1 {
+    font-size: clamp(21px, 0.7vw + 15px, 28px);
+  }
+
+  .patient-dashboard-media-content p:not(.patient-eyebrow) {
+    font-size: 12px;
+  }
+
+  .patient-account-summary-panel {
+    padding: 17px;
+  }
+
+  .patient-metric-grid {
+    gap: 11px;
+  }
+
+  .patient-metric-card {
+    min-height: 116px;
+    padding: 11px;
+    border-radius: 16px;
+  }
+
+  .patient-metric-symbol {
+    width: 30px;
+    height: 30px;
+    border-radius: 11px;
+  }
+
+  .patient-metric-symbol .material-symbols-outlined {
+    font-size: 17px;
+  }
+
+  .patient-metric-card-label,
+  .patient-notification-item p {
+    font-size: 12px;
+  }
+
+  .patient-metric-value strong {
+    font-size: clamp(20px, 0.62vw + 15px, 25px);
+  }
+
+  .patient-metric-value-compact strong {
+    font-size: clamp(17px, 0.46vw + 13px, 21px);
+  }
+
+  .patient-notification-panel-featured {
+    min-height: 340px;
+  }
+
+  .patient-notification-item {
+    gap: 10px;
+    padding: 10px 0;
+  }
+
+  .patient-notification-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 11px;
   }
 
   .patient-booking-progress {
-    min-height: 68px;
-    padding: 16px 22px;
-    gap: 18px;
+    min-height: 60px;
+    padding: 13px 18px;
+    gap: 14px;
   }
 
   .patient-progress-steps {
-    gap: 24px;
+    gap: 18px;
   }
 
   .patient-progress-step {
@@ -98,8 +309,8 @@
   }
 
   .patient-booking-grid {
-    grid-template-columns: minmax(0, 1.48fr) minmax(320px, 0.78fr);
-    gap: 18px;
+    grid-template-columns: minmax(0, 1.52fr) minmax(300px, 0.72fr);
+    gap: 14px;
   }
 
   .patient-specialty-filter {
@@ -118,13 +329,13 @@
   }
 
   .patient-doctor-search {
-    width: min(240px, 36%);
-    min-height: 34px;
+    width: min(220px, 34%);
+    min-height: 32px;
   }
 
   .patient-doctor-grid {
-    grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
-    gap: 12px 14px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px 12px;
   }
 
   .patient-doctor-card {
@@ -132,13 +343,13 @@
   }
 
   .patient-doctor-main {
-    grid-template-columns: 52px minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 9px;
   }
 
   .patient-doctor-avatar {
-    width: 52px;
-    height: 70px;
+    width: 46px;
+    height: 62px;
   }
 
   .patient-doctor-head h3 {
@@ -161,15 +372,15 @@
   .patient-profile-grid,
   .patient-medications-layout,
   .patient-trends-analytics-grid {
-    gap: 18px;
+    gap: 14px;
   }
 
   .patient-billing-balance-card {
-    min-height: 178px;
+    min-height: 158px;
   }
 
   .patient-billing-balance-card h1 {
-    font-size: clamp(28px, 1.2vw + 18px, 40px);
+    font-size: clamp(25px, 1vw + 16px, 35px);
   }
 
   .patient-billing-balance-card h1 span {
@@ -189,12 +400,12 @@
   }
 
   .patient-billing-table th {
-    padding: 14px 18px;
+    padding: 12px 15px;
     font-size: 10px;
   }
 
   .patient-billing-table td {
-    padding: 18px;
+    padding: 14px 15px;
   }
 
   .patient-directory-page {
@@ -202,8 +413,8 @@
   }
 
   .patient-directory-shell {
-    grid-template-columns: 360px minmax(0, 1fr);
-    gap: 18px;
+    grid-template-columns: 330px minmax(0, 1fr);
+    gap: 14px;
     min-height: calc(100vh - 138px);
   }
 
@@ -213,7 +424,7 @@
 
   .patient-directory-filters,
   .patient-directory-card-list {
-    padding: 18px;
+    padding: 14px;
   }
 
   .patient-directory-card-list {
@@ -227,13 +438,13 @@
   }
 
   .patient-directory-card {
-    padding: 16px;
-    border-radius: 22px;
+    padding: 13px;
+    border-radius: 18px;
   }
 
   .patient-directory-card h2 {
-    margin-top: 10px;
-    font-size: clamp(18px, 0.45vw + 14px, 22px);
+    margin-top: 8px;
+    font-size: clamp(16px, 0.38vw + 13px, 20px);
   }
 
   .patient-directory-address {
@@ -247,12 +458,12 @@
   }
 
   .patient-documents-toolbar {
-    gap: 14px;
+    gap: 12px;
   }
 
   .patient-documents-search input {
-    padding: 14px 16px 14px 46px;
-    border-radius: 18px;
+    padding: 12px 14px 12px 42px;
+    border-radius: 16px;
   }
 
   .patient-documents-search-icon {
@@ -262,12 +473,12 @@
   .patient-documents-zip-button,
   .patient-documents-filter-button,
   .patient-documents-filter-icon {
-    min-height: 46px;
-    border-radius: 16px;
+    min-height: 40px;
+    border-radius: 14px;
   }
 
   .patient-documents-filter-icon {
-    width: 46px;
+    width: 40px;
   }
 
   .patient-documents-category-grid,
@@ -278,8 +489,8 @@
   .patient-documents-category-card,
   .patient-documents-card,
   .patient-documents-upload-card {
-    border-radius: 22px;
-    padding: 18px;
+    border-radius: 18px;
+    padding: 14px;
   }
 
   .patient-documents-category-icon,
@@ -290,7 +501,7 @@
   }
 
   .patient-emergency-grid {
-    gap: 18px;
+    gap: 14px;
   }
 
   .patient-emergency-print {
@@ -307,16 +518,16 @@
   }
 
   .patient-emergency-sos-trigger {
-    min-height: 210px;
-    border-radius: 26px;
+    min-height: 178px;
+    border-radius: 22px;
   }
 
   .patient-emergency-sos-trigger .material-symbols-outlined {
-    font-size: 60px;
+    font-size: 52px;
   }
 
   .patient-emergency-sos-trigger strong {
-    font-size: 30px;
+    font-size: 26px;
   }
 
   .patient-emergency-sos-meta {
@@ -335,20 +546,20 @@
 
   .patient-medications-main,
   .patient-medications-side {
-    gap: 18px;
+    gap: 14px;
   }
 
   .patient-medications-card-head {
-    margin-bottom: 18px;
+    margin-bottom: 14px;
   }
 
   .patient-medications-refill {
-    padding: 11px 16px;
-    border-radius: 15px;
+    padding: 9px 14px;
+    border-radius: 13px;
   }
 
   .patient-medications-dose-list {
-    gap: 12px;
+    gap: 9px;
   }
 
   .patient-medications-dose {
@@ -361,14 +572,14 @@
   }
 
   .patient-medications-dose-time {
-    width: 58px;
-    min-width: 58px;
-    height: 58px;
-    border-radius: 18px;
+    width: 50px;
+    min-width: 50px;
+    height: 50px;
+    border-radius: 15px;
   }
 
   .patient-medications-dose-copy h3 {
-    font-size: 19px;
+    font-size: 17px;
   }
 
   .patient-medications-dose-copy h3 span,
@@ -377,13 +588,14 @@
   }
 
   .patient-chat-layout {
-    min-height: calc(100vh - 126px);
-    grid-template-columns: minmax(250px, 290px) minmax(0, 1fr) 250px;
-    border-radius: 26px;
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(230px, 270px) minmax(0, 1fr);
+    border-radius: 22px;
   }
 
   .patient-chat-search-shell {
-    padding: 18px 16px 10px;
+    padding: 14px 13px 8px;
   }
 
   .patient-chat-search input {
@@ -397,9 +609,9 @@
   }
 
   .patient-chat-thread-card {
-    gap: 12px;
-    padding: 13px;
-    border-radius: 20px;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 16px;
   }
 
   .patient-chat-thread-avatar span,
@@ -410,16 +622,149 @@
   }
 
   .patient-chat-conversation-head {
-    gap: 14px;
-    padding: 18px 22px;
+    gap: 10px;
+    padding: 10px 16px;
   }
 
   .patient-chat-conversation-title h2 {
-    font-size: 20px;
+    font-size: 17px;
+  }
+
+  .patient-chat-conversation-profile {
+    gap: 10px;
+  }
+
+  .patient-chat-conversation-profile p {
+    margin-top: 3px;
+    font-size: 12px;
+  }
+
+  .patient-chat-conversation-avatar span {
+    width: 38px;
+    height: 38px;
+  }
+
+  .patient-chat-conversation-actions .patient-hero-button {
+    min-height: 34px;
+    padding: 8px 12px;
+  }
+
+  .patient-chat-history {
+    padding: 14px 18px 12px;
+    gap: 10px;
+  }
+
+  .patient-chat-composer-wrap {
+    padding: 0 18px 14px;
+  }
+
+  .patient-chat-composer {
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 18px;
+  }
+
+  .patient-chat-composer textarea {
+    min-height: 28px;
+    max-height: 84px;
+    padding: 5px 2px;
+  }
+
+  .patient-chat-composer-tools button {
+    width: 30px;
+    height: 30px;
+  }
+
+  .patient-chat-ai-support {
+    min-height: 32px;
+    padding: 7px 10px;
+    border-radius: 10px;
+  }
+
+  .patient-chat-send {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .patient-chat-context-panel {
+    gap: 13px;
+    padding: 16px 13px;
+  }
+
+  .patient-chat-context-header {
+    gap: 5px;
+  }
+
+  .patient-chat-context-header > span {
+    padding: 4px 8px;
+    font-size: 8px;
+  }
+
+  .patient-chat-context-header h3 {
+    font-size: 16px;
+  }
+
+  .patient-chat-context-header p {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .patient-chat-resource-group,
+  .patient-chat-documents {
+    gap: 8px;
+  }
+
+  .patient-chat-resource-head h4 {
+    font-size: 9px;
+  }
+
+  .patient-chat-resource-head span {
+    min-width: 22px;
+    height: 22px;
+    font-size: 9px;
+  }
+
+  .patient-chat-media-grid {
+    gap: 7px;
+  }
+
+  .patient-chat-media-card {
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .patient-chat-media-thumb {
+    height: 48px;
+    border-radius: 11px;
+  }
+
+  .patient-chat-media-card strong,
+  .patient-chat-document-copy strong {
+    font-size: 11px;
+  }
+
+  .patient-chat-link-list,
+  .patient-chat-document-list {
+    gap: 7px;
+  }
+
+  .patient-chat-link-card,
+  .patient-chat-document-card {
+    gap: 9px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .patient-chat-link-mark,
+  .patient-chat-document-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 11px;
   }
 
   .patient-notifications-page {
-    gap: 18px;
+    gap: 14px;
   }
 
   .patient-notification-filterbar {
@@ -428,7 +773,7 @@
   }
 
   .patient-notification-filter {
-    padding: 10px 16px;
+    padding: 8px 13px;
     border-radius: 13px;
   }
 
@@ -437,15 +782,15 @@
   }
 
   .patient-notification-card-page {
-    gap: 16px;
-    padding: 20px;
-    border-radius: 22px;
+    gap: 13px;
+    padding: 16px;
+    border-radius: 18px;
   }
 
   .patient-notification-card-mark {
-    width: 44px;
-    height: 44px;
-    border-radius: 15px;
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
   }
 
   .patient-notification-card-copy p {
@@ -463,13 +808,13 @@
   }
 
   .patient-profile-photo {
-    width: 128px;
-    height: 128px;
+    width: 112px;
+    height: 112px;
     border-width: 5px;
   }
 
   .patient-profile-photo span {
-    font-size: 38px;
+    font-size: 34px;
   }
 
   .patient-profile-photo-wrap {
@@ -492,7 +837,7 @@
   }
 
   .patient-profile-stat {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
 
   .patient-profile-stat strong {
@@ -506,8 +851,8 @@
   }
 
   .patient-support-hero {
-    padding: 34px 38px 68px;
-    border-radius: 28px;
+    padding: 28px 32px 58px;
+    border-radius: 24px;
   }
 
   .patient-support-hero-copy h1 {
@@ -516,12 +861,12 @@
   }
 
   .patient-support-search {
-    margin-top: 22px;
+    margin-top: 18px;
   }
 
   .patient-support-search input {
-    padding: 15px 22px 15px 52px;
-    border-radius: 18px;
+    padding: 13px 18px 13px 46px;
+    border-radius: 16px;
   }
 
   .patient-support-search-icon {
@@ -529,20 +874,20 @@
   }
 
   .patient-support-categories {
-    margin-top: -46px;
-    gap: 14px;
+    margin-top: -40px;
+    gap: 11px;
   }
 
   .patient-support-category {
-    padding: 22px;
-    border-radius: 24px;
+    padding: 18px;
+    border-radius: 20px;
   }
 
   .patient-support-category-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 15px;
-    margin-bottom: 16px;
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+    margin-bottom: 12px;
   }
 
   .patient-support-faq-list {
@@ -554,17 +899,17 @@
   }
 
   .patient-support-faq-trigger {
-    padding: 18px 22px;
+    padding: 14px 18px;
   }
 
   .patient-support-faq-answer {
-    padding: 0 22px 20px;
+    padding: 0 18px 16px;
   }
 
   .patient-support-cta {
-    gap: 20px;
-    padding: 30px 34px;
-    border-radius: 28px;
+    gap: 16px;
+    padding: 24px 28px;
+    border-radius: 24px;
   }
 
   .patient-support-cta-copy h2 {
@@ -572,12 +917,12 @@
   }
 
   .patient-trends-metric-grid {
-    gap: 14px;
+    gap: 11px;
   }
 
   .patient-trend-card {
-    padding: 22px;
-    border-radius: 24px;
+    padding: 18px;
+    border-radius: 20px;
   }
 
   .patient-trend-card-top {
@@ -585,13 +930,13 @@
   }
 
   .patient-trend-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 15px;
+    width: 36px;
+    height: 36px;
+    border-radius: 13px;
   }
 
   .patient-trend-value strong {
-    font-size: clamp(28px, 1.3vw + 16px, 40px);
+    font-size: clamp(24px, 1vw + 15px, 34px);
   }
 
   .patient-trend-value em {
@@ -613,12 +958,12 @@
 
   .patient-trend-chart-stage,
   .patient-trend-chart-empty {
-    min-height: 260px;
+    min-height: 230px;
   }
 
   .patient-history-workspace {
-    grid-template-columns: minmax(0, 1fr) 340px;
-    gap: 18px;
+    grid-template-columns: minmax(0, 1fr) 318px;
+    gap: 14px;
   }
 
   .patient-history-filterbar {
@@ -678,5 +1023,84 @@
 
   .patient-history-review-field textarea {
     min-height: 44px;
+  }
+
+  .patient-medications-page {
+    gap: 12px;
+  }
+
+  .patient-medications-head {
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0;
+  }
+
+  .patient-medications-head h1 {
+    font-size: clamp(32px, 1vw + 20px, 42px);
+    line-height: 0.95;
+  }
+
+  .patient-medications-head p {
+    margin-top: 5px;
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+
+  .patient-medications-stats {
+    margin-top: -4px;
+  }
+
+  .patient-medications-refill {
+    min-height: 50px;
+    padding: 0 24px;
+    border-radius: 15px;
+  }
+
+  .patient-medications-layout {
+    grid-template-columns: minmax(0, 1.34fr) minmax(390px, 0.99fr);
+    gap: 14px;
+  }
+
+  .patient-medications-main,
+  .patient-medications-side {
+    gap: 12px;
+  }
+
+  .patient-medications-card-head {
+    margin-bottom: 2px;
+  }
+
+  .patient-medications-schedule-card {
+    min-height: 374px;
+    padding: 20px 24px 18px;
+  }
+
+  .patient-medications-empty {
+    min-height: 286px;
+  }
+
+  .patient-medications-dose-list {
+    gap: 10px;
+  }
+
+  .patient-medications-dose {
+    gap: 12px;
+    border-radius: 20px;
+  }
+
+  .patient-medications-dose-time {
+    width: 58px;
+    min-width: 58px;
+    height: 58px;
+    border-radius: 18px;
+  }
+
+  .patient-medications-dose-copy h3 {
+    font-size: 19px;
+  }
+
+  .patient-medications-dose-copy h3 span,
+  .patient-medications-dose-copy p {
+    font-size: 13px;
   }
 }

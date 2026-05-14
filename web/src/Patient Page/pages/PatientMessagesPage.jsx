@@ -7,6 +7,126 @@ function getChatInitials(name = '') {
   return getInitials(name.replace(/^ThS\.\s*BS\.\s*|^BS\.\s*/i, '')) || 'BS'
 }
 
+const defaultChatResources = {
+  media: [
+    {
+      id: 'media-ecg',
+      name: 'Ảnh điện tâm đồ',
+      meta: 'JPG • 09/10/2023',
+      icon: 'image',
+      type: 'image',
+    },
+    {
+      id: 'media-guide',
+      name: 'Video hướng dẫn uống thuốc',
+      meta: 'MP4 • 01:20',
+      icon: 'movie',
+      type: 'video',
+    },
+  ],
+  links: [
+    {
+      id: 'link-diet',
+      title: 'Thực đơn giảm cholesterol',
+      meta: 'Bác sĩ gợi ý',
+      url: '#',
+      icon: 'link',
+    },
+    {
+      id: 'link-location',
+      title: 'Vị trí phòng khám',
+      meta: 'Google Maps',
+      url: 'https://maps.google.com',
+      icon: 'location_on',
+    },
+  ],
+}
+
+function formatFileSize(size) {
+  if (!size || Number.isNaN(size)) {
+    return ''
+  }
+
+  if (size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(size / 1024))} KB`
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function buildThreadResources(thread) {
+  const documentsFromThread = (thread.documents || []).map((document) => ({
+    id: document.id,
+    name: document.name,
+    meta: `${document.size} • ${document.date}`,
+    icon: document.icon,
+    tone: document.tone,
+    url: document.url,
+  }))
+
+  const messageAttachments = (thread.messages || []).flatMap((message) =>
+    (message.attachments || []).map((attachment, index) => ({
+      ...attachment,
+      id: `${message.id}-attachment-${index}`,
+      meta: formatFileSize(attachment.size) || 'Tệp đã gửi',
+    })),
+  )
+
+  const urlsFromMessages = (thread.messages || []).flatMap((message) => {
+    const matches = message.text?.match(/https?:\/\/[^\s]+/g) || []
+    return matches.map((url, index) => ({
+      id: `${message.id}-link-${index}`,
+      title: url.replace(/^https?:\/\//, ''),
+      meta: 'Liên kết trong tin nhắn',
+      url,
+      icon: 'link',
+    }))
+  })
+
+  const mediaAttachments = messageAttachments
+    .filter((attachment) => attachment.type?.startsWith('image/') || attachment.type?.startsWith('video/'))
+    .map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      meta: attachment.meta,
+      url: attachment.url,
+      type: attachment.type?.startsWith('video/') ? 'video' : 'image',
+      icon: attachment.type?.startsWith('video/') ? 'movie' : 'image',
+    }))
+
+  const linkAttachments = messageAttachments
+    .filter((attachment) => attachment.type === 'location')
+    .map((attachment) => ({
+      id: attachment.id,
+      title: attachment.name,
+      meta: 'Vị trí đã chia sẻ',
+      url: attachment.url,
+      icon: 'location_on',
+    }))
+
+  const documentAttachments = messageAttachments
+    .filter(
+      (attachment) =>
+        attachment.type !== 'location' &&
+        !attachment.type?.startsWith('image/') &&
+        !attachment.type?.startsWith('video/'),
+    )
+    .map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      meta: attachment.meta,
+      url: attachment.url,
+      icon: 'description',
+      tone: 'file',
+    }))
+
+  return {
+    media: [...(thread.resources?.media || defaultChatResources.media), ...mediaAttachments],
+    links: [...(thread.resources?.links || defaultChatResources.links), ...linkAttachments, ...urlsFromMessages],
+    documents: [...(thread.resources?.documents || documentsFromThread), ...documentAttachments],
+  }
+}
+
 export default function PatientMessagesPage() {
   const [threads, setThreads] = useState(messageThreads)
   const [selectedThreadId, setSelectedThreadId] = useState(messageThreads[0]?.id || '')
@@ -14,15 +134,21 @@ export default function PatientMessagesPage() {
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState([])
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
+  const [showResourceMenu, setShowResourceMenu] = useState(false)
   const fileInputRef = useRef(null)
   const imageInputRef = useRef(null)
   const attachmentMenuRef = useRef(null)
+  const resourceMenuRef = useRef(null)
   const deferredSearch = useDeferredValue(threadSearch)
 
   useEffect(() => {
     function handleClickOutside(event) {
       if (attachmentMenuRef.current && !attachmentMenuRef.current.contains(event.target)) {
         setShowAttachmentMenu(false)
+      }
+
+      if (resourceMenuRef.current && !resourceMenuRef.current.contains(event.target)) {
+        setShowResourceMenu(false)
       }
     }
 
@@ -39,6 +165,7 @@ export default function PatientMessagesPage() {
     : threads
 
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) || threads[0]
+  const threadResources = selectedThread ? buildThreadResources(selectedThread) : null
 
   const handleSendMessage = () => {
     const nextMessage = draft.trim()
@@ -259,9 +386,105 @@ export default function PatientMessagesPage() {
                 <span>Đặt lịch tư vấn video</span>
               </button>
 
-              <button className="patient-chat-icon-button" type="button" aria-label="Thao tác khác">
-                <PatientIcon name="more_vert" aria-hidden="true" />
-              </button>
+              <div className="patient-chat-resource-menu-shell" ref={resourceMenuRef}>
+                <button
+                  className="patient-chat-icon-button"
+                  type="button"
+                  aria-label="Mở kho tài liệu cuộc trò chuyện"
+                  aria-expanded={showResourceMenu}
+                  onClick={() => setShowResourceMenu((current) => !current)}
+                >
+                  <PatientIcon name="more_vert" aria-hidden="true" />
+                </button>
+
+                {showResourceMenu ? (
+                  <aside className="patient-chat-resource-popover">
+                    <div className="patient-chat-context-header">
+                      <span>Kho tư liệu</span>
+                      <h3>Tệp trong cuộc trò chuyện</h3>
+                      <p>Ảnh, video, liên kết và tài liệu được gom riêng để bạn xem lại nhanh.</p>
+                    </div>
+
+                    <section className="patient-chat-resource-group">
+                      <div className="patient-chat-resource-head">
+                        <h4>Ảnh & video</h4>
+                        <span>{threadResources.media.length}</span>
+                      </div>
+
+                      <div className="patient-chat-media-grid">
+                        {threadResources.media.map((item) => (
+                          <button
+                            key={item.id}
+                            className={`patient-chat-media-card is-${item.type}`}
+                            type="button"
+                            onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                          >
+                            <div className="patient-chat-media-thumb">
+                              <PatientIcon name={item.icon} aria-hidden="true" />
+                            </div>
+                            <strong>{item.name}</strong>
+                            <span>{item.meta}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="patient-chat-resource-group">
+                      <div className="patient-chat-resource-head">
+                        <h4>Liên kết</h4>
+                        <span>{threadResources.links.length}</span>
+                      </div>
+
+                      <div className="patient-chat-link-list">
+                        {threadResources.links.map((link) => (
+                          <a
+                            key={link.id}
+                            className="patient-chat-link-card"
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <div className="patient-chat-link-mark">
+                              <PatientIcon name={link.icon} aria-hidden="true" />
+                            </div>
+                            <div className="patient-chat-document-copy">
+                              <strong>{link.title}</strong>
+                              <span>{link.meta}</span>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="patient-chat-documents">
+                      <div className="patient-chat-resource-head">
+                        <h4>Tài liệu liên quan</h4>
+                        <span>{threadResources.documents.length}</span>
+                      </div>
+
+                      <div className="patient-chat-document-list">
+                        {threadResources.documents.map((document) => (
+                          <button
+                            key={document.id}
+                            className="patient-chat-document-card"
+                            type="button"
+                            onClick={() => document.url && window.open(document.url, '_blank', 'noopener,noreferrer')}
+                          >
+                            <div className={`patient-chat-document-mark ${document.tone || 'file'}`}>
+                              <PatientIcon name={document.icon} aria-hidden="true" />
+                            </div>
+
+                            <div className="patient-chat-document-copy">
+                              <strong>{document.name}</strong>
+                              <span>{document.meta}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  </aside>
+                ) : null}
+              </div>
             </div>
           </header>
 
@@ -619,48 +842,89 @@ export default function PatientMessagesPage() {
         </section>
 
         <aside className="patient-chat-context-panel">
-          <h3>Tóm tắt sức khỏe</h3>
-
-          <div className="patient-chat-snapshot-list">
-            {selectedThread.snapshot.map((item) => (
-              <article key={item.id} className="patient-chat-snapshot-card">
-                <div className="patient-chat-snapshot-head">
-                  <div className={`patient-chat-snapshot-icon ${item.tone}`}>
-                    <PatientIcon name={item.icon} aria-hidden="true" />
-                  </div>
-                  <span>{item.label}</span>
-                </div>
-
-                <div className="patient-chat-snapshot-value">
-                  <strong>{item.value}</strong>
-                  <span>{item.unit}</span>
-                </div>
-
-                <p>{item.trend}</p>
-              </article>
-            ))}
+          <div className="patient-chat-context-header">
+            <span>Kho tư liệu</span>
+            <h3>Tệp trong cuộc trò chuyện</h3>
+            <p>Ảnh, video, liên kết và tài liệu được gom riêng để bạn xem lại nhanh.</p>
           </div>
 
-          <div className="patient-chat-documents">
-            <h4>Tài liệu liên quan</h4>
+          <section className="patient-chat-resource-group">
+            <div className="patient-chat-resource-head">
+              <h4>Ảnh & video</h4>
+              <span>{threadResources.media.length}</span>
+            </div>
+
+            <div className="patient-chat-media-grid">
+              {threadResources.media.map((item) => (
+                <button
+                  key={item.id}
+                  className={`patient-chat-media-card is-${item.type}`}
+                  type="button"
+                  onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                >
+                  <div className="patient-chat-media-thumb">
+                    <PatientIcon name={item.icon} aria-hidden="true" />
+                  </div>
+                  <strong>{item.name}</strong>
+                  <span>{item.meta}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="patient-chat-resource-group">
+            <div className="patient-chat-resource-head">
+              <h4>Liên kết</h4>
+              <span>{threadResources.links.length}</span>
+            </div>
+
+            <div className="patient-chat-link-list">
+              {threadResources.links.map((link) => (
+                <a
+                  key={link.id}
+                  className="patient-chat-link-card"
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <div className="patient-chat-link-mark">
+                    <PatientIcon name={link.icon} aria-hidden="true" />
+                  </div>
+                  <div className="patient-chat-document-copy">
+                    <strong>{link.title}</strong>
+                    <span>{link.meta}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <section className="patient-chat-documents">
+            <div className="patient-chat-resource-head">
+              <h4>Tài liệu liên quan</h4>
+              <span>{threadResources.documents.length}</span>
+            </div>
 
             <div className="patient-chat-document-list">
-              {selectedThread.documents.map((document) => (
-                <button key={document.id} className="patient-chat-document-card" type="button">
-                  <div className={`patient-chat-document-mark ${document.tone}`}>
+              {threadResources.documents.map((document) => (
+                <button
+                  key={document.id}
+                  className="patient-chat-document-card"
+                  type="button"
+                  onClick={() => document.url && window.open(document.url, '_blank', 'noopener,noreferrer')}
+                >
+                  <div className={`patient-chat-document-mark ${document.tone || 'file'}`}>
                     <PatientIcon name={document.icon} aria-hidden="true" />
                   </div>
 
                   <div className="patient-chat-document-copy">
                     <strong>{document.name}</strong>
-                    <span>
-                      {document.size} | {document.date}
-                    </span>
+                    <span>{document.meta}</span>
                   </div>
                 </button>
               ))}
             </div>
-          </div>
+          </section>
         </aside>
       </div>
     </div>

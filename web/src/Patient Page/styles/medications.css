@@ -1,32 +1,80 @@
 .patient-medications-page {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 12px;
+  margin-top: 0;
+}
+
+.patient-medications-page::before {
+  content: '';
+  position: absolute;
+  top: -18px;
+  right: -36px;
+  z-index: 0;
+  width: min(720px, 52vw);
+  height: 194px;
+  border-radius: 0 0 0 160px;
+  background:
+    radial-gradient(circle at 90% 34%, rgba(13, 99, 243, 0.18), transparent 22%),
+    radial-gradient(circle at 45% 70%, rgba(14, 165, 233, 0.13), transparent 32%),
+    linear-gradient(135deg, rgba(219, 234, 254, 0.2), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.patient-medications-page::after {
+  content: '';
+  position: absolute;
+  top: 20px;
+  right: 110px;
+  z-index: 0;
+  width: 430px;
+  height: 96px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 4% 50%, rgba(69, 179, 237, 0.3) 0 11px, transparent 12px),
+    radial-gradient(circle at 61% 15%, rgba(13, 99, 243, 0.16) 0 8px, transparent 9px),
+    radial-gradient(circle at 92% 48%, rgba(69, 179, 237, 0.28) 0 17px, transparent 18px),
+    linear-gradient(135deg, transparent 0 42%, rgba(13, 99, 243, 0.13) 43%, transparent 44%),
+    linear-gradient(155deg, transparent 0 67%, rgba(255, 255, 255, 0.9) 68%, transparent 69%);
+  pointer-events: none;
+}
+
+.patient-medications-head,
+.patient-medications-stats,
+.patient-medications-layout {
+  position: relative;
+  z-index: 1;
 }
 
 .patient-medications-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
 }
 
 .patient-medications-head h1 {
-  font-size: var(--patient-hero-title-size);
-  line-height: 0.94;
-  letter-spacing: -0.05em;
+  color: #061634;
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(32px, 1vw + 20px, 42px);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.065em;
 }
 
 .patient-medications-head p {
-  margin-top: 10px;
-  color: var(--patient-muted);
-  font-size: var(--patient-body-size);
-  line-height: 1.7;
-  max-width: 720px;
+  max-width: 850px;
+  margin-top: 5px;
+  color: #24385d;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
 }
 
 .patient-medications-refill,
-.patient-medications-download {
+.patient-medications-secondary-btn,
+.patient-medications-pharmacy-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -34,91 +82,229 @@
   border: 0;
   cursor: pointer;
   font: inherit;
+  font-weight: 800;
 }
 
 .patient-medications-refill {
-  padding: 14px 20px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, var(--patient-primary), #3d82ff);
+  min-height: 50px;
+  padding: 0 24px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #0757e6, #047cff);
   color: #fff;
+  box-shadow: 0 22px 42px rgba(13, 99, 243, 0.24);
+}
+
+.patient-medications-head > .patient-medications-refill {
+  align-self: center;
+}
+
+.patient-medications-secondary-btn {
+  min-height: 46px;
+  padding: 0 22px;
+  border: 1px solid rgba(13, 99, 243, 0.24);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--patient-primary);
+  box-shadow: 0 14px 30px rgba(22, 32, 51, 0.06);
+}
+
+.patient-medications-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: -4px;
+}
+
+.patient-medications-stat {
+  position: relative;
+  overflow: hidden;
+  min-height: 106px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 15px 18px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 14px 26px rgba(15, 23, 42, 0.07);
+}
+
+.patient-medications-stat::before {
+  display: none;
+}
+
+.patient-medications-stat::after {
+  display: none;
+}
+
+.patient-medications-stat.is-blue {
+  --stat-color: #0d63f3;
+  --stat-color-soft: #7db6ff;
+  --stat-glow: rgba(13, 99, 243, 0.16);
+}
+
+.patient-medications-stat.is-green {
+  --stat-color: #079c8c;
+  --stat-color-soft: #8ce7d9;
+  --stat-glow: rgba(20, 184, 166, 0.16);
+}
+
+.patient-medications-stat.is-violet {
+  --stat-color: #6d3ee8;
+  --stat-color-soft: #b89cff;
+  --stat-glow: rgba(124, 58, 237, 0.16);
+}
+
+.patient-medications-stat.is-orange {
+  --stat-color: #ea6a10;
+  --stat-color-soft: #ffc076;
+  --stat-glow: rgba(249, 115, 22, 0.18);
+}
+
+.patient-medications-stat-icon {
+  position: relative;
+  z-index: 1;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--patient-primary);
+  box-shadow: 0 12px 26px rgba(13, 99, 243, 0.08);
+}
+
+.patient-medications-stat-icon .material-symbols-outlined {
+  font-size: 29px;
+  font-variation-settings: 'FILL' 0, 'wght' 650, 'GRAD' 0, 'opsz' 24;
+}
+
+.patient-medications-stat-icon img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  object-position: center;
+  mix-blend-mode: multiply;
+  filter: saturate(1.08) contrast(1.02);
+}
+
+.patient-medications-stat > div:last-child {
+  position: relative;
+  z-index: 1;
+}
+
+.patient-medications-stat p,
+.patient-medications-block-label {
+  color: #24385d;
+  font-size: 12px;
   font-weight: 800;
-  box-shadow: 0 20px 40px rgba(13, 99, 243, 0.18);
+}
+
+.patient-medications-stat strong {
+  display: block;
+  margin-top: 2px;
+  color: #07152f;
+  font-family: 'Manrope', sans-serif;
+  font-size: 29px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.patient-medications-stat span {
+  display: block;
+  margin-top: 5px;
+  color: #5c6d8c;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .patient-medications-layout {
   display: grid;
-  grid-template-columns: minmax(0, 8fr) minmax(320px, 4fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.34fr) minmax(390px, 0.99fr);
+  gap: 14px;
 }
 
 .patient-medications-main,
 .patient-medications-side {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 12px;
+}
+
+.patient-medications-schedule-card {
+  min-height: 374px;
+  overflow: hidden;
+  padding: 20px 24px 18px;
 }
 
 .patient-medications-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 28px;
+  gap: 14px;
+  margin-bottom: 0;
 }
 
-.patient-medications-card-head h2 {
-  font-size: var(--patient-section-title-size);
-  line-height: 1.04;
-  letter-spacing: -0.04em;
-}
-
-.patient-medications-count {
-  display: inline-flex;
+.patient-medications-title-row {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: #dff8ef;
-  color: #0d7b68;
-  font-size: 13px;
-  font-weight: 800;
+  gap: 14px;
+}
+
+.patient-medications-title-row > span {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #e9f3ff, #dcecff);
+  color: var(--patient-primary);
+}
+
+.patient-medications-title-row h2 {
+  color: #07152f;
+  font-size: 20px;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
 }
 
 .patient-medications-dose-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .patient-medications-dose {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 10px;
-  border: 1px solid transparent;
-  border-radius: 24px;
-  transition: border-color 0.2s ease, background-color 0.2s ease, opacity 0.2s ease;
+  border: 1px solid rgba(160, 174, 203, 0.16);
+  border-radius: 20px;
+  background: rgba(248, 251, 255, 0.72);
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
 }
 
-.patient-medications-dose:hover {
-  background: rgba(243, 246, 251, 0.8);
-  border-color: rgba(160, 174, 203, 0.18);
-}
-
+.patient-medications-dose:hover,
 .patient-medications-dose.is-active {
-  background: rgba(243, 246, 251, 0.92);
-  border-color: rgba(13, 99, 243, 0.18);
-}
-
-.patient-medications-dose.is-taken .patient-medications-log span:first-child {
-  color: #0d7b68;
+  transform: translateY(-1px);
+  border-color: rgba(13, 99, 243, 0.25);
+  background: #f4f8ff;
 }
 
 .patient-medications-dose-body {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   border: 0;
   background: transparent;
   padding: 0;
@@ -127,301 +313,429 @@
 }
 
 .patient-medications-dose-time {
-  width: 72px;
-  min-width: 72px;
-  height: 72px;
-  border-radius: 22px;
-  background: rgba(233, 238, 248, 0.92);
-  color: var(--patient-muted);
+  width: 58px;
+  min-width: 58px;
+  height: 58px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.patient-medications-dose.is-active .patient-medications-dose-time,
-.patient-medications-dose:hover .patient-medications-dose-time {
-  background: rgba(13, 99, 243, 0.08);
+  gap: 3px;
+  border-radius: 18px;
+  background: #e9f0fb;
   color: var(--patient-primary);
 }
 
 .patient-medications-dose-time strong {
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 900;
   letter-spacing: 0.12em;
 }
 
+.patient-medications-dose-copy {
+  min-width: 0;
+}
+
 .patient-medications-dose-copy h3 {
-  font-size: 23px;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  font-size: 19px;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
 }
 
 .patient-medications-dose-copy h3 span {
-  margin-left: 10px;
-  color: var(--patient-muted);
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.patient-medications-dose-copy p {
-  margin-top: 6px;
-  color: var(--patient-muted);
-  font-size: 14px;
-}
-
-.patient-medications-log {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 132px;
-  justify-content: flex-end;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-}
-
-.patient-medications-log span:first-child {
-  color: var(--patient-muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.patient-medications-log-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  border: 2px solid rgba(160, 174, 203, 0.3);
-  display: grid;
-  place-items: center;
-  color: transparent;
-  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
-}
-
-.patient-medications-log:hover .patient-medications-log-icon {
-  border-color: rgba(13, 99, 243, 0.45);
-  background: rgba(13, 99, 243, 0.06);
-}
-
-.patient-medications-log.is-taken .patient-medications-log-icon {
-  background: #0d7b68;
-  border-color: #0d7b68;
-  color: #fff;
-}
-
-.patient-medications-progress-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-}
-
-.patient-medications-progress-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.patient-medications-progress-head p,
-.patient-medications-block-label {
-  color: var(--patient-muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.patient-medications-progress-head h3 {
-  margin-top: 8px;
-  font-size: 26px;
-  line-height: 1.02;
-  letter-spacing: -0.03em;
-}
-
-.patient-medications-progress-head strong {
-  color: var(--patient-primary);
-  font-family: 'Manrope', sans-serif;
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.patient-medications-progress-head strong.is-secondary {
-  color: #0d7b68;
-}
-
-.patient-medications-progress-track {
-  margin: 24px 0 16px;
-  height: 12px;
-  border-radius: 999px;
-  background: rgba(233, 238, 248, 0.92);
-  overflow: hidden;
-}
-
-.patient-medications-progress-track span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(135deg, var(--patient-primary), #3d82ff);
-}
-
-.patient-medications-progress-track.is-secondary span {
-  background: #0d7b68;
-}
-
-.patient-medications-progress-card small {
+  margin-left: 7px;
   color: var(--patient-muted);
   font-size: 13px;
   font-weight: 600;
 }
 
+.patient-medications-dose-copy p,
+.patient-medications-dose-copy small {
+  display: block;
+  margin-top: 5px;
+  color: var(--patient-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.patient-medications-empty {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px 10px;
+  text-align: center;
+}
+
+.patient-medications-empty-art {
+  width: min(330px, 68%);
+  max-width: 330px;
+  height: auto;
+  margin: -8px auto -12px;
+  overflow: visible;
+  object-fit: contain;
+}
+
+.patient-medications-loading-icon {
+  width: 86px;
+  height: 86px;
+  display: grid;
+  place-items: center;
+  margin: 76px auto 14px;
+  border-radius: 28px;
+  background: #e8f1ff;
+  color: var(--patient-primary);
+}
+
+.patient-medications-loading-icon .material-symbols-outlined {
+  font-size: 44px;
+}
+
+.patient-medications-empty h3 {
+  color: #07152f;
+  font-size: 23px;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.patient-medications-empty p {
+  max-width: 540px;
+  margin-top: 5px;
+  color: #536789;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.patient-medications-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.patient-medications-today-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 156px 13px 22px;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.98), rgba(237, 245, 255, 0.86)),
+    radial-gradient(circle at 91% 0%, rgba(13, 99, 243, 0.18), transparent 34%);
+}
+
+.patient-medications-today-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.patient-medications-today-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--patient-primary);
+  box-shadow: none;
+}
+
+.patient-medications-today-icon .material-symbols-outlined {
+  font-size: 34px;
+}
+
+.patient-medications-today-icon img {
+  display: block;
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.patient-medications-today-card h3 {
+  color: #07152f;
+  font-size: 18px;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.patient-medications-today-card p {
+  margin-top: 4px;
+  color: #536789;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.patient-medications-today-card .patient-medications-secondary-btn {
+  min-width: 136px;
+  min-height: 40px;
+  padding: 0 18px;
+  border-color: transparent;
+  background: linear-gradient(135deg, #0d63f3, #3182ff);
+  color: #fff;
+  box-shadow: 0 16px 28px rgba(13, 99, 243, 0.22);
+}
+
+.patient-medications-today-card.is-reminder-created .patient-medications-secondary-btn {
+  background: linear-gradient(135deg, #008c7a, #15b8a6);
+  color: #fff;
+  box-shadow: 0 16px 28px rgba(0, 139, 122, 0.2);
+}
+
+.patient-medications-today-calendar {
+  position: absolute;
+  right: 16px;
+  top: -10px;
+  width: 104px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  color: rgba(13, 99, 243, 0.2);
+  transform: rotate(13deg);
+  pointer-events: none;
+}
+
+.patient-medications-today-calendar > .material-symbols-outlined {
+  font-size: 80px;
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+}
+
 .patient-medications-insight-card {
   overflow: hidden;
-  border-radius: 32px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.92));
-  box-shadow: 0 18px 45px rgba(17, 24, 39, 0.06);
-  border: 1px solid rgba(160, 174, 203, 0.18);
+  border: 1px solid rgba(160, 174, 203, 0.2);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 42px rgba(22, 32, 51, 0.07);
 }
 
 .patient-medications-insight-hero {
+  position: relative;
+  min-height: 106px;
   display: flex;
   align-items: center;
-  padding: 28px 30px;
-  background: linear-gradient(135deg, #dbe3f1, #bfc7d4);
+  gap: 16px;
+  padding: 18px 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 17% 48%, rgba(125, 211, 252, 0.58), transparent 20%),
+    radial-gradient(circle at 84% 22%, rgba(59, 130, 246, 0.54), transparent 24%),
+    linear-gradient(135deg, #054ad8, #0868f8 54%, #003bad);
   color: #fff;
 }
 
+.patient-medications-insight-hero::before {
+  content: '\2726  \2726';
+  position: absolute;
+  top: 28px;
+  right: 116px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 24px;
+  letter-spacing: 22px;
+}
+
+.patient-medications-insight-hero::after {
+  content: '';
+  position: absolute;
+  right: 24px;
+  bottom: 21px;
+  width: 98px;
+  height: 40px;
+  border: 11px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  transform: rotate(-35deg);
+}
+
 .patient-medications-insight-mark {
-  width: 62px;
-  height: 62px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  z-index: 1;
+  width: 70px;
+  height: 70px;
   display: grid;
   place-items: center;
-  backdrop-filter: blur(10px);
+}
+
+.patient-medications-capsule-glow {
+  position: relative;
+  width: 60px;
+  height: 34px;
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), #49c5ff 48%, #146dff 49%, #eaffff 100%);
+  box-shadow:
+    0 0 0 10px rgba(103, 190, 255, 0.12),
+    0 0 24px rgba(103, 190, 255, 0.78),
+    0 12px 28px rgba(0, 34, 136, 0.28);
+  transform: rotate(-42deg);
+}
+
+.patient-medications-capsule-glow::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: inherit;
+  border: 3px solid rgba(255, 255, 255, 0.76);
+}
+
+.patient-medications-capsule-glow::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .patient-medications-insight-hero h3 {
-  margin-left: 14px;
-  font-size: 26px;
-  line-height: 1;
+  position: relative;
+  z-index: 1;
+  font-size: 23px;
+  line-height: 1.04;
   letter-spacing: -0.04em;
 }
 
 .patient-medications-insight-hero p {
-  margin-left: 14px;
-  margin-top: 6px;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 12px;
-  font-weight: 600;
+  position: relative;
+  z-index: 1;
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.patient-medications-insight-hero-image {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  background: #045eea;
+  border-radius: 0;
+}
+
+.patient-medications-insight-hero-image::before,
+.patient-medications-insight-hero-image::after {
+  display: none;
+}
+
+.patient-medications-insight-hero-image img {
+  display: block;
+  width: 100%;
+  height: 116px;
+  object-fit: cover;
+  object-position: center;
 }
 
 .patient-medications-insight-body {
-  padding: 28px 30px 30px;
+  padding: 18px 22px 20px;
 }
 
 .patient-medications-title-block h2 {
-  font-size: clamp(28px, 1vw + 20px, 36px);
+  color: #07152f;
+  font-size: clamp(24px, 1vw + 18px, 34px);
   line-height: 0.98;
   letter-spacing: -0.05em;
 }
 
 .patient-medications-title-block span {
   display: inline-flex;
-  margin-top: 12px;
+  margin-top: 10px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(13, 99, 243, 0.08);
+  background: #e9f2ff;
   color: var(--patient-primary);
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-weight: 900;
+  letter-spacing: 0.1em;
 }
 
 .patient-medications-info-block {
-  margin-top: 24px;
+  margin-top: 18px;
 }
 
 .patient-medications-info-block p:last-child {
-  margin-top: 10px;
+  margin-top: 7px;
   color: var(--patient-copy);
   font-size: 14px;
-  line-height: 1.78;
+  font-weight: 600;
+  line-height: 1.64;
 }
 
-.patient-medications-callout {
-  margin-top: 22px;
+.patient-medications-callout,
+.patient-medications-no-selection {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 14px;
-  padding: 18px;
+  align-items: center;
+  gap: 16px;
+  margin-top: 0;
+  padding: 22px 24px;
   border-radius: 22px;
-  background: rgba(243, 246, 251, 0.9);
+  background: linear-gradient(135deg, #f1f6ff, #eef3fb);
+  color: #33466b;
 }
 
-.patient-medications-callout .material-symbols-outlined {
+.patient-medications-callout .material-symbols-outlined,
+.patient-medications-no-selection .material-symbols-outlined {
   color: var(--patient-primary);
+  font-size: 34px;
 }
 
 .patient-medications-callout strong {
   display: block;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
-.patient-medications-callout p {
+.patient-medications-callout p,
+.patient-medications-no-selection p {
   margin-top: 4px;
-  color: var(--patient-muted);
-  font-size: 13px;
-  line-height: 1.65;
+  color: #536789;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.55;
 }
 
 .patient-medications-chip-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 18px;
 }
 
 .patient-medications-chip-list span {
-  padding: 8px 12px;
+  padding: 8px 11px;
   border-radius: 999px;
-  background: rgba(233, 238, 248, 0.92);
-  color: var(--patient-muted);
+  background: #edf3ff;
+  color: #536789;
   font-size: 11px;
-  font-weight: 800;
-}
-
-.patient-medications-download {
-  width: 100%;
-  margin-top: 28px;
-  min-height: 52px;
-  border: 2px solid var(--patient-primary);
-  border-radius: 18px;
-  background: transparent;
-  color: var(--patient-primary);
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .patient-medications-pharmacy-card {
-  padding-top: 24px;
+  min-height: 220px;
+  padding: 20px 22px 18px;
+}
+
+.patient-medications-pharmacy-card h3 {
+  color: #07152f;
+  font-size: 22px;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
 }
 
 .patient-medications-map {
   position: relative;
-  height: 144px;
-  margin: 14px 0 18px;
-  border-radius: 24px;
+  height: 128px;
+  margin: 12px 0 13px;
+  border-radius: 22px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 22% 28%, rgba(13, 99, 243, 0.2), transparent 16%),
-    radial-gradient(circle at 75% 68%, rgba(1, 187, 155, 0.16), transparent 18%),
-    linear-gradient(135deg, #edf4ff 0%, #f8fbff 36%, #e8eef7 100%);
+    radial-gradient(circle at 18% 22%, rgba(47, 123, 255, 0.14), transparent 18%),
+    radial-gradient(circle at 78% 70%, rgba(22, 163, 74, 0.12), transparent 18%),
+    linear-gradient(135deg, #cfe7ff 0 21%, #f8fbff 21% 42%, #eaf0f7 42% 100%);
 }
 
 .patient-medications-map::before,
@@ -433,81 +747,113 @@
 
 .patient-medications-map::before {
   background:
-    linear-gradient(90deg, transparent 0 18%, rgba(255, 255, 255, 0.75) 18% 22%, transparent 22% 42%, rgba(255, 255, 255, 0.75) 42% 46%, transparent 46% 100%),
-    linear-gradient(transparent 0 22%, rgba(255, 255, 255, 0.7) 22% 26%, transparent 26% 58%, rgba(255, 255, 255, 0.7) 58% 62%, transparent 62% 100%);
+    linear-gradient(90deg, transparent 0 18%, rgba(255, 255, 255, 0.88) 18% 22%, transparent 22% 42%, rgba(255, 255, 255, 0.88) 42% 46%, transparent 46% 100%),
+    linear-gradient(transparent 0 22%, rgba(255, 255, 255, 0.82) 22% 26%, transparent 26% 58%, rgba(255, 255, 255, 0.82) 58% 62%, transparent 62% 100%);
 }
 
 .patient-medications-map::after {
   background:
-    linear-gradient(135deg, transparent 0 48%, rgba(13, 99, 243, 0.14) 48% 52%, transparent 52% 100%),
-    linear-gradient(45deg, transparent 0 44%, rgba(1, 187, 155, 0.14) 44% 48%, transparent 48% 100%);
+    linear-gradient(135deg, transparent 0 48%, rgba(13, 99, 243, 0.18) 48% 52%, transparent 52% 100%),
+    linear-gradient(45deg, transparent 0 44%, rgba(16, 185, 129, 0.18) 44% 48%, transparent 48% 100%);
 }
 
 .patient-medications-map-pin {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: grid;
   place-items: center;
-  z-index: 1;
 }
 
 .patient-medications-map-pin span {
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  background: var(--patient-primary);
-  color: #fff;
+  width: 58px;
+  height: 58px;
   display: grid;
   place-items: center;
-  box-shadow: 0 16px 36px rgba(13, 99, 243, 0.24);
+  border-radius: 22px;
+  background: var(--patient-primary);
+  color: #fff;
+  box-shadow: 0 18px 36px rgba(13, 99, 243, 0.28);
 }
 
-.patient-medications-pharmacy-card h3 {
-  font-size: 20px;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+.patient-medications-pharmacy-link {
+  width: 100%;
+  justify-content: space-between;
+  padding: 0;
+  background: transparent;
+  color: var(--patient-primary);
 }
 
-.patient-medications-pharmacy-card p:last-child {
-  margin-top: 6px;
+.patient-medications-pharmacy-card p {
+  margin-top: 10px;
   color: var(--patient-muted);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
 }
 
-@media (max-width: 1260px) {
+@media (max-width: 1320px) {
+  .patient-medications-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .patient-medications-layout {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 900px) {
-  .patient-medications-head,
-  .patient-medications-card-head {
-    flex-direction: column;
+  .patient-medications-page {
+    margin-top: 0;
+  }
+
+  .patient-medications-head {
+    grid-template-columns: 1fr;
     align-items: stretch;
   }
 
-  .patient-medications-progress-grid {
+  .patient-medications-stats {
     grid-template-columns: 1fr;
   }
 
-  .patient-medications-dose {
-    flex-direction: column;
-    align-items: stretch;
+  .patient-medications-today-card {
+    grid-template-columns: auto 1fr;
+    padding-right: 28px;
   }
 
-  .patient-medications-log {
-    width: 100%;
-    justify-content: space-between;
+  .patient-medications-today-card .patient-medications-secondary-btn {
+    grid-column: 1 / -1;
+  }
+
+  .patient-medications-today-calendar {
+    display: none;
   }
 }
 
 @media (max-width: 640px) {
-  .patient-medications-insight-hero,
-  .patient-medications-insight-body {
-    padding-left: 22px;
-    padding-right: 22px;
+  .patient-medications-head h1 {
+    font-size: 34px;
+  }
+
+  .patient-medications-refill,
+  .patient-medications-secondary-btn {
+    width: 100%;
+  }
+
+  .patient-medications-stat {
+    min-height: 104px;
+    grid-template-columns: 64px minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .patient-medications-stat-icon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .patient-medications-card-head,
+  .patient-medications-dose {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .patient-medications-dose-body {
@@ -515,6 +861,24 @@
   }
 
   .patient-medications-dose-copy h3 {
-    font-size: 20px;
+    font-size: 18px;
+  }
+
+  .patient-medications-insight-hero,
+  .patient-medications-insight-body {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .patient-medications-insight-hero-image {
+    padding: 0;
+  }
+
+  .patient-medications-insight-hero-image img {
+    height: 104px;
+  }
+
+  .patient-medications-empty-art {
+    width: 100%;
   }
 }

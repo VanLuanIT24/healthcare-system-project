@@ -35,6 +35,7 @@ export default function PatientTopbar({
   const profileMenuRef = useRef(null)
   const quickNotifications = notificationItems.slice(0, 3)
   const hasUnreadNotifications = notificationItems.some((item) => item.unread)
+  const unreadNotificationCount = notificationItems.filter((item) => item.unread).length
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -78,7 +79,7 @@ export default function PatientTopbar({
     messages: 'Tìm cuộc trò chuyện...',
     notifications: 'Tìm thông báo...',
     history: 'Tìm lịch sử khám...',
-    billing: 'Tìm kiếm hóa đơn...',
+    billing: 'Tìm dịch vụ, hóa đơn, hoặc mã thanh toán...',
   }
 
   const searchPlaceholder =
@@ -128,13 +129,25 @@ export default function PatientTopbar({
           {openMenu === 'notifications' ? (
             <div className="patient-topbar-dropdown patient-topbar-dropdown-notifications">
               <div className="patient-topbar-dropdown-head">
-                <h4>Thông báo</h4>
+                <span className="patient-topbar-dropdown-head-icon">
+                  <PatientIcon name="notifications" aria-hidden="true" />
+                </span>
+                <div className="patient-topbar-dropdown-title">
+                  <h4>Thông báo</h4>
+                  {unreadNotificationCount > 0 ? (
+                    <span>{unreadNotificationCount} chưa đọc</span>
+                  ) : null}
+                </div>
                 <button
                   className="patient-topbar-dropdown-link"
                   type="button"
+                  aria-label="Đánh dấu tất cả đã đọc"
+                  title="Đánh dấu tất cả đã đọc"
+                  data-tooltip="Đánh dấu tất cả đã đọc"
                   onClick={onMarkAllNotificationsAsRead}
                 >
-                  Đánh dấu tất cả đã đọc
+                  <PatientIcon name="done_all" aria-hidden="true" />
+                  <span>Đã đọc</span>
                 </button>
               </div>
 
@@ -154,8 +167,14 @@ export default function PatientTopbar({
                       <h5>{item.title}</h5>
                       <p>{item.body}</p>
                       <div className="patient-notification-menu-meta">
-                        <span>{item.time}</span>
-                        <small>Chi tiết</small>
+                        <span>
+                          <PatientIcon name="schedule" aria-hidden="true" />
+                          {item.time}
+                        </span>
+                        <small>
+                          Chi tiết
+                          <PatientIcon name="chevron_right" aria-hidden="true" />
+                        </small>
                       </div>
                     </div>
                   </button>
@@ -171,7 +190,9 @@ export default function PatientTopbar({
                     onNotificationsOpen()
                   }}
                 >
+                  <PatientIcon name="format_list_bulleted" aria-hidden="true" />
                   Xem tất cả
+                  <PatientIcon name="chevron_right" aria-hidden="true" />
                 </button>
               </div>
             </div>

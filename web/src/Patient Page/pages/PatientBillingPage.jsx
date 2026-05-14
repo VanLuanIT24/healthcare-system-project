@@ -1,182 +1,261 @@
 import { useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
-import { billingInvoices, billingOverview, paymentMethods } from '../data/patientPageData'
+import paymentGiftImage from '../assets/payment-gift.png'
+import { checkoutItems, paymentMethods } from '../data/patientPageData'
 
 export default function PatientBillingPage() {
+  const [selectedItem, setSelectedItem] = useState(checkoutItems[0]?.id || '')
   const [selectedMethod, setSelectedMethod] = useState(paymentMethods[0]?.id || '')
+
+  const currentItem = checkoutItems.find(i => i.id === selectedItem) || checkoutItems[0]
 
   return (
     <div className="patient-billing-page">
-      <section className="patient-billing-summary-grid">
-        <article className="patient-panel patient-billing-balance-card">
-          <div className="patient-billing-balance-copy">
-            <p className="patient-section-label">{billingOverview.outstandingLabel}</p>
-            <h1>
-              {billingOverview.outstandingAmount}
-              <span>{billingOverview.outstandingCurrency}</span>
-            </h1>
+      <header className="pb-header">
+        <h1>Thanh toán</h1>
+        <p>Thanh toán nhanh chóng, an toàn và tiện lợi.</p>
+      </header>
+
+      <div className="pb-layout">
+        <div className="pb-main">
+          <div className="pb-stepper-container">
+            <div className="pb-stepper">
+              <div className="pb-step pb-step-active">
+                <div className="pb-step-icon"><PatientIcon name="receipt_long" aria-hidden="true" /></div>
+                <div className="pb-step-text">
+                  <strong>1. Chọn khoản thanh toán</strong>
+                  <span>Dịch vụ, hóa đơn hoặc đặt cọc</span>
+                </div>
+              </div>
+              <div className="pb-step-divider"></div>
+              <div className="pb-step">
+                <div className="pb-step-icon"><PatientIcon name="account_balance_wallet" aria-hidden="true" /></div>
+                <div className="pb-step-text">
+                  <strong>2. Chọn phương thức</strong>
+                  <span>Chọn hình thức thanh toán</span>
+                </div>
+              </div>
+              <div className="pb-step-divider"></div>
+              <div className="pb-step">
+                <div className="pb-step-icon"><PatientIcon name="task_alt" aria-hidden="true" /></div>
+                <div className="pb-step-text">
+                  <strong>3. Xác nhận & thanh toán</strong>
+                  <span>Kiểm tra và hoàn tất giao dịch</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="patient-billing-balance-actions">
-            <button className="patient-hero-button" type="button">
-              Thanh toán ngay
-            </button>
-
-            <button className="patient-inline-link patient-inline-link-icon" type="button">
-              <PatientIcon name="receipt_long" aria-hidden="true" />
-              <span>Xem chi tiết</span>
-            </button>
-          </div>
-
-          <div className="patient-billing-balance-glow" aria-hidden="true" />
-        </article>
-
-        <article className="patient-panel patient-billing-settled-card">
-          <div className="patient-billing-settled-mark">
-            <PatientIcon name="verified" aria-hidden="true" />
-          </div>
-
-          <div>
-            <p className="patient-section-label">{billingOverview.settledLabel}</p>
-            <h2>{billingOverview.settledAmount}</h2>
-          </div>
-
-          <p>{billingOverview.settledPeriod}</p>
-        </article>
-      </section>
-
-      <div className="patient-billing-layout">
-        <section className="patient-billing-invoice-column">
-          <div className="patient-billing-section-head">
-            <h2>Hóa đơn khám bệnh</h2>
-
-            <button className="patient-billing-filter-button" type="button" aria-label="Lọc hóa đơn">
-              <PatientIcon name="filter_list" aria-hidden="true" />
-            </button>
-          </div>
-
-          <div className="patient-panel patient-billing-table-shell">
-            <div className="patient-billing-table-wrap">
-              <table className="patient-billing-table">
-                <thead>
-                  <tr>
-                    <th>Dịch vụ / Ngày</th>
-                    <th>Số tiền</th>
-                    <th>Trạng thái</th>
-                    <th>Tải về</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {billingInvoices.map((invoice) => (
-                    <tr key={invoice.id}>
-                      <td data-label="Dịch vụ / Ngày">
-                        <div className="patient-billing-service">
-                          <div className={`patient-billing-service-icon ${invoice.iconTone}`}>
-                            <PatientIcon name={invoice.icon} aria-hidden="true" />
+          <div className="pb-columns">
+            {/* Left Column */}
+            <div className="pb-column">
+              <h2>Chọn khoản thanh toán</h2>
+              <div className="pb-column-card">
+                <div className="pb-options">
+                  {checkoutItems.map((item) => {
+                    const active = item.id === selectedItem
+                    return (
+                      <label key={item.id} className={`pb-option ${active ? 'is-selected' : ''}`}>
+                        <div className="pb-radio">
+                          <input
+                            type="radio"
+                            name="checkoutItem"
+                            checked={active}
+                            onChange={() => setSelectedItem(item.id)}
+                          />
+                          <span className="pb-radio-custom">
+                            {active && <span className="pb-radio-dot"></span>}
+                          </span>
+                        </div>
+                        <div className="pb-option-content">
+                          <div className={`pb-option-icon ${item.iconTone}`}>
+                            <PatientIcon name={item.icon} aria-hidden="true" />
                           </div>
-
-                          <div>
-                            <strong>{invoice.service}</strong>
-                            <p>{invoice.meta}</p>
+                          <div className="pb-option-text">
+                            <strong>{item.label}</strong>
+                            <span>{item.subLabel}</span>
+                          </div>
+                          <div className="pb-option-right">
+                            <span className="pb-amount">{item.amount}</span>
+                            <span className="pb-details">Chi tiết <PatientIcon name="expand_more" aria-hidden="true" /></span>
                           </div>
                         </div>
-                      </td>
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="pb-history-link">
+                  <PatientIcon name="info" aria-hidden="true" className="pb-info-icon" />
+                  <span>Bạn có thể xem lịch sử giao dịch và hóa đơn tại mục <button className="pb-link-button">Xem lịch sử</button></span>
+                </div>
+              </div>
+            </div>
 
-                      <td className="patient-billing-amount" data-label="Số tiền">
-                        {invoice.amount}
-                      </td>
-
-                      <td className="patient-billing-status-cell" data-label="Trạng thái">
-                        <span className={`patient-status-pill ${invoice.tone}`}>{invoice.status}</span>
-                      </td>
-
-                      <td className="patient-billing-download-cell" data-label="Tải về">
-                        <button type="button" aria-label={`Tải hóa đơn ${invoice.service}`}>
-                          <PatientIcon name="picture_as_pdf" aria-hidden="true" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Right Column */}
+            <div className="pb-column">
+              <h2>Chọn phương thức thanh toán</h2>
+              <div className="pb-column-card">
+                <div className="pb-options">
+                  {paymentMethods.map((method) => {
+                    const active = method.id === selectedMethod
+                    return (
+                      <label key={method.id} className={`pb-option ${active ? 'is-selected' : ''}`}>
+                        <div className="pb-radio">
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            checked={active}
+                            onChange={() => setSelectedMethod(method.id)}
+                          />
+                          <span className="pb-radio-custom">
+                            {active && <span className="pb-radio-dot"></span>}
+                          </span>
+                        </div>
+                        <div className="pb-option-content">
+                          <div className={`pb-option-icon pb-method-icon ${method.iconTone}`}>
+                            <PatientIcon name={method.icon} aria-hidden="true" />
+                          </div>
+                          <div className="pb-option-text">
+                            <strong>{method.label}</strong>
+                            <span>{method.subLabel}</span>
+                          </div>
+                          <div className="pb-option-right pb-option-right-method">
+                            {method.recommended && <span className="pb-badge">Đề xuất</span>}
+                            {method.logos && (
+                              <div className="pb-logos">
+                                {method.logos.map((logo, i) => {
+                                  // Map logo names to visual representation or text
+                                  let logoClass = logo.toLowerCase()
+                                  let displayLogo = logo
+                                  if (logo === 'VISA') {
+                                    return <span key={i} className={`pb-logo-img pb-visa`}>VISA</span>
+                                  } else if (logo === 'MC') {
+                                    return <div key={i} className="pb-mc-logo"><div className="pb-mc-red"></div><div className="pb-mc-yellow"></div></div>
+                                  } else if (logo === 'JCB') {
+                                    return <span key={i} className={`pb-logo-img pb-jcb`}>JCB</span>
+                                  } else if (logo === 'MoMo') {
+                                     return <span key={i} className={`pb-logo-img pb-momo`}>mo<br/>mo</span>
+                                  } else if (logo === 'ZaloPay') {
+                                     return <span key={i} className={`pb-logo-img pb-zalopay`}>Zalo<br/>Pay</span>
+                                  } else if (logo === 'VNPay') {
+                                     return <span key={i} className={`pb-logo-img pb-vnpay`}>VN<br/>PAY</span>
+                                  }
+                                  return <span key={i} className={`pb-logo-badge ${logoClass}`}>{displayLogo}</span>
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="pb-security-text">
+                  <PatientIcon name="verified_user" aria-hidden="true" className="pb-shield-green-icon" />
+                  <span>Mọi giao dịch đều được mã hóa và bảo mật tuyệt đối.</span>
+                </div>
+              </div>
             </div>
           </div>
-        </section>
 
-        <aside className="patient-billing-side-column">
-          <h2>Phương thức thanh toán</h2>
-
-          <section className="patient-panel patient-billing-methods-card">
-            <p className="patient-billing-intro">
-              Chọn một trong các cổng thanh toán an toàn để hoàn tất hóa đơn của bạn.
-            </p>
-
-            <div className="patient-billing-method-list">
-              {paymentMethods.map((method) => {
-                const active = method.id === selectedMethod
-
-                return (
-                  <label
-                    key={method.id}
-                    className={`patient-billing-method${active ? ' is-selected' : ''}`}
-                  >
-                    <input
-                      checked={active}
-                      name="paymentMethod"
-                      type="radio"
-                      onChange={() => setSelectedMethod(method.id)}
-                    />
-
-                    <div className="patient-billing-method-copy">
-                      <span>{method.label}</span>
-
-                      <div className="patient-billing-method-badges">
-                        <span className={`patient-billing-method-badge ${method.badgeTone}`}>
-                          {method.badge}
-                        </span>
-
-                        {method.badgeSecondary ? (
-                          <span className={`patient-billing-method-badge ${method.badgeTone}`}>
-                            {method.badgeSecondary}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </label>
-                )
-              })}
-            </div>
-
-            <div className="patient-billing-total-box">
-              <div className="patient-billing-total-row">
-                <span>Tổng thanh toán</span>
-                <strong>
-                  {billingOverview.outstandingAmount} {billingOverview.outstandingCurrency}
-                </strong>
+          <div className="pb-banner">
+            <div className="pb-banner-content">
+              <div className="pb-banner-art" aria-hidden="true">
+                <img src={paymentGiftImage} alt="" />
               </div>
+              <div>
+                <h3>Thanh toán nhanh - Nhận nhiều ưu đãi</h3>
+                <p>Thanh toán qua ví HealthCare để nhận hoàn tiền và nhiều ưu đãi hấp dẫn.</p>
+              </div>
+            </div>
+            <button className="pb-btn-primary pb-btn-rounded">Nạp ví ngay</button>
+          </div>
+        </div>
 
-              <button className="patient-hero-button patient-billing-pay-button" type="button">
-                Thanh toán ngay
+        <aside className="pb-sidebar">
+          <div className="pb-card pb-summary-card">
+            <div className="pb-payment-graphic" aria-hidden="true">
+              <div className="pb-payment-card-visual">
+                <span className="pb-payment-chip"></span>
+                <PatientIcon name="credit_card" className="pb-payment-card-icon" />
+                <span className="pb-payment-card-line is-long"></span>
+                <span className="pb-payment-card-line"></span>
+              </div>
+              <div className="pb-payment-receipt-visual">
+                <PatientIcon name="receipt_long" className="pb-payment-receipt-icon" />
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div className="pb-payment-check-visual">
+                <PatientIcon name="check" />
+              </div>
+            </div>
+            <div className="pb-card-header-blue">
+              <h3>Tóm tắt thanh toán</h3>
+              <span className="pb-summary-header-icon" aria-hidden="true">
+                <PatientIcon name="description" />
+              </span>
+            </div>
+            <div className="pb-card-body">
+              <div className="pb-summary-section">
+                <div className="pb-summary-row">
+                  <span>Khoản thanh toán</span>
+                </div>
+                <div className="pb-summary-row pb-summary-item-name">
+                  <strong>{currentItem.label}</strong>
+                </div>
+              </div>
+              
+              <div className="pb-summary-row pb-mt-12">
+                <span>Hóa đơn</span>
+                <strong>{currentItem.subLabel.replace('Hóa đơn ', '') || '#HD2024-000123'}</strong>
+              </div>
+              <div className="pb-summary-row">
+                <span>Ngày tạo</span>
+                <strong>20/05/2024 10:30</strong>
+              </div>
+              <div className="pb-divider"></div>
+              <div className="pb-summary-row">
+                <span>Tạm tính</span>
+                <strong>{currentItem.amount}</strong>
+              </div>
+              <div className="pb-summary-row">
+                <span>Phí dịch vụ <PatientIcon name="help_outline" aria-hidden="true" className="pb-help-icon" /></span>
+                <strong>0 đ</strong>
+              </div>
+              <div className="pb-divider"></div>
+              <div className="pb-summary-row pb-total">
+                <span>Tổng thanh toán</span>
+                <strong>{currentItem.amount}</strong>
+              </div>
+              <button className="pb-btn-primary pb-btn-full pb-btn-pay">
+                <PatientIcon name="lock" aria-hidden="true" className="pb-btn-icon" /> Thanh toán ngay
               </button>
-
-              <p className="patient-billing-security-note">
-                <PatientIcon name="lock" aria-hidden="true" />
-                <span>Thanh toán được bảo mật 256-bit SSL bởi hệ thống tài chính Clinical Curator.</span>
-              </p>
             </div>
-          </section>
+          </div>
 
-          <section className="patient-panel patient-billing-help-card">
-            <div className="patient-billing-help-mark">
-              <PatientIcon name="help" aria-hidden="true" />
-            </div>
+          <div className="pb-card pb-security-card">
+            <h3><PatientIcon name="gpp_good" aria-hidden="true" className="pb-blue-icon"/> Thanh toán an toàn</h3>
+            <ul>
+              <li><PatientIcon name="verified" aria-hidden="true" className="pb-blue-icon"/> Bảo mật dữ liệu theo tiêu chuẩn quốc tế</li>
+              <li><PatientIcon name="verified" aria-hidden="true" className="pb-blue-icon"/> Xác thực 2 lớp cho mọi giao dịch</li>
+              <li><PatientIcon name="lock" aria-hidden="true" className="pb-blue-icon"/> Thông tin được mã hóa 256-bit SSL</li>
+            </ul>
+          </div>
 
-            <div>
-              <h3>{billingOverview.supportTitle}</h3>
-              <p>{billingOverview.supportBody}</p>
+          <div className="pb-card pb-support-card">
+            <div className="pb-support-content">
+              <div className="pb-support-text">
+                <h3>Cần hỗ trợ?</h3>
+                <p>Đội ngũ chăm sóc khách hàng luôn sẵn sàng hỗ trợ bạn 24/7.</p>
+                <button className="pb-btn-outline">Liên hệ hỗ trợ</button>
+              </div>
+              <div className="pb-support-avatar">
+                <PatientIcon name="support_agent" aria-hidden="true" />
+              </div>
             </div>
-          </section>
+          </div>
         </aside>
       </div>
     </div>

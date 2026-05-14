@@ -1094,6 +1094,110 @@
 }
 
 @media (max-width: 640px) {
+  .patient-records {
+    margin-top: 18px;
+  }
+
+  .patient-records .patient-panel-head {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 10px;
+  }
+
+  .patient-records .patient-panel-head h2 {
+    max-width: 260px;
+    font-size: 25px;
+    line-height: 1.08;
+    letter-spacing: -0.045em;
+  }
+
+  .patient-records-link {
+    width: fit-content;
+    justify-content: flex-start;
+    font-size: 14px;
+  }
+
+  .patient-records .patient-section-label {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+  }
+
+  .patient-table-wrap {
+    overflow-x: visible;
+  }
+
+  .patient-records-table {
+    min-width: 0;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+  }
+
+  .patient-records-table thead {
+    display: none;
+  }
+
+  .patient-records-table tbody,
+  .patient-records-table tr,
+  .patient-records-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .patient-records-table tr {
+    padding: 12px 14px;
+    border: 1px solid rgba(160, 174, 203, 0.16);
+    border-radius: 18px;
+    background: rgba(248, 251, 255, 0.8);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
+  }
+
+  .patient-records-table td {
+    display: grid;
+    grid-template-columns: 108px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 7px 0;
+    border-top: 0;
+    font-size: 13px;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+
+  .patient-records-table td::before {
+    color: #667085;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .patient-records-table td:nth-child(1)::before {
+    content: 'Ngày';
+  }
+
+  .patient-records-table td:nth-child(2)::before {
+    content: 'Loại hồ sơ';
+  }
+
+  .patient-records-table td:nth-child(3)::before {
+    content: 'Bác sĩ';
+  }
+
+  .patient-records-table td:nth-child(4)::before {
+    content: 'Trạng thái';
+  }
+
+  .patient-records-table td:nth-child(5)::before {
+    content: 'Tải xuống';
+  }
+
+  .patient-records-action {
+    width: 34px;
+    height: 34px;
+  }
+
   .patient-dashboard-media-panel {
     height: auto;
     min-height: 250px;

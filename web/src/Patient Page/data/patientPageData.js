@@ -1082,7 +1082,83 @@ export const billingInvoices = [
   },
 ]
 
+export const checkoutItems = [
+  {
+    id: 'item-1',
+    label: 'Thanh toán dịch vụ khám bệnh',
+    subLabel: 'Hóa đơn #HD2024-000123',
+    amount: '450.000 đ',
+    icon: 'medical_services',
+    iconTone: 'primary',
+  },
+  {
+    id: 'item-2',
+    label: 'Thanh toán xét nghiệm',
+    subLabel: 'Hóa đơn #XN2024-000456',
+    amount: '320.000 đ',
+    icon: 'science',
+    iconTone: 'green',
+  },
+  {
+    id: 'item-3',
+    label: 'Thanh toán thuốc',
+    subLabel: 'Hóa đơn #TH2024-000789',
+    amount: '180.000 đ',
+    icon: 'pill',
+    iconTone: 'orange',
+  },
+  {
+    id: 'item-4',
+    label: 'Đặt cọc khám bệnh',
+    subLabel: 'Đặt cọc cho lần khám tiếp theo',
+    amount: '500.000 đ',
+    icon: 'account_balance_wallet',
+    iconTone: 'blue',
+  },
+]
+
 export const paymentMethods = [
+  {
+    id: 'healthcare-wallet',
+    label: 'Ví HealthCare',
+    subLabel: 'Số dư: 1.250.000 đ',
+    icon: 'account_balance_wallet',
+    iconTone: 'blue',
+    recommended: true,
+  },
+  {
+    id: 'credit-card',
+    label: 'Thẻ tín dụng / ghi nợ',
+    subLabel: 'Visa, Mastercard, JCB...',
+    icon: 'credit_card',
+    iconTone: 'slate',
+    logos: ['VISA', 'MC', 'JCB'],
+  },
+  {
+    id: 'bank-transfer',
+    label: 'Chuyển khoản ngân hàng',
+    subLabel: 'Internet Banking, QR Code',
+    icon: 'account_balance',
+    iconTone: 'slate',
+  },
+  {
+    id: 'e-wallet',
+    label: 'Ví điện tử',
+    subLabel: 'MoMo, ZaloPay, VNPay...',
+    icon: 'qr_code_scanner',
+    iconTone: 'slate',
+    logos: ['MoMo', 'ZaloPay', 'VNPay'],
+  },
+  {
+    id: 'over-counter',
+    label: 'Thanh toán tại quầy',
+    subLabel: 'Thanh toán trực tiếp tại bệnh viện',
+    icon: 'groups',
+    iconTone: 'slate',
+  },
+]
+
+const oldPaymentMethods = [
   {
     id: 'vnpay',
     label: 'VNPay',

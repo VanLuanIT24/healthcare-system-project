@@ -42,8 +42,13 @@ function getApiErrorMessage(error, fallback) {
 }
 
 function normalizeOptionalText(value) {
-  const trimmed = value.trim()
+  const trimmed = String(value || '').trim()
   return trimmed ? trimmed : undefined
+}
+
+function normalizeClearableText(value) {
+  const trimmed = String(value || '').trim()
+  return trimmed ? trimmed : null
 }
 
 function getResponseData(result) {
@@ -89,7 +94,12 @@ export default function PatientPage() {
     phone: '',
     email: '',
     address: '',
+    nationalId: '',
+    insuranceNumber: '',
+    emergencyContactName: '',
     emergencyContactPhone: '',
+    gender: 'unknown',
+    dateOfBirth: '',
   })
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -196,7 +206,12 @@ export default function PatientPage() {
       phone: patient?.phone || user?.phone || '',
       email: patient?.email || user?.email || '',
       address: patient?.address || current.address || '',
+      nationalId: patient?.national_id || current.nationalId || '',
+      insuranceNumber: patient?.insurance_number || current.insuranceNumber || '',
+      emergencyContactName: patient?.emergency_contact_name || current.emergencyContactName || '',
       emergencyContactPhone: patient?.emergency_contact_phone || current.emergencyContactPhone || '',
+      gender: patient?.gender || current.gender || 'unknown',
+      dateOfBirth: patient?.date_of_birth ? patient.date_of_birth.slice(0, 10) : current.dateOfBirth || '',
     }))
   }, [patientProfile, user?.fullName, user?.phone, user?.email])
 
@@ -260,7 +275,7 @@ export default function PatientPage() {
 
     const results = await Promise.allSettled([
       patientAPI.getMyProfile(),
-      appointmentAPI.getMyAppointments({ limit: 30 }),
+      appointmentAPI.getMyAppointments({ limit: 100 }),
       patientAPI.getMyEncounters({ limit: 30 }),
       patientAPI.getMyPrescriptions({ limit: 30 }),
       departmentAPI.getActiveDepartments(),
@@ -309,14 +324,6 @@ export default function PatientPage() {
     navigate('/login', { replace: true })
   }
 
-  const handleFieldChange = (field) => (event) => {
-    setFeedback(null)
-    setProfileForm((current) => ({
-      ...current,
-      [field]: event.target.value,
-    }))
-  }
-
   const handlePasswordFieldChange = (field) => (event) => {
     setFeedback(null)
     setPasswordForm((current) => ({
@@ -325,45 +332,82 @@ export default function PatientPage() {
     }))
   }
 
-  const handleProfileSave = async (event) => {
-    event.preventDefault()
+  const handleProfileSave = async (formValues) => {
     setProfileSaving(true)
     setFeedback(null)
 
     try {
-      const address = profileForm.address.trim()
-
-      const profileResponse = await patientAPI.updateMyProfile({
-        full_name: normalizeOptionalText(profileForm.fullName),
-        email: normalizeOptionalText(profileForm.email),
-        phone: normalizeOptionalText(profileForm.phone),
-        address,
-        emergency_contact_phone: normalizeOptionalText(profileForm.emergencyContactPhone),
-      })
-
-      const refreshedUser = await refreshProfile()
-      const refreshedProfile = profileResponse.data?.data
-
-      if (refreshedProfile) {
-        setPatientProfile(refreshedProfile)
+      const nextProfilePatch = {
+        full_name: normalizeOptionalText(formValues.fullName),
+        email: normalizeOptionalText(formValues.email),
+        phone: normalizeOptionalText(formValues.phone),
+        address: normalizeClearableText(formValues.address),
+        national_id: normalizeClearableText(formValues.nationalId),
+        insurance_number: normalizeClearableText(formValues.insuranceNumber),
+        emergency_contact_name: normalizeClearableText(formValues.emergencyContactName),
+        emergency_contact_phone: normalizeClearableText(formValues.emergencyContactPhone),
+        gender: formValues.gender || 'unknown',
+        date_of_birth: normalizeClearableText(formValues.dateOfBirth),
       }
+
+      const profileResponse = await patientAPI.updateMyProfile(nextProfilePatch)
+      const responseData = profileResponse.data?.data
+      const refreshedProfile =
+        responseData?.patient || responseData?.medical_profile
+          ? responseData
+          : responseData?.profile || responseData
+
+      let refreshedUser = null
+      try {
+        refreshedUser = await refreshProfile()
+      } catch (error) {
+        refreshedUser = null
+      }
+
+      setPatientProfile((current) => ({
+        ...(current || {}),
+        ...(refreshedProfile || {}),
+        patient: {
+          ...(current?.patient || {}),
+          ...(refreshedProfile?.patient || {}),
+          full_name: nextProfilePatch.full_name || current?.patient?.full_name || '',
+          email: nextProfilePatch.email || current?.patient?.email || '',
+          phone: nextProfilePatch.phone || current?.patient?.phone || '',
+          address: nextProfilePatch.address || '',
+          national_id: nextProfilePatch.national_id || '',
+          insurance_number: nextProfilePatch.insurance_number || '',
+          emergency_contact_name: nextProfilePatch.emergency_contact_name || '',
+          emergency_contact_phone: nextProfilePatch.emergency_contact_phone || '',
+          gender: nextProfilePatch.gender || current?.patient?.gender || 'unknown',
+          date_of_birth: nextProfilePatch.date_of_birth || '',
+        },
+      }))
 
       setProfileForm((current) => ({
         ...current,
-        fullName: refreshedUser?.fullName || current.fullName,
-        phone: refreshedUser?.phone || current.phone,
-        email: refreshedUser?.email || current.email,
-        address,
+        fullName: refreshedUser?.fullName || nextProfilePatch.full_name || current.fullName,
+        phone: refreshedUser?.phone || nextProfilePatch.phone || current.phone,
+        email: refreshedUser?.email || nextProfilePatch.email || current.email,
+        address: nextProfilePatch.address ?? '',
+        nationalId: nextProfilePatch.national_id ?? '',
+        insuranceNumber: nextProfilePatch.insurance_number ?? '',
+        emergencyContactName: nextProfilePatch.emergency_contact_name ?? '',
         emergencyContactPhone:
-          refreshedProfile?.patient?.emergency_contact_phone || current.emergencyContactPhone,
+          refreshedProfile?.patient?.emergency_contact_phone ??
+          nextProfilePatch.emergency_contact_phone ??
+          '',
+        gender: nextProfilePatch.gender || current.gender,
+        dateOfBirth: nextProfilePatch.date_of_birth ?? '',
       }))
 
       setFeedback({ type: 'success', text: 'Đã cập nhật hồ sơ tài khoản.' })
+      return true
     } catch (error) {
       setFeedback({
         type: 'error',
         text: getApiErrorMessage(error, 'Không thể cập nhật hồ sơ tài khoản.'),
       })
+      return false
     } finally {
       setProfileSaving(false)
     }
@@ -455,7 +499,9 @@ export default function PatientPage() {
           departments={patientDepartments}
           loading={patientDataLoading}
           onAppointmentCreated={loadPatientPortalData}
+          patientProfile={patientProfile}
           schedules={patientSchedules}
+          user={user}
         />
       )
     }
@@ -497,7 +543,7 @@ export default function PatientPage() {
     }
 
     if (activeSection === 'documents') {
-      return <PatientDocumentsPage />
+      return <PatientDocumentsPage onBookAppointment={() => openSection('appointments')} />
     }
 
     if (activeSection === 'history') {
@@ -522,17 +568,20 @@ export default function PatientPage() {
           avatarText={avatarText}
           feedback={feedback}
           loginHistory={loginHistory}
-          onFieldChange={handleFieldChange}
           onLogoutAllDevices={handleLogoutAllDevices}
           onPasswordFieldChange={handlePasswordFieldChange}
           onPasswordSave={handlePasswordSave}
           onProfileSave={handleProfileSave}
           onRevokeSession={handleRevokeSession}
           passwordForm={passwordForm}
-          passwordSaving={passwordSaving}
-          patientId={patientId}
-          patientName={patientName}
-          patientProfile={patientProfile}
+            passwordSaving={passwordSaving}
+            patientAppointments={patientAppointments}
+            patientEncounters={patientEncounters}
+            patientPrescriptions={patientPrescriptions}
+            patientDataLoading={patientDataLoading}
+            patientId={patientId}
+            patientName={patientName}
+            patientProfile={patientProfile}
           profileForm={profileForm}
           profileSaving={profileSaving}
           sessions={sessions}
