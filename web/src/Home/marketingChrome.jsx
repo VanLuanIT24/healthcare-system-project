@@ -18,8 +18,8 @@ function getMarketingNavItems(labels) {
   return [
     { key: 'home', label: labels.nav[0], to: '/home' },
     { key: 'about', label: labels.nav[1], to: '/about' },
-    { key: 'specialties', label: labels.nav[2], to: '/home#departments' },
-    { key: 'doctors', label: labels.nav[3], to: '/home#doctors' },
+    { key: 'specialties', label: labels.nav[2], to: '/specialties' },
+    { key: 'doctors', label: labels.nav[3], to: '/doctors' },
     { key: 'news', label: labels.nav[4], to: '/news' },
     { key: 'faq', label: labels.nav[5], to: '/faq' },
     { key: 'contact', label: labels.nav[6], to: '/contact' },

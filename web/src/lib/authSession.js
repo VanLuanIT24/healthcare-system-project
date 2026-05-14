@@ -23,6 +23,7 @@ export function isSuperAdminSession(auth = readStoredAuth()) {
 
 export function getDefaultRouteForAuth(auth = readStoredAuth()) {
   if (isSuperAdminSession(auth)) return '/super-admin/access';
+  if (isStaffSession(auth) && hasRole(auth, 'receptionist')) return '/receptionist';
   if (isStaffSession(auth)) return '/staff/overview';
   if (isPatientSession(auth)) return '/patient';
   return '/login';

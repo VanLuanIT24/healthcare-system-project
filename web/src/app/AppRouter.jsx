@@ -33,6 +33,8 @@ import { HomePage } from '../home/HomePage';
 import { SupportPage } from '../info/pages/SupportPage';
 import { TermsPage } from '../info/pages/TermsPage';
 import { AboutPage } from '../home/pages/AboutPage';
+import { SpecialtiesPage } from '../home/pages/SpecialtiesPage';
+import { DoctorsPage } from '../home/pages/DoctorsPage';
 import { FaqPage } from '../home/pages/FaqPage';
 import { NewsArticlePage, NewsPage } from '../home/pages/NewsPage';
 import { ContactPage } from '../home/pages/ContactPage';
@@ -40,6 +42,22 @@ import { StaffAccessPage } from '../staff/pages/StaffAccessPage';
 import { DevPlaceholderPage } from '../staff/pages/DevPlaceholderPage';
 import { StaffOverviewPage } from '../staff/pages/StaffOverviewPage';
 import PatientPage from '../Patient Page';
+import ReceptionistDashboard from '../Receptionist';
+import ReceptionistAppointmentsPage from '../Receptionist/ReceptionistAppointments';
+import ReceptionistCreateAppointmentPage from '../Receptionist/ReceptionistCreateAppointment';
+import ReceptionistWaitingListPage from '../Receptionist/ReceptionistWaitingList';
+import ReceptionistQueueListPage from '../Receptionist/ReceptionistQueueList';
+import ReceptionistPatientSearchPage from '../Receptionist/ReceptionistPatientSearch';
+import ReceptionistAddPatientPage from '../Receptionist/ReceptionistAddPatient';
+import ReceptionistPatientDetailPage from '../Receptionist/ReceptionistPatientDetail';
+import ReceptionistPatientRecordsPage from '../Receptionist/ReceptionistPatientRecords';
+import ReceptionistPatientRecordsDetailPage from '../Receptionist/ReceptionistPatientRecordsDetail';
+import ReceptionistCashierPage from '../Receptionist/ReceptionistCashier';
+import ReceptionistPaymentHistoryPage from '../Receptionist/ReceptionistPaymentHistory';
+import ReceptionistDailyReportPage from '../Receptionist/ReceptionistDailyReport';
+import ReceptionistProductivityPage from '../Receptionist/ReceptionistProductivity';
+import ReceptionistSystemSettingsPage from '../Receptionist/ReceptionistSystemSettings';
+import ReceptionistAccountPage from '../Receptionist/ReceptionistAccount';
 import {
   ScheduleBulkCreatePage,
   ScheduleCreatePage,
@@ -143,6 +161,134 @@ export function AppRouter() {
           }
         />
         <Route
+          path="/receptionist"
+          element={
+            <StaffRoute>
+              <ReceptionistDashboard />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/appointments"
+          element={
+            <StaffRoute>
+              <ReceptionistAppointmentsPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/create"
+          element={
+            <StaffRoute>
+              <ReceptionistCreateAppointmentPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/waiting-list"
+          element={
+            <StaffRoute>
+              <ReceptionistWaitingListPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/queue"
+          element={
+            <StaffRoute>
+              <ReceptionistQueueListPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/patients"
+          element={
+            <StaffRoute>
+              <ReceptionistPatientSearchPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/patients/add"
+          element={
+            <StaffRoute>
+              <ReceptionistAddPatientPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/patients/:patientId"
+          element={
+            <StaffRoute>
+              <ReceptionistPatientDetailPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/patient-records"
+          element={
+            <StaffRoute>
+              <ReceptionistPatientRecordsPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/patient-records/:patientId"
+          element={
+            <StaffRoute>
+              <ReceptionistPatientRecordsDetailPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/cashier"
+          element={
+            <StaffRoute>
+              <ReceptionistCashierPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/payment-history"
+          element={
+            <StaffRoute>
+              <ReceptionistPaymentHistoryPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/daily-report"
+          element={
+            <StaffRoute>
+              <ReceptionistDailyReportPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/productivity"
+          element={
+            <StaffRoute>
+              <ReceptionistProductivityPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/settings"
+          element={
+            <StaffRoute>
+              <ReceptionistSystemSettingsPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/receptionist/account"
+          element={
+            <StaffRoute>
+              <ReceptionistAccountPage />
+            </StaffRoute>
+          }
+        />
+        <Route
           path="/scheduling"
           element={
             <StaffRoute>
@@ -219,6 +365,8 @@ export function AppRouter() {
         </Route>
         <Route path="/home" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/specialties" element={<SpecialtiesPage />} />
+        <Route path="/doctors" element={<DoctorsPage />} />
         <Route path="/faq" element={<FaqPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/news/:slug" element={<NewsArticlePage />} />
