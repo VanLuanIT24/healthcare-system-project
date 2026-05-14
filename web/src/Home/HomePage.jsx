@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { MarketingFooter, MarketingHeader, useSiteLanguage } from './marketingChrome';
@@ -14,6 +14,14 @@ export function HomePage() {
     date: '2026-04-15',
     time: '10:30',
   });
+  const statsRef = useRef(null);
+  const [countStats, setCountStats] = useState({
+    patients: 0,
+    doctors: 0,
+    years: 0,
+    care: 0,
+  });
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
 
   const copy = {
     en: {
@@ -597,6 +605,108 @@ export function HomePage() {
     const day = index + 8;
     return `2026-04-${String(day).padStart(2, '0')}`;
   });
+  const trustBand = [
+    'JCI Accredited',
+    'ISO 9001 clinical operation',
+    'Direct insurance billing',
+    '24/7 emergency response',
+    'Digital patient record',
+  ];
+  const specialtyVisuals = [
+    'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?auto=format&fit=crop&w=900&q=86',
+    'https://images.unsplash.com/photo-1555252333-9f8e92e65df9?auto=format&fit=crop&w=900&q=86',
+    'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=900&q=86',
+    'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=900&q=86',
+    'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=900&q=86',
+    'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=900&q=86',
+  ];
+  const doctorVisuals = [
+    {
+      image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=900&q=86',
+      slot: 'Today 15:30',
+      rating: '4.9',
+    },
+    {
+      image: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=900&q=86',
+      slot: 'Tomorrow 09:00',
+      rating: '4.9',
+    },
+    {
+      image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=900&q=86',
+      slot: 'Today 17:00',
+      rating: '4.8',
+    },
+    {
+      image: 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?auto=format&fit=crop&w=900&q=86',
+      slot: 'Fri 10:30',
+      rating: '4.9',
+    },
+  ];
+  const heroProofs = {
+    en: [
+      ['50k+', 'Patients served'],
+      ['24/7', 'Emergency care'],
+      ['98%', 'Satisfaction'],
+    ],
+    vi: [
+      ['50k+', 'B\u1ec7nh nh\u00e2n tin ch\u1ecdn'],
+      ['24/7', 'C\u1ea5p c\u1ee9u s\u1eb5n s\u00e0ng'],
+      ['98%', 'H\u00e0i l\u00f2ng d\u1ecbch v\u1ee5'],
+    ],
+    ko: [
+      ['50k+', 'í™˜ìž ì‹ ë¢°'],
+      ['24/7', 'ì‘ê¸‰ ì§€ì›'],
+      ['98%', 'ë§Œì¡±ë„'],
+    ],
+  };
+  useEffect(() => {
+    const target = statsRef.current;
+    if (!target) return undefined;
+
+    let frameId = 0;
+    let hasAnimated = false;
+    const finalStats = { patients: 50000, doctors: 200, years: 25, care: 100 };
+
+    function animateStats() {
+      const start = performance.now();
+      const duration = 1350;
+
+      function tick(now) {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        setCountStats({
+          patients: Math.round(finalStats.patients * eased),
+          doctors: Math.round(finalStats.doctors * eased),
+          years: Math.round(finalStats.years * eased),
+          care: Math.round(finalStats.care * eased),
+        });
+
+        if (progress < 1) {
+          frameId = requestAnimationFrame(tick);
+        }
+      }
+
+      frameId = requestAnimationFrame(tick);
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasAnimated) {
+          hasAnimated = true;
+          animateStats();
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.35 },
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frameId);
+    };
+  }, []);
 
   function handleAppointmentChange(event) {
     const { name, value } = event.target;
@@ -661,15 +771,50 @@ function PartnerIcon({ type }) {
 
       <section className="home-hero">
         <div className="home-hero__backdrop" aria-hidden="true" />
+        <div className="home-hero__ecg" aria-hidden="true">
+          <svg viewBox="0 0 520 92" role="img">
+            <path d="M0 52H78l16-28 22 52 26-76 22 52h78l14-18 18 18h226" />
+          </svg>
+        </div>
         <div className="home-hero__badge" aria-label={t.heroBadge}>
           <span aria-hidden="true">✚</span>
           {t.heroBadge}
+        </div>
+
+        <div className="home-hero__care-panel" aria-label="Live care availability">
+          <div className="home-hero__care-head">
+            <span aria-hidden="true">+</span>
+            <div>
+              <strong>Care desk online</strong>
+              <small>3 doctors accepting appointments</small>
+            </div>
+          </div>
+          <div className="home-hero__care-grid">
+            <article>
+              <strong>12</strong>
+              <span>slots today</span>
+            </article>
+            <article>
+              <strong>08m</strong>
+              <span>avg response</span>
+            </article>
+          </div>
+          <a href="#visit">Hotline 1900 8888</a>
         </div>
 
         <div className="home-hero__content">
           <p className="home-kicker">{t.heroKicker}</p>
           <h1>{t.heroTitle}</h1>
           <p className="home-hero__lead">{t.heroLead}</p>
+
+          <div className="home-hero__proofs" aria-label="Healthcare Plus highlights">
+            {heroProofs[language].map(([value, label]) => (
+              <article key={label}>
+                <strong>{value}</strong>
+                <span>{label}</span>
+              </article>
+            ))}
+          </div>
 
           <div className="home-hero__buttons">
             <a className="home-btn home-btn--primary" href="#departments">
@@ -786,13 +931,22 @@ function PartnerIcon({ type }) {
         </aside>
       </section>
 
+      <section className="home-trust-band" aria-label="Healthcare accreditation and trust signals">
+        {trustBand.map((item) => (
+          <article key={item}>
+            <span aria-hidden="true">✓</span>
+            <strong>{item}</strong>
+          </article>
+        ))}
+      </section>
+
       <section className="home-partners">
         <div className="home-partners__intro">
           <span>{t.partnerKicker}</span>
         </div>
         <div className="home-partners__track">
-          {partners.map((partner) => (
-            <article key={partner.name} className="home-partners__card">
+          {[...partners, ...partners].map((partner, index) => (
+            <article key={`${partner.name}-${index}`} className="home-partners__card">
               <PartnerIcon type={partner.icon} />
               <strong>{partner.name}</strong>
             </article>
@@ -816,8 +970,13 @@ function PartnerIcon({ type }) {
           </div>
 
           <div className="specialty-grid specialty-grid--editorial">
-            {specialties.map((item) => (
+            {specialties.map((item, index) => (
               <article key={item.title} className={`specialty-card specialty-card--editorial specialty-card--${item.tone}`}>
+              <div
+                className="specialty-card__visual"
+                style={{ '--specialty-image': `url(${specialtyVisuals[index % specialtyVisuals.length]})` }}
+                aria-hidden="true"
+              />
               <div className="specialty-card__top">
                 <span className="specialty-card__icon" aria-hidden="true">
                   {item.icon}
@@ -859,25 +1018,25 @@ function PartnerIcon({ type }) {
           <h2>{t.excellenceTitle}</h2>
           <p>{t.excellenceLead}</p>
 
-          <div className="home-stats">
+          <div className="home-stats" ref={statsRef}>
             <article className="home-stats__card home-stats__card--patients">
               <span className="home-stats__icon" aria-hidden="true">♡</span>
-              <strong>50,000+</strong>
+              <strong>{countStats.patients.toLocaleString('en-US')}+</strong>
               <span>{t.stats[0]}</span>
             </article>
             <article className="home-stats__card home-stats__card--doctors">
               <span className="home-stats__icon" aria-hidden="true">✚</span>
-              <strong>200+</strong>
+              <strong>{countStats.doctors}+</strong>
               <span>{t.stats[1]}</span>
             </article>
             <article className="home-stats__card home-stats__card--years">
               <span className="home-stats__icon" aria-hidden="true">◎</span>
-              <strong>25+</strong>
+              <strong>{countStats.years}+</strong>
               <span>{t.stats[2]}</span>
             </article>
             <article className="home-stats__card home-stats__card--care">
               <span className="home-stats__icon" aria-hidden="true">✓</span>
-              <strong>100%</strong>
+              <strong>{countStats.care}%</strong>
               <span>{t.stats[3]}</span>
             </article>
           </div>
@@ -904,6 +1063,31 @@ function PartnerIcon({ type }) {
               </article>
             ))}
           </div>
+
+          <div className="home-portal__mockup" aria-label="Patient portal preview">
+            <div className="home-portal__mockup-top">
+              <span>Patient app</span>
+              <strong>Today</strong>
+            </div>
+            <div className="home-portal__mockup-card home-portal__mockup-card--primary">
+              <small>Next appointment</small>
+              <strong>Cardiology check-up</strong>
+              <span>09:30 · Dr. Olivia Vance</span>
+            </div>
+            <div className="home-portal__mockup-grid">
+              <article>
+                <strong>Lab</strong>
+                <span>2 results ready</span>
+              </article>
+              <article>
+                <strong>Rx</strong>
+                <span>1 refill due</span>
+              </article>
+            </div>
+            <div className="home-portal__mockup-progress">
+              <span />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -917,14 +1101,21 @@ function PartnerIcon({ type }) {
         </div>
 
         <div className="doctor-grid">
-          {doctors.map((doctor) => (
+          {doctors.map((doctor, index) => (
             <article key={doctor.name} className="doctor-card">
-              <div className={`doctor-card__visual ${doctor.visual}`}>
+              <div
+                className={`doctor-card__visual ${doctor.visual}`}
+                style={{ '--doctor-image': `url(${doctorVisuals[index % doctorVisuals.length].image})` }}
+              >
                 <span className="doctor-card__tag">{doctor.tag}</span>
               </div>
               <div className="doctor-card__body">
                 <h3>{doctor.name}</h3>
                 <p>{doctor.role}</p>
+                <div className="doctor-card__meta">
+                  <span>{doctorVisuals[index % doctorVisuals.length].rating} ★</span>
+                  <span>{doctorVisuals[index % doctorVisuals.length].slot}</span>
+                </div>
                 <div className="doctor-card__footer">
                   <span>{doctor.tag}</span>
                   <a href="#visit">{doctorSection.action}</a>
@@ -1006,15 +1197,17 @@ function PartnerIcon({ type }) {
 
         <div className="home-faq-grid">
           {faqs.map((item, index) => (
-            <article key={item.question} className="home-faq-card">
-              <div className="home-faq-card__top">
+            <article key={item.question} className={`home-faq-card ${openFaqIndex === index ? 'is-open' : ''}`}>
+              <button type="button" className="home-faq-card__trigger" onClick={() => setOpenFaqIndex(openFaqIndex === index ? -1 : index)}>
                 <span className="home-faq-card__index">{`0${index + 1}`}</span>
+                <span>{item.question}</span>
                 <span className="home-faq-card__icon" aria-hidden="true">
                   +
                 </span>
+              </button>
+              <div className="home-faq-card__answer">
+                <p>{item.answer}</p>
               </div>
-              <h3>{item.question}</h3>
-              <p>{item.answer}</p>
             </article>
           ))}
         </div>
@@ -1055,6 +1248,11 @@ function PartnerIcon({ type }) {
 
       <section className="home-section home-cta-section">
         <div className="home-cta">
+          <div className="home-cta__ecg" aria-hidden="true">
+            <svg viewBox="0 0 520 92" role="img">
+              <path d="M0 52H78l16-28 22 52 26-76 22 52h78l14-18 18 18h226" />
+            </svg>
+          </div>
           <div className="home-cta__copy">
             <p className="home-kicker">{t.ctaPrimary}</p>
             <h2>{t.ctaTitle}</h2>
@@ -1130,6 +1328,18 @@ function PartnerIcon({ type }) {
           </div>
         </div>
       </section>
+
+      <a className="home-floating-hotline" href="#visit" aria-label="Emergency hotline">
+        <span aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img">
+            <path d="M6.6 3.8 9.7 3l1.7 4.2-1.8 1.1c.9 1.9 2.3 3.4 4.1 4.3l1.2-1.7 4.2 1.8-.8 3.1c-.2.8-.9 1.3-1.7 1.3C9.2 17.1 3 10.9 3 5.5c0-.8.6-1.5 1.4-1.7Z" />
+          </svg>
+        </span>
+        <div>
+          <small>{'\u0043\u1ea5\u0070\u0020\u0063\u1ee9\u0075\u0020\u0032\u0034\u002f\u0037'}</small>
+          <strong>1900 8888</strong>
+        </div>
+      </a>
 
       <MarketingFooter labels={{ ...t, ...footer }} footerLead={t.footerLead} visitDetails={t.visitDetails} directionsLabel={t.directions} secondaryLabel={t.ctaSecondary} />
     </main>

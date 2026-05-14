@@ -47,8 +47,8 @@ const pageCopy = {
     nav: [
       { key: 'home', label: 'Trang chủ', to: '/home' },
       { key: 'about', label: 'Giới thiệu', to: '/about' },
-      { key: 'specialties', label: 'Chuyên khoa', to: '/home#departments' },
-      { key: 'doctors', label: 'Bác sĩ', to: '/home#doctors' },
+      { key: 'specialties', label: 'Chuyên khoa', to: '/specialties' },
+      { key: 'doctors', label: 'Bác sĩ', to: '/doctors' },
       { key: 'news', label: 'Tin tức', to: '/news' },
       { key: 'faq', label: 'FAQ', to: '/faq' },
       { key: 'contact', label: 'Liên hệ', to: '/contact' },
@@ -79,8 +79,8 @@ const pageCopy = {
     nav: [
       { key: 'home', label: 'Home', to: '/home' },
       { key: 'about', label: 'About', to: '/about' },
-      { key: 'specialties', label: 'Specialties', to: '/home#departments' },
-      { key: 'doctors', label: 'Doctors', to: '/home#doctors' },
+      { key: 'specialties', label: 'Specialties', to: '/specialties' },
+      { key: 'doctors', label: 'Doctors', to: '/doctors' },
       { key: 'news', label: 'News', to: '/news' },
       { key: 'faq', label: 'FAQ', to: '/faq' },
       { key: 'contact', label: 'Contact', to: '/contact' },
@@ -111,8 +111,8 @@ const pageCopy = {
     nav: [
       { key: 'home', label: '홈', to: '/home' },
       { key: 'about', label: '병원 소개', to: '/about' },
-      { key: 'specialties', label: '진료과', to: '/home#departments' },
-      { key: 'doctors', label: '의료진', to: '/home#doctors' },
+      { key: 'specialties', label: '진료과', to: '/specialties' },
+      { key: 'doctors', label: '의료진', to: '/doctors' },
       { key: 'news', label: '뉴스', to: '/news' },
       { key: 'faq', label: 'FAQ', to: '/faq' },
       { key: 'contact', label: '문의', to: '/contact' },
@@ -278,7 +278,7 @@ export function MarketingPageShell({ activeKey, hero, children }) {
           <span>{t.footerCopyright}</span>
           <div className="home-footer__mini-links">
             <Link to="/contact">{t.directions}</Link>
-            <Link to="/home#doctors">{t.ctaSecondary}</Link>
+            <Link to="/doctors">{t.ctaSecondary}</Link>
           </div>
         </div>
       </footer>

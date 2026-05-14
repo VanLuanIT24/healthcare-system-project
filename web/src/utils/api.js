@@ -72,7 +72,14 @@ export const patientAPI = {
 
 export const appointmentAPI = {
   getMyAppointments: (params) => request('/appointments/my', { params }),
+  listAppointments: (params) => request('/appointments', { params }),
+  createAppointmentByStaff: (body) => request('/appointments/staff-create', { method: 'POST', body }),
   createFromPortal: (body) => request('/appointments/portal', { method: 'POST', body }),
+  confirm: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/confirm`, { method: 'POST', body }),
+  cancel: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/cancel`, { method: 'POST', body }),
+  checkIn: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/check-in`, { method: 'POST', body }),
+  noShow: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/no-show`, { method: 'POST', body }),
+  complete: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/complete`, { method: 'POST', body }),
 }
 
 export const departmentAPI = {
@@ -95,4 +102,15 @@ export const scheduleAPI = {
     request(`/schedules/${encodeURIComponent(scheduleId)}/reopen-slots`, { method: 'POST', body }),
   previewImpact: (scheduleId, body) =>
     request(`/schedules/${encodeURIComponent(scheduleId)}/preview-impact`, { method: 'POST', body }),
+}
+
+export const queueAPI = {
+  list: (params) => request('/queue', { params }),
+  createFromAppointment: (appointmentId) => request(`/queue/appointment/${encodeURIComponent(appointmentId)}`, { method: 'POST', body: {} }),
+  callNext: (body = {}) => request('/queue/call-next', { method: 'POST', body }),
+  recall: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/recall`, { method: 'POST', body: {} }),
+  skip: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/skip`, { method: 'POST', body: {} }),
+  startService: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/start-service`, { method: 'POST', body: {} }),
+  complete: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/complete`, { method: 'POST', body: {} }),
+  cancel: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/cancel`, { method: 'POST', body: {} }),
 }
