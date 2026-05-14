@@ -1,7 +1,8 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { PatientRoute, SuperAdminRoute, StaffRoute } from './RouteGuards';
-import { isPatientSession, isSuperAdminSession } from '../lib/authSession';
+import { createLoginRedirectPath, isPatientSession, isSuperAdminSession } from '../lib/authSession';
 import { readStoredAuth } from '../lib/storage';
+import { buildRecoveryPath, resolveRecoveryActorFromPath } from '../auth/recovery/recoveryUtils';
 import { LoginPage } from '../auth/pages/LoginPage';
 import { RegisterPage } from '../auth/pages/RegisterPage';
 import { ForgotPasswordPage } from '../auth/pages/ForgotPasswordPage';
@@ -40,7 +41,9 @@ import { NewsArticlePage, NewsPage } from '../home/pages/NewsPage';
 import { ContactPage } from '../home/pages/ContactPage';
 import { StaffAccessPage } from '../staff/pages/StaffAccessPage';
 import { DevPlaceholderPage } from '../staff/pages/DevPlaceholderPage';
+import { ReceptionDashboardPage } from '../staff/pages/ReceptionDashboardPage';
 import { StaffOverviewPage } from '../staff/pages/StaffOverviewPage';
+import { UnauthorizedPage } from '../staff/pages/UnauthorizedPage';
 import PatientPage from '../Patient Page';
 import ReceptionistDashboard from '../Receptionist';
 import ReceptionistAppointmentsPage from '../Receptionist/ReceptionistAppointments';
@@ -78,30 +81,30 @@ import {
 } from '../scheduling';
 
 const devPlaceholderRoutes = [
-  { path: '/reception/dashboard', title: 'Lễ tân & tiếp nhận' },
-  { path: '/doctor/dashboard', title: 'Bác sĩ lâm sàng' },
-  { path: '/nurse/dashboard', title: 'Điều dưỡng' },
-  { path: '/pharmacy/dashboard', title: 'Nhà thuốc' },
-  { path: '/lab/dashboard', title: 'Xét nghiệm & CĐHA' },
-  { path: '/lab/orders', title: 'Chỉ định xét nghiệm & CĐHA' },
-  { path: '/billing/dashboard', title: 'Viện phí & thanh toán' },
-  { path: '/billing/invoices', title: 'Hóa đơn viện phí' },
-  { path: '/reports/dashboard', title: 'Báo cáo & phân tích' },
-  { path: '/security/overview', title: 'Bảo mật & phiên đăng nhập' },
-  { path: '/settings/system', title: 'Cài đặt hệ thống' },
-  { path: '/appointments', title: 'Lịch hẹn' },
-  { path: '/schedules', title: 'Danh sách lịch khám' },
-  { path: '/queue', title: 'Hàng đợi tiếp nhận' },
-  { path: '/encounters', title: 'Cuộc khám' },
-  { path: '/prescriptions', title: 'Đơn thuốc' },
-  { path: '/patients', title: 'Danh sách bệnh nhân' },
-  { path: '/audit-logs', title: 'Nhật ký kiểm toán' },
-  { path: '/dev/ui-kit', title: 'Dev UI Kit' },
-  { path: '/dev/routes', title: 'Dev Routes' },
-  { path: '/dev/playground', title: 'Dev Playground' },
+  { path: '/doctor/dashboard', title: 'Bác sĩ lâm sàng', workspaceKey: 'doctor', guard: 'staff' },
+  { path: '/nurse/dashboard', title: 'Điều dưỡng', workspaceKey: 'nurse', guard: 'staff' },
+  { path: '/pharmacy/dashboard', title: 'Nhà thuốc', workspaceKey: 'pharmacy', guard: 'staff' },
+  { path: '/lab/dashboard', title: 'Xét nghiệm & CĐHA', workspaceKey: 'lab', guard: 'staff' },
+  { path: '/lab/orders', title: 'Chỉ định xét nghiệm & CĐHA', workspaceKey: 'lab', guard: 'staff' },
+  { path: '/billing/dashboard', title: 'Viện phí & thanh toán', workspaceKey: 'billing', guard: 'staff' },
+  { path: '/billing/invoices', title: 'Hóa đơn viện phí', workspaceKey: 'billing', guard: 'staff' },
+  { path: '/reports/dashboard', title: 'Báo cáo & phân tích', workspaceKey: 'reports', guard: 'staff' },
+  { path: '/security/overview', title: 'Bảo mật & phiên đăng nhập', workspaceKey: 'admin', guard: 'staff' },
+  { path: '/settings/system', title: 'Cài đặt hệ thống', workspaceKey: 'admin', guard: 'staff' },
+  { path: '/appointments', title: 'Lịch hẹn', workspaceKey: 'reception', guard: 'staff' },
+  { path: '/schedules', title: 'Danh sách lịch khám', workspaceKey: 'scheduling', guard: 'staff' },
+  { path: '/queue', title: 'Hàng đợi tiếp nhận', workspaceKey: 'reception', guard: 'staff' },
+  { path: '/encounters', title: 'Cuộc khám', workspaceKey: 'doctor', guard: 'staff' },
+  { path: '/prescriptions', title: 'Đơn thuốc', workspaceKey: 'pharmacy', guard: 'staff' },
+  { path: '/patients', title: 'Danh sách bệnh nhân', workspaceKey: 'admin', guard: 'staff' },
+  { path: '/audit-logs', title: 'Nhật ký kiểm toán', workspaceKey: 'admin', guard: 'staff' },
+  { path: '/dev/ui-kit', title: 'Dev UI Kit', guard: 'super-admin' },
+  { path: '/dev/routes', title: 'Dev Routes', guard: 'super-admin' },
+  { path: '/dev/playground', title: 'Dev Playground', guard: 'super-admin' },
 ];
 
 function PatientDashboardEntry() {
+  const location = useLocation();
   const auth = readStoredAuth();
 
   if (isPatientSession(auth)) {
@@ -112,7 +115,20 @@ function PatientDashboardEntry() {
     return <DevPlaceholderPage title="Bệnh nhân" route="/patient/dashboard" />;
   }
 
-  return <Navigate to="/login" replace />;
+  return <Navigate to={createLoginRedirectPath(location)} replace />;
+}
+
+function RecoveryRouteRedirect({ mode }) {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const actorType = resolveRecoveryActorFromPath(location.pathname, searchParams);
+
+  return (
+    <Navigate
+      to={buildRecoveryPath(actorType, mode, Object.fromEntries(searchParams.entries()))}
+      replace
+    />
+  );
 }
 
 export function AppRouter() {
@@ -122,11 +138,24 @@ export function AppRouter() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/staff/login" element={<StaffLoginPage />} />
+        <Route path="/staff/change-password" element={<StaffRoute><ChangePasswordPage standalone /></StaffRoute>} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/forgot-password" element={<RecoveryRouteRedirect mode="forgot" />} />
+        <Route path="/reset-password" element={<RecoveryRouteRedirect mode="reset" />} />
+        <Route path="/patient/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/staff/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/patient/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/staff/reset-password" element={<ResetPasswordPage />} />
         <Route
           path="/staff/access"
+          element={
+            <StaffRoute>
+              <StaffAccessPage />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/staff/select-workspace"
           element={
             <StaffRoute>
               <StaffAccessPage />
@@ -146,12 +175,26 @@ export function AppRouter() {
             key={item.path}
             path={item.path}
             element={
-              <SuperAdminRoute>
-                <DevPlaceholderPage title={item.title} route={item.path} />
-              </SuperAdminRoute>
+              item.guard === 'staff' ? (
+                <StaffRoute requiredWorkspaceKey={item.workspaceKey}>
+                  <DevPlaceholderPage title={item.title} route={item.path} />
+                </StaffRoute>
+              ) : (
+                <SuperAdminRoute>
+                  <DevPlaceholderPage title={item.title} route={item.path} />
+                </SuperAdminRoute>
+              )
             }
           />
         ))}
+        <Route
+          path="/reception/dashboard"
+          element={
+            <StaffRoute requiredWorkspaceKey="reception">
+              <ReceptionDashboardPage />
+            </StaffRoute>
+          }
+        />
         <Route
           path="/staff/overview"
           element={
@@ -291,7 +334,7 @@ export function AppRouter() {
         <Route
           path="/scheduling"
           element={
-            <StaffRoute>
+            <StaffRoute requiredWorkspaceKey="scheduling">
               <SchedulingShell />
             </StaffRoute>
           }
@@ -332,9 +375,9 @@ export function AppRouter() {
         <Route
           path="/admin"
           element={
-            <SuperAdminRoute>
+            <StaffRoute requiredWorkspaceKey="admin">
               <AdminLayout />
-            </SuperAdminRoute>
+            </StaffRoute>
           }
         >
           <Route index element={<Navigate to="/admin/overview" replace />} />
@@ -373,6 +416,7 @@ export function AppRouter() {
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/support" element={<SupportPage />} />
         <Route path="/terms" element={<TermsPage />} />
+        <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

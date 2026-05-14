@@ -300,7 +300,7 @@ async function safeNotify(account, actorType, payload = {}, requestMeta = {}) {
     const recipient = buildRecipient(account, actorType);
     if (!recipient) return null;
 
-    return notificationService.createNotification({
+    return await notificationService.createNotification({
       ...recipient,
       notification_type: payload.notification_type || 'auth.event',
       priority: payload.priority || 'normal',
@@ -315,6 +315,9 @@ async function safeNotify(account, actorType, payload = {}, requestMeta = {}) {
       created_by_module: 'auth',
     }, internalActor(), requestMeta);
   } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[auth-notify] Tao notification that bai:', error?.message || error);
+    }
     return null;
   }
 }

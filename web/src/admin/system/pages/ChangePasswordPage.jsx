@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { PasswordPolicyChecklist } from '../../../Auth/components/PasswordPolicyChecklist';
+import { getDefaultRouteForAuth } from '../../../lib/authSession';
+import { usePasswordPolicyValidation } from '../../../lib/passwordPolicy';
+import { readStoredAuth, writeStoredAuth } from '../../../lib/storage';
 import { changeMyPassword, getMySessions, logoutAllMyDevices } from '../systemApi';
 import { formatRelativeTime } from '../systemUi';
 
@@ -13,7 +17,13 @@ function getStrengthPercent(score) {
   return `${Math.max((score / 5) * 100, 6)}%`;
 }
 
-export function ChangePasswordPage() {
+export function ChangePasswordPage({ standalone = false }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const auth = readStoredAuth();
+  const actorType = auth?.actorType || 'staff';
+  const identity = auth?.user || {};
+  const isForcedFlow = standalone || new URLSearchParams(location.search).has('reason') || Boolean(auth?.user?.must_change_password);
   const [form, setForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
   const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
@@ -23,6 +33,15 @@ export function ChangePasswordPage() {
     current_password: false,
     new_password: false,
     confirm_password: false,
+  });
+  const passwordPolicyValidation = usePasswordPolicyValidation({
+    actorType,
+    password: form.new_password,
+    username: identity.username,
+    email: identity.email,
+    phone: identity.phone,
+    clientApp: 'staff-portal',
+    enabled: Boolean(form.new_password),
   });
 
   async function loadSessions() {
@@ -46,8 +65,29 @@ export function ChangePasswordPage() {
   const activeSessions = useMemo(() => sessions.filter((item) => item.is_active), [sessions]);
 
   async function handleSubmit() {
+    if (!form.current_password) {
+      setError('Vui lòng nhập mật khẩu hiện tại.');
+      return;
+    }
+
+    if (!form.new_password) {
+      setError('Vui lòng nhập mật khẩu mới.');
+      return;
+    }
+
+    if (!form.confirm_password) {
+      setError('Vui lòng nhập lại mật khẩu mới.');
+      return;
+    }
+
     if (form.new_password !== form.confirm_password) {
       setError('Xác nhận mật khẩu mới không khớp.');
+      return;
+    }
+
+    const validationResult = await passwordPolicyValidation.validateNow();
+    if (!validationResult.valid) {
+      setError(validationResult.messages[0] || 'Mật khẩu chưa đáp ứng chính sách bảo mật.');
       return;
     }
 
@@ -59,9 +99,30 @@ export function ChangePasswordPage() {
         current_password: form.current_password,
         new_password: form.new_password,
       });
+      const nextAuth = auth
+        ? {
+            ...auth,
+            mustChangePasswordReason: null,
+            user: auth.user
+              ? {
+                  ...auth.user,
+                  must_change_password: false,
+                }
+              : auth.user,
+          }
+        : null;
+
+      if (nextAuth) {
+        writeStoredAuth(nextAuth);
+      }
+
       setSuccess('Đổi mật khẩu thành công. Các phiên đăng nhập cũ đã bị thu hồi.');
       setForm({ current_password: '', new_password: '', confirm_password: '' });
       await loadSessions().catch(() => {});
+
+      if (isForcedFlow && nextAuth) {
+        navigate(getDefaultRouteForAuth(nextAuth), { replace: true });
+      }
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -88,6 +149,7 @@ export function ChangePasswordPage() {
             value={form[name]}
             placeholder={placeholder}
             onChange={(event) => setForm((current) => ({ ...current, [name]: event.target.value }))}
+            onBlur={name === 'new_password' ? () => passwordPolicyValidation.validateNow().catch(() => {}) : undefined}
           />
           <button
             type="button"
@@ -105,9 +167,15 @@ export function ChangePasswordPage() {
     <section className="role-page system-admin-page security-upgrade-page">
       <section className="role-hero security-upgrade-hero">
         <div className="role-hero__copy">
-          <p className="admin-page-header__eyebrow">Admin / Bảo mật / Thiết lập bảo mật</p>
-          <h1>Đổi mật khẩu</h1>
-          <p>Bảo vệ tài khoản của bạn bằng cách sử dụng mật khẩu mạnh và thay đổi định kỳ để ngăn chặn các truy cập trái phép.</p>
+          <p className="admin-page-header__eyebrow">
+            {isForcedFlow ? 'Staff / Security / Required action' : 'Admin / Bảo mật / Thiết lập bảo mật'}
+          </p>
+          <h1>{isForcedFlow ? 'Đổi mật khẩu để tiếp tục' : 'Đổi mật khẩu'}</h1>
+          <p>
+            {isForcedFlow
+              ? 'Mật khẩu hiện tại đã hết hạn hoặc cần được thay đổi trước khi truy cập workspace.'
+              : 'Bảo vệ tài khoản của bạn bằng cách sử dụng mật khẩu mạnh và thay đổi định kỳ để ngăn chặn các truy cập trái phép.'}
+          </p>
         </div>
       </section>
 
@@ -138,13 +206,33 @@ export function ChangePasswordPage() {
               <small>Gợi ý: Thêm ít nhất một ký tự đặc biệt (!@#$).</small>
             </div>
 
+            <PasswordPolicyChecklist
+              actorType={actorType}
+              password={form.new_password}
+              identifiers={[identity.username, identity.email, identity.phone]}
+            />
+
+            {passwordPolicyValidation.isChecking ? (
+              <p className="form-message">Đang kiểm tra mật khẩu với máy chủ...</p>
+            ) : null}
+
+            {!passwordPolicyValidation.isChecking && passwordPolicyValidation.status === 'valid' && form.new_password ? (
+              <p className="form-message success">Mật khẩu đáp ứng chính sách bảo mật của hệ thống.</p>
+            ) : null}
+
+            {!passwordPolicyValidation.isChecking && ['invalid', 'rate-limited', 'error'].includes(passwordPolicyValidation.status) ? (
+              <p className="form-message error">{passwordPolicyValidation.messages[0]}</p>
+            ) : null}
+
             {renderPasswordField('confirm_password', 'Xác nhận mật khẩu mới', 'Nhập lại mật khẩu mới')}
 
             <div className="security-upgrade-form__actions">
-              <button type="button" className="staff-button staff-button--primary security-save-button" onClick={handleSubmit} disabled={submitting}>
+              <button type="button" className="staff-button staff-button--primary security-save-button" onClick={handleSubmit} disabled={submitting || passwordPolicyValidation.isChecking}>
                 {submitting ? 'Đang cập nhật...' : '🔒 Lưu thay đổi'}
               </button>
-              <Link to="/admin/profile" className="staff-button staff-button--ghost security-cancel-button">Hủy</Link>
+              <Link to={isForcedFlow ? '/home' : '/admin/profile'} className="staff-button staff-button--ghost security-cancel-button">
+                {isForcedFlow ? 'Về trang chủ' : 'Hủy'}
+              </Link>
             </div>
 
             {error ? <p className="form-message error">{error}</p> : null}

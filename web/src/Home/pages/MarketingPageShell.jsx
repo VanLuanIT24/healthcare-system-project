@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
 
 const SITE_LANGUAGE_STORAGE_KEY = 'healthcare.siteLanguage';
-const AUTH_STORAGE_KEY = 'healthcare.auth';
 
 function readStoredSiteLanguage() {
   try {
@@ -14,19 +14,6 @@ function readStoredSiteLanguage() {
 
 function writeStoredSiteLanguage(language) {
   localStorage.setItem(SITE_LANGUAGE_STORAGE_KEY, language);
-}
-
-function readStoredAuth() {
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (error) {
-    return null;
-  }
-}
-
-function clearStoredAuth() {
-  localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
 function getLanguageLabel(language) {

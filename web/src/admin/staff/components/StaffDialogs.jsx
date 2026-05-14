@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { PasswordPolicyChecklist } from '../../../Auth/components/PasswordPolicyChecklist';
+import { usePasswordPolicyValidation } from '../../../lib/passwordPolicy';
 import { getInitials, getStatusTone } from '../staffUi';
 
 function DialogShell({ title, subtitle, tone = 'neutral', icon = null, onClose, children, footer }) {
@@ -60,22 +62,37 @@ export function ResetPasswordDialog({ staff, onClose, onSubmit, isSubmitting }) 
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const passwordPolicyValidation = usePasswordPolicyValidation({
+    actorType: 'staff',
+    password: form.new_password,
+    username: staff?.username,
+    email: staff?.email,
+    phone: staff?.phone,
+    clientApp: 'staff-portal',
+    enabled: Boolean(form.new_password),
+  });
 
   function handleChange(event) {
     const { name, value, type, checked } = event.target;
     setForm((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!form.new_password || form.new_password.length < 8) {
-      setError('Mật khẩu mới phải có ít nhất 8 ký tự.');
+    if (!form.new_password) {
+      setError('Vui lòng nhập mật khẩu mới.');
       return;
     }
 
     if (form.new_password !== form.confirm_password) {
       setError('Xác nhận mật khẩu không khớp.');
+      return;
+    }
+
+    const validationResult = await passwordPolicyValidation.validateNow();
+    if (!validationResult.valid) {
+      setError(validationResult.messages[0] || 'Mật khẩu chưa đáp ứng chính sách bảo mật.');
       return;
     }
 
@@ -95,7 +112,7 @@ export function ResetPasswordDialog({ staff, onClose, onSubmit, isSubmitting }) 
           <button type="button" className="staff-button staff-button--ghost" onClick={onClose}>
             Hủy
           </button>
-          <button type="submit" form="reset-password-form" className="staff-button staff-button--primary" disabled={isSubmitting}>
+          <button type="submit" form="reset-password-form" className="staff-button staff-button--primary" disabled={isSubmitting || passwordPolicyValidation.isChecking}>
             {isSubmitting ? 'Đang đặt lại...' : 'Xác nhận đặt lại'}
           </button>
         </>
@@ -111,6 +128,7 @@ export function ResetPasswordDialog({ staff, onClose, onSubmit, isSubmitting }) 
               type={showNewPassword ? 'text' : 'password'}
               value={form.new_password}
               onChange={handleChange}
+              onBlur={() => passwordPolicyValidation.validateNow().catch(() => {})}
             />
             <button type="button" onClick={() => setShowNewPassword((current) => !current)}>
               {showNewPassword ? 'Ẩn' : 'Hiện'}
@@ -131,6 +149,18 @@ export function ResetPasswordDialog({ staff, onClose, onSubmit, isSubmitting }) 
             </button>
           </div>
         </label>
+        <PasswordPolicyChecklist
+          actorType="staff"
+          password={form.new_password}
+          identifiers={[staff?.username, staff?.email, staff?.phone]}
+        />
+        {passwordPolicyValidation.isChecking ? <p className="form-message">Đang kiểm tra mật khẩu với máy chủ...</p> : null}
+        {!passwordPolicyValidation.isChecking && passwordPolicyValidation.status === 'valid' && form.new_password ? (
+          <p className="form-message success">Mật khẩu đáp ứng chính sách bảo mật của hệ thống.</p>
+        ) : null}
+        {!passwordPolicyValidation.isChecking && ['invalid', 'rate-limited', 'error'].includes(passwordPolicyValidation.status) ? (
+          <p className="form-message error">{passwordPolicyValidation.messages[0]}</p>
+        ) : null}
         <label className="staff-dialog__toggle-card">
           <div>
             <strong>Bắt buộc đổi mật khẩu</strong>

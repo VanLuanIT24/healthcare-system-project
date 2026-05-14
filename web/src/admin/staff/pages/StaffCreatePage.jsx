@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { PasswordPolicyChecklist } from '../../../Auth/components/PasswordPolicyChecklist';
+import { usePasswordPolicyValidation } from '../../../lib/passwordPolicy';
 import { createStaffAccount, getAssignableRoles, getDepartments } from '../staffApi';
 import { StaffSuccessDialog } from '../components/StaffDialogs';
 
@@ -31,6 +33,15 @@ export function StaffCreatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
+  const passwordPolicyValidation = usePasswordPolicyValidation({
+    actorType: 'staff',
+    password: form.password,
+    username: form.username,
+    email: form.email,
+    phone: form.phone,
+    clientApp: 'staff-portal',
+    enabled: Boolean(form.password),
+  });
 
   useEffect(() => {
     let active = true;
@@ -109,6 +120,14 @@ export function StaffCreatePage() {
     if (form.password && form.password !== form.confirm_password) {
       setError('Xác nhận mật khẩu không khớp.');
       return;
+    }
+
+    if (form.password) {
+      const validationResult = await passwordPolicyValidation.validateNow();
+      if (!validationResult.valid) {
+        setError(validationResult.messages[0] || 'Mật khẩu chưa đáp ứng chính sách bảo mật.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -286,13 +305,39 @@ export function StaffCreatePage() {
               <div className="staff-create-grid">
                 <label className="staff-create-field">
                   <span>Mật khẩu tạm thời</span>
-                  <input name="password" type="password" value={form.password} onChange={handleFieldChange} placeholder="Để trống để tự tạo" />
+                  <input
+                    name="password"
+                    type="password"
+                    value={form.password}
+                    onChange={handleFieldChange}
+                    onBlur={() => passwordPolicyValidation.validateNow().catch(() => {})}
+                    placeholder="Để trống để tự tạo"
+                  />
                 </label>
                 <label className="staff-create-field">
                   <span>Xác nhận mật khẩu</span>
                   <input name="confirm_password" type="password" value={form.confirm_password} onChange={handleFieldChange} placeholder="Nhập lại mật khẩu" />
                 </label>
               </div>
+
+              {form.password ? (
+                <>
+                  <PasswordPolicyChecklist
+                    actorType="staff"
+                    password={form.password}
+                    identifiers={[form.username, form.email, form.phone]}
+                  />
+                  {passwordPolicyValidation.isChecking ? (
+                    <p className="form-message">Đang kiểm tra mật khẩu với máy chủ...</p>
+                  ) : null}
+                  {!passwordPolicyValidation.isChecking && passwordPolicyValidation.status === 'valid' ? (
+                    <p className="form-message success">Mật khẩu đáp ứng chính sách bảo mật của hệ thống.</p>
+                  ) : null}
+                  {!passwordPolicyValidation.isChecking && ['invalid', 'rate-limited', 'error'].includes(passwordPolicyValidation.status) ? (
+                    <p className="form-message error">{passwordPolicyValidation.messages[0]}</p>
+                  ) : null}
+                </>
+              ) : null}
 
               <div className="staff-create-toggle-grid">
                 <label className={`staff-create-toggle ${form.send_activation_email ? 'is-on' : ''}`}>
@@ -380,10 +425,10 @@ export function StaffCreatePage() {
       <footer className="staff-create-footer">
         <span>Thông tin sẽ được lưu khi bạn xác nhận tạo tài khoản</span>
         <div className="staff-create-footer__actions">
-          <button type="button" className="staff-button staff-button--ghost" onClick={(event) => submitForm(event, true)} disabled={submitting}>
+          <button type="button" className="staff-button staff-button--ghost" onClick={(event) => submitForm(event, true)} disabled={submitting || passwordPolicyValidation.isChecking}>
             Lưu nháp
           </button>
-          <button type="submit" form="staff-create-form" className="staff-button staff-button--primary" disabled={submitting}>
+          <button type="submit" form="staff-create-form" className="staff-button staff-button--primary" disabled={submitting || passwordPolicyValidation.isChecking}>
             {submitting ? 'Đang tạo...' : 'Tạo nhân sự'}
           </button>
         </div>

@@ -1,37 +1,240 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  AlertCircle,
+  BriefcaseMedical,
+  Check,
+  Eye,
+  EyeOff,
+  Info,
+  Lock,
+  LogIn,
+  ShieldCheck,
+  User,
+} from 'lucide-react';
 import { API_BASE_URL } from '../../lib/api';
-import { getDefaultRouteForAuth, isStaffSession } from '../../lib/authSession';
+import { resolvePostLoginRedirect } from '../../lib/authSession';
 import { readStoredAuth, writeStoredAuth } from '../../lib/storage';
+
+const INITIAL_FORM_STATE = {
+  login: '',
+  password: '',
+  remember_device: false,
+};
+
+function parseRetryAfterSeconds(response, payload) {
+  const headerValue = Number(response.headers.get('Retry-After'));
+  if (Number.isFinite(headerValue) && headerValue > 0) return headerValue;
+
+  const retryAfter = Number(payload?.details?.retry_after_seconds);
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return retryAfter;
+
+  return 0;
+}
+
+function buildAuthData(payload) {
+  const data = payload?.data || {};
+  const user = data.user || null;
+
+  return {
+    actorType: data.actor_type || 'staff',
+    user,
+    roles: data.roles || user?.roles || [],
+    permissions: data.permissions || user?.permissions || [],
+    mustChangePasswordReason: data.must_change_password_reason || (data.must_change_password ? 'required' : null),
+    tokens: data.tokens || {
+      access_token: data.access_token || '',
+      refresh_token: data.refresh_token || '',
+      token_type: data.token_type || 'Bearer',
+      expires_in: data.expires_in || 0,
+    },
+  };
+}
+
+function mapStaffLoginError(response, payload) {
+  if (response.status === 429) {
+    return {
+      tone: 'warning',
+      message: 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng chờ một lúc rồi thử lại.',
+    };
+  }
+
+  if (response.status === 401) {
+    return {
+      tone: 'error',
+      message: 'Không thể đăng nhập. Vui lòng kiểm tra lại thông tin đăng nhập.',
+    };
+  }
+
+  if (response.status >= 500) {
+    return {
+      tone: 'error',
+      message: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
+    };
+  }
+
+  return {
+    tone: 'error',
+    message: payload?.message || 'Đăng nhập nhân sự thất bại. Vui lòng thử lại.',
+  };
+}
+
+function StaffBrandHeader() {
+  return (
+    <header className="patient-register-brand patient-login-brand staff-login-brand">
+      <Link className="patient-register-logo" to="/home" aria-label="MedCare Portal">
+        <span className="patient-register-logo__mark" aria-hidden="true">
+          <span />
+        </span>
+        <span>
+          <strong>
+            MedCare <em>Portal</em>
+          </strong>
+          <small>Cổng thông tin chăm sóc sức khỏe của bạn</small>
+        </span>
+      </Link>
+    </header>
+  );
+}
+
+function StaffBackgroundArtwork() {
+  return (
+    <div className="patient-register-artwork patient-login-artwork staff-login-artwork" aria-hidden="true">
+      <div className="patient-artwork__molecules">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <span key={index} />
+        ))}
+      </div>
+      <div className="patient-artwork__hospital">
+        <span className="patient-artwork__tower patient-artwork__tower--left" />
+        <span className="patient-artwork__tower patient-artwork__tower--main" />
+        <span className="patient-artwork__tower patient-artwork__tower--right" />
+        <span className="patient-artwork__cross" />
+        <span className="patient-artwork__shield" />
+        <span className="patient-artwork__ecg" />
+      </div>
+    </div>
+  );
+}
+
+function StaffFieldError({ message }) {
+  if (!message) return null;
+
+  return (
+    <p className="staff-login-field-error">
+      <AlertCircle size={15} />
+      <span>{message}</span>
+    </p>
+  );
+}
+
+function StaffFormAlert({ tone = 'info', message, cooldownSeconds = 0 }) {
+  if (!message) return null;
+
+  const Icon = tone === 'warning' ? AlertCircle : tone === 'error' ? AlertCircle : Info;
+
+  return (
+    <div className={`staff-login-alert staff-login-alert--${tone}`}>
+      <Icon size={18} />
+      <div>
+        <p>{message}</p>
+        {tone === 'warning' && cooldownSeconds > 0 ? (
+          <small>Vui lòng thử lại sau khoảng {cooldownSeconds} giây.</small>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function StaffLoginPage() {
   const navigate = useNavigate();
-  const [formState, setFormState] = useState({
-    identifier: '',
-    password: '',
-  });
-  const [errorMessage, setErrorMessage] = useState('');
+  const location = useLocation();
+  const [formState, setFormState] = useState(INITIAL_FORM_STATE);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [formAlert, setFormAlert] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  const redirectTarget = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return searchParams.get('redirect');
+  }, [location.search]);
 
   useEffect(() => {
     const auth = readStoredAuth();
-    if (isStaffSession(auth)) {
-      navigate(getDefaultRouteForAuth(auth), { replace: true });
+    if (auth?.tokens?.access_token) {
+      navigate(resolvePostLoginRedirect(redirectTarget, auth), { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, redirectTarget]);
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setCooldownSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [cooldownSeconds]);
 
   const canSubmit = useMemo(() => {
-    return formState.identifier.trim() && formState.password.trim();
-  }, [formState.identifier, formState.password]);
+    return formState.login.trim() && formState.password.length > 0 && !isSubmitting && cooldownSeconds === 0;
+  }, [cooldownSeconds, formState.login, formState.password, isSubmitting]);
+
+  function clearFieldError(name) {
+    if (!fieldErrors[name]) return;
+
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
+  }
 
   function handleChange(event) {
-    const { name, value } = event.target;
-    setFormState((current) => ({ ...current, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    const nextValue = type === 'checkbox' ? checked : value;
+
+    setFormState((current) => ({
+      ...current,
+      [name]: nextValue,
+    }));
+
+    if (type !== 'checkbox') {
+      clearFieldError(name);
+    }
+
+    if (formAlert?.tone !== 'warning') {
+      setFormAlert(null);
+    }
+  }
+
+  function validateForm() {
+    const errors = {};
+
+    if (!formState.login.trim()) {
+      errors.login = 'Vui lòng nhập email, số điện thoại, tên đăng nhập hoặc mã nhân viên.';
+    }
+
+    if (!formState.password.length) {
+      errors.password = 'Vui lòng nhập mật khẩu.';
+    }
+
+    return errors;
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setErrorMessage('');
+
+    const errors = validateForm();
+    setFieldErrors(errors);
+    setFormAlert(null);
+
+    if (Object.keys(errors).length > 0 || cooldownSeconds > 0) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -39,149 +242,160 @@ export function StaffLoginPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Client-Platform': 'web',
+          'X-Client-App': 'staff-portal',
         },
         body: JSON.stringify({
-          login: formState.identifier.trim(),
+          login: formState.login.trim(),
           password: formState.password,
         }),
       });
 
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload?.message || 'Đăng nhập nhân sự thất bại.');
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch (error) {
+        payload = null;
       }
 
-      const authData = {
-        actorType: 'staff',
-        user: payload?.data?.user || null,
-        tokens: payload?.data?.tokens || null,
-      };
+      if (!response.ok) {
+        const retryAfterSeconds = parseRetryAfterSeconds(response, payload);
+        if (retryAfterSeconds > 0) {
+          setCooldownSeconds(retryAfterSeconds);
+        }
 
-      writeStoredAuth(authData);
-      navigate(getDefaultRouteForAuth(authData), { replace: true });
+        setFormAlert(mapStaffLoginError(response, payload));
+        return;
+      }
+
+      const authData = buildAuthData(payload);
+      writeStoredAuth(authData, { persist: formState.remember_device });
+      navigate(resolvePostLoginRedirect(redirectTarget, authData), { replace: true });
     } catch (error) {
-      setErrorMessage(error.message || 'Không thể kết nối đến máy chủ.');
+      setFormAlert({
+        tone: 'error',
+        message: error.message || 'Không thể kết nối đến máy chủ.',
+      });
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <main className="login-shell login-shell--staff">
-      <Link className="page-home-button" to="/home">
-        Về trang chủ
-      </Link>
+    <main className="staff-login-page">
+      <StaffBackgroundArtwork />
+      <StaffBrandHeader />
 
-      <div className="login-background login-background--staff" aria-hidden="true">
-        <div className="background-orb orb-left" />
-        <div className="background-orb orb-right" />
-        <div className="aurora-band aurora-band--one" />
-        <div className="aurora-band aurora-band--two" />
-        <div className="aurora-band aurora-band--three" />
-        <div className="halo halo-left" />
-        <div className="halo halo-right" />
-        <div className="pulse-ring pulse-ring--one" />
-        <div className="pulse-ring pulse-ring--two" />
-        <div className="light-column light-column--one" />
-        <div className="light-column light-column--two" />
-        <div className="scanner scanner--one" />
-        <div className="scanner scanner--two" />
-        <div className="background-grid" />
-        <div className="particle-cluster">
-          {Array.from({ length: 18 }).map((_, index) => (
-            <span
-              key={index}
-              className="particle"
-              style={{
-                '--size': `${8 + (index % 4) * 4}px`,
-                '--x': `${8 + (index % 6) * 11}%`,
-                '--y': `${12 + Math.floor(index / 3) * 11}%`,
-                '--delay': `${index * 0.35}s`,
-              }}
-            />
-          ))}
+      <section className="staff-login-card" aria-label="Đăng nhập nhân sự">
+        <div className="staff-login-card__icon" aria-hidden="true">
+          <BriefcaseMedical size={28} />
         </div>
-        <div className="spark-trail spark-trail--one" />
-        <div className="spark-trail spark-trail--two" />
-      </div>
 
-      <section className="login-card login-card--staff" aria-label="Staff login form">
-        <div className="card-highlight" aria-hidden="true" />
-        <div className="card-frame" aria-hidden="true" />
+        <div className="staff-login-card__header">
+          <h1>Đăng nhập nhân sự</h1>
+          <p>Khu vực dành cho nhân sự được cấp quyền truy cập hệ thống vận hành và workspace nghiệp vụ.</p>
+        </div>
 
-        <div className="login-card__content">
-          <p className="form-kicker">Staff Access</p>
-          <h2>Đăng nhập nhân sự</h2>
-
-          <form className="login-form" onSubmit={handleSubmit}>
-            <label className="field">
-              <span>Tên đăng nhập hoặc email</span>
+        <form className="staff-login-form" onSubmit={handleSubmit} noValidate>
+          <label className={`staff-login-field ${fieldErrors.login ? 'has-error' : ''}`}>
+            <span className="staff-login-field__label">
+              Email / Số điện thoại / Tên đăng nhập / Mã nhân viên <b>*</b>
+            </span>
+            <span className="staff-login-input">
+              <User className="staff-login-input__icon" size={19} />
               <input
                 type="text"
-                name="identifier"
-                placeholder="superadmin hoặc nhansu@healthcare.local"
+                name="login"
+                value={formState.login}
+                placeholder="Nhập thông tin đăng nhập"
                 autoComplete="username"
-                value={formState.identifier}
                 onChange={handleChange}
               />
-            </label>
+            </span>
+            <StaffFieldError message={fieldErrors.login} />
+          </label>
 
-            <label className="field">
-              <span>Mật khẩu</span>
+          <label className={`staff-login-field ${fieldErrors.password ? 'has-error' : ''}`}>
+            <span className="staff-login-field__label">
+              Mật khẩu <b>*</b>
+            </span>
+            <span className="staff-login-input">
+              <Lock className="staff-login-input__icon" size={19} />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 name="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
                 value={formState.password}
+                placeholder="Nhập mật khẩu"
+                autoComplete="current-password"
                 onChange={handleChange}
               />
+              <button
+                type="button"
+                className="staff-login-input__toggle"
+                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                onClick={() => setShowPassword((current) => !current)}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </span>
+            <StaffFieldError message={fieldErrors.password} />
+          </label>
+
+          <div className="staff-login-alert staff-login-alert--info">
+            <Info size={18} />
+            <p>Bạn có thể dùng email, số điện thoại, tên đăng nhập hoặc mã nhân viên để đăng nhập.</p>
+          </div>
+
+          <StaffFormAlert tone={formAlert?.tone} message={formAlert?.message} cooldownSeconds={cooldownSeconds} />
+
+          <div className="staff-login-actions-row">
+            <label className="staff-login-checkbox">
+              <input
+                type="checkbox"
+                name="remember_device"
+                checked={formState.remember_device}
+                onChange={handleChange}
+              />
+              <span className="staff-login-checkbox__box" aria-hidden="true">
+                {formState.remember_device ? <Check size={14} /> : null}
+              </span>
+              <span>Ghi nhớ thiết bị này</span>
             </label>
 
-            {errorMessage ? <p className="form-message error">{errorMessage}</p> : null}
-
-            <button type="submit" className="login-button login-button--staff" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? 'Đang xác thực...' : 'Vào hệ thống quản trị'}
-            </button>
-          </form>
-
-          <div className="login-links login-links--staff">
-            <Link to="/forgot-password?actor_type=staff">Quên mật khẩu nhân sự</Link>
-            <Link to="/login">Đăng nhập bệnh nhân</Link>
+            <Link className="staff-login-link" to="/staff/forgot-password">
+              Quên mật khẩu?
+            </Link>
           </div>
-        </div>
-      </section>
 
-      <section className="hero-panel hero-panel--staff">
-        <div className="medical-cross medical-cross--staff" aria-hidden="true">
-          <span className="cross-shadow-layer" />
-          <span className="cross-depth-layer cross-depth-layer--rear" />
-          <span className="cross-depth-layer cross-depth-layer--mid" />
-          <span className="cross-core" />
-          <span className="cross-glow" />
-          <span className="cross-ring cross-ring--one" />
-          <span className="cross-ring cross-ring--two" />
-          <span className="cross-flare cross-flare--one" />
-          <span className="cross-flare cross-flare--two" />
-        </div>
+          <div className="staff-login-security">
+            <div className="staff-login-security__icon" aria-hidden="true">
+              <ShieldCheck size={22} />
+            </div>
+            <div className="staff-login-security__content">
+              <strong>Lưu ý đăng nhập</strong>
+              <ul>
+                <li>Không chia sẻ mật khẩu hoặc mã OTP nội bộ với người khác.</li>
+                <li>Tài khoản có thể được cấp nhiều workspace theo vai trò và quyền hạn hiện có.</li>
+                <li>Nếu mật khẩu đã hết hạn, hệ thống sẽ yêu cầu đổi mật khẩu trước khi vào dashboard.</li>
+              </ul>
+            </div>
+          </div>
 
-        <div className="hero-copy hero-copy--staff">
-          <p className="eyebrow">Healthcare Staff Console</p>
-          <h1>
-            <span>Cổng đăng nhập</span>
-            <span>dành cho nhân sự</span>
-          </h1>
-          <p>
-            Truy cập hệ thống vận hành y tế, kiểm soát tài khoản và điều phối nghiệp vụ nội bộ
-            trong một không gian đăng nhập riêng cho đội ngũ staff.
+          <button type="submit" className="staff-login-submit" disabled={!canSubmit}>
+            <LogIn size={20} />
+            <span>
+              {isSubmitting
+                ? 'Đang đăng nhập...'
+                : cooldownSeconds > 0
+                  ? `Thử lại sau ${cooldownSeconds}s`
+                  : 'Đăng nhập'}
+            </span>
+          </button>
+
+          <p className="staff-login-support">
+            Cần hỗ trợ truy cập? <Link to="/support">Liên hệ quản trị hệ thống</Link>
           </p>
-          <div className="staff-login-highlights">
-            <span>Super Admin</span>
-            <span>Quản trị vai trò</span>
-            <span>Giám sát truy cập</span>
-          </div>
-        </div>
+        </form>
       </section>
     </main>
   );

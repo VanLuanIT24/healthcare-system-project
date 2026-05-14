@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../lib/api'
-import { clearStoredAuth, readStoredAuth } from '../lib/storage'
+import { fetchWithAuth } from '../lib/authSession'
+import { readStoredAuth } from '../lib/storage'
 
 function buildUrl(path, params) {
   const url = new URL(`${API_BASE_URL}${path}`)
@@ -13,7 +14,7 @@ function buildUrl(path, params) {
   return url.toString()
 }
 
-async function request(path, { method = 'GET', params, body, auth = true } = {}) {
+async function request(path, { method = 'GET', params, body, auth = true, skipRefresh = false } = {}) {
   const storedAuth = readStoredAuth()
   const headers = {
     ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -22,21 +23,22 @@ async function request(path, { method = 'GET', params, body, auth = true } = {})
       : {}),
   }
 
-  const response = await fetch(buildUrl(path, params), {
+  const url = buildUrl(path, params)
+  const requestOptions = {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
-  })
+  }
+
+  const response = auth
+    ? await fetchWithAuth(url, { ...requestOptions, skipRefresh })
+    : await fetch(url, requestOptions)
 
   let payload = null
   try {
     payload = await response.json()
   } catch (error) {
     payload = null
-  }
-
-  if (response.status === 401) {
-    clearStoredAuth()
   }
 
   if (!response.ok) {

@@ -58,11 +58,11 @@ router.post('/patients/register', authRequest.patientRegister, authController.re
 router.post('/patients/login', authRequest.patientLogin, authController.patientLogin);
 router.post('/patient/register', authRequest.patientRegister, authController.registerPatient); ///\\\ UI done
 router.post('/patient/login', authRequest.patientLogin, authController.patientLogin); ///\\\ Ui done
-router.post('/password/validate', passwordValidateLimit, authRequest.passwordValidate, authController.validatePasswordPolicy); ///////////////// Api phụ cho mấy UI nhập pass mới để chekc độ mạnh của pass mới
-router.post('/forgot-password', forgotPasswordLimit, authRequest.forgotPassword, authController.forgotPassword);
-router.post('/verify-reset-token', verifyResetLimit, authRequest.verifyResetToken, authController.verifyResetToken);
-router.post('/reset-password', resetPasswordLimit, authRequest.resetPassword, authController.resetPassword);
-router.post('/refresh-token', refreshTokenLimit, authRequest.refreshToken, authController.refreshToken);
+router.post('/password/validate', passwordValidateLimit, authRequest.passwordValidate, authController.validatePasswordPolicy); ///\\\ UI done =>  Api phụ cho mấy UI nhập pass mới để chekc độ mạnh của pass mới
+router.post('/forgot-password', forgotPasswordLimit, authRequest.forgotPassword, authController.forgotPassword); ///\\\ Ui done
+router.post('/verify-reset-token', verifyResetLimit, authRequest.verifyResetToken, authController.verifyResetToken); ///\\\ UI done :))) Dùng để verify token trước khi hiện form nhập pass mới, tránh việc người dùng nhập pass mới rồi submit nhưng token đã hết hạn hoặc không hợp lệ nên phải verify token trước khi cho nhập pass mới, tránh mất công nhập lại pass mới nhiều lần :)))
+router.post('/reset-password', resetPasswordLimit, authRequest.resetPassword, authController.resetPassword); ///\\\ UI done
+router.post('/refresh-token', refreshTokenLimit, authRequest.refreshToken, authController.refreshToken); ///\\\ Ui done
 router.post('/logout', logoutLimit, authRequest.logout, authController.logout); ///\\\ Ui done :)))
 router.post('/change-password', authenticate, authRequest.changePassword, authController.changePassword);
 router.get('/me', authenticate, authController.me);
