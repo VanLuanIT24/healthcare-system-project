@@ -31,6 +31,12 @@ import { receptionDashboardApi } from '../api/receptionDashboardApi';
 import { staffAuthApi } from '../api/staffAuthApi';
 import { ReceptionAppointmentsPanel } from './ReceptionAppointmentsPanel';
 import { ReceptionCheckInQueuePanel } from './ReceptionCheckInQueuePanel';
+import { ReceptionDoctorsPanel } from './ReceptionDoctorsPanel';
+import { ReceptionNotificationsPanel } from './ReceptionNotificationsPanel';
+import { ReceptionPatientsPanel } from './ReceptionPatientsPanel';
+import { ReceptionPaymentsPanel } from './ReceptionPaymentsPanel';
+import { ReceptionReportsPanel } from './ReceptionReportsPanel';
+import { ReceptionSettingsPanel } from './ReceptionSettingsPanel';
 
 const SIDEBAR_SECTIONS = [
   { key: 'overview', label: 'Tổng quan', icon: LayoutGrid },
@@ -140,7 +146,6 @@ const SIDEBAR_SECTIONS = [
     children: [
       { key: 'settings-account', label: 'Tài khoản' },
       { key: 'settings-ui', label: 'Giao diện' },
-      { key: 'settings-permissions', label: 'Phân quyền' },
       { key: 'settings-system', label: 'Tùy chọn hệ thống' },
     ],
   },
@@ -1113,6 +1118,24 @@ export function ReceptionDashboardPage() {
   const workflowMode = !appointmentMode && (activeMenu.startsWith('checkin-') || activeMenu.startsWith('queue-'))
     ? activeMenu
     : null;
+  const patientMode = !appointmentMode && !workflowMode && activeMenu.startsWith('patients-')
+    ? activeMenu
+    : null;
+  const doctorMode = !appointmentMode && !workflowMode && !patientMode && activeMenu.startsWith('doctors-')
+    ? activeMenu
+    : null;
+  const paymentMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && activeMenu.startsWith('payments-')
+    ? activeMenu
+    : null;
+  const notificationMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && activeMenu.startsWith('notifications-')
+    ? activeMenu
+    : null;
+  const reportMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !notificationMode && activeMenu.startsWith('reports-')
+    ? activeMenu
+    : null;
+  const settingMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !notificationMode && !reportMode && activeMenu.startsWith('settings-')
+    ? activeMenu
+    : null;
 
   function handleToggleMenu(key) {
     setOpenMenus((current) => ({
@@ -1309,6 +1332,18 @@ export function ReceptionDashboardPage() {
           <ReceptionAppointmentsPanel mode={appointmentMode} onNavigate={handleActivateMenu} />
         ) : workflowMode ? (
           <ReceptionCheckInQueuePanel mode={workflowMode} onNavigate={handleActivateMenu} />
+        ) : patientMode ? (
+          <ReceptionPatientsPanel mode={patientMode} onNavigate={handleActivateMenu} />
+        ) : doctorMode ? (
+          <ReceptionDoctorsPanel mode={doctorMode} />
+        ) : paymentMode ? (
+          <ReceptionPaymentsPanel mode={paymentMode} />
+        ) : notificationMode ? (
+          <ReceptionNotificationsPanel mode={notificationMode} />
+        ) : reportMode ? (
+          <ReceptionReportsPanel mode={reportMode} />
+        ) : settingMode ? (
+          <ReceptionSettingsPanel mode={settingMode} />
         ) : (
           <>
         {dashboardState.error ? (

@@ -107,6 +107,8 @@ const TODAY_TABS = [
   { key: 'late', label: 'Trễ giờ' },
 ];
 
+const DATE_SORT_MODES = new Set(['today', 'upcoming', 'confirm', 'reschedule', 'cancelled', 'no_show']);
+
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -121,11 +123,29 @@ function todayKey() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function addDaysToDateKey(value, amount) {
+  const base = value ? new Date(`${value}T00:00:00`) : new Date();
+  if (Number.isNaN(base.getTime())) return todayKey();
+  base.setDate(base.getDate() + amount);
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+}
+
 function formatDate(value) {
   if (!value) return '--';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '--';
   return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatDateHeading(value) {
+  const date = value ? new Date(`${value}T00:00:00`) : new Date();
+  if (Number.isNaN(date.getTime())) return 'Chưa chọn ngày';
+  return new Intl.DateTimeFormat('vi-VN', {
+    weekday: 'long',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -167,6 +187,20 @@ function getStatusMeta(status) {
   return STATUS_META[status] || { label: status || '--', tone: 'neutral' };
 }
 
+function getDefaultDateFilters(mode) {
+  if (mode === 'all') {
+    return {
+      date_from: '',
+      date_to: '',
+    };
+  }
+
+  return {
+    date_from: todayKey(),
+    date_to: todayKey(),
+  };
+}
+
 function getErrorMessage(error, fallback = 'Không thể xử lý yêu cầu.') {
   return error?.payload?.message || error?.message || fallback;
 }
@@ -175,6 +209,24 @@ function isLateAppointment(item) {
   if (!['booked', 'confirmed'].includes(item?.status)) return false;
   const time = new Date(item.appointment_time).getTime();
   return Number.isFinite(time) && time < Date.now();
+}
+
+function isUpcomingAppointment(item) {
+  const time = new Date(item?.appointment_time).getTime();
+  return (
+    Number.isFinite(time)
+    && time >= Date.now()
+    && ['booked', 'confirmed', 'rescheduled'].includes(item?.status)
+  );
+}
+
+function isReschedulableAppointment(item) {
+  const time = new Date(item?.appointment_time).getTime();
+  return (
+    Number.isFinite(time)
+    && time >= Date.now()
+    && ['booked', 'confirmed', 'rescheduled'].includes(item?.status)
+  );
 }
 
 function buildAppointmentDateTime(date, time) {
@@ -249,10 +301,10 @@ export function ReceptionAppointmentsPanel({ mode = 'all', onNavigate }) {
 
 function AppointmentListPanel({ mode, onNavigate }) {
   const config = LIST_MODE_CONFIG[mode] || LIST_MODE_CONFIG.all;
+  const showDateSortBar = DATE_SORT_MODES.has(mode);
   const [filters, setFilters] = useState(() => ({
     q: '',
-    date_from: ['today', 'upcoming'].includes(mode) ? todayKey() : '',
-    date_to: mode === 'today' ? todayKey() : '',
+    ...getDefaultDateFilters(mode),
     department_id: '',
     doctor_id: '',
     status: config.forcedStatus || '',
@@ -269,7 +321,7 @@ function AppointmentListPanel({ mode, onNavigate }) {
     summary: null,
   });
   const [todayTab, setTodayTab] = useState('all');
-  const [viewMode, setViewMode] = useState('table');
+  const [viewMode, setViewMode] = useState('list');
   const [selectedIds, setSelectedIds] = useState([]);
   const [capabilities, setCapabilities] = useState({});
   const [activeActions, setActiveActions] = useState('');
@@ -282,8 +334,7 @@ function AppointmentListPanel({ mode, onNavigate }) {
     const nextConfig = LIST_MODE_CONFIG[mode] || LIST_MODE_CONFIG.all;
     setFilters({
       q: '',
-      date_from: ['today', 'upcoming'].includes(mode) ? todayKey() : '',
-      date_to: mode === 'today' ? todayKey() : '',
+      ...getDefaultDateFilters(mode),
       department_id: '',
       doctor_id: '',
       status: nextConfig.forcedStatus || '',
@@ -340,13 +391,15 @@ function AppointmentListPanel({ mode, onNavigate }) {
       };
 
       try {
+        const selectedDate = filters.date_from || todayKey();
+        const isCurrentTodayView = mode === 'today' && selectedDate === todayKey() && filters.date_to === todayKey();
         const summaryParams = mode === 'today'
-          ? { date: todayKey(), department_id: filters.department_id, doctor_id: filters.doctor_id }
+          ? { date: selectedDate, department_id: filters.department_id, doctor_id: filters.doctor_id }
           : params;
-        const listParams = mode === 'today'
+        const listParams = isCurrentTodayView
           ? { limit: filters.limit, department_id: filters.department_id, doctor_id: filters.doctor_id }
           : params;
-        const listRequest = mode === 'today'
+        const listRequest = isCurrentTodayView
           ? receptionAppointmentsApi.getTodayAppointments(listParams)
           : mode === 'upcoming' && !filters.q.trim()
             ? receptionAppointmentsApi.getUpcomingAppointments(listParams)
@@ -397,6 +450,14 @@ function AppointmentListPanel({ mode, onNavigate }) {
   ]);
 
   const visibleItems = useMemo(() => {
+    if (mode === 'upcoming') {
+      return state.items.filter(isUpcomingAppointment);
+    }
+
+    if (mode === 'reschedule') {
+      return state.items.filter(isReschedulableAppointment);
+    }
+
     if (mode !== 'today') return state.items;
     return state.items.filter((item) => {
       if (todayTab === 'all') return true;
@@ -420,6 +481,19 @@ function AppointmentListPanel({ mode, onNavigate }) {
       [key]: value,
       page: 1,
     }));
+  }
+
+  function setSingleDayFilter(dateKey) {
+    setFilters((current) => ({
+      ...current,
+      date_from: dateKey,
+      date_to: dateKey,
+      page: 1,
+    }));
+  }
+
+  function shiftDay(amount) {
+    setSingleDayFilter(addDaysToDateKey(filters.date_from || todayKey(), amount));
   }
 
   function toggleSelected(appointmentId) {
@@ -639,14 +713,12 @@ function AppointmentListPanel({ mode, onNavigate }) {
             type="date"
             value={filters.date_from}
             onChange={(event) => updateFilter('date_from', event.target.value)}
-            disabled={mode === 'today'}
             aria-label="Từ ngày"
           />
           <input
             type="date"
             value={filters.date_to}
             onChange={(event) => updateFilter('date_to', event.target.value)}
-            disabled={mode === 'today'}
             aria-label="Đến ngày"
           />
           <select value={filters.department_id} onChange={(event) => updateFilter('department_id', event.target.value)}>
@@ -705,11 +777,11 @@ function AppointmentListPanel({ mode, onNavigate }) {
 
       {mode === 'today' ? (
         <div className="reception-view-switch">
-          <button type="button" className={viewMode === 'table' ? 'is-active' : ''} onClick={() => setViewMode('table')}>
-            Table view
+          <button type="button" className={viewMode === 'list' ? 'is-active' : ''} onClick={() => setViewMode('list')}>
+            Danh sách gọn
           </button>
           <button type="button" className={viewMode === 'timeline' ? 'is-active' : ''} onClick={() => setViewMode('timeline')}>
-            Timeline view
+            Timeline
           </button>
         </div>
       ) : null}
@@ -750,6 +822,33 @@ function AppointmentListPanel({ mode, onNavigate }) {
                 : `${formatInteger(visibleItems.length)} bản ghi`}
             </p>
           </div>
+          {showDateSortBar ? (
+            <div className="reception-appointment-datebar">
+              <div>
+                <span>Sắp xếp {config.title.toLowerCase()}</span>
+                <strong>{formatDateHeading(filters.date_from || todayKey())}</strong>
+              </div>
+              <div className="reception-appointment-datebar__actions">
+                <button type="button" onClick={() => setSingleDayFilter(todayKey())}>
+                  Hôm nay
+                </button>
+                <button type="button" aria-label="Ngày trước" onClick={() => shiftDay(-1)}>
+                  {'<'}
+                </button>
+                <button type="button" aria-label="Ngày sau" onClick={() => shiftDay(1)}>
+                  {'>'}
+                </button>
+                <label aria-label="Chọn ngày">
+                  <CalendarDays size={16} />
+                  <input
+                    type="date"
+                    value={filters.date_from || todayKey()}
+                    onChange={(event) => setSingleDayFilter(event.target.value || todayKey())}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : null}
         </header>
 
         {state.loading ? (
@@ -809,133 +908,117 @@ function AppointmentTable({
   onContactStatus,
 }) {
   return (
-    <div className="reception-data-table-wrap">
-      <table className="reception-data-table reception-appointment-table">
-        <thead>
-          <tr>
-            <th aria-label="Chọn lịch" />
-            <th>Mã lịch</th>
-            <th>Giờ hẹn</th>
-            <th>Bệnh nhân</th>
-            <th>SĐT</th>
-            <th>Bác sĩ</th>
-            <th>Khoa / phòng</th>
-            <th>Loại lịch</th>
-            <th>Trạng thái</th>
-            {mode === 'confirm' ? <th>Liên hệ</th> : null}
-            {mode === 'cancelled' ? <th>Lý do hủy</th> : null}
-            <th>Thao tác</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => {
-            const appointmentId = getAppointmentId(item);
-            const cap = capabilities[appointmentId] || {};
-            const isBusy = actionBusy.endsWith(`:${appointmentId}`);
+    <div className="reception-appointment-list">
+      {items.map((item) => {
+        const appointmentId = getAppointmentId(item);
+        const cap = capabilities[appointmentId] || {};
+        const isBusy = actionBusy.endsWith(`:${appointmentId}`);
 
-            return (
-              <tr key={appointmentId}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(appointmentId)}
-                    onChange={() => onToggleSelected(appointmentId)}
-                    aria-label={`Chọn lịch ${appointmentId}`}
-                  />
-                </td>
-                <td>
-                  <button type="button" className="reception-inline-link" onClick={() => onOpenDetail(item)}>
-                    {appointmentId.slice(-8).toUpperCase()}
-                  </button>
-                </td>
-                <td>
-                  <strong>{formatTime(item.appointment_time)}</strong>
-                  <span>{formatDate(item.appointment_time)}</span>
-                  {isLateAppointment(item) ? <em className="reception-late-note">Trễ giờ</em> : null}
-                </td>
-                <td>{item.patient_name || '--'}</td>
-                <td>
-                  <span className="reception-phone-cell">
-                    <Phone size={14} />
-                    {item.patient_phone || '--'}
-                  </span>
-                </td>
-                <td>{item.doctor_name || '--'}</td>
-                <td>{item.department_name || '--'}</td>
-                <td>{getTypeLabel(item.appointment_type)}</td>
-                <td><StatusBadge status={item.status} /></td>
-                {mode === 'confirm' ? (
-                  <td>
-                    <select
-                      className="reception-contact-select"
-                      value={contactStatus[appointmentId] || 'not_called'}
-                      onChange={(event) => onContactStatus((current) => ({
-                        ...current,
-                        [appointmentId]: event.target.value,
-                      }))}
-                    >
-                      <option value="not_called">Chưa gọi</option>
-                      <option value="confirmed_call">Đã gọi - xác nhận</option>
-                      <option value="no_answer">Không nghe máy</option>
-                      <option value="callback">Cần gọi lại</option>
-                      <option value="reschedule_requested">Muốn dời lịch</option>
-                    </select>
-                  </td>
-                ) : null}
-                {mode === 'cancelled' ? (
-                  <td>{item.cancel_reason || item.reason || 'Xem chi tiết'}</td>
-                ) : null}
-                <td>
-                  <div className="reception-row-actions">
-                    <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onOpenDetail(item)}>
-                      <Eye size={15} />
-                      <span>Xem</span>
-                    </button>
-                    <div className={`reception-action-menu ${activeActions === appointmentId ? 'is-open' : ''}`}>
-                      <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onOpenActions(item)}>
-                        {isBusy ? <Loader2 size={15} /> : <MoreHorizontal size={15} />}
-                        <span>Thao tác</span>
-                      </button>
-                      {activeActions === appointmentId ? (
-                        <div className="reception-action-menu__list">
-                          <ActionButton
-                            disabled={item.status !== 'booked'}
-                            onClick={() => onAction('confirm', item)}
-                            label="Xác nhận"
-                          />
-                          <ActionButton
-                            disabled={!cap.can_check_in}
-                            title={cap.reasons?.join(' ') || 'Lịch chưa đủ điều kiện check-in'}
-                            onClick={() => onAction('check-in', item)}
-                            label="Check-in"
-                          />
-                          <ActionButton
-                            disabled={!cap.can_reschedule}
-                            title={cap.reasons?.join(' ') || 'Lịch không thể dời'}
-                            onClick={() => onAction('reschedule', item)}
-                            label="Dời lịch"
-                          />
-                          <ActionButton
-                            disabled={!cap.can_cancel}
-                            title={cap.reasons?.join(' ') || 'Lịch không thể hủy'}
-                            onClick={() => onAction('cancel', item)}
-                            label="Hủy"
-                          />
-                          <ActionButton
-                            disabled={!['booked', 'confirmed'].includes(item.status)}
-                            onClick={() => onAction('no-show', item)}
-                            label="No-show"
-                          />
-                        </div>
-                      ) : null}
-                    </div>
+        return (
+          <article key={appointmentId} className={`reception-appointment-row ${mode === 'confirm' ? 'has-contact' : ''} ${isLateAppointment(item) ? 'is-late' : ''}`}>
+            <label className="reception-appointment-row__check">
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(appointmentId)}
+                onChange={() => onToggleSelected(appointmentId)}
+                aria-label={`Chọn lịch ${appointmentId}`}
+              />
+            </label>
+
+            <div className="reception-appointment-row__time">
+              <strong>{formatTime(item.appointment_time)}</strong>
+              <span>{formatDate(item.appointment_time)}</span>
+              {isLateAppointment(item) ? <em className="reception-late-note">Trễ giờ</em> : null}
+            </div>
+
+            <div className="reception-appointment-row__main">
+              <div className="reception-appointment-row__title">
+                <button type="button" className="reception-inline-link" onClick={() => onOpenDetail(item)}>
+                  {item.patient_name || 'Bệnh nhân'}
+                </button>
+                <StatusBadge status={item.status} />
+              </div>
+              <div className="reception-appointment-row__meta">
+                <span>{item.doctor_name || '--'}</span>
+                <span>{item.department_name || '--'}</span>
+                <span>{getTypeLabel(item.appointment_type)}</span>
+              </div>
+              <div className="reception-appointment-row__submeta">
+                <span className="reception-phone-cell">
+                  <Phone size={14} />
+                  {item.patient_phone || '--'}
+                </span>
+                <span>Mã lịch {appointmentId.slice(-8).toUpperCase()}</span>
+              </div>
+              {mode === 'cancelled' ? (
+                <p className="reception-appointment-row__note">{item.cancel_reason || item.reason || 'Xem chi tiết lý do hủy'}</p>
+              ) : null}
+            </div>
+
+            {mode === 'confirm' ? (
+              <select
+                className="reception-contact-select reception-appointment-row__contact"
+                value={contactStatus[appointmentId] || 'not_called'}
+                onChange={(event) => onContactStatus((current) => ({
+                  ...current,
+                  [appointmentId]: event.target.value,
+                }))}
+              >
+                <option value="not_called">Chưa gọi</option>
+                <option value="confirmed_call">Đã gọi - xác nhận</option>
+                <option value="no_answer">Không nghe máy</option>
+                <option value="callback">Cần gọi lại</option>
+                <option value="reschedule_requested">Muốn dời lịch</option>
+              </select>
+            ) : null}
+
+            <div className="reception-row-actions reception-appointment-row__actions">
+              <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onOpenDetail(item)}>
+                <Eye size={15} />
+                <span>Xem</span>
+              </button>
+              <div className={`reception-action-menu ${activeActions === appointmentId ? 'is-open' : ''}`}>
+                <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onOpenActions(item)}>
+                  {isBusy ? <Loader2 size={15} /> : <MoreHorizontal size={15} />}
+                  <span>Thao tác</span>
+                </button>
+                {activeActions === appointmentId ? (
+                  <div className="reception-action-menu__list">
+                    <ActionButton
+                      disabled={item.status !== 'booked'}
+                      onClick={() => onAction('confirm', item)}
+                      label="Xác nhận"
+                    />
+                    <ActionButton
+                      disabled={!cap.can_check_in}
+                      title={cap.reasons?.join(' ') || 'Lịch chưa đủ điều kiện check-in'}
+                      onClick={() => onAction('check-in', item)}
+                      label="Check-in"
+                    />
+                    <ActionButton
+                      disabled={!cap.can_reschedule}
+                      title={cap.reasons?.join(' ') || 'Lịch không thể dời'}
+                      onClick={() => onAction('reschedule', item)}
+                      label="Dời lịch"
+                    />
+                    <ActionButton
+                      disabled={!cap.can_cancel}
+                      title={cap.reasons?.join(' ') || 'Lịch không thể hủy'}
+                      onClick={() => onAction('cancel', item)}
+                      label="Hủy"
+                    />
+                    <ActionButton
+                      disabled={!['booked', 'confirmed'].includes(item.status)}
+                      onClick={() => onAction('no-show', item)}
+                      label="No-show"
+                    />
                   </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                ) : null}
+              </div>
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -1151,17 +1234,19 @@ function CreateAppointmentPanel({ onNavigate }) {
     }));
   }
 
-  async function searchPatients(event) {
+  async function searchPatients(event, queryOverride) {
     event?.preventDefault?.();
-    if (!patientQuery.trim()) {
-      setPatientState({ loading: false, error: 'Vui lòng nhập tên, SĐT hoặc mã bệnh nhân.', items: [] });
+    const query = queryOverride ?? patientQuery;
+
+    if (!query.trim()) {
+      setPatientState({ loading: false, error: '', items: [] });
       return;
     }
 
     setPatientState({ loading: true, error: '', items: [] });
     try {
       const data = await receptionAppointmentsApi.searchPatients({
-        search: patientQuery.trim(),
+        search: query.trim(),
         limit: 10,
       });
       setPatientState({
@@ -1177,6 +1262,20 @@ function CreateAppointmentPanel({ onNavigate }) {
       });
     }
   }
+
+  useEffect(() => {
+    const query = patientQuery.trim();
+    if (!query) {
+      setPatientState({ loading: false, error: '', items: [] });
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      searchPatients(null, query);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [patientQuery]);
 
   async function runValidation() {
     if (!selectedPatient || !form.department_id || !form.doctor_id || !appointmentDateTime) {

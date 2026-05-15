@@ -87,6 +87,14 @@ export const receptionAppointmentsApi = {
   checkDoctorConflict: (body) => request('/appointments/check-doctor-conflict', { method: 'POST', body }),
   checkPatientConflict: (body) => request('/appointments/check-patient-conflict', { method: 'POST', body }),
   searchPatients: (params) => request('/patients/search', { params }),
+  listPatients: (params) => request('/patients', { params }),
+  createPatient: (body) => request('/patients', { method: 'POST', body }),
+  getPatientDetail: (patientId) => request(`/patients/${encodeURIComponent(patientId)}`),
+  getPatientSummary: (patientId) => request(`/patients/${encodeURIComponent(patientId)}/summary`),
+  getPatientTimeline: (patientId, params) =>
+    request(`/patients/${encodeURIComponent(patientId)}/timeline`, { params }),
+  getPatientAppointments: (patientId, params) =>
+    request(`/patients/${encodeURIComponent(patientId)}/appointments`, { params }),
   listDepartments: (params) => request('/departments/active', { params, auth: false }),
   listDoctors: (params) => request('/staff/doctors', { params }),
 };
