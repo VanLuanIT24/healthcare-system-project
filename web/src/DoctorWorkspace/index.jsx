@@ -9,6 +9,7 @@ import { DoctorWeekScheduleScreen } from './DoctorWeekScheduleScreen'
 import { DoctorTodayAppointmentsScreen } from './DoctorTodayAppointmentsScreen'
 import { DoctorUpcomingAppointmentsScreen } from './DoctorUpcomingAppointmentsScreen'
 import { DoctorAllAppointmentsScreen } from './DoctorAllAppointmentsScreen'
+import { DoctorScheduleDetailScreen } from './DoctorScheduleDetailScreen'
 import { DoctorQueueBoardScreen } from './DoctorQueueBoardScreen'
 import { DoctorQueueCallingScreen } from './DoctorQueueCallingScreen'
 import { DoctorQueueHistoryScreen } from './DoctorQueueHistoryScreen'
@@ -282,6 +283,7 @@ export default function DoctorWorkspace() {
             <Route path="schedules/today" element={<DoctorTodayScheduleScreen user={user} />} />
             <Route path="schedules/week" element={<DoctorWeekScheduleScreen user={user} />} />
             <Route path="schedules/empty" element={<DoctorEmptyScheduleScreen user={user} />} />
+            <Route path="schedules/:scheduleId" element={<DoctorScheduleDetailScreen user={user} />} />
             <Route path="appointments" element={isUpcomingAppointments ? <DoctorUpcomingAppointmentsScreen user={user} /> : isTodayAppointments ? <DoctorTodayAppointmentsScreen user={user} /> : <DoctorAllAppointmentsScreen user={user} />} />
             <Route path="queue" element={isQueueHistory ? <DoctorQueueHistoryScreen user={user} /> : isQueueCalling ? <DoctorQueueCallingScreen user={user} /> : <DoctorQueueBoardScreen user={user} />} />
             <Route path="encounters" element={<DoctorTodayEncountersScreen user={user} view={encounterView} />} />
