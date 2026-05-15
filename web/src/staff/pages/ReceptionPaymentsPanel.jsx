@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Banknote,
   CalendarDays,
@@ -19,6 +19,7 @@ import {
   WalletCards,
   XCircle,
 } from 'lucide-react';
+import { receptionDataApi } from '../api/receptionDataApi';
 
 const INVOICES = [
   { id: 'INV-2026-0500148', patient: 'Nguyễn Thu Hà', meta: '1992 · Nữ', created: '14/05/2026 09:15', due: '21/05/2026', total: 2450000, paid: 0, remain: 2450000, status: 'pending', method: '--' },
@@ -114,6 +115,91 @@ const PAYMENT_CONFIG = {
 
 function formatMoney(value) {
   return `${Number(value || 0).toLocaleString('vi-VN')} đ`;
+}
+
+function formatDateTime(value) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return `${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function formatDate(value) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleDateString('vi-VN');
+}
+
+function getPatientName(value) {
+  if (!value) return 'Bệnh nhân';
+  if (typeof value === 'string') return value;
+  return value.full_name || value.patient_name || value.name || value.patient_code || 'Bệnh nhân';
+}
+
+function getPatientMeta(value) {
+  if (!value || typeof value === 'string') return '--';
+  return value.patient_code || value.code || '--';
+}
+
+function mapInvoiceStatus(status, balanceDue = 0, paidAmount = 0) {
+  if (status === 'paid') return 'paid';
+  if (status === 'partially_paid' || paidAmount > 0) return 'partial';
+  if (status === 'overdue') return 'overdue';
+  if (balanceDue <= 0 && paidAmount > 0) return 'paid';
+  return 'pending';
+}
+
+function mapPaymentMethod(method) {
+  const value = String(method || '').toLowerCase();
+  if (value === 'cash') return 'Tiền mặt';
+  if (value === 'bank_transfer' || value === 'transfer') return 'Chuyển khoản';
+  if (value === 'card' || value === 'credit_card') return 'Thẻ tín dụng';
+  if (value === 'atm') return 'Thẻ ATM';
+  return method || '--';
+}
+
+function mapPaymentMethodToApi(method) {
+  if (method === 'Tiền mặt') return 'cash';
+  if (method === 'Chuyển khoản') return 'bank_transfer';
+  if (method === 'Thẻ ATM' || method === 'Thẻ tín dụng') return 'card';
+  return 'other';
+}
+
+function normalizeInvoice(item) {
+  const total = Number(item.total_amount ?? item.total ?? 0);
+  const paid = Number(item.paid_amount ?? item.paid ?? 0);
+  const remain = Number(item.balance_due ?? Math.max(total - paid, 0));
+  return {
+    rawId: item._id || item.id || item.invoice_id || '',
+    id: item.invoice_no || item.invoice_code || item.code || item._id || item.id || '--',
+    patient: getPatientName(item.patient_id || item.patient),
+    meta: getPatientMeta(item.patient_id || item.patient),
+    created: formatDateTime(item.issued_at || item.created_at),
+    due: formatDate(item.due_date || item.payment_due_date || item.issued_at || item.created_at),
+    total,
+    paid,
+    remain,
+    status: mapInvoiceStatus(item.status, remain, paid),
+    method: item.payment_method ? mapPaymentMethod(item.payment_method) : '--',
+  };
+}
+
+function normalizePayment(item) {
+  const invoice = item.invoice_id || item.invoice || {};
+  return {
+    rawId: item._id || item.id || item.payment_id || '',
+    id: item.payment_no || item.payment_code || item._id || item.id || '--',
+    invoice: invoice.invoice_no || invoice.invoice_code || invoice._id || item.invoice_no || '--',
+    patient: getPatientName(item.patient_id || item.patient),
+    meta: getPatientMeta(item.patient_id || item.patient),
+    date: formatDateTime(item.paid_at || item.created_at),
+    amount: Number(item.amount || 0),
+    method: mapPaymentMethod(item.payment_method),
+    cashier: item.received_by?.full_name || item.created_by?.full_name || '--',
+    status: item.status || 'completed',
+    reason: item.refund_reason || item.void_reason || '--',
+  };
 }
 
 function getDatePart(value) {
@@ -303,7 +389,7 @@ function SideGuide({ mode }) {
   );
 }
 
-function InvoiceTable({ rows = INVOICES, onCreatePayment }) {
+function InvoiceTable({ rows = [], onCreatePayment }) {
   return (
     <section className="reception-panel reception-payment-table-panel">
       <table className="reception-payment-table">
@@ -336,12 +422,12 @@ function InvoiceTable({ rows = INVOICES, onCreatePayment }) {
           ))}
         </tbody>
       </table>
-      <TableFooter total={rows.length === INVOICES.length ? '486' : rows.length} />
+      <TableFooter total={rows.length} />
     </section>
   );
 }
 
-function PaymentTable({ rows = PAYMENTS }) {
+function PaymentTable({ rows = [] }) {
   return (
     <section className="reception-panel reception-payment-table-panel">
       <table className="reception-payment-table">
@@ -379,7 +465,7 @@ function PaymentTable({ rows = PAYMENTS }) {
   );
 }
 
-function RefundTable({ rows = REFUNDS }) {
+function RefundTable({ rows = [] }) {
   return (
     <section className="reception-panel reception-payment-table-panel">
       <table className="reception-payment-table">
@@ -541,7 +627,7 @@ function CompletePage({ payments }) {
   );
 }
 
-function RefundPage() {
+function RefundPage({ refunds }) {
   const [active, setActive] = useState('all');
   const [filters, setFilters] = useState({
     query: '',
@@ -551,7 +637,7 @@ function RefundPage() {
   });
   const rows = useMemo(() => {
     const keyword = filters.query.trim().toLowerCase();
-    return REFUNDS.filter((item) => {
+    return refunds.filter((item) => {
       const matchesTab = active === 'all' || item.status === active;
       const matchesKeyword = !keyword
         || item.id.toLowerCase().includes(keyword)
@@ -561,16 +647,16 @@ function RefundPage() {
       const matchesDate = isDateInRange(item.date, filters.from, filters.to);
       return matchesTab && matchesKeyword && matchesReason && matchesDate;
     });
-  }, [active, filters]);
+  }, [active, filters, refunds]);
 
   return (
     <>
       <PaymentHero mode="payments-refund" />
       <section className="reception-payment-kpi-grid">
-        <KpiCard icon={RefreshCw} label="Yêu cầu đang xử lý" value="24" subtitle="5 yêu cầu mới hôm nay" />
-        <KpiCard icon={CheckCircle2} label="Đã hoàn tiền" value="182" subtitle="1.245.780.000 đ" tone="success" />
-        <KpiCard icon={XCircle} label="Đã hủy" value="16" subtitle="138.600.000 đ" tone="danger" />
-        <KpiCard icon={WalletCards} label="Tổng tiền hoàn" value="1.384.380.000 đ" subtitle="Trong khoảng đã chọn" tone="warning" />
+        <KpiCard icon={RefreshCw} label="Yêu cầu đang xử lý" value={refunds.filter((item) => item.status === 'processing').length} subtitle="Theo dữ liệu hệ thống" />
+        <KpiCard icon={CheckCircle2} label="Đã hoàn tiền" value={refunds.filter((item) => item.status === 'refunded').length} subtitle={formatMoney(refunds.filter((item) => item.status === 'refunded').reduce((sum, item) => sum + item.amount, 0))} tone="success" />
+        <KpiCard icon={XCircle} label="Đã hủy" value={refunds.filter((item) => item.status === 'cancelled').length} subtitle="Theo dữ liệu hệ thống" tone="danger" />
+        <KpiCard icon={WalletCards} label="Tổng tiền hoàn" value={formatMoney(refunds.reduce((sum, item) => sum + item.amount, 0))} subtitle="Trong khoảng đã chọn" tone="warning" />
       </section>
       <Tabs active={active} setActive={setActive} items={[
         { key: 'all', label: 'Tất cả' },
@@ -699,49 +785,90 @@ function CreatePaymentModal({ invoices, invoiceId, onClose, onSubmit }) {
 }
 
 export function ReceptionPaymentsPanel({ mode = 'payments-collect' }) {
-  const [invoices, setInvoices] = useState(INVOICES);
-  const [payments, setPayments] = useState(PAYMENTS);
+  const [invoices, setInvoices] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [loadState, setLoadState] = useState({ loading: false, error: '' });
   const [paymentModal, setPaymentModal] = useState({ open: false, invoiceId: '' });
+
+  async function loadBillingData() {
+    setLoadState({ loading: true, error: '' });
+    try {
+      const [invoiceData, paymentData] = await Promise.all([
+        receptionDataApi.listInvoices({ limit: 100 }),
+        receptionDataApi.listPayments({ limit: 100 }),
+      ]);
+      setInvoices((invoiceData?.items || []).map(normalizeInvoice));
+      setPayments((paymentData?.items || []).map(normalizePayment));
+      setLoadState({ loading: false, error: '' });
+    } catch (error) {
+      setLoadState({
+        loading: false,
+        error: error?.payload?.message || error?.message || 'Không tải được dữ liệu thanh toán.',
+      });
+    }
+  }
+
+  useEffect(() => {
+    loadBillingData();
+  }, []);
 
   function openPaymentModal(invoice) {
     setPaymentModal({ open: true, invoiceId: invoice?.id || '' });
   }
 
-  function handleCreatePayment(payload) {
-    const paymentId = `PAY-2026-${String(5679 + payments.length).padStart(6, '0')}`;
-    const nextPayment = {
-      id: paymentId,
-      invoice: payload.invoice.id,
-      patient: payload.invoice.patient,
-      meta: payload.invoice.meta,
-      date: getNowLabel(),
-      amount: payload.amount,
-      method: payload.method,
-      cashier: payload.cashier,
-    };
-
-    setPayments((current) => [nextPayment, ...current]);
-    setInvoices((current) => current.map((invoice) => {
-      if (invoice.id !== payload.invoice.id) return invoice;
-      const paid = invoice.paid + payload.amount;
-      const remain = Math.max(invoice.total - paid, 0);
-      return {
-        ...invoice,
-        paid,
-        remain,
-        method: payload.method,
-        status: remain === 0 ? 'paid' : 'partial',
-      };
-    }));
-    setPaymentModal({ open: false, invoiceId: '' });
+  async function handleCreatePayment(payload) {
+    if (!payload.invoice.rawId) return;
+    setLoadState({ loading: true, error: '' });
+    try {
+      await receptionDataApi.createPayment(payload.invoice.rawId, {
+        amount: payload.amount,
+        payment_method: mapPaymentMethodToApi(payload.method),
+        note: payload.note,
+      });
+      setPaymentModal({ open: false, invoiceId: '' });
+      await loadBillingData();
+    } catch (error) {
+      setLoadState({
+        loading: false,
+        error: error?.payload?.message || error?.message || 'Không tạo được thanh toán.',
+      });
+    }
   }
+
+  const refunds = useMemo(() => (
+    payments
+      .filter((item) => ['refunded', 'voided', 'cancelled'].includes(item.status))
+      .map((item) => ({
+        id: item.id,
+        invoice: item.invoice,
+        patient: item.patient,
+        meta: item.meta,
+        date: item.date,
+        amount: item.amount,
+        reason: item.reason || 'Hoàn tiền thanh toán',
+        status: item.status === 'voided' ? 'cancelled' : item.status,
+        handler: item.cashier,
+      }))
+  ), [payments]);
 
   return (
     <div className="reception-payment-page">
+      {loadState.error ? (
+        <div className="reception-appointment-alert is-danger">
+          <XCircle size={18} />
+          <span>{loadState.error}</span>
+        </div>
+      ) : null}
+      {loadState.loading ? (
+        <div className="reception-appointment-loading reception-appointment-loading--inline">
+          <Clock3 size={18} />
+          <span>Đang tải dữ liệu thanh toán...</span>
+        </div>
+      ) : null}
       <div className="reception-payment-layout">
         <main className="reception-payment-content">
           {mode === 'payments-complete' ? <CompletePage payments={payments} /> : null}
-          {mode === 'payments-refund' ? <RefundPage /> : null}
+          {mode === 'payments-refund' ? <RefundPage refunds={refunds} /> : null}
           {mode === 'payments-collect' || mode === 'payments-pending' ? (
             <CollectPage mode={mode} invoices={invoices} onCreatePayment={openPaymentModal} />
           ) : null}

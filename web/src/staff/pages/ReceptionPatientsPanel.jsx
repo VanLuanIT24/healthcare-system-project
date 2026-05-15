@@ -138,6 +138,14 @@ function formatInteger(value) {
   return new Intl.NumberFormat('vi-VN').format(value || 0);
 }
 
+function getPaginationTotal(data, fallback = 0) {
+  return Number(data?.pagination?.total ?? data?.total ?? fallback) || 0;
+}
+
+function formatDateParam(date) {
+  return date.toISOString().slice(0, 10);
+}
+
 function calculateAge(value) {
   if (!value) return null;
   const birthDate = new Date(value);
@@ -195,7 +203,32 @@ function PatientMetricCard({ icon: Icon, label, value, note, tone = 'blue' }) {
   );
 }
 
-function PatientMetrics({ mode, total }) {
+function PatientMetrics({ mode, stats = {} }) {
+  const total = stats.total || 0;
+  const active = stats.active || 0;
+  const needsReview = stats.needsReview || 0;
+  const bookableRate = total > 0 ? Math.round((active / total) * 1000) / 10 : 0;
+  if (mode === 'priority') {
+    return (
+      <div className="reception-patient-metrics reception-patient-metrics--five">
+        <PatientMetricCard icon={Crown} label="Tong benh nhan uu tien" value={formatInteger(stats.priorityTotal || 0)} note="Theo bo loc hien tai" />
+        <PatientMetricCard icon={CalendarDays} label="Lich hen hom nay" value={formatInteger(stats.todayAppointments || 0)} note="Tu API lich hen" tone="green" />
+        <PatientMetricCard icon={Bell} label="Can theo doi" value={formatInteger(needsReview)} note="Ho so thieu SDT hoac tam khoa" tone="orange" />
+        <PatientMetricCard icon={CalendarDays} label="Co the dat lich" value={formatInteger(active)} note={`${bookableRate}% trong tong so`} tone="purple" />
+        <PatientMetricCard icon={ClockIcon} label="Cho xac nhan" value="0" note="Chua co API xac nhan rieng" tone="blue" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="reception-patient-metrics">
+      <PatientMetricCard icon={UserPlus} label="Tong so benh nhan" value={formatInteger(total)} note="Tu API danh sach benh nhan" />
+      <PatientMetricCard icon={UserPlus} label="Benh nhan moi thang nay" value={formatInteger(stats.newThisMonth || 0)} note="Theo ngay tao ho so" tone="green" />
+      <PatientMetricCard icon={ShieldCheck} label="Trung thong tin can xu ly" value={formatInteger(stats.duplicates || 0)} note="Theo ket qua kiem tra trung" tone="orange" />
+      <PatientMetricCard icon={CalendarDays} label="Benh nhan co the dat lich" value={formatInteger(active)} note={`${bookableRate}% trong tong so`} tone="purple" />
+    </div>
+  );
+
   if (mode === 'priority') {
     return (
       <div className="reception-patient-metrics reception-patient-metrics--five">
@@ -337,7 +370,19 @@ function PatientFilterPanel({ query, setQuery, gender, setGender, status, setSta
   );
 }
 
-function PatientTable({ patients, mode, loading, selectedId, onSelect, onCreateAppointment }) {
+function PatientTable({
+  patients,
+  mode,
+  loading,
+  selectedId,
+  onSelect,
+  onCreateAppointment,
+  total = patients.length,
+  page = 1,
+  pageSize = 18,
+  onPageChange,
+  onPageSizeChange,
+}) {
   if (!patients.length) {
     return (
       <div className="reception-empty-panel">
@@ -348,6 +393,14 @@ function PatientTable({ patients, mode, loading, selectedId, onSelect, onCreateA
       </div>
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(Math.max(Number(page) || 1, 1), totalPages);
+  const startItem = total ? (currentPage - 1) * pageSize + 1 : 0;
+  const endItem = Math.min(total, startItem + patients.length - 1);
+  const visiblePages = Array.from(
+    new Set([1, currentPage - 1, currentPage, currentPage + 1, totalPages].filter((item) => item >= 1 && item <= totalPages)),
+  ).sort((a, b) => a - b);
 
   return (
     <section className="reception-panel reception-patient-table-panel">
@@ -439,20 +492,29 @@ function PatientTable({ patients, mode, loading, selectedId, onSelect, onCreateA
         </table>
       </div>
       <div className="reception-patient-table-footer">
-        <span>Hiển thị 1-{Math.min(10, patients.length)} trong tổng số {formatInteger(mode === 'priority' ? 2368 : Math.max(patients.length, 58742))} kết quả</span>
+        <span>Hiển thị {startItem}-{endItem} trong tổng số {formatInteger(total)} kết quả</span>
         <div className="reception-pagination">
-          <button type="button" disabled>{'<'}</button>
-          <button type="button" className="is-active">1</button>
-          <button type="button">2</button>
-          <button type="button">3</button>
-          <span>...</span>
-          <button type="button">{mode === 'priority' ? '237' : '5.875'}</button>
-          <button type="button">{'>'}</button>
+          <button type="button" disabled={currentPage <= 1 || loading} onClick={() => onPageChange?.(currentPage - 1)}>{'<'}</button>
+          {visiblePages.map((pageNumber, index) => (
+            <span key={pageNumber} className="reception-pagination__item">
+              {index > 0 && pageNumber - visiblePages[index - 1] > 1 ? <span>...</span> : null}
+              <button
+                type="button"
+                className={pageNumber === currentPage ? 'is-active' : ''}
+                disabled={loading}
+                onClick={() => onPageChange?.(pageNumber)}
+              >
+                {pageNumber}
+              </button>
+            </span>
+          ))}
+          <button type="button" disabled={currentPage >= totalPages || loading} onClick={() => onPageChange?.(currentPage + 1)}>{'>'}</button>
         </div>
-        <select>
-          <option>10 / trang</option>
-          <option>20 / trang</option>
-          <option>50 / trang</option>
+        <select value={pageSize} onChange={(event) => onPageSizeChange?.(Number(event.target.value))}>
+          <option value={10}>10 / trang</option>
+          <option value={18}>18 / trang</option>
+          <option value={20}>20 / trang</option>
+          <option value={50}>50 / trang</option>
         </select>
       </div>
     </section>
@@ -559,11 +621,11 @@ function PatientPriorityAside({ patient, onCreateAppointment }) {
 }
 
 function PatientSearchWorkspace(props) {
-  const { patients, loading, selectedId, onSelect, onCreateAppointment } = props;
+  const { patients, loading, selectedId, onSelect, onCreateAppointment, stats, page, pageSize, onPageChange, onPageSizeChange } = props;
 
   return (
     <main className="reception-patient-main">
-      <PatientMetrics mode="search" total={patients.length} />
+      <PatientMetrics mode="search" stats={stats} />
       <PatientFilterPanel {...props} mode="search" />
       <PatientTable
         patients={patients}
@@ -572,17 +634,22 @@ function PatientSearchWorkspace(props) {
         selectedId={selectedId}
         onSelect={onSelect}
         onCreateAppointment={onCreateAppointment}
+        total={stats?.total || patients.length}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
     </main>
   );
 }
 
 function PriorityPatientWorkspace(props) {
-  const { patients, loading, selectedId, onSelect, onCreateAppointment } = props;
+  const { patients, loading, selectedId, onSelect, onCreateAppointment, stats, page, pageSize, onPageChange, onPageSizeChange } = props;
 
   return (
     <main className="reception-patient-main">
-      <PatientMetrics mode="priority" total={patients.length} />
+      <PatientMetrics mode="priority" stats={stats} />
       <PatientFilterPanel {...props} mode="priority" />
       <PatientTable
         patients={patients}
@@ -591,6 +658,11 @@ function PriorityPatientWorkspace(props) {
         selectedId={selectedId}
         onSelect={onSelect}
         onCreateAppointment={onCreateAppointment}
+        total={stats?.priorityTotal || patients.length}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
     </main>
   );
@@ -1109,7 +1181,22 @@ export function ReceptionPatientsPanel({ mode = 'patients-search', onNavigate })
   const [gender, setGender] = useState('');
   const [status, setStatus] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [listState, setListState] = useState({ loading: false, error: '', items: [] });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(18);
+  const [listState, setListState] = useState({
+    loading: false,
+    error: '',
+    items: [],
+    stats: {
+      total: 0,
+      active: 0,
+      newThisMonth: 0,
+      duplicates: 0,
+      needsReview: 0,
+      priorityTotal: 0,
+      todayAppointments: 0,
+    },
+  });
   const [detailState, setDetailState] = useState({ loading: false, error: '', patient: null, summary: null, appointments: [] });
 
   const filteredPatients = useMemo(() => {
@@ -1131,13 +1218,18 @@ export function ReceptionPatientsPanel({ mode = 'patients-search', onNavigate })
   const selectedPatient = detailState.patient || filteredPatients[0] || null;
 
   useEffect(() => {
+    setPage(1);
+  }, [query, gender, status, priorityFilter, mode]);
+
+  useEffect(() => {
     if (isCreateMode) return undefined;
     const timeoutId = window.setTimeout(async () => {
       setListState((current) => ({ ...current, loading: true, error: '' }));
       try {
         const trimmed = query.trim();
         const params = {
-          limit: mode === 'patients-search' && trimmed ? 20 : 18,
+          page,
+          limit: pageSize,
           gender,
           status,
           sort_by: 'updated_at',
@@ -1146,22 +1238,59 @@ export function ReceptionPatientsPanel({ mode = 'patients-search', onNavigate })
         const data = trimmed
           ? await receptionAppointmentsApi.searchPatients({ ...params, search: trimmed })
           : await receptionAppointmentsApi.listPatients(params);
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const [newPatientsData, activePatientsData, todayAppointmentsData] = await Promise.all([
+          receptionAppointmentsApi.listPatients({
+            limit: 1,
+            created_from: formatDateParam(monthStart),
+            created_to: formatDateParam(now),
+          }).catch(() => null),
+          receptionAppointmentsApi.listPatients({ limit: 1, status: 'active' }).catch(() => null),
+          receptionAppointmentsApi.getTodayAppointments({ limit: 1 }).catch(() => null),
+        ]);
+        const items = safeArray(data?.items).map(normalizePatient);
+        const total = getPaginationTotal(data, items.length);
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (page > totalPages) {
+          setPage(totalPages);
+        }
+        const active = getPaginationTotal(activePatientsData, items.filter((patient) => patient.status === 'active').length);
+        const needsReview = items.filter((patient) => patient.status === 'archived' || !patient.phone || patient.phone === '--').length;
         setListState({
           loading: false,
           error: '',
-          items: safeArray(data?.items).map(normalizePatient),
+          items,
+          stats: {
+            total,
+            active,
+            newThisMonth: getPaginationTotal(newPatientsData, 0),
+            duplicates: 0,
+            needsReview,
+            priorityTotal: mode === 'patients-priority' ? items.length : 0,
+            todayAppointments: getPaginationTotal(todayAppointmentsData, 0),
+          },
         });
       } catch (error) {
         setListState({
           loading: false,
           error: getErrorMessage(error, 'Không tải được danh sách bệnh nhân.'),
           items: [],
+          stats: {
+            total: 0,
+            active: 0,
+            newThisMonth: 0,
+            duplicates: 0,
+            needsReview: 0,
+            priorityTotal: 0,
+            todayAppointments: 0,
+          },
         });
       }
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
-  }, [query, gender, status, mode, isCreateMode]);
+  }, [query, gender, status, mode, isCreateMode, page, pageSize]);
 
   async function openPatientDetail(patient) {
     if (!patient.patient_id) return;
@@ -1205,6 +1334,12 @@ export function ReceptionPatientsPanel({ mode = 'patients-search', onNavigate })
     setGender('');
     setStatus('');
     setPriorityFilter('all');
+    setPage(1);
+  }
+
+  function handlePageSizeChange(nextPageSize) {
+    setPageSize(nextPageSize);
+    setPage(1);
   }
 
   function closePatientRecord() {
@@ -1268,6 +1403,7 @@ export function ReceptionPatientsPanel({ mode = 'patients-search', onNavigate })
             <PatientSearchWorkspace
               patients={filteredPatients}
               loading={listState.loading}
+              stats={listState.stats}
               query={query}
               setQuery={setQuery}
               gender={gender}
@@ -1280,11 +1416,19 @@ export function ReceptionPatientsPanel({ mode = 'patients-search', onNavigate })
               onReset={resetFilters}
               onSelect={openPatientDetail}
               onCreateAppointment={handleCreateAppointment}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
             />
           ) : mode === 'patients-priority' ? (
             <PriorityPatientWorkspace
               patients={filteredPatients}
               loading={listState.loading}
+              stats={{
+                ...listState.stats,
+                priorityTotal: listState.stats.total || filteredPatients.length,
+              }}
               query={query}
               setQuery={setQuery}
               gender={gender}
@@ -1297,6 +1441,10 @@ export function ReceptionPatientsPanel({ mode = 'patients-search', onNavigate })
               onReset={resetFilters}
               onSelect={openPatientDetail}
               onCreateAppointment={handleCreateAppointment}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
             />
           ) : (
             <PatientRecordWorkspace

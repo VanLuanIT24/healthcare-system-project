@@ -26,6 +26,7 @@ import {
   Upload,
   User,
 } from 'lucide-react';
+import { receptionDataApi } from '../api/receptionDataApi';
 
 const SETTINGS_CONFIG = {
   'settings-account': {
@@ -151,6 +152,69 @@ function readFileAsDataUrl(file, callback) {
   reader.readAsDataURL(file);
 }
 
+const UI_SETTING_KEYS = ['reception.ui', 'reception.ui_settings', 'dashboard.reception_ui', 'settings.ui'];
+const SYSTEM_SETTING_KEYS = ['reception.system', 'reception.system_settings', 'dashboard.reception_system', 'settings.system'];
+
+function flattenGroupedSettings(payload = {}) {
+  const grouped = payload.grouped || payload || {};
+  return Object.values(grouped).reduce((acc, group) => {
+    if (group && typeof group === 'object') {
+      Object.entries(group).forEach(([key, value]) => {
+        acc[key] = value;
+      });
+    }
+    return acc;
+  }, {});
+}
+
+function readSettingValue(setting) {
+  if (!setting || typeof setting !== 'object') return setting;
+  return setting.setting_value ?? setting.default_value;
+}
+
+function findSettingRecord(settingMap, keys) {
+  const key = keys.find((candidate) => settingMap[candidate]);
+  if (!key) return { key: '', value: null };
+  return { key, value: readSettingValue(settingMap[key]) };
+}
+
+function formatSessionDetail(session = {}) {
+  const browser = session.browser || 'Browser';
+  const os = session.os || session.device_name || 'Device';
+  const lastUsed = session.last_used_at || session.created_at || '';
+  const time = lastUsed ? new Date(lastUsed).toLocaleString('vi-VN') : '';
+  return [browser, os, time].filter(Boolean).join(' - ');
+}
+
+function normalizeCurrentProfile(payload = {}) {
+  const profile = payload.profile || payload;
+  const user = profile.user || {};
+  const department = profile.department || {};
+  return {
+    name: user.full_name || user.username || DEFAULT_ACCOUNT_SETTINGS.profile.name,
+    email: user.email || '',
+    phone: user.phone || '',
+    role: (profile.roles || user.roles || [])[0] || DEFAULT_ACCOUNT_SETTINGS.profile.role,
+    department: department.department_name || department.name || DEFAULT_ACCOUNT_SETTINGS.profile.department,
+    avatar: DEFAULT_ACCOUNT_SETTINGS.profile.avatar,
+    username: user.username || 'receptionist',
+    status: user.status || 'active',
+    lastLogin: user.last_login_at || '',
+  };
+}
+
+function normalizeSessions(payload = {}) {
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  if (!items.length) return DEFAULT_ACCOUNT_SETTINGS.sessions;
+  return items.map((session) => ({
+    id: session.session_id,
+    device: session.device_name || session.os || session.browser || 'Thiáº¿t bá»‹',
+    detail: formatSessionDetail(session),
+    status: session.is_current ? 'Hiá»‡n táº¡i' : (session.is_active ? 'Äang hoáº¡t Ä‘á»™ng' : 'ÄÃ£ thu há»“i'),
+    current: Boolean(session.is_current),
+  }));
+}
+
 function Field({ label, children }) {
   return (
     <label className="reception-settings-field">
@@ -201,7 +265,7 @@ function TabButton({ active, icon: Icon, label, onClick }) {
   );
 }
 
-function AccountPage({ account, setAccount, onMessage }) {
+function AccountPage({ account, setAccount, onMessage, onChangePassword, onRevokeSession }) {
   const [tab, setTab] = useState('profile');
   const [password, setPassword] = useState({ current: '', next: '', confirm: '' });
   const profile = account.profile;
@@ -221,15 +285,21 @@ function AccountPage({ account, setAccount, onMessage }) {
     }));
   }
 
-  function removeSession(id) {
+  async function removeSession(id) {
     setAccount((current) => ({
       ...current,
       sessions: current.sessions.filter((session) => session.id !== id || session.current),
     }));
+    try {
+      await onRevokeSession(id);
+    } catch (error) {
+      onMessage(error.message || 'Khong the dang xuat phien da chon');
+      return;
+    }
     onMessage('Đã đăng xuất phiên đã chọn');
   }
 
-  function handlePasswordUpdate() {
+  async function handlePasswordUpdate() {
     if (!password.current || !password.next || !password.confirm) {
       onMessage('Vui lòng nhập đầy đủ thông tin mật khẩu');
       return;
@@ -240,6 +310,15 @@ function AccountPage({ account, setAccount, onMessage }) {
     }
     if (password.next !== password.confirm) {
       onMessage('Xác nhận mật khẩu chưa khớp');
+      return;
+    }
+    try {
+      await onChangePassword({
+        current_password: password.current,
+        new_password: password.next,
+      });
+    } catch (error) {
+      onMessage(error.message || 'Khong the cap nhat mat khau');
       return;
     }
     setPassword({ current: '', next: '', confirm: '' });
@@ -755,6 +834,8 @@ export function ReceptionSettingsPanel({ mode = 'settings-account' }) {
     backupLog: storedSettings.system?.backupLog || DEFAULT_SYSTEM_SETTINGS.backupLog,
   }));
   const [savedMessage, setSavedMessage] = useState('');
+  const [settingSource, setSettingSource] = useState({ uiKey: '', systemKey: '' });
+  const [settingsStatus, setSettingsStatus] = useState({ loading: false, error: '' });
 
   useEffect(() => {
     const root = document.documentElement;
@@ -765,25 +846,117 @@ export function ReceptionSettingsPanel({ mode = 'settings-account' }) {
     root.style.setProperty('--reception-font-scale', `${0.95 + (Number(uiSettings.fontSize) / 100) * 0.12}`);
   }, [uiSettings]);
 
+  useEffect(() => {
+    let active = true;
+    async function loadRemoteSettings() {
+      setSettingsStatus({ loading: true, error: '' });
+      try {
+        const [profilePayload, sessionsPayload, groupedPayload] = await Promise.all([
+          receptionDataApi.getMe().catch(() => null),
+          receptionDataApi.listMySessions().catch(() => null),
+          receptionDataApi.listSystemSettingsGrouped().catch(() => null),
+        ]);
+
+        if (!active) return;
+
+        if (profilePayload) {
+          setAccount((current) => ({
+            ...current,
+            profile: {
+              ...current.profile,
+              ...normalizeCurrentProfile(profilePayload),
+              avatar: current.profile.avatar,
+            },
+          }));
+        }
+
+        if (sessionsPayload) {
+          setAccount((current) => ({
+            ...current,
+            sessions: normalizeSessions(sessionsPayload),
+          }));
+        }
+
+        if (groupedPayload) {
+          const settingMap = flattenGroupedSettings(groupedPayload);
+          const uiRecord = findSettingRecord(settingMap, UI_SETTING_KEYS);
+          const systemRecord = findSettingRecord(settingMap, SYSTEM_SETTING_KEYS);
+
+          if (uiRecord.value && typeof uiRecord.value === 'object') {
+            setUiSettings((current) => ({ ...current, ...uiRecord.value }));
+          }
+          if (systemRecord.value && typeof systemRecord.value === 'object') {
+            setSystemSettings((current) => ({
+              ...current,
+              ...systemRecord.value,
+              integrations: {
+                ...current.integrations,
+                ...(systemRecord.value.integrations || {}),
+              },
+              backupLog: systemRecord.value.backupLog || current.backupLog,
+            }));
+          }
+          setSettingSource({ uiKey: uiRecord.key, systemKey: systemRecord.key });
+        }
+        setSettingsStatus({ loading: false, error: '' });
+      } catch (error) {
+        if (!active) return;
+        setSettingsStatus({ loading: false, error: error.message || 'Khong the tai cau hinh tu API' });
+      }
+    }
+
+    loadRemoteSettings();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function showMessage(message) {
     setSavedMessage(message);
     window.setTimeout(() => setSavedMessage(''), 1800);
   }
 
-  function handleSave() {
+  async function handleSave() {
     persistSettings({
       account,
       ui: uiSettings,
       system: systemSettings,
       savedAt: new Date().toISOString(),
     });
+    try {
+      if (resolvedMode === 'settings-account') {
+        await receptionDataApi.updateMe({
+          email: account.profile.email,
+          phone: account.profile.phone,
+        });
+      }
+      if (resolvedMode === 'settings-ui' && settingSource.uiKey) {
+        await receptionDataApi.updateSystemSetting(settingSource.uiKey, { setting_value: uiSettings });
+      }
+      if (resolvedMode === 'settings-system' && settingSource.systemKey) {
+        await receptionDataApi.updateSystemSetting(settingSource.systemKey, { setting_value: systemSettings });
+      }
+    } catch (error) {
+      showMessage(error.message || 'Khong the dong bo cau hinh len API');
+      return;
+    }
     showMessage('Đã lưu thay đổi');
   }
 
   return (
     <div className="reception-settings-page">
       <SettingsHero mode={resolvedMode} onSave={handleSave} savedMessage={savedMessage} />
-      {resolvedMode === 'settings-account' ? <AccountPage account={account} setAccount={setAccount} onMessage={showMessage} /> : null}
+      {settingsStatus.loading ? <div className="reception-inline-alert">Dang tai du lieu cau hinh tu API...</div> : null}
+      {settingsStatus.error ? <div className="reception-inline-alert is-warning">{settingsStatus.error}</div> : null}
+      {resolvedMode === 'settings-account' ? (
+        <AccountPage
+          account={account}
+          setAccount={setAccount}
+          onMessage={showMessage}
+          onChangePassword={(body) => receptionDataApi.changePassword(body)}
+          onRevokeSession={(sessionId) => receptionDataApi.revokeMySession(sessionId)}
+        />
+      ) : null}
       {resolvedMode === 'settings-ui' ? <UiPage settings={uiSettings} setSettings={setUiSettings} onMessage={showMessage} /> : null}
       {resolvedMode === 'settings-system' ? <SystemPage settings={systemSettings} setSettings={setSystemSettings} onMessage={showMessage} /> : null}
     </div>

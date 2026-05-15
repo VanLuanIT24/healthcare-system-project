@@ -2968,6 +2968,12 @@
   gap: 0.35rem;
 }
 
+.reception-pagination__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .reception-pagination button,
 .reception-patient-table-footer select {
   min-width: 36px;
@@ -2977,6 +2983,11 @@
   background: #ffffff;
   color: var(--reception-text);
   font-weight: 850;
+}
+
+.reception-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .reception-pagination button.is-active {

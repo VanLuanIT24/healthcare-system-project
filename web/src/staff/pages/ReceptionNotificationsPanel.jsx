@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Bell,
@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
+import { receptionDataApi } from '../api/receptionDataApi';
 
 const MODE_CONFIG = {
   'notifications-all': {
@@ -170,6 +171,45 @@ const INITIAL_NOTIFICATIONS = [
     details: ['Số tiền: 640.000đ', 'Phương thức: Chuyển khoản', 'Trạng thái: Thành công'],
   },
 ];
+
+function formatNotificationTime(value) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return `${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}, ${date.toLocaleDateString('vi-VN')}`;
+}
+
+function resolveNotificationCategory(item) {
+  const payloadType = item.payload?.entity_type || item.entity_type || '';
+  const type = String(item.notification_type || item.type || payloadType || '').toLowerCase();
+  if (type.includes('appointment') || payloadType === 'appointment') return 'appointment';
+  if (type.includes('payment') || type.includes('invoice') || payloadType === 'invoice') return 'payment';
+  return 'system';
+}
+
+function normalizeNotification(item) {
+  const category = resolveNotificationCategory(item);
+  const details = [];
+  if (item.payload?.entity_type) details.push(`Liên quan: ${item.payload.entity_type}`);
+  if (item.payload?.entity_id) details.push(`Mã liên quan: ${item.payload.entity_id}`);
+  if (item.channel) details.push(`Kênh: ${item.channel}`);
+
+  return {
+    rawId: item._id || item.id || item.notification_id || '',
+    id: item.notification_no || item.code || item._id || item.id || '--',
+    title: item.title || item.subject || 'Thông báo',
+    category,
+    description: item.message || item.description || item.content || 'Không có nội dung mô tả.',
+    time: formatNotificationTime(item.created_at || item.sent_at),
+    read: Boolean(item.read_at) || item.status === 'read',
+    priority: item.priority || 'normal',
+    patient: item.payload?.patient_name || item.patient_name || '',
+    related: item.payload?.entity_id || item.related || item.payload?.route || '--',
+    actionLabel: category === 'appointment' ? 'Xem lịch hẹn' : category === 'payment' ? 'Xem chi tiết hóa đơn' : 'Xem tài liệu',
+    group: item.payload?.group || item.notification_type || 'Hệ thống',
+    details: details.length ? details : [item.message || item.description || 'Không có nội dung bổ sung.'],
+  };
+}
 
 function StatusBadge({ read }) {
   return <span className={`reception-status-badge is-${read ? 'success' : 'info'}`}>{read ? 'Đã đọc' : 'Chưa đọc'}</span>;
@@ -521,25 +561,74 @@ function filterNotifications(items, mode, filters) {
 }
 
 export function ReceptionNotificationsPanel({ mode = 'notifications-all' }) {
-  const [items, setItems] = useState(INITIAL_NOTIFICATIONS);
+  const [items, setItems] = useState([]);
+  const [loadState, setLoadState] = useState({ loading: false, error: '' });
   const [filters, setFilters] = useState(baseFilters);
   const visibleItems = useMemo(() => filterNotifications(items, mode, filters), [filters, items, mode]);
   const [selectedId, setSelectedId] = useState(visibleItems[0]?.id || '');
   const selected = visibleItems.find((item) => item.id === selectedId) || visibleItems[0] || null;
 
-  function markRead(id) {
-    setItems((current) => current.map((item) => item.id === id ? { ...item, read: true } : item));
+  async function loadNotifications() {
+    setLoadState({ loading: true, error: '' });
+    try {
+      const data = await receptionDataApi.listNotifications({ limit: 100 });
+      setItems((data?.items || []).map(normalizeNotification));
+      setLoadState({ loading: false, error: '' });
+    } catch (error) {
+      setLoadState({
+        loading: false,
+        error: error?.payload?.message || error?.message || 'Không tải được thông báo.',
+      });
+    }
   }
 
-  function markAllRead() {
-    setItems((current) => current.map((item) => {
-      const inCurrentMode = filterNotifications([item], mode, { ...baseFilters(), tab: 'all' }).length > 0;
-      return inCurrentMode ? { ...item, read: true } : item;
-    }));
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  async function markRead(id) {
+    const item = items.find((entry) => entry.id === id);
+    if (!item?.rawId) return;
+    setItems((current) => current.map((entry) => entry.id === id ? { ...entry, read: true } : entry));
+    try {
+      await receptionDataApi.markNotificationRead(item.rawId);
+    } catch (error) {
+      setLoadState({
+        loading: false,
+        error: error?.payload?.message || error?.message || 'Không đánh dấu được thông báo.',
+      });
+      loadNotifications();
+    }
+  }
+
+  async function markAllRead() {
+    const currentIds = new Set(filterNotifications(items, mode, { ...baseFilters(), tab: 'all' }).map((item) => item.id));
+    setItems((current) => current.map((item) => currentIds.has(item.id) ? { ...item, read: true } : item));
+    try {
+      await receptionDataApi.markAllNotificationsRead();
+      await loadNotifications();
+    } catch (error) {
+      setLoadState({
+        loading: false,
+        error: error?.payload?.message || error?.message || 'Không đánh dấu được toàn bộ thông báo.',
+      });
+    }
   }
 
   return (
     <div className="reception-notification-page">
+      {loadState.error ? (
+        <div className="reception-appointment-alert is-danger">
+          <AlertTriangle size={18} />
+          <span>{loadState.error}</span>
+        </div>
+      ) : null}
+      {loadState.loading ? (
+        <div className="reception-appointment-loading reception-appointment-loading--inline">
+          <Bell size={18} />
+          <span>Đang tải thông báo...</span>
+        </div>
+      ) : null}
       <NotificationHero mode={mode} notifications={items} onMarkAllRead={markAllRead} />
       <div className="reception-notification-layout">
         <main className="reception-notification-main">
