@@ -1,0 +1,43 @@
+@charset "UTF-8";
+
+:root,
+.doctor-workspace-font-root,
+.doctor-workspace-font-root *,
+.doctor-shell,
+.doctor-shell *,
+.doctor-account-page,
+.doctor-account-page *,
+.hc-toast-viewport,
+.hc-toast-viewport * {
+  --doctor-font-family: "Times New Roman", Times, Georgia, serif;
+}
+
+.doctor-shell,
+.doctor-workspace-font-root,
+.doctor-workspace-font-root *,
+.doctor-account-page,
+.doctor-shell *,
+.doctor-account-page *,
+.hc-toast-viewport,
+.hc-toast-viewport * {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+}
+
+.doctor-workspace-font-root button,
+.doctor-workspace-font-root input,
+.doctor-workspace-font-root select,
+.doctor-workspace-font-root textarea,
+.doctor-shell button,
+.doctor-shell input,
+.doctor-shell select,
+.doctor-shell textarea,
+.doctor-account-page button,
+.doctor-account-page input,
+.doctor-account-page select,
+.doctor-account-page textarea,
+.hc-toast-viewport button,
+.hc-toast-viewport input,
+.hc-toast-viewport select,
+.hc-toast-viewport textarea {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+}

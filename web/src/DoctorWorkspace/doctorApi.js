@@ -3,10 +3,14 @@ import {
   clinicalAPI,
   dashboardAPI,
   encounterAPI,
+  labAPI,
+  notificationAPI,
   orderAPI,
   patientAPI,
   prescriptionAPI,
+  procedureAPI,
   queueAPI,
+  reportAPI,
   scheduleAPI,
   unwrapData,
 } from '../utils/api'
@@ -67,6 +71,8 @@ const permissionKeys = {
   diagnosesWrite: 'diagnoses.write',
   vitalsWrite: 'vitals.write',
   prescriptionsWrite: 'prescriptions.write',
+  ordersRead: 'orders.read',
+  ordersWrite: 'orders.write',
   medicationsRead: 'medications.read',
   queueManage: 'queue.manage',
 }
@@ -100,6 +106,8 @@ export function getDoctorCapabilities(user) {
     diagnosesWrite: hasPermission(user, permissionKeys.diagnosesWrite),
     vitalsWrite: hasPermission(user, permissionKeys.vitalsWrite),
     prescriptionsWrite: hasPermission(user, permissionKeys.prescriptionsWrite),
+    ordersRead: hasPermission(user, permissionKeys.ordersRead),
+    ordersWrite: hasPermission(user, permissionKeys.ordersWrite),
     medicationsRead: hasPermission(user, permissionKeys.medicationsRead),
     queueManage: hasPermission(user, permissionKeys.queueManage),
   }
@@ -112,6 +120,7 @@ export function getDoctorCapabilities(user) {
     canClinicalWrite:
       capabilities.consultationsWrite || capabilities.diagnosesWrite || capabilities.vitalsWrite,
     canPrescriptionWrite: capabilities.prescriptionsWrite,
+    canOrderActions: capabilities.ordersWrite,
   }
 }
 
@@ -124,6 +133,17 @@ function asArray(value) {
     return value.items
   }
 
+  return []
+}
+
+function asSlotArray(value) {
+  if (Array.isArray(value)) return value
+  if (Array.isArray(value?.slots)) return value.slots
+  if (Array.isArray(value?.available_slots)) return value.available_slots
+  if (Array.isArray(value?.availableSlots)) return value.availableSlots
+  if (Array.isArray(value?.booked_slots)) return value.booked_slots
+  if (Array.isArray(value?.bookedSlots)) return value.bookedSlots
+  if (Array.isArray(value?.items)) return value.items
   return []
 }
 
@@ -341,6 +361,94 @@ export function normalizePrescriptionItem(item = {}) {
   }
 }
 
+export function normalizeLabOrder(item = {}) {
+  const order = item.lab_order || item.order || item
+
+  return {
+    ...order,
+    lab_order_id: normalizeId(order?.lab_order_id, order?.order_id, order?.id, order?._id),
+    order_id: normalizeId(order?.order_id, order?.lab_order_id, order?.id, order?._id),
+    encounter_id: normalizeId(order?.encounter_id, order?.encounter?.encounter_id, order?.encounter?.id),
+    encounter_code: order?.encounter_code || order?.encounter?.encounter_code || '',
+    patient_id: normalizeId(order?.patient_id, order?.patient?.patient_id, order?.patient?.id),
+    patient_code: order?.patient_code || order?.patient?.patient_code || '',
+    patient_name: order?.patient_name || order?.patient?.full_name || order?.patient?.name || '',
+    patient_gender: order?.patient_gender || order?.patient?.gender || '',
+    patient_birth_year: order?.patient_birth_year || order?.patient?.birth_year || '',
+    test_name: order?.test_name || order?.service_name || order?.service?.service_name || order?.name || '',
+    test_type: order?.test_type || order?.category || order?.service?.category || '',
+    lab_room: order?.lab_room || order?.lab_room_name || order?.department_name || order?.room_name || '',
+    ordering_doctor_name: order?.ordering_doctor_name || order?.doctor_name || order?.doctor?.full_name || '',
+    status: order?.status || '',
+    ordered_at: order?.ordered_at || order?.created_at || order?.requested_at || '',
+    created_at: order?.created_at || order?.ordered_at || '',
+    updated_at: order?.updated_at || '',
+  }
+}
+
+export function normalizeLabResult(item = {}) {
+  const result = item.lab_result || item.result || item
+
+  return {
+    ...result,
+    result_id: normalizeId(result?.result_id, result?.lab_result_id, result?.id, result?._id),
+    lab_order_id: normalizeId(result?.lab_order_id, result?.order_id, result?.order?.lab_order_id, result?.order?.id),
+    encounter_id: normalizeId(result?.encounter_id, result?.encounter?.encounter_id, result?.encounter?.id),
+    encounter_code: result?.encounter_code || result?.encounter?.encounter_code || '',
+    patient_id: normalizeId(result?.patient_id, result?.patient?.patient_id, result?.patient?.id),
+    patient_code: result?.patient_code || result?.patient?.patient_code || '',
+    patient_name: result?.patient_name || result?.patient?.full_name || result?.patient?.name || '',
+    patient_gender: result?.patient_gender || result?.patient?.gender || '',
+    patient_birth_year: result?.patient_birth_year || result?.patient?.birth_year || '',
+    test_name: result?.test_name || result?.service_name || result?.analyte_name || result?.name || '',
+    test_type: result?.test_type || result?.category || '',
+    result_value: result?.result_value ?? result?.value ?? result?.display_value ?? '',
+    unit: result?.unit || result?.result_unit || '',
+    reference_range: result?.reference_range || result?.normal_range || '',
+    lab_room: result?.lab_room || result?.lab_room_name || result?.department_name || result?.room_name || '',
+    status: result?.status || '',
+    is_abnormal: Boolean(result?.is_abnormal || result?.abnormal || result?.flag === 'abnormal'),
+    is_critical: Boolean(result?.is_critical || result?.critical || result?.flag === 'critical'),
+    acknowledged_at: result?.acknowledged_at || result?.critical_acknowledged_at || '',
+    resulted_at: result?.resulted_at || result?.completed_at || result?.created_at || '',
+    created_at: result?.created_at || result?.resulted_at || '',
+    updated_at: result?.updated_at || '',
+  }
+}
+
+export function normalizeProcedureOrder(item = {}) {
+  const order = item.procedure_order || item.order || item
+
+  return {
+    ...order,
+    procedure_order_id: normalizeId(order?.procedure_order_id, order?.order_id, order?.id, order?._id),
+    order_id: normalizeId(order?.order_id, order?.procedure_order_id, order?.id, order?._id),
+    encounter_id: normalizeId(order?.encounter_id, order?.encounter?.encounter_id, order?.encounter?.id),
+    encounter_code: order?.encounter_code || order?.encounter?.encounter_code || '',
+    patient_id: normalizeId(order?.patient_id, order?.patient?.patient_id, order?.patient?.id),
+    patient_code: order?.patient_code || order?.patient?.patient_code || '',
+    patient_name: order?.patient_name || order?.patient?.full_name || order?.patient?.name || '',
+    patient_gender: order?.patient_gender || order?.patient?.gender || '',
+    patient_age: order?.patient_age ?? order?.patient?.age ?? '',
+    procedure_name:
+      order?.procedure_name ||
+      order?.service_name ||
+      order?.service?.service_name ||
+      order?.name ||
+      order?.title ||
+      '',
+    procedure_room: order?.procedure_room || order?.procedure_room_name || order?.room_name || order?.department_name || '',
+    procedure_staff_name: order?.procedure_staff_name || order?.technician_name || order?.doctor_name || order?.doctor?.full_name || '',
+    priority: order?.priority || order?.urgency || '',
+    status: order?.status || '',
+    scheduled_at: order?.scheduled_at || order?.start_time || order?.created_at || order?.ordered_at || '',
+    started_at: order?.started_at || '',
+    completed_at: order?.completed_at || order?.end_time || '',
+    created_at: order?.created_at || order?.ordered_at || '',
+    updated_at: order?.updated_at || '',
+  }
+}
+
 export function normalizeOrder(item = {}) {
   const order = item.order || item
 
@@ -491,7 +599,19 @@ function normalizeBoard(payload = {}) {
     waiting: asArray(payload?.waiting).map(normalizeQueueTicket),
     called: asArray(payload?.called).map(normalizeQueueTicket),
     in_service: asArray(payload?.in_service).map(normalizeQueueTicket),
+    serving: asArray(payload?.serving).map(normalizeQueueTicket),
     completed: asArray(payload?.completed).map(normalizeQueueTicket),
+    skipped: asArray(payload?.skipped).map(normalizeQueueTicket),
+    cancelled: asArray(payload?.cancelled || payload?.canceled).map(normalizeQueueTicket),
+  }
+}
+
+function normalizeOrderActionResult(response = {}) {
+  return {
+    order: response?.order ? normalizeOrder(response.order) : response ? normalizeOrder(response) : null,
+    items: asArray(response?.items).map(normalizeOrderItem),
+    summary: response?.summary || null,
+    progress: response?.progress || null,
   }
 }
 
@@ -501,8 +621,10 @@ function groupQueueItems(items = []) {
   return {
     waiting: tickets.filter((item) => item.status === 'waiting'),
     called: tickets.filter((item) => ['called', 'recalled'].includes(item.status)),
-    in_service: tickets.filter((item) => item.status === 'in_service'),
-    completed: tickets.filter((item) => item.status === 'completed'),
+    in_service: tickets.filter((item) => ['in_service', 'serving', 'examining', 'in_progress'].includes(item.status)),
+    completed: tickets.filter((item) => ['completed', 'done', 'finished'].includes(item.status)),
+    skipped: tickets.filter((item) => ['skipped', 'skip'].includes(item.status)),
+    cancelled: tickets.filter((item) => ['cancelled', 'canceled'].includes(item.status)),
   }
 }
 
@@ -595,12 +717,20 @@ export const doctorApi = {
     getFutureAppointments: async (scheduleId) =>
       requestAndNormalize(scheduleAPI.futureAppointments(scheduleId), (payload) => payload || null),
     getSlots: async (scheduleId) =>
+      requestAndNormalize(scheduleAPI.slots(scheduleId), (payload) =>
+        asSlotArray(payload).map(normalizeSlot),
+      ),
+    getAvailableSlots: async (scheduleId) =>
       requestAndNormalize(scheduleAPI.availableSlots(scheduleId), (payload) =>
-        asArray(payload).map(normalizeSlot),
+        asSlotArray(payload).map(normalizeSlot),
       ),
     getBookedSlots: async (scheduleId) =>
       requestAndNormalize(scheduleAPI.getBookedSlots(scheduleId), (payload) =>
-        asArray(payload).map(normalizeSlot),
+        asSlotArray(payload).map(normalizeSlot),
+      ),
+    getBookedSlotsAlias: async (scheduleId) =>
+      requestAndNormalize(scheduleAPI.getBookedSlotsAlias(scheduleId), (payload) =>
+        asSlotArray(payload).map(normalizeSlot),
       ),
   },
   queue: {
@@ -613,10 +743,23 @@ export const doctorApi = {
       requestAndNormalize(queueAPI.timeline(ticketId), (payload) => asArray(payload?.items || payload)),
     getTodaySummary: async (params = {}) => requestAndNormalize(queueAPI.summaryToday(params), (payload) => payload || null),
     callNext: async (doctorId) => requestAndNormalize(queueAPI.callNext({ doctor_id: doctorId })),
+    call: async (ticketId) => requestAndNormalize(queueAPI.call(ticketId)),
     recall: async (ticketId) => requestAndNormalize(queueAPI.recall(ticketId)),
     skip: async (ticketId) => requestAndNormalize(queueAPI.skip(ticketId)),
     startService: async (ticketId) => requestAndNormalize(queueAPI.startService(ticketId)),
     complete: async (ticketId) => requestAndNormalize(queueAPI.complete(ticketId)),
+    cancel: async (ticketId) => requestAndNormalize(queueAPI.cancel(ticketId)),
+    transfer: async (ticketId, body = {}) => requestAndNormalize(queueAPI.transfer(ticketId, body)),
+  },
+  reports: {
+    doctors: async (params = {}) =>
+      requestAndNormalize(reportAPI.doctors(params), (payload) => payload || null),
+    appointments: async (params = {}) =>
+      requestAndNormalize(reportAPI.appointments(params), (payload) => payload || null),
+    encounters: async (params = {}) =>
+      requestAndNormalize(reportAPI.encounters(params), (payload) => payload || null),
+    queue: async (params = {}) =>
+      requestAndNormalize(reportAPI.queue(params), (payload) => payload || null),
   },
   appointments: {
     listAll: async (params = {}) =>
@@ -630,6 +773,18 @@ export const doctorApi = {
     listByDoctor: async (doctorId, params = {}) =>
       requestAndNormalize(appointmentAPI.listByDoctor(doctorId, withListLimit(params)), (payload) =>
         asArray(payload).map(normalizeAppointment),
+      ),
+    listToday: async (params = {}) =>
+      requestAndNormalize(appointmentAPI.listToday(withListLimit(params, 200)), (payload) =>
+        asArray(payload?.appointments || payload).map(normalizeAppointment),
+      ),
+    listUpcoming: async (params = {}) =>
+      requestAndNormalize(appointmentAPI.listUpcoming(withListLimit(params, 200)), (payload) =>
+        asArray(payload?.appointments || payload).map(normalizeAppointment),
+      ),
+    listByDate: async (params = {}) =>
+      requestAndNormalize(appointmentAPI.listByDate(withListLimit(params, 200)), (payload) =>
+        asArray(payload?.appointments || payload).map(normalizeAppointment),
       ),
     getDetail: async (appointmentId) =>
       requestAndNormalize(appointmentAPI.detail(appointmentId), normalizeAppointment),
@@ -657,8 +812,12 @@ export const doctorApi = {
       }
     },
     confirm: async (appointmentId) => requestAndNormalize(appointmentAPI.confirmAppointment(appointmentId)),
+    checkIn: async (appointmentId) => requestAndNormalize(appointmentAPI.checkIn(appointmentId)),
     noShow: async (appointmentId) => requestAndNormalize(appointmentAPI.markAppointmentNoShow(appointmentId)),
     complete: async (appointmentId) => requestAndNormalize(appointmentAPI.completeAppointment(appointmentId)),
+    createQueueTicket: async (appointmentId) => requestAndNormalize(appointmentAPI.createQueueTicket(appointmentId)),
+    createEncounter: async (appointmentId) => requestAndNormalize(appointmentAPI.createEncounter(appointmentId)),
+    linkEncounter: async (appointmentId, body = {}) => requestAndNormalize(appointmentAPI.linkEncounter(appointmentId, body)),
   },
   encounters: {
     listAll: async (params = {}) =>
@@ -714,6 +873,7 @@ export const doctorApi = {
     arrive: async (encounterId) => requestAndNormalize(encounterAPI.arrive(encounterId), normalizeEncounter),
     start: async (encounterId) => requestAndNormalize(encounterAPI.start(encounterId)),
     hold: async (encounterId) => requestAndNormalize(encounterAPI.hold(encounterId)),
+    resume: async (encounterId) => requestAndNormalize(encounterAPI.resume(encounterId)),
     complete: async (encounterId) => requestAndNormalize(encounterAPI.complete(encounterId)),
     cancel: async (encounterId) => requestAndNormalize(encounterAPI.cancel(encounterId), normalizeEncounter),
     reopen: async (encounterId) => requestAndNormalize(encounterAPI.reopen(encounterId), normalizeEncounter),
@@ -743,19 +903,70 @@ export const doctorApi = {
     getTimeline: async (orderId) =>
       requestAndNormalize(orderAPI.timeline(orderId), (payload) => asArray(payload?.items || payload)),
     createForEncounter: async (encounterId, payload) =>
-      requestAndNormalize(orderAPI.createForEncounter(encounterId, payload), (response) => ({
-        order: response?.order ? normalizeOrder(response.order) : null,
-        items: asArray(response?.items).map(normalizeOrderItem),
-        summary: response?.summary || null,
-        progress: response?.progress || null,
-      })),
+      requestAndNormalize(orderAPI.createForEncounter(encounterId, payload), normalizeOrderActionResult),
+    dispatch: async (orderId, payload = {}) =>
+      requestAndNormalize(orderAPI.dispatch(orderId, payload), normalizeOrderActionResult),
+    acknowledge: async (orderId, payload = {}) =>
+      requestAndNormalize(orderAPI.acknowledge(orderId, payload), normalizeOrderActionResult),
+    start: async (orderId, payload = {}) =>
+      requestAndNormalize(orderAPI.start(orderId, payload), normalizeOrderActionResult),
+    complete: async (orderId, payload = {}) =>
+      requestAndNormalize(orderAPI.complete(orderId, payload), normalizeOrderActionResult),
     cancel: async (orderId, payload = {}) =>
-      requestAndNormalize(orderAPI.cancel(orderId, payload), (response) => ({
-        order: response?.order ? normalizeOrder(response.order) : null,
-        items: asArray(response?.items).map(normalizeOrderItem),
-        summary: response?.summary || null,
-        progress: response?.progress || null,
+      requestAndNormalize(orderAPI.cancel(orderId, payload), normalizeOrderActionResult),
+  },
+  lab: {
+    listOrders: async (params = {}) =>
+      requestAndNormalize(labAPI.listOrders(withListLimit(params, 500)), (payload) => ({
+        items: asArray(payload).map(normalizeLabOrder),
+        pagination: payload?.pagination || null,
       })),
+    getOrder: async (labOrderId) => requestAndNormalize(labAPI.orderDetail(labOrderId), normalizeLabOrder),
+    listResults: async (params = {}) =>
+      requestAndNormalize(labAPI.listResults(withListLimit(params, 500)), (payload) => ({
+        items: asArray(payload).map(normalizeLabResult),
+        pagination: payload?.pagination || null,
+      })),
+    getResult: async (resultId) => requestAndNormalize(labAPI.resultDetail(resultId), normalizeLabResult),
+    listEncounterOrders: async (encounterId, params = {}) =>
+      requestAndNormalize(labAPI.encounterOrders(encounterId, withListLimit(params, 100)), (payload) =>
+        asArray(payload).map(normalizeLabOrder),
+      ),
+    listEncounterResults: async (encounterId, params = {}) =>
+      requestAndNormalize(labAPI.encounterResults(encounterId, withListLimit(params, 100)), (payload) =>
+        asArray(payload).map(normalizeLabResult),
+      ),
+    getEncounterSummary: async (encounterId) =>
+      requestAndNormalize(labAPI.encounterSummary(encounterId), (payload) => payload || null),
+    listPatientResults: async (patientId, params = {}) =>
+      requestAndNormalize(labAPI.patientResults(patientId, withListLimit(params, 100)), (payload) =>
+        asArray(payload).map(normalizeLabResult),
+      ),
+    acknowledgeCritical: async (resultId, payload = {}) =>
+      requestAndNormalize(labAPI.acknowledgeCritical(resultId, payload), normalizeLabResult),
+  },
+  procedures: {
+    getDashboardSummary: async (params = {}) =>
+      requestAndNormalize(procedureAPI.dashboardSummary(params), (payload) => payload || null),
+    listOrders: async (params = {}) =>
+      requestAndNormalize(procedureAPI.listOrders(withListLimit(params, 500)), (payload) => ({
+        items: asArray(payload).map(normalizeProcedureOrder),
+        pagination: payload?.pagination || null,
+      })),
+    getOrder: async (procedureOrderId) =>
+      requestAndNormalize(procedureAPI.orderDetail(procedureOrderId), normalizeProcedureOrder),
+    getTimeline: async (procedureOrderId) =>
+      requestAndNormalize(procedureAPI.orderTimeline(procedureOrderId), (payload) => asArray(payload?.items || payload)),
+    listEncounterOrders: async (encounterId, params = {}) =>
+      requestAndNormalize(procedureAPI.encounterOrders(encounterId, withListLimit(params, 100)), (payload) =>
+        asArray(payload).map(normalizeProcedureOrder),
+      ),
+    getEncounterSummary: async (encounterId) =>
+      requestAndNormalize(procedureAPI.encounterSummary(encounterId), (payload) => payload || null),
+    listPatientHistory: async (patientId, params = {}) =>
+      requestAndNormalize(procedureAPI.patientHistory(patientId, withListLimit(params, 100)), (payload) =>
+        asArray(payload).map(normalizeProcedureOrder),
+      ),
   },
   consultations: {
     listByEncounter: async (encounterId) =>
@@ -807,11 +1018,17 @@ export const doctorApi = {
       requestAndNormalize(prescriptionAPI.listByPatient(patientId), (payload) =>
         asArray(payload).map(normalizePrescription),
       ),
+    listActiveByPatient: async (patientId, params = {}) =>
+      requestAndNormalize(prescriptionAPI.listActiveByPatient(patientId, withListLimit(params, 50)), (payload) =>
+        asArray(payload?.items || payload).map(normalizePrescription),
+      ),
     getDetail: async (prescriptionId) =>
       requestAndNormalize(prescriptionAPI.detail(prescriptionId), normalizePrescription),
     getSummary: async (prescriptionId) =>
       requestAndNormalize(prescriptionAPI.summary(prescriptionId), (payload) => payload || null),
     create: async (payload) => requestAndNormalize(prescriptionAPI.create(payload), normalizePrescription),
+    createForEncounter: async (encounterId, payload) =>
+      requestAndNormalize(prescriptionAPI.createForEncounter(encounterId, payload), normalizePrescription),
     addItem: async (payload) => requestAndNormalize(prescriptionAPI.addItem(payload)),
     listItems: async (prescriptionId) =>
       requestAndNormalize(prescriptionAPI.listItems(prescriptionId), (payload) =>
@@ -858,6 +1075,10 @@ export const doctorApi = {
       ),
   },
   patients: {
+    listPage: async (params = {}) =>
+      requestAndNormalize(patientAPI.list(withListLimit(params)), (payload) =>
+        normalizePagedItems(payload, normalizePatient),
+      ),
     search: async (params = {}) =>
       requestAndNormalize(patientAPI.search(withListLimit(params)), (payload) =>
         asArray(payload).map(normalizePatient),
@@ -897,6 +1118,28 @@ export const doctorApi = {
       ),
     getTimeline: async (patientId) =>
       requestAndNormalize(patientAPI.timeline(patientId), (payload) => asArray(payload?.items || payload)),
+    getProblems: async (patientId, params = {}) =>
+      requestAndNormalize(patientAPI.problems(patientId, withListLimit(params, 20)), (payload) =>
+        asArray(payload?.items || payload),
+      ),
+    getAllergies: async (patientId, params = {}) =>
+      requestAndNormalize(patientAPI.allergies(patientId, withListLimit(params, 20)), (payload) =>
+        asArray(payload?.items || payload),
+      ),
+    getAppointmentsHistory: async (patientId, params = {}) =>
+      requestAndNormalize(patientAPI.appointmentsHistory(patientId, withListLimit(params, 20)), (payload) =>
+        normalizePagedItems(payload, normalizeAppointment),
+      ),
+    getEncountersHistory: async (patientId, params = {}) =>
+      requestAndNormalize(patientAPI.encountersHistory(patientId, withListLimit(params, 20)), (payload) =>
+        normalizePagedItems(payload, normalizeEncounter),
+      ),
+    getPrescriptionsHistory: async (patientId, params = {}) =>
+      requestAndNormalize(patientAPI.prescriptionsHistory(patientId, withListLimit(params, 20)), (payload) =>
+        normalizePagedItems(payload, normalizePrescription),
+      ),
+    canBookAppointment: async (patientId, params = {}) =>
+      requestAndNormalize(patientAPI.canBookAppointment(patientId, params), (payload) => payload || null),
   },
   notes: {
     listByEncounter: async (encounterId) =>
@@ -911,5 +1154,11 @@ export const doctorApi = {
     sign: async (noteId) => requestAndNormalize(clinicalAPI.signNote(noteId)),
     amend: async (noteId, payload) => requestAndNormalize(clinicalAPI.amendNote(noteId, payload), normalizeClinicalNote),
     cancel: async (noteId) => requestAndNormalize(clinicalAPI.cancelNote(noteId), normalizeClinicalNote),
+  },
+  notifications: {
+    getUnreadCount: async () =>
+      requestAndNormalize(notificationAPI.unreadCount(), (payload) =>
+        Number(payload?.unread_count ?? payload?.count ?? payload?.total ?? 0),
+      ),
   },
 }

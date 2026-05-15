@@ -13,6 +13,7 @@ const WEEK_FILTER_OPTIONS = [
   { value: 0, label: 'Tuần này' },
   { value: 1, label: 'Tuần sau' },
 ]
+const WEEKDAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
 
 function asSettledValue(result, fallback) {
   return result.status === 'fulfilled' ? result.value : fallback
@@ -63,6 +64,40 @@ function getWeekRangeForDate(value = new Date()) {
 
 function getWeekFilterDate(offset = 0) {
   return toDateKey(addDays(new Date(), offset * 7))
+}
+
+function parseDateKey(value) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+    return new Date(year, month - 1, day)
+  }
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function buildWeeklySeries(overview, weekRange) {
+  const rangeStart = parseDateKey(overview?.start_date || weekRange?.startDate)
+  if (!rangeStart) return []
+
+  const sourceRows = safeArray(overview?.appointments).length
+    ? safeArray(overview.appointments)
+    : safeArray(overview?.by_day || overview?.appointments_by_day || overview?.charts?.by_day)
+  const rowsByDate = new Map(sourceRows.map((item) => [
+    String(item.date || item.appointment_date || '').slice(0, 10),
+    item,
+  ]))
+
+  return WEEKDAY_LABELS.map((fallbackLabel, index) => {
+    const date = addDays(rangeStart, index)
+    const dateKey = toDateKey(date)
+    const item = rowsByDate.get(dateKey) || {}
+
+    return {
+      label: item.label || fallbackLabel,
+      value: Number(item.total ?? item.count ?? item.value ?? item.appointments ?? 0),
+    }
+  })
 }
 
 function getMinutesDiff(from, to = Date.now()) {
@@ -153,23 +188,84 @@ function pickCurrentShift(dashboardShift, todaySchedules = []) {
   }) || todaySchedules[0] || null
 }
 
-function mergeDashboardPayload({ dashboard, todaySchedules, weekSchedules, activeEncountersPage, ordersPage }) {
+function flattenQueueBoard(board) {
+  if (!board) return []
+  return [
+    ...safeArray(board.waiting),
+    ...safeArray(board.called),
+    ...safeArray(board.in_service),
+  ]
+}
+
+function getSummaryNumber(summary, keys = []) {
+  for (const key of keys) {
+    const value = summary?.[key]
+    if (value !== undefined && value !== null && value !== '') {
+      const numeric = Number(value)
+      return Number.isFinite(numeric) ? numeric : value
+    }
+  }
+  return undefined
+}
+
+function mergeDashboardPayload({
+  dashboard,
+  todaySchedules,
+  weekSchedules,
+  appointmentsToday,
+  appointmentSummary,
+  encountersToday,
+  activeEncountersPage,
+  queueSummary,
+  queueBoard,
+  ordersPage,
+  unreadCount,
+}) {
   const activeEncounters = safeArray(activeEncountersPage)
+  const dashboardQueue = safeArray(dashboard?.waiting_queue)
+  const boardQueue = flattenQueueBoard(queueBoard)
   const orders = safeArray(ordersPage?.items)
+  const dashboardAppointments = safeArray(dashboard?.appointments_today)
+  const resolvedAppointments = dashboardAppointments.length ? dashboardAppointments : safeArray(appointmentsToday)
+  const dashboardActiveEncounters = safeArray(dashboard?.active_encounters)
+  const resolvedActiveEncounters = dashboardActiveEncounters.length
+    ? dashboardActiveEncounters
+    : activeEncounters.length
+      ? activeEncounters
+      : safeArray(encountersToday).filter((item) => ['in_progress', 'active', 'examining'].includes(item.status))
+  const resolvedQueue = dashboardQueue.length ? dashboardQueue : boardQueue
 
   return {
     doctor: dashboard?.doctor || null,
     today_shift: pickCurrentShift(dashboard?.today_shift, todaySchedules),
     today_schedules: todaySchedules,
     week_schedules: weekSchedules,
+    appointment_summary: appointmentSummary || null,
+    queue_summary: queueSummary || null,
+    queue_board: queueBoard || null,
+    encounters_today: safeArray(encountersToday),
+    notification_unread_count: unreadCount,
     kpis: {
       ...(dashboard?.kpis || {}),
-      active_encounters: dashboard?.kpis?.active_encounters ?? activeEncounters.length,
+      appointments_today:
+        dashboard?.kpis?.appointments_today ??
+        getSummaryNumber(appointmentSummary, ['today', 'today_count', 'appointments_today', 'total_today', 'total']) ??
+        resolvedAppointments.length,
+      active_encounters: dashboard?.kpis?.active_encounters ?? resolvedActiveEncounters.length,
+      encounters_today:
+        dashboard?.kpis?.encounters_today ??
+        getSummaryNumber(encountersToday, ['total', 'today_count']) ??
+        safeArray(encountersToday).length,
+      waiting_patients:
+        dashboard?.kpis?.waiting_patients ??
+        getSummaryNumber(queueSummary, ['waiting', 'waiting_count', 'total_waiting', 'total']) ??
+        resolvedQueue.length,
       pending_orders: dashboard?.kpis?.pending_orders ?? ordersPage?.pagination?.total ?? orders.length,
+      unread_notifications: Number(unreadCount || 0),
     },
-    appointments_today: safeArray(dashboard?.appointments_today),
-    waiting_queue: safeArray(dashboard?.waiting_queue),
-    active_encounters: safeArray(dashboard?.active_encounters).length ? safeArray(dashboard.active_encounters) : activeEncounters,
+    appointments_today: resolvedAppointments,
+    waiting_queue: resolvedQueue,
+    active_encounters: resolvedActiveEncounters,
     pending_orders: safeArray(dashboard?.pending_orders).length ? safeArray(dashboard.pending_orders) : orders,
     weekly_overview: dashboard?.weekly_overview || null,
   }
@@ -185,10 +281,16 @@ async function loadDoctorDashboard({ doctorId, canReadOrders, dashboardDate, wee
     loadWeekDashboard,
     doctorApi.schedules.myToday({ date: getTodayDate() }),
     doctorApi.schedules.myWeek({ date_from: weekRange.startDate, date_to: weekRange.endDate, limit: 100 }),
+    doctorApi.appointments.listToday({ date: today, doctor_id: doctorId, limit: 8 }),
+    doctorApi.appointments.getSummary({ date: today, doctor_id: doctorId }),
+    doctorApi.encounters.listToday({ date: today, doctor_id: doctorId, limit: 8 }),
     doctorId ? doctorApi.encounters.listActiveByDoctor(doctorId, { limit: 8 }) : Promise.resolve([]),
+    doctorApi.queue.getTodaySummary({ doctor_id: doctorId }),
+    doctorId ? doctorApi.queue.getBoard(doctorId, { limit: 8 }) : Promise.resolve(null),
     doctorId && canReadOrders
       ? doctorApi.orders.listByDoctorPage(doctorId, { status: ACTIVE_ORDER_STATUS_QUERY, limit: 8 })
       : Promise.resolve({ items: [], pagination: null }),
+    doctorApi.notifications.getUnreadCount(),
   ])
 
   const dashboard = asSettledValue(results[0], null)
@@ -202,8 +304,14 @@ async function loadDoctorDashboard({ doctorId, canReadOrders, dashboardDate, wee
     dashboard: dashboard ? { ...dashboard, weekly_overview: weekDashboard?.weekly_overview || dashboard.weekly_overview } : weekDashboard,
     todaySchedules: asSettledValue(results[2], []),
     weekSchedules: asSettledValue(results[3], []),
-    activeEncountersPage: asSettledValue(results[4], []),
-    ordersPage: asSettledValue(results[5], { items: [], pagination: null }),
+    appointmentsToday: asSettledValue(results[4], []),
+    appointmentSummary: asSettledValue(results[5], null),
+    encountersToday: asSettledValue(results[6], []),
+    activeEncountersPage: asSettledValue(results[7], []),
+    queueSummary: asSettledValue(results[8], null),
+    queueBoard: asSettledValue(results[9], null),
+    ordersPage: asSettledValue(results[10], { items: [], pagination: null }),
+    unreadCount: asSettledValue(results[11], 0),
   })
 }
 
@@ -212,17 +320,20 @@ function DashboardWeekChart({ series, loading, error }) {
   if (error && !series.length) return <SurfaceChartState message="Không thể tải dữ liệu tuần." />
   if (!series.length) return <SurfaceChartState message="Chưa có dữ liệu lịch hẹn trong tuần này." />
 
-  const width = 270
-  const height = 104
-  const paddingX = 18
-  const paddingTop = 14
-  const paddingBottom = 18
+  const width = 300
+  const height = 112
+  const paddingLeft = 34
+  const paddingRight = 12
+  const paddingTop = 10
+  const paddingBottom = 22
   const chartHeight = height - paddingTop - paddingBottom
-  const max = Math.max(...series.map((item) => item.value), 1)
-  const stepX = series.length > 1 ? (width - paddingX * 2) / (series.length - 1) : 0
+  const rawMax = Math.max(...series.map((item) => item.value), 1)
+  const max = Math.max(10, Math.ceil(rawMax / 50) * 50)
+  const axisValues = [max, Math.round(max * 2 / 3), Math.round(max / 3), 0]
+  const stepX = series.length > 1 ? (width - paddingLeft - paddingRight) / (series.length - 1) : 0
   const points = series.map((item, index) => ({
     ...item,
-    x: paddingX + stepX * index,
+    x: paddingLeft + stepX * index,
     y: paddingTop + (1 - item.value / max) * chartHeight,
   }))
   const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
@@ -231,9 +342,14 @@ function DashboardWeekChart({ series, loading, error }) {
   return (
     <div className="doctor-dashboard-week-chart">
       <svg viewBox={`0 0 ${width} ${height}`} className="doctor-dashboard-week-chart-svg" role="img" aria-label="Biểu đồ lịch hẹn tuần">
-        {[0, 1, 2].map((line) => {
-          const y = paddingTop + (chartHeight / 2) * line
-          return <line key={line} x1={paddingX} x2={width - paddingX} y1={y} y2={y} />
+        {axisValues.map((value) => {
+          const y = paddingTop + (1 - value / max) * chartHeight
+          return (
+            <g key={value}>
+              <text x="4" y={y + 4}>{value}</text>
+              <line x1={paddingLeft} x2={width - paddingRight} y1={y} y2={y} />
+            </g>
+          )
         })}
         <path d={areaPath} className="doctor-dashboard-week-chart-area" />
         <path d={path} className="doctor-dashboard-week-chart-line" />
@@ -339,10 +455,10 @@ export function DoctorDashboardScreen({ user }) {
   const shiftState = buildShiftState(shift)
   const accountState = buildAccountState(doctor?.status || user?.status)
 
-  const weeklySeries = useMemo(() => (
-    safeArray(dashboard.weekly_overview?.appointments)
-      .map((item) => ({ label: item.label || formatDate(item.date, { year: undefined }), value: Number(item.total || 0) }))
-  ), [dashboard.weekly_overview])
+  const weeklySeries = useMemo(
+    () => buildWeeklySeries(dashboard.weekly_overview, selectedWeekRange),
+    [dashboard.weekly_overview, selectedWeekRange.startDate],
+  )
 
   const doctorName = doctor?.full_name || user?.fullName || user?.full_name || user?.username || 'Bác sĩ'
   const primaryRole = formatRoleLabel(Array.isArray(user?.roles) && user.roles.length ? user.roles[0] : user?.role)
@@ -571,7 +687,7 @@ export function DoctorDashboardScreen({ user }) {
 
         <DashboardPanel
           title="Encounter đang hoạt động"
-          onLink={() => navigate('/doctor/encounters', { state: { encounterView: 'active' } })}
+          onLink={() => navigate('/doctor/encounters?view=active')}
           loading={dashboardState.loading}
           error={dashboardState.error && !activeEncounters.length ? dashboardState.error : ''}
           empty={!activeEncounters.length ? <CompactEmpty title="Chưa có encounter active" description="Các phiên khám đang hoạt động sẽ hiển thị tại đây." /> : null}
@@ -579,7 +695,7 @@ export function DoctorDashboardScreen({ user }) {
         >
           <div className="doctor-dashboard-compact-list">
             {activeEncounters.slice(0, 5).map((encounter) => (
-              <button key={encounter.encounter_id || encounter.id} type="button" className="doctor-dashboard-list-row" onClick={() => navigate(`/doctor/encounters/${encounter.encounter_id || encounter.id}`)}>
+              <button key={encounter.encounter_id || encounter.id} type="button" className="doctor-dashboard-list-row" onClick={() => navigate(`/doctor/encounters?encounterId=${encodeURIComponent(encounter.encounter_id || encounter.id)}`)}>
                 <span className="doctor-dashboard-person-avatar">{getInitials(encounter.patient_name || 'BN')}</span>
                 <span className="doctor-dashboard-list-copy">
                   <strong>{encounter.patient_name || encounter.patient_id || 'Chưa rõ bệnh nhân'}</strong>

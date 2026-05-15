@@ -11,7 +11,7 @@ module.exports = {
     'Lấy dashboard khoa/phòng thành công.',
   ),
   getDoctorDashboard: wrap(
-    (req) => reportService.getDoctorDashboard(req.auth),
+    (req) => reportService.getDoctorDashboard(req.query, req.auth),
     'Lấy dashboard bác sĩ thành công.',
   ),
   getBillingDashboard: wrap(

@@ -1,11 +1,125 @@
 ﻿import { Link, NavLink } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import BubbleBackground from './BubbleBackground'
 import { doctorApi, getDoctorCapabilities } from './doctorApi'
 import { doctorNavItems, getInitials, statusToneMap } from './doctorData'
 import { notificationAPI, unwrapData } from '../utils/api'
 
 const sidebarNavItems = doctorNavItems.filter((item) => item.id !== 'profile')
+
+const dashboardSidebarGroups = [
+  {
+    id: 'dashboard',
+    label: 'Tổng quan',
+    icon: 'dashboard',
+    path: '/doctor/dashboard',
+  },
+  {
+    id: 'schedule',
+    label: 'Lịch làm việc',
+    icon: 'calendar',
+    items: [
+      { label: 'Hôm nay', path: '/doctor/schedules/today' },
+      { label: 'Tuần này', path: '/doctor/schedules/week' },
+      { label: 'Lịch trống', path: '/doctor/schedules/empty' },
+    ],
+  },
+  {
+    id: 'appointments',
+    label: 'Lịch hẹn',
+    icon: 'calendar',
+    items: [
+      { label: 'Hôm nay', path: '/doctor/appointments?view=today' },
+      { label: 'Sắp tới', path: '/doctor/appointments?view=upcoming' },
+      { label: 'Tất cả lịch hẹn', path: '/doctor/appointments' },
+    ],
+  },
+  {
+    id: 'queue',
+    label: 'Hàng đợi',
+    icon: 'queue',
+    items: [
+      { label: 'Bảng hàng đợi', path: '/doctor/queue' },
+      { label: 'Gọi tiếp theo', path: '/doctor/queue?view=calling' },
+      { label: 'Lịch sử hàng đợi', path: '/doctor/queue?view=history' },
+    ],
+  },
+  {
+    id: 'encounters',
+    label: 'Phiên khám',
+    icon: 'doctor',
+    items: [
+      { label: 'Hôm nay', path: '/doctor/encounters?view=today' },
+      { label: 'Đang khám', path: '/doctor/encounters?view=active' },
+      { label: 'Đã hoàn tất', path: '/doctor/encounters?view=completed' },
+    ],
+  },
+  {
+    id: 'patients',
+    label: 'Bệnh nhân',
+    icon: 'patients',
+    items: [
+      { label: 'Danh sách bệnh nhân', path: '/doctor/patients' },
+      { label: 'Bệnh nhân gần đây', path: '/doctor/patients?view=recent' },
+    ],
+  },
+  {
+    id: 'orders',
+    label: 'Chỉ định (Orders)',
+    icon: 'clipboard',
+    items: [
+      { label: 'Đơn chỉ định', path: '/doctor/orders' },
+      { label: 'Theo encounter', path: '/doctor/orders?view=encounter' },
+      { label: 'Đang chờ xử lý', path: '/doctor/orders?view=pending' },
+    ],
+  },
+  {
+    id: 'prescriptions',
+    label: 'Đơn thuốc',
+    icon: 'pill',
+    items: [
+      { label: 'Đơn thuốc của tôi', path: '/doctor/prescriptions' },
+      { label: 'Theo encounter', path: '/doctor/prescriptions?view=encounter' },
+      { label: 'Đơn thuốc đang hoạt động', path: '/doctor/prescriptions?view=active' },
+    ],
+  },
+  {
+    id: 'clinical',
+    label: 'Cận lâm sàng',
+    icon: 'note',
+    items: [
+      { label: 'Xét nghiệm', path: '/doctor/clinical?view=lab' },
+      { label: 'Chẩn đoán hình ảnh', path: '/doctor/clinical?view=imaging' },
+      { label: 'Thủ thuật', path: '/doctor/clinical?view=procedure' },
+    ],
+  },
+  {
+    id: 'notifications',
+    label: 'Thông báo',
+    icon: 'bell',
+    path: '/doctor/dashboard?panel=notifications',
+  },
+  {
+    id: 'reports',
+    label: 'Báo cáo',
+    icon: 'pulse',
+    items: [
+      { label: 'Hiệu suất khám bệnh', path: '/doctor/reports?view=performance' },
+      { label: 'Hàng đợi', path: '/doctor/reports?view=queue' },
+      { label: 'Báo cáo bác sĩ', path: '/doctor/reports?view=doctor' },
+    ],
+  },
+]
+
+function getInitialExpandedDashboardGroups(location) {
+  const currentPath = `${location.pathname}${location.search}`
+  return new Set(
+    dashboardSidebarGroups
+      .filter((group) => Array.isArray(group.items) && group.items.some((item) => item.path === currentPath))
+      .map((group) => group.id),
+  )
+}
 
 export function DoctorIcon({ name }) {
   const common = {
@@ -139,6 +253,12 @@ export function DoctorIcon({ name }) {
       return (
         <svg {...common}>
           <path d="m7 10 5 5 5-5" />
+        </svg>
+      )
+    case 'chevron_right':
+      return (
+        <svg {...common}>
+          <path d="m10 7 5 5-5 5" />
         </svg>
       )
     case 'more':
@@ -474,37 +594,238 @@ function getUserIdentity(user) {
   }
 }
 
-function DoctorSidebar({ onNavigateHome, user }) {
+function DoctorDashboardSidebar({ onNavigateHome, onLogout, user }) {
+  const location = useLocation()
   const identity = getUserIdentity(user)
-  const navItems = sidebarNavItems
-  const permissionCount = Array.isArray(user?.permissions) ? user.permissions.length : 0
+  const [expandedGroups, setExpandedGroups] = useState(
+    () => new Set(dashboardSidebarGroups.filter((group) => Array.isArray(group.items) && group.items.length).map((group) => group.id)),
+  )
+
+  useEffect(() => {
+    const activeGroups = getInitialExpandedDashboardGroups(location)
+    if (!activeGroups.size) return
+
+    setExpandedGroups((current) => {
+      const next = new Set(current)
+      activeGroups.forEach((groupId) => next.add(groupId))
+      return next
+    })
+  }, [location.pathname, location.search])
+
+  function toggleGroup(groupId) {
+    setExpandedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(groupId)) {
+        next.delete(groupId)
+      } else {
+        next.add(groupId)
+      }
+      return next
+    })
+  }
+
+  function isExactPath(target) {
+    return `${location.pathname}${location.search}` === target
+  }
+
+  function isGroupActive(group) {
+    if (group.path && isExactPath(group.path)) {
+      return true
+    }
+
+    return Array.isArray(group.items) && group.items.some((item) => isExactPath(item.path))
+  }
 
   return (
-    <aside className="doctor-sidebar">
+    <aside className="doctor-reference-sidebar">
+      <div className="doctor-reference-sidebar__brand">
+        <button className="doctor-reference-sidebar__mark" type="button" onClick={onNavigateHome} aria-label="Về tổng quan bác sĩ">
+          <span aria-hidden="true">☆</span>
+        </button>
+        <div className="doctor-reference-sidebar__brand-copy">
+          <p>MediCare</p>
+          <span>Doctor Dashboard</span>
+        </div>
+      </div>
+
+      <nav className="doctor-reference-sidebar__nav" aria-label="Điều hướng dashboard bác sĩ">
+        {dashboardSidebarGroups.map((group) =>
+          group.items ? (
+            <div key={group.id} className={`doctor-reference-sidebar__group${isGroupActive(group) ? ' is-active' : ''}`}>
+              <button
+                className="doctor-reference-sidebar__group-button"
+                type="button"
+                aria-expanded={expandedGroups.has(group.id)}
+                onClick={() => toggleGroup(group.id)}
+              >
+                <span className="doctor-reference-sidebar__icon" aria-hidden="true">
+                  <DoctorIcon name={group.icon} />
+                </span>
+                <span className="doctor-reference-sidebar__label">{group.label}</span>
+                <span className="doctor-reference-sidebar__chevron" aria-hidden="true">
+                  <DoctorIcon name="chevron_down" />
+                </span>
+              </button>
+              <div className={`doctor-reference-sidebar__submenu${expandedGroups.has(group.id) ? ' is-open' : ''}`}>
+                {group.items.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`doctor-reference-sidebar__submenu-link${isExactPath(item.path) ? ' is-active' : ''}`}
+                  >
+                    <span className="doctor-reference-sidebar__dot" aria-hidden="true" />
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <NavLink
+              key={group.id}
+              to={group.path}
+              className={({ isActive }) => `doctor-reference-sidebar__link${isActive ? ' is-active' : ''}`}
+            >
+              <span className="doctor-reference-sidebar__icon" aria-hidden="true">
+                <DoctorIcon name={group.icon} />
+              </span>
+              <span className="doctor-reference-sidebar__label">{group.label}</span>
+            </NavLink>
+          ),
+        )}
+      </nav>
+
+      <div className="doctor-reference-sidebar__access-card">
+        <strong>Quyền truy cập</strong>
+        <p>{identity.primaryRole}</p>
+        <span>BỆNH VIỆN ĐA KHOA MEDI</span>
+        <span>KHOA KHÁM BỆNH</span>
+      </div>
+
+      <button className="doctor-reference-sidebar__logout" type="button" onClick={onLogout}>
+        <span className="doctor-reference-sidebar__icon" aria-hidden="true">
+          <DoctorIcon name="logout" />
+        </span>
+        <span>Đăng xuất</span>
+      </button>
+    </aside>
+  )
+}
+
+function DoctorSidebar({ onNavigateHome, onLogout, user, shellVariant = 'default' }) {
+  const location = useLocation()
+  const identity = getUserIdentity(user)
+  const permissionCount = Array.isArray(user?.permissions) ? user.permissions.length : 0
+  const isDashboard = shellVariant === 'dashboard'
+  const [expandedGroups, setExpandedGroups] = useState(
+    () => new Set(dashboardSidebarGroups.filter((group) => Array.isArray(group.items) && group.items.length).map((group) => group.id)),
+  )
+
+  useEffect(() => {
+    if (!isDashboard) {
+      return
+    }
+
+    setExpandedGroups(new Set(dashboardSidebarGroups.filter((group) => Array.isArray(group.items) && group.items.length).map((group) => group.id)))
+  }, [isDashboard])
+
+  function isExactPath(target) {
+    return `${location.pathname}${location.search}` === target
+  }
+
+  function isGroupActive(group) {
+    if (group.path && isExactPath(group.path)) {
+      return true
+    }
+
+    return Array.isArray(group.items) && group.items.some((item) => isExactPath(item.path))
+  }
+
+  function toggleGroup(groupId) {
+    setExpandedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(groupId)) {
+        next.delete(groupId)
+      } else {
+        next.add(groupId)
+      }
+      return next
+    })
+  }
+
+  const brandSubtitle = isDashboard ? 'Doctor Dashboard' : 'Doctor Workspace'
+  const navItems = sidebarNavItems
+
+  return (
+    <aside className={`doctor-sidebar${isDashboard ? ' is-dashboard-sidebar' : ''}`}>
       <div className="doctor-sidebar-brand">
         <button className="doctor-sidebar-brandmark" type="button" onClick={onNavigateHome}>
           <span className="doctor-sidebar-brandmark-symbol" aria-hidden="true">+</span>
         </button>
         <div className="doctor-sidebar-brand-copy">
           <p>MediCare</p>
-          <span>Doctor Workspace</span>
+          <span>{brandSubtitle}</span>
         </div>
       </div>
 
-      <nav className="doctor-sidebar-nav" aria-label="Điều hướng không gian làm việc bác sĩ">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.id}
-            to={item.path}
-            className={({ isActive }) => `doctor-sidebar-link${isActive ? ' is-active' : ''}`}
-          >
-            <span className="doctor-sidebar-icon" aria-hidden="true">
-              <DoctorIcon name={item.icon} />
-            </span>
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      {isDashboard ? (
+        <nav className="doctor-sidebar-nav doctor-sidebar-nav-grouped" aria-label="Điều hướng không gian làm việc bác sĩ">
+          {dashboardSidebarGroups.map((group) =>
+            group.items ? (
+              <div key={group.id} className="doctor-sidebar-group">
+                <button
+                  className={`doctor-sidebar-group-toggle${isGroupActive(group) ? ' is-active' : ''}`}
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                >
+                  <span className="doctor-sidebar-icon" aria-hidden="true">
+                    <DoctorIcon name={group.icon} />
+                  </span>
+                  <span>{group.label}</span>
+                  <DoctorIcon name="chevron_down" />
+                </button>
+                <div className={`doctor-sidebar-subnav${expandedGroups.has(group.id) ? ' is-open' : ''}`}>
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`doctor-sidebar-subitem${isExactPath(item.path) ? ' is-active' : ''}`}
+                    >
+                      <span className="doctor-sidebar-subdot" aria-hidden="true">•</span>
+                      <span>{item.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <NavLink
+                key={group.id}
+                to={group.path}
+                className={({ isActive }) => `doctor-sidebar-link doctor-sidebar-link-group${isActive ? ' is-active' : ''}`}
+              >
+                <span className="doctor-sidebar-icon" aria-hidden="true">
+                  <DoctorIcon name={group.icon} />
+                </span>
+                <span>{group.label}</span>
+              </NavLink>
+            ),
+          )}
+        </nav>
+      ) : (
+        <nav className="doctor-sidebar-nav" aria-label="Điều hướng không gian làm việc bác sĩ">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.id}
+              to={item.path}
+              className={({ isActive }) => `doctor-sidebar-link${isActive ? ' is-active' : ''}`}
+            >
+              <span className="doctor-sidebar-icon" aria-hidden="true">
+                <DoctorIcon name={item.icon} />
+              </span>
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      )}
 
       <div className="doctor-sidebar-security-card">
         <strong>Quyền truy cập</strong>
@@ -514,12 +835,21 @@ function DoctorSidebar({ onNavigateHome, user }) {
 
       <div className="doctor-sidebar-footer">
         <div className="doctor-sidebar-footer-links">
-          <button className="doctor-sidebar-utility doctor-sidebar-collapse" type="button">
-            <span className="doctor-sidebar-icon" aria-hidden="true">
-              <DoctorIcon name="arrow_left" />
-            </span>
-            <span>Thu gọn</span>
-          </button>
+          {isDashboard ? (
+            <button className="doctor-sidebar-utility doctor-sidebar-logout" type="button" onClick={onLogout}>
+              <span className="doctor-sidebar-icon" aria-hidden="true">
+                <DoctorIcon name="logout" />
+              </span>
+              <span>Đăng xuất</span>
+            </button>
+          ) : (
+            <button className="doctor-sidebar-utility doctor-sidebar-collapse" type="button">
+              <span className="doctor-sidebar-icon" aria-hidden="true">
+                <DoctorIcon name="arrow_left" />
+              </span>
+              <span>Thu gọn</span>
+            </button>
+          )}
         </div>
       </div>
     </aside>
@@ -654,7 +984,7 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
               id: patient.patient_id || patient.patient_code || patient.full_name,
               title: patient.full_name || 'Chưa có tên',
               meta: patient.patient_code || patient.phone || patient.email || 'Hồ sơ bệnh nhân',
-              to: patient.patient_id ? `/doctor/patients/${patient.patient_id}` : '/doctor/patients',
+              to: patient.patient_id ? `/doctor/patients?patientId=${encodeURIComponent(patient.patient_id)}` : '/doctor/patients',
             })),
           },
           {
@@ -674,7 +1004,7 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
               id: encounter.encounter_id || encounter.encounter_code || encounter.patient_id,
               title: encounter.patient_name || encounter.patient?.full_name || encounter.encounter_code || 'Encounter',
               meta: [encounter.encounter_code, encounter.status].filter(Boolean).join(' · ') || 'Phiên khám',
-              to: encounter.encounter_id ? `/doctor/encounters/${encounter.encounter_id}` : '/doctor/encounters',
+              to: encounter.encounter_id ? `/doctor/encounters?encounterId=${encodeURIComponent(encounter.encounter_id)}` : '/doctor/encounters',
             })),
           },
           {
@@ -684,7 +1014,7 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
               id: order.order_id || order.order_code || order.title,
               title: order.title || order.order_code || 'Order',
               meta: [order.patient_name, order.status].filter(Boolean).join(' · ') || 'Chỉ định',
-              to: order.order_id ? `/doctor/orders/${order.order_id}` : '/doctor/orders',
+              to: order.order_id ? `/doctor/orders?orderId=${encodeURIComponent(order.order_id)}` : '/doctor/orders',
             })),
           },
         ].filter((group) => group.items.length)
@@ -741,6 +1071,30 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
       loadNotifications()
     }
   }, [notificationOpen])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadUnreadCount() {
+      try {
+        const payload = unwrapData(await notificationAPI.unreadCount()) || {}
+        const unreadCount = Number(payload.unread_count ?? payload.count ?? payload.total ?? 0)
+        if (isActive) {
+          setNotificationState((current) => ({ ...current, unreadCount }))
+        }
+      } catch (error) {
+        if (isActive) {
+          setNotificationState((current) => ({ ...current, unreadCount: current.unreadCount || 0 }))
+        }
+      }
+    }
+
+    loadUnreadCount()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   async function handleMarkAllNotificationsRead() {
     setNotificationState((current) => ({ ...current, actionLoading: true, error: '' }))
@@ -921,7 +1275,11 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
                 }}
               >
                 <DoctorIcon name="bell" />
-                {notificationState.unreadCount > 0 ? <span className="doctor-notification-count" aria-hidden="true" /> : null}
+                {notificationState.unreadCount > 0 ? (
+                  <span className="doctor-notification-count" aria-hidden="true">
+                    {notificationState.unreadCount > 9 ? '9+' : notificationState.unreadCount}
+                  </span>
+                ) : null}
               </button>
 
               {notificationOpen ? (
@@ -1081,7 +1439,7 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
                     </div>
                   </div>
                   <div className="doctor-user-dropdown-divider" />
-                  <Link to="/doctor/profile" className="doctor-user-dropdown-item" onClick={() => setMenuOpen(false)}>
+                  <Link to="/doctor/dashboard?panel=profile" className="doctor-user-dropdown-item" onClick={() => setMenuOpen(false)}>
                     <DoctorIcon name="user" />
                     <span>Xem hồ sơ</span>
                   </Link>
@@ -1126,16 +1484,22 @@ export function DoctorAppShell({
   onNavigateHome,
   compactTopbar = false,
   shellVariant = 'default',
+  hideTopbar = false,
   children,
 }) {
   const shellVariantClass = shellVariant && shellVariant !== 'default' ? ` is-${shellVariant}-variant` : ''
+  const isDashboard = shellVariant === 'dashboard'
   const isEncounterShell = shellVariant === 'encounters'
   return (
     <div className={`doctor-shell${shellVariantClass}`}>
       {!isEncounterShell ? <BubbleBackground /> : null}
-      <DoctorSidebar onNavigateHome={onNavigateHome} user={user} />
+      {isDashboard ? (
+        <DoctorDashboardSidebar onNavigateHome={onNavigateHome} onLogout={onLogout} user={user} />
+      ) : (
+        <DoctorSidebar onNavigateHome={onNavigateHome} onLogout={onLogout} user={user} shellVariant={shellVariant} />
+      )}
       <div className="doctor-shell-main">
-        {!isEncounterShell ? (
+        {!isEncounterShell && !hideTopbar ? (
           <DoctorTopbar
             title={title}
             subtitle={subtitle}

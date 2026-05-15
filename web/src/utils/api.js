@@ -107,6 +107,12 @@ export const patientAPI = {
   appointments: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/appointments`, { params }),
   prescriptions: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/prescriptions`, { params }),
   timeline: (patientId) => request(`/patients/${encodeURIComponent(patientId)}/timeline`),
+  problems: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/problems`, { params }),
+  allergies: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/allergies`, { params }),
+  appointmentsHistory: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/appointments/history`, { params }),
+  encountersHistory: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/encounters/history`, { params }),
+  prescriptionsHistory: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/prescriptions/history`, { params }),
+  canBookAppointment: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/can-book-appointment`, { params }),
 }
 
 export const recordsAPI = {
@@ -123,6 +129,16 @@ export const recordsAPI = {
 export const labAPI = {
   getMyResults: (params) => request('/lab/me/results', { params }),
   getResultDetail: (resultId) => request(`/lab/me/results/${encodeURIComponent(resultId)}`),
+  listOrders: (params) => request('/lab/orders', { params }),
+  orderDetail: (labOrderId) => request(`/lab/orders/${encodeURIComponent(labOrderId)}`),
+  listResults: (params) => request('/lab/results', { params }),
+  resultDetail: (resultId) => request(`/lab/results/${encodeURIComponent(resultId)}`),
+  encounterOrders: (encounterId, params) => request(`/lab/encounters/${encodeURIComponent(encounterId)}/orders`, { params }),
+  encounterResults: (encounterId, params) => request(`/lab/encounters/${encodeURIComponent(encounterId)}/results`, { params }),
+  encounterSummary: (encounterId) => request(`/lab/encounters/${encodeURIComponent(encounterId)}/summary`),
+  patientResults: (patientId, params) => request(`/lab/patients/${encodeURIComponent(patientId)}/results`, { params }),
+  acknowledgeCritical: (resultId, body = {}) =>
+    request(`/lab/results/${encodeURIComponent(resultId)}/acknowledge-critical`, { method: 'POST', body }),
 }
 
 export const imagingAPI = {
@@ -138,6 +154,13 @@ export const inpatientAPI = {
 export const procedureAPI = {
   getMyHistory: (params) => request('/procedures/me/history', { params }),
   getOrderDetail: (procedureOrderId) => request(`/procedures/me/orders/${encodeURIComponent(procedureOrderId)}`),
+  dashboardSummary: (params) => request('/procedures/dashboard/summary', { params }),
+  listOrders: (params) => request('/procedures/orders', { params }),
+  orderDetail: (procedureOrderId) => request(`/procedures/orders/${encodeURIComponent(procedureOrderId)}`),
+  orderTimeline: (procedureOrderId) => request(`/procedures/orders/${encodeURIComponent(procedureOrderId)}/timeline`),
+  encounterOrders: (encounterId, params) => request(`/procedures/encounters/${encodeURIComponent(encounterId)}/orders`, { params }),
+  encounterSummary: (encounterId) => request(`/procedures/encounters/${encodeURIComponent(encounterId)}/summary`),
+  patientHistory: (patientId, params) => request(`/procedures/patients/${encodeURIComponent(patientId)}/history`, { params }),
 }
 
 export const billingAPI = {
@@ -157,7 +180,8 @@ export const billingAPI = {
 export const notificationAPI = {
   getMyNotifications: (params) => request('/notifications', { params }),
   getUnreadCount: () => request('/notifications/unread-count'),
-  markAllRead: () => request('/notifications/read-all', { method: 'POST', body: {} }),
+  unreadCount: () => request('/notifications/unread-count'),
+  markAllRead: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
   markRead: (notificationId) =>
     request(`/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'POST', body: {} }),
   listMine: (params) => request('/notifications', { params }),
@@ -176,7 +200,9 @@ export const appointmentAPI = {
   list: (params) => request('/appointments', { params }),
   search: (params) => request('/appointments/search', { params }),
   listToday: (params) => request('/appointments/today', { params }),
+  listUpcoming: (params) => request('/appointments/upcoming', { params }),
   listByDoctor: (doctorId, params) => request(`/appointments/doctor/${encodeURIComponent(doctorId)}`, { params }),
+  listByDate: (params) => request('/appointments/by-date', { params }),
   detail: (appointmentId) => request(`/appointments/${encodeURIComponent(appointmentId)}`),
   summary: (params) => request('/appointments/summary', { params }),
   timeline: (appointmentId) => request(`/appointments/${encodeURIComponent(appointmentId)}/timeline`),
@@ -194,6 +220,9 @@ export const appointmentAPI = {
   markAppointmentNoShow: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/no-show`, { method: 'POST', body }),
   complete: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/complete`, { method: 'POST', body }),
   completeAppointment: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/complete`, { method: 'POST', body }),
+  createQueueTicket: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/queue-ticket`, { method: 'POST', body }),
+  createEncounter: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/encounter`, { method: 'POST', body }),
+  linkEncounter: (appointmentId, body = {}) => request(`/appointments/${encodeURIComponent(appointmentId)}/link-encounter`, { method: 'POST', body }),
 }
 
 export const departmentAPI = {
@@ -207,8 +236,10 @@ export const scheduleAPI = {
   calendarByDoctor: (doctorId, params) => request(`/schedules/calendar/doctor/${encodeURIComponent(doctorId)}`, { params }),
   getAvailableSlots: (scheduleId) =>
     request(`/schedules/${encodeURIComponent(scheduleId)}/available-slots`, { auth: false }),
+  slots: (scheduleId) => request(`/schedules/${encodeURIComponent(scheduleId)}/slots`),
   availableSlots: (scheduleId) => request(`/schedules/${encodeURIComponent(scheduleId)}/slots/available`),
   getBookedSlots: (scheduleId) => request(`/schedules/${encodeURIComponent(scheduleId)}/slots/booked`),
+  getBookedSlotsAlias: (scheduleId) => request(`/schedules/${encodeURIComponent(scheduleId)}/booked-slots`),
   getSystemSummary: (params) => request('/schedules/summary/system', { params }),
   getDepartmentSummary: (params) => request('/schedules/summary/departments', { params }),
   getDateRangeSummary: (params) => request('/schedules/summary/date-range', { params }),
@@ -238,17 +269,25 @@ export const queueAPI = {
   summaryToday: (params) => request('/queue/summary/today', { params }),
   createFromAppointment: (appointmentId) => request(`/queue/appointment/${encodeURIComponent(appointmentId)}`, { method: 'POST', body: {} }),
   callNext: (body = {}) => request('/queue/call-next', { method: 'POST', body }),
+  call: (ticketId, body = {}) => request(`/queue/${encodeURIComponent(ticketId)}/call`, { method: 'POST', body }),
   recall: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/recall`, { method: 'POST', body: {} }),
   skip: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/skip`, { method: 'POST', body: {} }),
   startService: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/start-service`, { method: 'POST', body: {} }),
   complete: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/complete`, { method: 'POST', body: {} }),
   cancel: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/cancel`, { method: 'POST', body: {} }),
+  transfer: (ticketId, body = {}) => request(`/queue/${encodeURIComponent(ticketId)}/transfer`, { method: 'POST', body }),
+}
+
+export const reportAPI = {
+  doctors: (params) => request('/reports/doctors', { params }),
+  appointments: (params) => request('/reports/appointments', { params }),
+  encounters: (params) => request('/reports/encounters', { params }),
+  queue: (params) => request('/reports/queue', { params }),
 }
 
 export const dashboardAPI = {
   doctorMe: (params) => request('/dashboard/doctor/me', { params }),
 }
-
 export const encounterAPI = {
   list: (params) => request('/encounters', { params }),
   search: (params) => request('/encounters/search', { params }),
@@ -267,6 +306,7 @@ export const encounterAPI = {
   arrive: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/arrive`, { method: 'POST', body: {} }),
   start: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/start`, { method: 'POST', body: {} }),
   hold: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/hold`, { method: 'POST', body: {} }),
+  resume: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/resume`, { method: 'POST', body: {} }),
   complete: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/complete`, { method: 'POST', body: {} }),
   cancel: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/cancel`, { method: 'POST', body: {} }),
   reopen: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/reopen`, { method: 'POST', body: {} }),
@@ -283,6 +323,10 @@ export const orderAPI = {
   detail: (orderId) => request(`/orders/${encodeURIComponent(orderId)}`),
   timeline: (orderId) => request(`/orders/${encodeURIComponent(orderId)}/timeline`),
   createForEncounter: (encounterId, body) => request(`/encounters/${encodeURIComponent(encounterId)}/orders`, { method: 'POST', body }),
+  dispatch: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/dispatch`, { method: 'POST', body }),
+  acknowledge: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/acknowledge`, { method: 'POST', body }),
+  start: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/start`, { method: 'POST', body }),
+  complete: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/complete`, { method: 'POST', body }),
   cancel: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST', body }),
 }
 
@@ -323,10 +367,12 @@ export const prescriptionAPI = {
   list: (params) => request('/prescriptions', { params }),
   listByEncounter: (encounterId, params) => request(`/prescriptions/encounter/${encodeURIComponent(encounterId)}`, { params }),
   listByPatient: (patientId, params) => request(`/prescriptions/patient/${encodeURIComponent(patientId)}`, { params }),
+  listActiveByPatient: (patientId, params) => request(`/prescriptions/patient/${encodeURIComponent(patientId)}/active`, { params }),
   listByDoctor: (doctorId, params) => request(`/prescriptions/doctor/${encodeURIComponent(doctorId)}`, { params }),
   detail: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}`),
   summary: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/summary`),
   create: (body) => request('/prescriptions', { method: 'POST', body }),
+  createForEncounter: (encounterId, body) => request(`/prescriptions/encounters/${encodeURIComponent(encounterId)}/prescriptions`, { method: 'POST', body }),
   addItem: (body) => request('/prescriptions/items', { method: 'POST', body }),
   listItems: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/items`),
   updateItem: (itemId, body) => request(`/prescriptions/items/${encodeURIComponent(itemId)}`, { method: 'PATCH', body }),

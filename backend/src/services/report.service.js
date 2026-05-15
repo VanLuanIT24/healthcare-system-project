@@ -1109,15 +1109,85 @@ async function getDepartmentDashboard(departmentId, actor = {}) {
   };
 }
 
-async function getDoctorDashboard(actor = {}) {
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function toDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekRangeForDashboard(query = {}) {
+  if (query.date_from || query.from || query.date_to || query.to) {
+    const filters = normalizeReportFilters(query, { defaultToday: false });
+    return {
+      start: filters.date_from || getStartOfDay(new Date()),
+      end: filters.date_to || getEndOfDay(addDays(filters.date_from || new Date(), 6)),
+    };
+  }
+
+  const selectedDate = parseDate(query.date, 'date') || new Date();
+  const day = selectedDate.getDay();
+  const mondayOffset = (day + 6) % 7;
+  const start = getStartOfDay(addDays(selectedDate, -mondayOffset));
+  const end = getEndOfDay(addDays(start, 6));
+
+  return { start, end };
+}
+
+function buildDashboardWeekSeries(rows = [], weekStart) {
+  const countByDate = new Map(rows.map((row) => [row.date, Number(row.count || 0)]));
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(weekStart, index);
+    const dateKey = toDateKey(date);
+
+    return {
+      date: dateKey,
+      label: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][index],
+      total: countByDate.get(dateKey) || 0,
+    };
+  });
+}
+
+async function getDoctorDashboard(query = {}, actor = {}) {
   assertAnyReportPermission(actor, [PERMISSION.ENCOUNTERS.READ_OWN, PERMISSION.APPOINTMENTS.READ_OWN]);
-  const query = { date: new Date().toISOString(), doctor_id: actorId(actor) };
+  const selectedQuery = { ...query, date: query.date || new Date().toISOString(), doctor_id: actorId(actor) };
+  const weekRange = getWeekRangeForDashboard(query);
+  const weekQuery = {
+    ...query,
+    date: undefined,
+    date_from: weekRange.start.toISOString(),
+    date_to: weekRange.end.toISOString(),
+    doctor_id: actorId(actor),
+  };
   const [appointmentReport, encounterReport] = await Promise.all([
-    getAppointmentReport(query, actor),
-    getEncounterReport(query, actor),
+    getAppointmentReport(selectedQuery, actor),
+    getEncounterReport(selectedQuery, actor),
   ]);
+  const weekAppointmentReport = await getAppointmentReport(weekQuery, actor);
+  const appointmentByDay = weekAppointmentReport.breakdowns.by_day || [];
 
   return {
+    kpis: {
+      appointments_today: appointmentReport.summary.total_appointments,
+      active_encounters: encounterReport.summary.arrived_count + encounterReport.summary.in_progress_count + encounterReport.summary.on_hold_count,
+      encounters_today: encounterReport.summary.total_encounters,
+      checked_in_patients: appointmentReport.summary.checked_in_count,
+      completed_today: encounterReport.summary.completed_count,
+    },
+    weekly_overview: {
+      start_date: weekRange.start.toISOString(),
+      end_date: weekRange.end.toISOString(),
+      appointments: buildDashboardWeekSeries(appointmentByDay, weekRange.start),
+      total_appointments: weekAppointmentReport.summary.total_appointments,
+      appointments_by_status: weekAppointmentReport.breakdowns.by_status,
+    },
     cards: [
       { key: 'my_today_appointments', label: 'Lịch hẹn của tôi', value: appointmentReport.summary.total_appointments },
       { key: 'my_checked_in_patients', label: 'Bệnh nhân đã check-in', value: appointmentReport.summary.checked_in_count },
