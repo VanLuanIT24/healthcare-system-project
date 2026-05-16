@@ -1,6 +1,6 @@
 import { API_BASE_URL } from './api';
 import { clearStoredAuth, readStoredAuth, writeStoredAuth } from './storage';
-import { canAccessStaffPath, resolveStaffLandingPath } from '../staff/workspaceAccess';
+import { canAccessStaffPath, resolveStaffLandingPath } from '../receptionist/workspaceAccess';
 
 let refreshPromise = null;
 

@@ -7,7 +7,7 @@ import {
   isSuperAdminSession,
 } from '../lib/authSession';
 import { readStoredAuth } from '../lib/storage';
-import { hasRequiredStaffAccess } from '../staff/workspaceAccess';
+import { hasRequiredStaffAccess } from '../receptionist/workspaceAccess';
 
 export function StaffRoute({
   children,
