@@ -699,7 +699,7 @@ export default function PatientMessagesPage() {
               </div>
             ) : null}
 
-            <div className="patient-chat-composer">
+              <div className="patient-chat-composer">
               <div
                 className="patient-chat-composer-tools"
                 style={{ position: 'relative' }}

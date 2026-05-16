@@ -44,6 +44,7 @@ export default function PatientBillingPage({
   error = '',
   invoices = [],
   loading = false,
+  onOpenSupportChat,
   payments = [],
 }) {
   const checkoutItems = useMemo(() => invoices.map(mapInvoiceToCheckoutItem), [invoices])
@@ -339,7 +340,9 @@ export default function PatientBillingPage({
               <div className="pb-support-text">
                 <h3>Cần hỗ trợ?</h3>
                 <p>Đội ngũ chăm sóc khách hàng luôn sẵn sàng hỗ trợ bạn 24/7.</p>
-                <button className="pb-btn-outline">Liên hệ hỗ trợ</button>
+                <button className="pb-btn-outline" type="button" onClick={onOpenSupportChat}>
+                  Liên hệ hỗ trợ
+                </button>
               </div>
               <div className="pb-support-avatar">
                 <PatientIcon name="support_agent" aria-hidden="true" />

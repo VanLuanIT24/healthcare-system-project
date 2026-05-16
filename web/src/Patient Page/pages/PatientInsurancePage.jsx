@@ -1,154 +1,120 @@
 import { useEffect, useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
+import botAvatarVideo from '../assets/bot-avatar.mp4'
+import botMessageAvatar from '../assets/bot-message-avatar.jpg'
 
 const fallbackPolicies = [
   {
-    id: 'demo-bhxh',
-    payer_name: 'Bảo hiểm Xã hội',
-    payer_code: 'BHXH',
-    policy_no: 'BHXH-0123456789',
-    member_no: 'BHXH-0123456789',
-    coverage_type: 'Hưu trí, tử tuất, ốm đau, thai sản',
+    id: 'demo-bhyt',
+    payer_name: 'Bảo hiểm Bảo Việt',
+    payer_code: 'BVI',
+    policy_no: 'BV12345678910',
+    member_no: 'BHYT-9876543210',
+    coverage_type: 'Khám chữa bệnh đúng tuyến',
+    coverage_percent: 80,
+    coverage_limit: 50000000,
     valid_from: '2024-01-01',
     valid_to: '2026-12-31',
     status: 'active',
     is_primary: true,
   },
-  {
-    id: 'demo-bhyt',
-    payer_name: 'Bảo hiểm Y tế',
-    payer_code: 'BHYT',
-    policy_no: 'BHYT-9876543210',
-    member_no: 'BHYT-9876543210',
-    coverage_type: 'Khám chữa bệnh theo tuyến',
-    valid_from: '2024-01-01',
-    valid_to: '2026-12-31',
-    status: 'active',
-  },
 ]
 
-const fallbackUsageHistory = [
+const fallbackClaims = [
   {
-    id: 'demo-usage-bhxh-1',
-    policy_id: 'demo-bhxh',
-    claim_no: 'CLM-2024-0018',
-    service_name: 'Nghỉ ốm hưởng BHXH',
-    department_name: 'Phòng hồ sơ bảo hiểm',
-    submitted_amount: 1200000,
-    approved_amount: 1200000,
-    paid_amount: 1200000,
-    submitted_at: '2024-06-03',
-    settled_at: '2024-06-10',
-    status: 'settled',
-  },
-  {
-    id: 'demo-usage-bhyt-1',
+    id: 'CLM-2026-0008',
     policy_id: 'demo-bhyt',
-    invoice_id: {
-      invoice_no: 'HD-2024-000123',
-      status: 'paid',
-      total_amount: 1250000,
-      balance_due: 0,
-    },
-    claim_no: 'CLM-2024-0024',
-    service_name: 'Khám tổng quát định kỳ',
-    department_name: 'Khoa Nội tổng quát',
-    submitted_amount: 1000000,
-    approved_amount: 850000,
-    paid_amount: 850000,
-    submitted_at: '2024-05-15',
-    settled_at: '2024-05-20',
-    status: 'settled',
-  },
-  {
-    id: 'demo-usage-bhyt-2',
-    policy_id: 'demo-bhyt',
-    invoice_id: {
-      invoice_no: 'HD-2024-000456',
-      status: 'issued',
-      total_amount: 760000,
-      balance_due: 152000,
-    },
-    claim_no: 'CLM-2024-0031',
-    service_name: 'Xét nghiệm máu và nước tiểu',
-    department_name: 'Khoa Xét nghiệm',
-    submitted_amount: 608000,
-    approved_amount: 608000,
-    paid_amount: 0,
-    submitted_at: '2024-07-08',
-    approved_at: '2024-07-09',
+    claim_no: 'CLM-2026-0008',
+    service_name: 'Nội trú - Phẫu thuật nội soi',
+    submitted_amount: 18500000,
+    approved_amount: 14800000,
+    paid_amount: 14800000,
+    submitted_at: '2026-05-20',
     status: 'approved',
   },
+  {
+    id: 'CLM-2026-0007',
+    policy_id: 'demo-bhyt',
+    claim_no: 'CLM-2026-0007',
+    service_name: 'Khám chuyên khoa',
+    submitted_amount: 1250000,
+    approved_amount: 875000,
+    paid_amount: 875000,
+    submitted_at: '2026-05-15',
+    status: 'approved',
+  },
+  {
+    id: 'CLM-2026-0006',
+    policy_id: 'demo-bhyt',
+    claim_no: 'CLM-2026-0006',
+    service_name: 'Xét nghiệm',
+    submitted_amount: 650000,
+    approved_amount: 455000,
+    paid_amount: 455000,
+    submitted_at: '2026-05-05',
+    status: 'approved',
+  },
+  {
+    id: 'CLM-2026-0005',
+    policy_id: 'demo-bhyt',
+    claim_no: 'CLM-2026-0005',
+    service_name: 'Vật lý trị liệu',
+    submitted_amount: 2400000,
+    approved_amount: 0,
+    paid_amount: 0,
+    submitted_at: '2026-04-28',
+    status: 'submitted',
+  },
+  {
+    id: 'CLM-2026-0004',
+    policy_id: 'demo-bhyt',
+    claim_no: 'CLM-2026-0004',
+    service_name: 'Nội trú - Điều trị',
+    submitted_amount: 6200000,
+    approved_amount: 0,
+    paid_amount: 0,
+    submitted_at: '2026-04-22',
+    status: 'under_review',
+  },
 ]
 
-const logoTones = ['navy', 'teal', 'rose', 'amber', 'blue']
+const dashboardTabs = [
+  { key: 'overview', label: 'Tổng quan', icon: 'dashboard' },
+  { key: 'claims', label: 'Yêu cầu bồi thường', icon: 'receipt_long' },
+  { key: 'benefits', label: 'Quyền lợi', icon: 'verified_user' },
+  { key: 'documents', label: 'Tài liệu', icon: 'folder_shared' },
+]
 
-const statusMeta = {
-  active: {
-    label: 'CÒN HẠN',
-    tone: 'active',
-    action: 'Chi tiết',
-    filter: 'active',
-  },
-  expired: {
-    label: 'HẾT HẠN',
-    tone: 'expired',
-    action: 'Xem chi tiết',
-    filter: 'expired',
-  },
-  cancelled: {
-    label: 'ĐÃ HỦY',
-    tone: 'expired',
-    action: 'Xem chi tiết',
-    filter: 'expired',
-  },
-  inactive: {
-    label: 'TẠM NGƯNG',
-    tone: 'expired',
-    action: 'Xem chi tiết',
-    filter: 'expired',
-  },
-  pending: {
-    label: 'ĐANG CHỜ DUYỆT',
-    tone: 'pending',
-    action: 'Kiểm tra',
-    filter: 'pending',
-  },
-  under_review: {
-    label: 'ĐANG CHỜ DUYỆT',
-    tone: 'pending',
-    action: 'Kiểm tra',
-    filter: 'pending',
-  },
-  submitted: {
-    label: 'ĐANG CHỜ DUYỆT',
-    tone: 'pending',
-    action: 'Kiểm tra',
-    filter: 'pending',
-  },
-  draft: {
-    label: 'ĐANG CHỜ DUYỆT',
-    tone: 'pending',
-    action: 'Kiểm tra',
-    filter: 'pending',
-  },
-}
-
-const statusFilters = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'active', label: 'Còn hạn' },
-  { key: 'expired', label: 'Hết hạn' },
+const coveredServices = [
+  { icon: 'medical_services', title: 'Khám bệnh & Tư vấn', copy: 'Ngoại trú, nội trú' },
+  { icon: 'experiment', title: 'Xét nghiệm', copy: 'Xét nghiệm máu, nước tiểu, chẩn đoán' },
+  { icon: 'radiology', title: 'Chẩn đoán hình ảnh', copy: 'X-quang, CT, MRI, Siêu âm' },
+  { icon: 'settings_suggest', title: 'Phẫu thuật & Thủ thuật', copy: 'Phẫu thuật, tiểu phẫu, thủ thuật' },
+  { icon: 'local_hospital', title: 'Điều trị nội trú', copy: 'Giường bệnh, điều dưỡng, thuốc' },
+  { icon: 'accessibility_new', title: 'Vật lý trị liệu & Phục hồi chức năng', copy: 'Tập phục hồi, điện trị liệu' },
 ]
 
 const claimStatusMeta = {
   draft: { label: 'Nháp', tone: 'pending' },
-  submitted: { label: 'Đã gửi', tone: 'pending' },
-  under_review: { label: 'Đang duyệt', tone: 'pending' },
+  submitted: { label: 'Chờ bổ sung', tone: 'pending' },
+  under_review: { label: 'Đang xử lý', tone: 'partial' },
   approved: { label: 'Đã duyệt', tone: 'active' },
   partially_approved: { label: 'Duyệt một phần', tone: 'partial' },
   settled: { label: 'Đã chi trả', tone: 'active' },
   rejected: { label: 'Từ chối', tone: 'rejected' },
   cancelled: { label: 'Đã hủy', tone: 'rejected' },
+}
+
+const insuranceFormDefaults = {
+  providerName: '',
+  policyNo: '',
+  memberNo: '',
+  coverageType: 'Khám chữa bệnh đúng tuyến',
+  validFrom: '',
+  validTo: '',
+  coveragePercent: '80',
+  coverageLimit: '50000000',
+  note: '',
 }
 
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', {
@@ -168,44 +134,19 @@ function normalizeText(value, fallback = '') {
   return text || fallback
 }
 
-function getPolicyId(policy, index) {
-  return (
-    policy._id ||
-    policy.policy_id ||
-    policy.id ||
-    policy.policy_no ||
-    policy.member_no ||
-    `insurance-policy-${index}`
-  )
-}
-
-function getProviderInitials(name, code) {
-  const explicitCode = normalizeText(code)
-  if (explicitCode) {
-    return explicitCode.slice(0, 3).toUpperCase()
-  }
-
-  return normalizeText(name, 'BH')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-3)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-}
-
 function formatDate(value) {
   if (!value) return ''
-
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-
-  return dateFormatter.format(date)
+  return Number.isNaN(date.getTime()) ? '' : dateFormatter.format(date)
 }
 
-function getStatusMeta(status) {
-  const key = normalizeText(status, 'active').toLowerCase()
-  return statusMeta[key] || statusMeta.active
+function formatMoney(value) {
+  const numberValue = Number(value)
+  return moneyFormatter.format(Number.isFinite(numberValue) ? numberValue : 0)
+}
+
+function getPolicyId(policy, index) {
+  return policy._id || policy.policy_id || policy.id || policy.policy_no || policy.member_no || `insurance-policy-${index}`
 }
 
 function normalizePolicy(policy, index) {
@@ -213,37 +154,32 @@ function normalizePolicy(policy, index) {
     policy.payer_name || policy.company_name || policy.insurer_name || policy.provider_name,
     `Bảo hiểm y tế ${index + 1}`,
   )
-  const payerCode = normalizeText(policy.payer_code || policy.company_code || policy.insurer_code)
-  const status = normalizeText(policy.status, 'active').toLowerCase()
-  const meta = getStatusMeta(status)
 
   return {
     ...policy,
     id: getPolicyId(policy, index),
     payerName,
-    payerCode,
+    payerCode: normalizeText(policy.payer_code || policy.company_code || policy.insurer_code),
     policyNo: normalizeText(policy.policy_no || policy.policy_number || policy.member_no, 'Chưa có mã thẻ'),
     memberNo: normalizeText(policy.member_no || policy.policy_no || policy.policy_number, 'Chưa có mã thành viên'),
-    coverageType: normalizeText(policy.coverage_type || policy.plan_name || policy.type),
+    coverageType: normalizeText(policy.coverage_type || policy.plan_name || policy.type, 'Khám chữa bệnh đúng tuyến'),
     coveragePercent: policy.coverage_percent,
+    coverageLimit: Number(policy.coverage_limit || policy.annual_limit || policy.limit_amount || 50000000),
     validFrom: policy.valid_from || policy.start_date || policy.effective_from,
-    validTo: policy.valid_to || policy.end_date || policy.effective_to,
-    status,
-    meta,
-    initials: getProviderInitials(payerName, payerCode),
-    logoTone: logoTones[index % logoTones.length],
+    validTo: policy.valid_to || policy.end_date || policy.to_date,
+    status: normalizeText(policy.status, 'active').toLowerCase(),
   }
+}
+
+function getClaimId(claim, index) {
+  return claim._id || claim.claim_id || claim.id || claim.claim_no || `insurance-usage-${index}`
 }
 
 function getPolicyClaims(policy, claims) {
   return claims.filter((claim) => {
     const claimPolicyId = claim.policy_id?._id || claim.policy_id || claim.policyId
-    return String(claimPolicyId || '') === String(policy.id || policy._id || '')
+    return String(claimPolicyId || '') === String(policy?.id || policy?._id || '')
   })
-}
-
-function getClaimId(claim, index) {
-  return claim._id || claim.claim_id || claim.id || claim.claim_no || `insurance-usage-${index}`
 }
 
 function getClaimStatusMeta(status) {
@@ -251,18 +187,15 @@ function getClaimStatusMeta(status) {
   return claimStatusMeta[key] || claimStatusMeta.submitted
 }
 
-function formatMoney(value) {
-  const numberValue = Number(value)
-  if (!Number.isFinite(numberValue)) return moneyFormatter.format(0)
-  return moneyFormatter.format(numberValue)
+function getClaimGroup(status) {
+  const key = normalizeText(status, 'submitted').toLowerCase()
+  if (['approved', 'partially_approved', 'settled'].includes(key)) return 'approved'
+  if (['rejected', 'cancelled'].includes(key)) return 'rejected'
+  return 'pending'
 }
 
 function getClaimDate(claim) {
   return formatDate(claim.settled_at || claim.approved_at || claim.submitted_at || claim.created_at)
-}
-
-function getClaimInvoiceNo(claim) {
-  return normalizeText(claim.invoice_id?.invoice_no || claim.invoice_no || claim.invoice_number)
 }
 
 function getClaimTitle(claim) {
@@ -272,90 +205,41 @@ function getClaimTitle(claim) {
   )
 }
 
-function getClaimNote(claim) {
-  return normalizeText(claim.rejection_reason || claim.cancel_reason || claim.note || claim.description)
-}
-
 function getPolicyTypeLabel(policy) {
-  const code = String(policy.payerCode || policy.payer_code || '').toUpperCase()
-  const name = policy.payerName || policy.payer_name || ''
-
-  if (code.includes('BHYT') || name.toLowerCase().includes('y tế')) {
-    return 'Bảo hiểm y tế (BHYT)'
-  }
-
-  if (code.includes('BHXH') || name.toLowerCase().includes('xã hội')) {
-    return 'Bảo hiểm xã hội (BHXH)'
-  }
-
+  const code = String(policy?.payerCode || policy?.payer_code || '').toUpperCase()
+  const name = policy?.payerName || policy?.payer_name || ''
+  if (code.includes('BHYT') || name.toLowerCase().includes('y tế')) return 'Bảo hiểm y tế'
+  if (code.includes('BHXH') || name.toLowerCase().includes('xã hội')) return 'Bảo hiểm xã hội'
   return name || 'Bảo hiểm'
 }
 
-function getPolicyNumberLabel(policy) {
-  const code = String(policy.payerCode || '').toUpperCase()
-  const typeLabel = getPolicyTypeLabel(policy)
-
-  if (code.includes('BHXH') || typeLabel.includes('xã hội')) {
-    return 'Số sổ BHXH'
-  }
-
-  if (code.includes('BHYT') || typeLabel.includes('y tế')) {
-    return 'Số thẻ BHYT'
-  }
-
-  return 'Số thẻ bảo hiểm'
-}
-
-function getInitialCarePlace(policy) {
-  return normalizeText(
-    policy.initial_care_place ||
-      policy.registered_hospital ||
-      policy.primary_hospital ||
-      policy.registration_facility ||
-      policy.facility_name,
-    'Bệnh viện Đa khoa HealthCare',
-  )
-}
-
 function getBenefitPercent(policy) {
-  if (policy.coveragePercent !== undefined && policy.coveragePercent !== null && policy.coveragePercent !== '') {
+  if (policy?.coveragePercent !== undefined && policy?.coveragePercent !== null && policy?.coveragePercent !== '') {
     return `${policy.coveragePercent}%`
   }
-
   return '80%'
 }
 
 function getBenefitScope(policy) {
-  return normalizeText(policy.coverageType || policy.benefit_scope || policy.scope, 'Khám chữa bệnh đúng tuyến')
+  return normalizeText(policy?.coverageType || policy?.benefit_scope || policy?.scope, 'Khám chữa bệnh đúng tuyến')
 }
 
 function getBenefitCode(policy) {
-  const explicitCode = normalizeText(policy.benefit_code || policy.right_code || policy.coverage_code)
+  const explicitCode = normalizeText(policy?.benefit_code || policy?.right_code || policy?.coverage_code)
   if (explicitCode) return explicitCode
-
-  const cardCode = normalizeText(policy.memberNo || policy.policyNo).replace(/[^a-zA-Z0-9]/g, '')
-  if (cardCode.length >= 5) return cardCode.slice(0, 5).toUpperCase()
-
-  return 'GD401'
+  const cardCode = normalizeText(policy?.memberNo || policy?.policyNo).replace(/[^a-zA-Z0-9]/g, '')
+  return cardCode.length >= 5 ? cardCode.slice(0, 5).toUpperCase() : 'GD401'
 }
 
-function getParticipationTime(policy) {
-  if (policy.participation_years) return `${policy.participation_years} năm`
-  if (policy.joined_years) return `${policy.joined_years} năm`
-  return normalizeText(policy.participation_time || policy.joined_time, '5 năm')
-}
-
-function InsuranceLogo({ policy, compact = false }) {
-  return (
-    <div className={`pi-provider-logo pi-provider-logo--${policy.logoTone}${compact ? ' is-compact' : ''}`}>
-      <strong>{policy.initials}</strong>
-      <span>Bảo hiểm</span>
-    </div>
+function getInitialCarePlace(policy) {
+  return normalizeText(
+    policy?.initial_care_place ||
+      policy?.registered_hospital ||
+      policy?.primary_hospital ||
+      policy?.registration_facility ||
+      policy?.facility_name,
+    'Bệnh viện Đa khoa HealthCare',
   )
-}
-
-function StatusBadge({ meta }) {
-  return <span className={`pi-status pi-status--${meta.tone}`}>{meta.label}</span>
 }
 
 export default function PatientInsurancePage({
@@ -365,63 +249,48 @@ export default function PatientInsurancePage({
   onBackToDashboard,
   policies = [],
 }) {
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [companyFilter, setCompanyFilter] = useState('all')
   const [selectedPolicyId, setSelectedPolicyId] = useState('')
-  const [detailPolicyId, setDetailPolicyId] = useState('')
+  const [activeTab, setActiveTab] = useState('overview')
   const [notice, setNotice] = useState('')
-  const sourcePolicies = policies.length ? policies : fallbackPolicies
-  const sourceClaims = claims.length ? claims : fallbackUsageHistory
+  const [showInsuranceForm, setShowInsuranceForm] = useState(false)
+  const [insuranceForm, setInsuranceForm] = useState(insuranceFormDefaults)
+  const [submittedPolicies, setSubmittedPolicies] = useState([])
+  const [supportChatOpen, setSupportChatOpen] = useState(false)
+  const [supportChatDraft, setSupportChatDraft] = useState('')
+  const [supportChatMessages, setSupportChatMessages] = useState([
+    {
+      id: 'insurance-support-welcome',
+      role: 'bot',
+      text: 'Xin chào! Tôi có thể hỗ trợ bạn về bảo hiểm hoặc đặt lịch khám.',
+    },
+  ])
 
-  const normalizedPolicies = useMemo(
-    () => sourcePolicies.map((policy, index) => normalizePolicy(policy, index)),
-    [sourcePolicies],
+  const sourcePolicies = useMemo(
+    () => (policies.length || submittedPolicies.length ? [...policies, ...submittedPolicies] : fallbackPolicies),
+    [policies, submittedPolicies],
   )
-
-  const companyOptions = useMemo(() => {
-    const seen = new Set()
-    return normalizedPolicies.filter((policy) => {
-      if (seen.has(policy.payerName)) return false
-      seen.add(policy.payerName)
-      return true
-    })
-  }, [normalizedPolicies])
-
-  const filteredPolicies = useMemo(
-    () =>
-      normalizedPolicies.filter((policy) => {
-        const matchesStatus = statusFilter === 'all' || policy.meta.filter === statusFilter
-        const matchesCompany = companyFilter === 'all' || policy.payerName === companyFilter
-        return matchesStatus && matchesCompany
-      }),
-    [companyFilter, normalizedPolicies, statusFilter],
-  )
+  const sourceClaims = claims.length ? claims : fallbackClaims
+  const normalizedPolicies = useMemo(() => sourcePolicies.map(normalizePolicy), [sourcePolicies])
 
   useEffect(() => {
-    if (!filteredPolicies.length) {
+    if (!normalizedPolicies.length) {
       setSelectedPolicyId('')
-      setDetailPolicyId('')
       return
     }
 
-    if (!filteredPolicies.some((policy) => policy.id === selectedPolicyId)) {
-      setSelectedPolicyId(filteredPolicies[0].id)
+    if (!normalizedPolicies.some((policy) => policy.id === selectedPolicyId)) {
+      setSelectedPolicyId(normalizedPolicies[0].id)
     }
+  }, [normalizedPolicies, selectedPolicyId])
 
-    if (detailPolicyId && !filteredPolicies.some((policy) => policy.id === detailPolicyId)) {
-      setDetailPolicyId('')
-    }
-  }, [detailPolicyId, filteredPolicies, selectedPolicyId])
-
-  const selectedPolicy = filteredPolicies.find((policy) => policy.id === selectedPolicyId)
-  const detailPolicy = filteredPolicies.find((policy) => policy.id === detailPolicyId)
-  const selectedPolicyClaims = useMemo(
+  const selectedPolicy = normalizedPolicies.find((policy) => policy.id === selectedPolicyId) || normalizedPolicies[0] || null
+  const selectedClaims = useMemo(
     () => (selectedPolicy ? getPolicyClaims(selectedPolicy, sourceClaims) : []),
     [selectedPolicy, sourceClaims],
   )
-  const selectedPolicyClaimSummary = useMemo(
+  const claimSummary = useMemo(
     () =>
-      selectedPolicyClaims.reduce(
+      selectedClaims.reduce(
         (summary, claim) => ({
           approved: summary.approved + (Number(claim.approved_amount) || 0),
           paid: summary.paid + (Number(claim.paid_amount) || 0),
@@ -429,331 +298,512 @@ export default function PatientInsurancePage({
         }),
         { approved: 0, paid: 0, submitted: 0 },
       ),
-    [selectedPolicyClaims],
+    [selectedClaims],
   )
 
-  const handleAddInsurance = () => {
-    setNotice('Chức năng gửi thông tin bảo hiểm mới đang chờ API tự phục vụ từ backend.')
+  const safePolicyLimit = Number.isFinite(selectedPolicy?.coverageLimit) && selectedPolicy.coverageLimit > 0 ? selectedPolicy.coverageLimit : 50000000
+  const remainingBenefit = Math.max(safePolicyLimit - claimSummary.approved, 0)
+  const remainingPercent = Math.min(100, Math.round((remainingBenefit / safePolicyLimit) * 1000) / 10)
+  const paymentRate = Number.parseInt(getBenefitPercent(selectedPolicy || {}).replace(/[^\d]/g, ''), 10) || 80
+  const approvedClaims = selectedClaims.filter((claim) => getClaimGroup(claim.status) === 'approved')
+  const pendingClaims = selectedClaims.filter((claim) => getClaimGroup(claim.status) === 'pending')
+  const claimRows = activeTab === 'claims' ? selectedClaims : selectedClaims.slice(0, 5)
+
+  const dashboardKpis = [
+    {
+      id: 'remaining',
+      icon: 'shield_plus',
+      tone: 'blue',
+      label: 'Quyền lợi còn lại',
+      value: formatMoney(remainingBenefit),
+      helper: `Trong tổng mức ${formatMoney(safePolicyLimit)}`,
+      progress: remainingPercent,
+    },
+    {
+      id: 'claims',
+      icon: 'receipt_long',
+      tone: 'green',
+      label: 'Số hồ sơ yêu cầu',
+      value: `${selectedClaims.length} hồ sơ`,
+      helper: 'Trong năm 2026',
+    },
+    {
+      id: 'approved',
+      icon: 'verified',
+      tone: 'violet',
+      label: 'Đã được duyệt',
+      value: `${approvedClaims.length} hồ sơ`,
+      helper: `Tổng ${formatMoney(claimSummary.approved)}`,
+    },
+    {
+      id: 'pending',
+      icon: 'schedule',
+      tone: 'orange',
+      label: 'Chờ xử lý',
+      value: `${pendingClaims.length} hồ sơ`,
+      helper: `Tổng ${formatMoney(Math.max(claimSummary.submitted - claimSummary.approved, 0))}`,
+    },
+  ]
+
+  const benefitRows = selectedPolicy
+    ? [
+        ['Mức hưởng', getBenefitPercent(selectedPolicy)],
+        ['Phạm vi hưởng', getBenefitScope(selectedPolicy)],
+        ['Mã quyền lợi', getBenefitCode(selectedPolicy)],
+        ['Nơi đăng ký KCB', getInitialCarePlace(selectedPolicy)],
+      ]
+    : []
+
+  const handleUploadNotice = () => {
+    setNotice('Chức năng tải tài liệu bảo hiểm đang chờ API tự phục vụ từ backend.')
+  }
+
+  const handleInsuranceFormChange = (event) => {
+    const { name, value } = event.target
+    setInsuranceForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+    }))
+  }
+
+  const closeInsuranceForm = () => {
+    setShowInsuranceForm(false)
+    setInsuranceForm(insuranceFormDefaults)
+  }
+
+  const handleInsuranceFormSubmit = (event) => {
+    event.preventDefault()
+
+    const newPolicy = {
+      id: `patient-insurance-${Date.now()}`,
+      payer_name: normalizeText(insuranceForm.providerName, 'Bảo hiểm mới'),
+      payer_code: '',
+      policy_no: normalizeText(insuranceForm.policyNo, 'Chưa có mã thẻ'),
+      member_no: normalizeText(insuranceForm.memberNo || insuranceForm.policyNo, 'Chưa có mã thành viên'),
+      coverage_type: normalizeText(insuranceForm.coverageType, 'Khám chữa bệnh đúng tuyến'),
+      coverage_percent: Math.max(0, Math.min(100, Number(insuranceForm.coveragePercent) || 0)),
+      coverage_limit: Math.max(0, Number(insuranceForm.coverageLimit) || 0),
+      valid_from: insuranceForm.validFrom,
+      valid_to: insuranceForm.validTo,
+      status: 'active',
+      is_primary: !normalizedPolicies.length,
+      note: insuranceForm.note,
+    }
+
+    setSubmittedPolicies((currentPolicies) => [newPolicy, ...currentPolicies])
+    setSelectedPolicyId(newPolicy.id)
+    setShowInsuranceForm(false)
+    setInsuranceForm(insuranceFormDefaults)
+    setNotice('Đã thêm bảo hiểm vào hồ sơ xem thử. Cần nối API backend để lưu dữ liệu lâu dài.')
+  }
+
+  const handleSupportChatSubmit = (event) => {
+    event.preventDefault()
+
+    const message = supportChatDraft.trim()
+    if (!message) return
+
+    const timestamp = Date.now()
+    setSupportChatMessages((currentMessages) => [
+      ...currentMessages,
+      {
+        id: `insurance-support-user-${timestamp}`,
+        role: 'user',
+        text: message,
+      },
+      {
+        id: `insurance-support-bot-${timestamp}`,
+        role: 'bot',
+        text: 'Tôi đã nhận yêu cầu của bạn. Bạn có thể gửi thêm mã hồ sơ hoặc mã thẻ bảo hiểm để được hỗ trợ nhanh hơn.',
+      },
+    ])
+    setSupportChatDraft('')
   }
 
   return (
-    <section className="patient-insurance-page">
-      <div className="pi-card-shell">
-        <header className="pi-header">
-          <div className="pi-title-row">
-            <h1>DANH SÁCH BẢO HIỂM CHÍNH ĐÃ ĐĂNG KÝ</h1>
-          </div>
-
-          <div className="pi-toolbar">
-            <button className="pi-add-button" type="button" onClick={handleAddInsurance}>
-              <PatientIcon name="add" aria-hidden="true" />
-              <span>THÊM BẢO HIỂM MỚI</span>
-            </button>
-
-            <div className="pi-filter-group" aria-label="Lọc trạng thái bảo hiểm">
-              <span>Lọc theo trạng thái:</span>
-              <div className="pi-segmented">
-                {statusFilters.map((filter) => (
-                  <button
-                    key={filter.key}
-                    className={statusFilter === filter.key ? 'is-active' : ''}
-                    type="button"
-                    onClick={() => setStatusFilter(filter.key)}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
+    <section className="patient-insurance-page patient-insurance-page--dashboard">
+      <div className="pi-dashboard-layout">
+        <main className="pi-dashboard-main">
+          <header className="pi-dashboard-header">
+            <div>
+              <h1>Bảo hiểm</h1>
+              <p>Quản lý thông tin bảo hiểm, quyền lợi và yêu cầu bồi thường của bạn.</p>
             </div>
-
-            <label className="pi-company-filter">
-              <span>Lọc theo công ty:</span>
-              <select value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)}>
-                <option value="all">Tất cả công ty</option>
-                {companyOptions.map((policy) => (
-                  <option key={policy.payerName} value={policy.payerName}>
-                    {policy.payerName}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </header>
-
-        {notice ? (
-          <div className="pi-notice" role="status">
-            <PatientIcon name="info" aria-hidden="true" />
-            <span>{notice}</span>
-          </div>
-        ) : null}
-
-        {loading ? <div className="patient-dashboard-state">Đang tải thông tin bảo hiểm...</div> : null}
-
-        {!loading && error ? (
-          <div className="patient-dashboard-state patient-dashboard-state-error">{error}</div>
-        ) : null}
-
-        <div className="pi-policy-grid">
-          {filteredPolicies.map((policy) => {
-            const isSelected = policy.id === selectedPolicy?.id
-            const policyClaims = getPolicyClaims(policy, sourceClaims)
-            const validFrom = formatDate(policy.validFrom)
-            const validTo = formatDate(policy.validTo)
-            const validityText = validFrom || validTo ? `Từ ${validFrom || '--'} đến ${validTo || '--'}` : 'Đang chờ cập nhật'
-
-            return (
-              <div className="pi-policy-row" key={policy.id}>
-                <button
-                  className={`pi-policy-card${isSelected ? ' is-selected' : ''}`}
-                  type="button"
-                  onClick={() => setSelectedPolicyId(policy.id)}
-                >
-                  <InsuranceLogo policy={policy} />
-
-                  <div className="pi-policy-copy">
-                    <h2>{policy.payerName}</h2>
-                    <p>{policy.policyNo}</p>
-                    {policy.validFrom || policy.validTo ? <span>{validityText}</span> : null}
-                    {!policy.validFrom && !policy.validTo ? <span>Đang chờ cập nhật</span> : null}
-                  </div>
-
-                  <div className="pi-policy-meta">
-                    <StatusBadge meta={policy.meta} />
-                    {policy.meta.filter !== 'active' ? (
-                      <span className={`pi-inline-action pi-inline-action--${policy.meta.tone}`}>
-                        {policy.meta.action}
-                      </span>
-                    ) : null}
-                  </div>
-                </button>
-
-                <article className={`pi-detail-card${isSelected ? ' is-selected' : ''}`}>
-                  {isSelected ? (
-                    <>
-                      <div className="pi-detail-main">
-                        <InsuranceLogo policy={policy} compact />
-                        <div className="pi-verified-mark" aria-hidden="true">
-                          <PatientIcon name={policy.meta.filter === 'expired' ? 'warning' : 'check_circle'} />
-                        </div>
-                        <div className="pi-detail-copy">
-                          <strong>{validityText}</strong>
-                          <span>
-                            {policy.coveragePercent !== undefined && policy.coveragePercent !== null
-                              ? `Chi trả ${policy.coveragePercent}%`
-                              : policy.coverageType || 'Thông tin quyền lợi sẽ hiển thị khi có dữ liệu.'}
-                          </span>
-                          {policyClaims.length ? <small>{policyClaims.length} hồ sơ bồi thường liên quan</small> : null}
-                        </div>
-                      </div>
-
-                      <button
-                        className="pi-detail-button"
-                        type="button"
-                        onClick={() => {
-                          setSelectedPolicyId(policy.id)
-                          setDetailPolicyId(policy.id)
-                        }}
-                      >
-                        {policy.meta.action}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="pi-detail-button"
-                      type="button"
-                      onClick={() => {
-                        setSelectedPolicyId(policy.id)
-                        setDetailPolicyId(policy.id)
-                      }}
-                    >
-                      {policy.meta.action}
-                    </button>
-                  )}
-                </article>
-              </div>
-            )
-          })}
-        </div>
-
-        {selectedPolicy ? (
-          <section className="pi-usage-panel" aria-label="Lịch sử sử dụng bảo hiểm">
-            <div className="pi-usage-head">
-              <div>
-                <span className="pi-section-eyebrow">Theo thẻ đang chọn</span>
-                <h2>Lịch sử sử dụng bảo hiểm</h2>
-              </div>
-
-              <div className="pi-usage-summary" aria-label="Tổng quan lịch sử sử dụng bảo hiểm">
-                <div>
-                  <span>Số hồ sơ</span>
-                  <strong>{selectedPolicyClaims.length}</strong>
-                </div>
-                <div>
-                  <span>Đã duyệt</span>
-                  <strong>{formatMoney(selectedPolicyClaimSummary.approved)}</strong>
-                </div>
-                <div>
-                  <span>Đã chi trả</span>
-                  <strong>{formatMoney(selectedPolicyClaimSummary.paid)}</strong>
-                </div>
-              </div>
+            <div className="pi-dashboard-illustration" aria-hidden="true">
+              <span><PatientIcon name="description" /></span>
+              <strong><PatientIcon name="health_and_safety" /></strong>
+              <i><PatientIcon name="favorite" /></i>
             </div>
+          </header>
 
-            {selectedPolicyClaims.length ? (
-              <div className="pi-usage-list">
-                {selectedPolicyClaims.map((claim, index) => {
-                  const claimMeta = getClaimStatusMeta(claim.status)
-                  const claimDate = getClaimDate(claim)
-                  const invoiceNo = getClaimInvoiceNo(claim)
-                  const claimNote = getClaimNote(claim)
+          {notice ? (
+            <div className="pi-notice" role="status">
+              <PatientIcon name="info" aria-hidden="true" />
+              <span>{notice}</span>
+            </div>
+          ) : null}
+          {loading ? <div className="patient-dashboard-state">Đang tải thông tin bảo hiểm...</div> : null}
+          {!loading && error ? <div className="patient-dashboard-state patient-dashboard-state-error">{error}</div> : null}
 
-                  return (
-                    <article className="pi-usage-item" key={getClaimId(claim, index)}>
-                      <span className="pi-usage-icon" aria-hidden="true">
-                        <PatientIcon name="receipt_long" />
-                      </span>
-
-                      <div className="pi-usage-copy">
-                        <div className="pi-usage-title-row">
-                          <h3>{getClaimTitle(claim)}</h3>
-                          <span className={`pi-claim-status pi-claim-status--${claimMeta.tone}`}>
-                            {claimMeta.label}
-                          </span>
-                        </div>
-                        <p>
-                          {invoiceNo ? `Hóa đơn ${invoiceNo}` : 'Chưa liên kết hóa đơn'}
-                          {claimDate ? ` | ${claimDate}` : ''}
-                        </p>
-                        {claimNote ? <small>{claimNote}</small> : null}
-                      </div>
-
-                      <dl className="pi-usage-amounts">
-                        <div>
-                          <dt>Đề nghị</dt>
-                          <dd>{formatMoney(claim.submitted_amount)}</dd>
-                        </div>
-                        <div>
-                          <dt>Được duyệt</dt>
-                          <dd>{formatMoney(claim.approved_amount)}</dd>
-                        </div>
-                        <div>
-                          <dt>Đã chi trả</dt>
-                          <dd>{formatMoney(claim.paid_amount)}</dd>
-                        </div>
-                      </dl>
-                    </article>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="pi-usage-empty">
-                Chưa có lượt sử dụng bảo hiểm cho thẻ này.
-              </div>
-            )}
-          </section>
-        ) : null}
-
-        {detailPolicy ? (
-          <section className="pi-info-panel" aria-label="Chi tiết bảo hiểm">
-            <article className="pi-info-card">
-              <div className="pi-info-card-head">
-                <span className="pi-info-head-icon" aria-hidden="true">
-                  <PatientIcon name="verified_user" />
-                </span>
-                <h2>Thông tin bảo hiểm</h2>
-              </div>
-
-              <dl className="pi-info-list">
+          {showInsuranceForm ? (
+            <form className="pi-insurance-entry-card" onSubmit={handleInsuranceFormSubmit}>
+              <div className="pi-entry-header">
                 <div>
-                  <dt>Loại bảo hiểm</dt>
-                  <dd>{getPolicyTypeLabel(detailPolicy)}</dd>
+                  <span>Thông tin bảo hiểm</span>
+                  <h2>Nhập bảo hiểm của bệnh nhân</h2>
                 </div>
-                <div>
-                  <dt>{getPolicyNumberLabel(detailPolicy)}</dt>
-                  <dd>{detailPolicy.memberNo || detailPolicy.policyNo}</dd>
-                </div>
-                <div>
-                  <dt>Ngày hiệu lực</dt>
-                  <dd>{formatDate(detailPolicy.validFrom) || 'Đang cập nhật'}</dd>
-                </div>
-                <div>
-                  <dt>Ngày hết hạn</dt>
-                  <dd>{formatDate(detailPolicy.validTo) || 'Đang cập nhật'}</dd>
-                </div>
-                <div>
-                  <dt>Nơi đăng ký KCB ban đầu</dt>
-                  <dd>{getInitialCarePlace(detailPolicy)}</dd>
-                </div>
-              </dl>
-
-              <div className={`pi-validity-box pi-validity-box--${detailPolicy.meta.tone}`}>
-                <span aria-hidden="true">
-                  <PatientIcon name={detailPolicy.meta.filter === 'expired' ? 'warning' : 'check_circle'} />
-                </span>
-                <div>
-                  <strong>
-                    {detailPolicy.meta.filter === 'expired'
-                      ? 'Hết hiệu lực'
-                      : detailPolicy.meta.filter === 'pending'
-                        ? 'Đang chờ duyệt'
-                        : 'Còn hiệu lực'}
-                  </strong>
-                  <p>
-                    {detailPolicy.meta.filter === 'expired'
-                      ? `Thẻ đã hết hiệu lực từ ${formatDate(detailPolicy.validTo) || 'ngày chưa cập nhật'}`
-                      : detailPolicy.meta.filter === 'pending'
-                        ? 'Thông tin bảo hiểm đang được kiểm tra.'
-                        : `Thẻ BHYT còn hiệu lực đến ${formatDate(detailPolicy.validTo) || 'ngày chưa cập nhật'}`}
-                  </p>
-                </div>
-              </div>
-            </article>
-
-            <article className="pi-info-card">
-              <div className="pi-info-card-head">
-                <span className="pi-info-head-icon" aria-hidden="true">
-                  <PatientIcon name="calendar_today" />
-                </span>
-                <h2>Thông tin quyền lợi</h2>
-                <button className="pi-info-close" type="button" aria-label="Đóng chi tiết" onClick={() => setDetailPolicyId('')}>
+                <button type="button" aria-label="Đóng form nhập bảo hiểm" onClick={closeInsuranceForm}>
                   <PatientIcon name="close" aria-hidden="true" />
                 </button>
               </div>
 
-              <dl className="pi-info-list">
-                <div>
-                  <dt>Mức hưởng</dt>
-                  <dd>{getBenefitPercent(detailPolicy)}</dd>
+              <div className="pi-entry-grid">
+                <label>
+                  Nhà bảo hiểm
+                  <input
+                    name="providerName"
+                    value={insuranceForm.providerName}
+                    onChange={handleInsuranceFormChange}
+                    placeholder="Ví dụ: Bảo Việt, BHYT, PVI..."
+                    required
+                  />
+                </label>
+                <label>
+                  Mã thẻ / Số hợp đồng
+                  <input
+                    name="policyNo"
+                    value={insuranceForm.policyNo}
+                    onChange={handleInsuranceFormChange}
+                    placeholder="Nhập mã trên thẻ bảo hiểm"
+                    required
+                  />
+                </label>
+                <label>
+                  Mã thành viên
+                  <input
+                    name="memberNo"
+                    value={insuranceForm.memberNo}
+                    onChange={handleInsuranceFormChange}
+                    placeholder="Có thể bỏ trống nếu trùng mã thẻ"
+                  />
+                </label>
+                <label>
+                  Loại quyền lợi
+                  <input
+                    name="coverageType"
+                    value={insuranceForm.coverageType}
+                    onChange={handleInsuranceFormChange}
+                    placeholder="Khám chữa bệnh đúng tuyến"
+                  />
+                </label>
+                <label>
+                  Ngày hiệu lực
+                  <input
+                    name="validFrom"
+                    type="date"
+                    value={insuranceForm.validFrom}
+                    onChange={handleInsuranceFormChange}
+                  />
+                </label>
+                <label>
+                  Ngày hết hạn
+                  <input
+                    name="validTo"
+                    type="date"
+                    value={insuranceForm.validTo}
+                    onChange={handleInsuranceFormChange}
+                    required
+                  />
+                </label>
+                <label>
+                  Tỷ lệ chi trả (%)
+                  <input
+                    name="coveragePercent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={insuranceForm.coveragePercent}
+                    onChange={handleInsuranceFormChange}
+                  />
+                </label>
+                <label>
+                  Giới hạn chi trả
+                  <input
+                    name="coverageLimit"
+                    type="number"
+                    min="0"
+                    step="100000"
+                    value={insuranceForm.coverageLimit}
+                    onChange={handleInsuranceFormChange}
+                  />
+                </label>
+                <label className="pi-entry-grid-full">
+                  Ghi chú
+                  <textarea
+                    name="note"
+                    value={insuranceForm.note}
+                    onChange={handleInsuranceFormChange}
+                    placeholder="Ghi chú thêm về tuyến khám, giấy tờ hoặc điều kiện chi trả"
+                    rows="3"
+                  />
+                </label>
+              </div>
+
+              <div className="pi-entry-footer">
+                <button className="pi-secondary-action" type="button" onClick={closeInsuranceForm}>Hủy</button>
+                <button className="pi-primary-action" type="submit">
+                  <PatientIcon name="check_circle" aria-hidden="true" />
+                  Lưu bảo hiểm
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {selectedPolicy ? (
+            <section className="pi-hero-card" aria-label="Thông tin bảo hiểm chính">
+              <div className="pi-hero-provider">
+                <span>Nhà bảo hiểm</span>
+                <strong>{selectedPolicy.payerName}</strong>
+                <small>{getPolicyTypeLabel(selectedPolicy)} {selectedPolicy.id === 'demo-bhyt' ? '· Dữ liệu demo' : ''}</small>
+                <div className="pi-hero-actions">
+                  <button type="button" className="pi-hero-add-button" onClick={() => setShowInsuranceForm(true)}>
+                    <PatientIcon name="add_circle" aria-hidden="true" />
+                    Thêm bảo hiểm
+                  </button>
+                  <button type="button" className="pi-hero-link-button" onClick={() => setActiveTab('benefits')}>
+                    Xem chi tiết hợp đồng
+                    <PatientIcon name="arrow_forward" aria-hidden="true" />
+                  </button>
                 </div>
+              </div>
+
+              <div className="pi-hero-stat">
+                <span>Số hợp đồng</span>
+                <strong>{selectedPolicy.policyNo}</strong>
+              </div>
+              <div className="pi-hero-stat">
+                <span>Hiệu lực đến</span>
+                <strong><PatientIcon name="calendar_today" aria-hidden="true" />{formatDate(selectedPolicy.validTo) || '--'}</strong>
+              </div>
+              <div className="pi-hero-stat">
+                <span>Tỷ lệ chi trả</span>
+                <strong>{getBenefitPercent(selectedPolicy)}</strong>
+                <small>Nội trú: {getBenefitPercent(selectedPolicy)} · Ngoại trú: 70%</small>
+              </div>
+              <div className="pi-hero-ring" style={{ '--pi-ring': `${Math.min(paymentRate, 100) * 3.6}deg` }} aria-hidden="true">
+                <span><PatientIcon name="shield_plus" /></span>
+              </div>
+            </section>
+          ) : null}
+
+          <section className="pi-kpi-grid" aria-label="Tổng quan bảo hiểm">
+            {dashboardKpis.map((item) => (
+              <article className={`pi-kpi-card pi-kpi-card--${item.tone}`} key={item.id}>
+                <span className="pi-kpi-icon" aria-hidden="true">
+                  <PatientIcon name={item.icon} />
+                </span>
                 <div>
-                  <dt>Phạm vi hưởng</dt>
-                  <dd>{getBenefitScope(detailPolicy)}</dd>
+                  <strong>{item.label}</strong>
+                  <p>{item.value}</p>
+                  <small>{item.helper}</small>
+                  {item.progress !== undefined ? (
+                    <div className="pi-kpi-progress">
+                      <i style={{ '--pi-progress': `${item.progress}%` }} />
+                      <span>{item.progress}%</span>
+                    </div>
+                  ) : null}
                 </div>
-                <div>
-                  <dt>Mã quyền lợi</dt>
-                  <dd>{getBenefitCode(detailPolicy)}</dd>
-                </div>
-                <div>
-                  <dt>Thời gian tham gia</dt>
-                  <dd>{getParticipationTime(detailPolicy)}</dd>
-                </div>
-              </dl>
-            </article>
+              </article>
+            ))}
           </section>
-        ) : null}
 
-        {!loading && filteredPolicies.length === 0 ? (
-          <div className="pi-empty-state">
-            Không tìm thấy bảo hiểm phù hợp với bộ lọc hiện tại.
-          </div>
-        ) : null}
+          <section className="pi-work-panel">
+            <div className="pi-tabs" role="tablist" aria-label="Nội dung bảo hiểm">
+              {dashboardTabs.map((tab) => (
+                <button
+                  className={activeTab === tab.key ? 'is-active' : ''}
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  <PatientIcon name={tab.icon} aria-hidden="true" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-        <div className="pi-footer-actions">
-          <button className="pi-back-button" type="button" onClick={onBackToDashboard}>
+            {activeTab === 'benefits' ? (
+              <div className="pi-benefit-grid">
+                {benefitRows.map(([label, value]) => (
+                  <article key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </article>
+                ))}
+              </div>
+            ) : activeTab === 'documents' ? (
+              <div className="pi-document-state">
+                <PatientIcon name="upload_file" aria-hidden="true" />
+                <strong>Tải tài liệu yêu cầu bồi thường</strong>
+                <p>Hóa đơn, chứng từ và hồ sơ liên quan sẽ được gửi tới bộ phận bảo hiểm.</p>
+                <button type="button" onClick={handleUploadNotice}>Chọn file để tải lên</button>
+              </div>
+            ) : (
+              <>
+                <div className="pi-table-headline">
+                  <h2>Lịch sử yêu cầu bồi thường</h2>
+                  <select aria-label="Lọc trạng thái yêu cầu">
+                    <option>Tất cả trạng thái</option>
+                    <option>Đã duyệt</option>
+                    <option>Đang xử lý</option>
+                    <option>Từ chối</option>
+                  </select>
+                </div>
+
+                <div className="pi-claim-table" role="table" aria-label="Lịch sử yêu cầu bồi thường">
+                  <div className="pi-claim-table-row pi-claim-table-row--head" role="row">
+                    <span>Mã hồ sơ</span>
+                    <span>Ngày yêu cầu</span>
+                    <span>Dịch vụ</span>
+                    <span>Số tiền yêu cầu</span>
+                    <span>Số tiền được duyệt</span>
+                    <span>Trạng thái</span>
+                    <span>Thao tác</span>
+                  </div>
+                  {claimRows.length ? claimRows.map((claim, index) => {
+                    const claimMeta = getClaimStatusMeta(claim.status)
+                    return (
+                      <div className="pi-claim-table-row" role="row" key={getClaimId(claim, index)}>
+                        <span>{claim.claim_no || getClaimId(claim, index)}</span>
+                        <span>{getClaimDate(claim) || '--'}</span>
+                        <span>{getClaimTitle(claim)}</span>
+                        <span>{formatMoney(claim.submitted_amount)}</span>
+                        <span>{Number(claim.approved_amount) ? formatMoney(claim.approved_amount) : '--'}</span>
+                        <span><b className={`pi-claim-status pi-claim-status--${claimMeta.tone}`}>{claimMeta.label}</b></span>
+                        <span><button type="button" aria-label="Xem hồ sơ"><PatientIcon name="image" aria-hidden="true" /></button></span>
+                      </div>
+                    )
+                  }) : (
+                    <div className="pi-claim-table-empty">Chưa có hồ sơ bồi thường cho thẻ này.</div>
+                  )}
+                </div>
+
+                {selectedClaims.length > claimRows.length ? (
+                  <button className="pi-show-all-button" type="button" onClick={() => setActiveTab('claims')}>
+                    Xem tất cả hồ sơ
+                    <PatientIcon name="expand_more" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </>
+            )}
+          </section>
+        </main>
+
+        <aside className="pi-dashboard-side" aria-label="Tiện ích bảo hiểm">
+          <section className="pi-side-card pi-covered-card">
+            <h2>Dịch vụ được bảo hiểm</h2>
+            <div className="pi-covered-list">
+              {coveredServices.map((service) => (
+                <article key={service.title}>
+                  <span><PatientIcon name={service.icon} aria-hidden="true" /></span>
+                  <div>
+                    <strong>{service.title}</strong>
+                    <small>{service.copy}</small>
+                  </div>
+                  <PatientIcon name="check_circle" aria-hidden="true" />
+                </article>
+              ))}
+            </div>
+            <button type="button" onClick={() => setActiveTab('benefits')}>
+              Xem đầy đủ quyền lợi
+              <PatientIcon name="arrow_forward" aria-hidden="true" />
+            </button>
+          </section>
+
+          <section className="pi-side-card pi-upload-card">
+            <h2>Gửi tài liệu yêu cầu bồi thường</h2>
+            <p>Tải lên hóa đơn, chứng từ và hồ sơ liên quan để được xem xét bồi thường nhanh chóng.</p>
+            <div>
+              <PatientIcon name="upload_file" aria-hidden="true" />
+              <strong>Kéo thả file vào đây</strong>
+              <span>hoặc</span>
+              <button type="button" onClick={handleUploadNotice}>
+                <PatientIcon name="upload_file" aria-hidden="true" />
+                Chọn file để tải lên
+              </button>
+              <small>Định dạng: JPG, PNG, PDF (tối đa 10MB/file)</small>
+            </div>
+          </section>
+
+          <section className="pi-support-card">
+            <div>
+              <h2>Cần hỗ trợ về bảo hiểm?</h2>
+              <p>Đội ngũ của chúng tôi luôn sẵn sàng hỗ trợ bạn.</p>
+              <button type="button" onClick={() => setSupportChatOpen(true)}>
+                <PatientIcon name="phone_forwarded" aria-hidden="true" />
+                Liên hệ hỗ trợ
+              </button>
+            </div>
+            <span aria-hidden="true"><PatientIcon name="help_clinic" /></span>
+          </section>
+
+          <button className="pi-back-link" type="button" onClick={onBackToDashboard}>
             Quay lại trang tổng quan
           </button>
-        </div>
+        </aside>
       </div>
+
+      {supportChatOpen ? (
+        <aside className="pi-support-chatbot" role="dialog" aria-label="Hỗ trợ Healthcare">
+          <header className="pi-support-chatbot-header">
+            <div className="pi-support-chatbot-agent">
+              <div className="pi-support-chatbot-avatar">
+                <video src={botAvatarVideo} autoPlay muted loop playsInline aria-hidden="true" />
+                <span aria-hidden="true" />
+              </div>
+              <div>
+                <h2>Hỗ trợ Healthcare</h2>
+                <p>Online</p>
+              </div>
+            </div>
+            <button type="button" aria-label="Đóng hỗ trợ" onClick={() => setSupportChatOpen(false)}>
+              <PatientIcon name="close" aria-hidden="true" />
+            </button>
+          </header>
+
+          <div className="pi-support-chatbot-body">
+            {supportChatMessages.map((message) => (
+              <article
+                className={`pi-support-chatbot-message pi-support-chatbot-message--${message.role}`}
+                key={message.id}
+              >
+                {message.role === 'bot' ? (
+                  <span className="pi-support-chatbot-message-icon">
+                    <img src={botMessageAvatar} alt="" aria-hidden="true" />
+                  </span>
+                ) : null}
+                <div className="pi-support-chatbot-bubble">{message.text}</div>
+              </article>
+            ))}
+          </div>
+
+          <form className="pi-support-chatbot-input" onSubmit={handleSupportChatSubmit}>
+            <div>
+              <input
+                type="text"
+                value={supportChatDraft}
+                placeholder="Nhập tin nhắn..."
+                onChange={(event) => setSupportChatDraft(event.target.value)}
+              />
+              <button type="submit" aria-label="Gửi tin nhắn">
+                <PatientIcon name="send" aria-hidden="true" />
+              </button>
+            </div>
+          </form>
+        </aside>
+      ) : null}
     </section>
   )
 }

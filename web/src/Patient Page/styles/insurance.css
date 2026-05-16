@@ -1188,3 +1188,1216 @@
     text-align: left;
   }
 }
+
+.patient-insurance-page--dashboard {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  color: #07152f;
+}
+
+.patient-insurance-page--dashboard button,
+.patient-insurance-page--dashboard select {
+  font: inherit;
+}
+
+.pi-dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: 28px;
+  align-items: start;
+}
+
+.pi-dashboard-main,
+.pi-dashboard-side {
+  min-width: 0;
+}
+
+.pi-dashboard-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pi-dashboard-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pi-dashboard-header {
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.pi-dashboard-header h1 {
+  margin: 0;
+  color: #07152f;
+  font-size: clamp(28px, 1.9vw, 38px);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.pi-dashboard-header p {
+  margin: 10px 0 0;
+  color: #405072;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.pi-primary-action,
+.pi-secondary-action {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pi-primary-action {
+  border: 0;
+  background: #1f6bff;
+  color: #ffffff;
+  box-shadow: 0 12px 22px rgba(31, 107, 255, 0.18);
+}
+
+.pi-secondary-action {
+  border: 1px solid rgba(207, 217, 232, 0.82);
+  background: #ffffff;
+  color: #405072;
+}
+
+.pi-primary-action .patient-lucide-icon,
+.pi-secondary-action .patient-lucide-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.pi-insurance-entry-card {
+  margin: 0 0 18px;
+  padding: 20px;
+  border: 1px solid rgba(207, 217, 232, 0.72);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.055);
+}
+
+.pi-entry-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.pi-entry-header span {
+  color: #1f6bff;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.pi-entry-header h2 {
+  margin: 5px 0 0;
+  color: #07152f;
+  font-size: 20px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.pi-entry-header > button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(207, 217, 232, 0.82);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #50617f;
+  cursor: pointer;
+}
+
+.pi-entry-header > button .patient-lucide-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.pi-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pi-entry-grid label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #405072;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pi-entry-grid input,
+.pi-entry-grid textarea {
+  width: 100%;
+  border: 1px solid rgba(207, 217, 232, 0.86);
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #07152f;
+  font: inherit;
+  font-weight: 800;
+  outline: none;
+}
+
+.pi-entry-grid input {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.pi-entry-grid textarea {
+  min-height: 78px;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
+.pi-entry-grid input:focus,
+.pi-entry-grid textarea:focus {
+  border-color: rgba(31, 107, 255, 0.72);
+  box-shadow: 0 0 0 3px rgba(31, 107, 255, 0.12);
+}
+
+.pi-entry-grid-full {
+  grid-column: 1 / -1;
+}
+
+.pi-entry-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pi-dashboard-illustration {
+  width: min(280px, 30%);
+  min-width: 210px;
+  height: 88px;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.pi-dashboard-illustration span,
+.pi-dashboard-illustration strong,
+.pi-dashboard-illustration i {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+}
+
+.pi-dashboard-illustration strong {
+  left: 92px;
+  top: 0;
+  width: 86px;
+  height: 86px;
+  border-radius: 28px;
+  background: linear-gradient(145deg, #1f6bff, #78a7ff);
+  box-shadow: 0 18px 34px rgba(31, 111, 237, 0.24);
+}
+
+.pi-dashboard-illustration strong .patient-lucide-icon {
+  width: 44px;
+  height: 44px;
+  stroke-width: 2.7;
+}
+
+.pi-dashboard-illustration span {
+  left: 22px;
+  top: 20px;
+  width: 52px;
+  height: 58px;
+  border-radius: 14px;
+  background: #eef5ff;
+  color: #2f74f7;
+}
+
+.pi-dashboard-illustration i {
+  right: 38px;
+  top: 24px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fff1f4;
+  color: #f05269;
+}
+
+.pi-hero-card {
+  min-height: 190px;
+  display: grid;
+  grid-template-columns: minmax(240px, 1.35fr) minmax(164px, 0.82fr) minmax(174px, 0.88fr) minmax(132px, 0.7fr) 84px;
+  align-items: center;
+  gap: 18px;
+  padding: 26px 30px;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 82% 22%, rgba(255, 255, 255, 0.22), transparent 30%),
+    linear-gradient(135deg, #115eea 0%, #1f73ff 48%, #4e95ff 100%);
+  color: #ffffff;
+  box-shadow: 0 24px 46px rgba(31, 111, 237, 0.24);
+}
+
+.pi-hero-provider,
+.pi-hero-stat {
+  min-width: 0;
+}
+
+.pi-hero-provider > span,
+.pi-hero-stat > span {
+  display: block;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.pi-hero-provider strong {
+  display: block;
+  margin-top: 10px;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.pi-hero-provider small,
+.pi-hero-stat small {
+  display: block;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pi-hero-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pi-hero-provider button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #1566ef;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pi-hero-add-button {
+  margin-top: 0;
+}
+
+.pi-hero-link-button {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.pi-hero-provider button .patient-lucide-icon,
+.pi-covered-card > button .patient-lucide-icon,
+.pi-show-all-button .patient-lucide-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.pi-hero-stat {
+  min-height: 74px;
+  padding-left: 18px;
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.pi-hero-stat strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  color: #ffffff;
+  font-size: clamp(18px, 1.35vw, 21px);
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pi-hero-stat strong .patient-lucide-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.pi-hero-ring {
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  border-radius: 50%;
+  background: conic-gradient(#ffffff var(--pi-ring), rgba(255, 255, 255, 0.22) 0);
+}
+
+.pi-hero-ring span {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #2b7dff;
+  color: #ffffff;
+}
+
+.pi-hero-ring .patient-lucide-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.pi-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.pi-kpi-card {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  gap: 10px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(207, 217, 232, 0.72);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
+}
+
+.pi-kpi-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+}
+
+.pi-kpi-icon .patient-lucide-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.pi-kpi-card--blue .pi-kpi-icon { color: #1f6bff; background: #eaf3ff; }
+.pi-kpi-card--green .pi-kpi-icon { color: #16a262; background: #dcf8e8; }
+.pi-kpi-card--violet .pi-kpi-icon { color: #8b4df5; background: #f0e5ff; }
+.pi-kpi-card--orange .pi-kpi-icon { color: #f28a16; background: #fff1df; }
+
+.pi-kpi-card > div {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pi-kpi-card strong {
+  display: block;
+  max-width: 100%;
+  color: #172554;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.pi-kpi-card p {
+  max-width: 100%;
+  margin: 4px 0 0;
+  color: #07152f;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.08;
+  white-space: nowrap;
+}
+
+.pi-kpi-card small {
+  display: block;
+  max-width: 100%;
+  margin-top: 4px;
+  color: #71809d;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.pi-kpi-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+}
+
+.pi-kpi-progress i {
+  width: 100%;
+  height: 5px;
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9eef7;
+}
+
+.pi-kpi-progress i::before {
+  content: '';
+  width: var(--pi-progress);
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: #1f6bff;
+}
+
+.pi-kpi-progress span {
+  color: #172554;
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pi-work-panel,
+.pi-side-card {
+  border: 1px solid rgba(207, 217, 232, 0.72);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.055);
+}
+
+.pi-work-panel {
+  overflow: hidden;
+}
+
+.pi-tabs {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(207, 217, 232, 0.72);
+}
+
+.pi-tabs button {
+  height: 58px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #50617f;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.pi-tabs button.is-active {
+  border-bottom-color: #1f6bff;
+  color: #1265f5;
+}
+
+.pi-tabs .patient-lucide-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.pi-table-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 20px 14px;
+}
+
+.pi-table-headline h2 {
+  margin: 0;
+  color: #07152f;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.pi-table-headline select {
+  height: 34px;
+  padding: 0 34px 0 12px;
+  border: 1px solid rgba(207, 217, 232, 0.82);
+  border-radius: 9px;
+  background: #ffffff;
+  color: #405072;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pi-claim-table {
+  padding: 0 20px 16px;
+}
+
+.pi-claim-table-row {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr minmax(180px, 1.55fr) 1fr 1fr 0.9fr 64px;
+  gap: 12px;
+  align-items: center;
+  min-height: 42px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.88);
+  color: #26395f;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pi-claim-table-row--head {
+  min-height: 36px;
+  color: #5c6b86;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.pi-claim-table-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pi-claim-table-row button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(31, 107, 255, 0.18);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f6bff;
+  cursor: pointer;
+}
+
+.pi-claim-table-row button .patient-lucide-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.pi-claim-table-empty {
+  display: grid;
+  place-items: center;
+  min-height: 110px;
+  color: #71809d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pi-show-all-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 18px;
+  border: 0;
+  background: transparent;
+  color: #1265f5;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pi-benefit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 20px;
+}
+
+.pi-benefit-grid article {
+  min-height: 78px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.pi-benefit-grid span {
+  color: #71809d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pi-benefit-grid strong {
+  display: block;
+  margin-top: 8px;
+  color: #07152f;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.pi-document-state {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+
+.pi-document-state > .patient-lucide-icon {
+  width: 50px;
+  height: 50px;
+  color: #1f6bff;
+}
+
+.pi-document-state strong {
+  color: #07152f;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.pi-document-state p {
+  max-width: 440px;
+  margin: 0;
+  color: #71809d;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.pi-document-state button,
+.pi-upload-card button,
+.pi-support-card button {
+  border: 0;
+  border-radius: 10px;
+  background: #1f6bff;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pi-document-state button {
+  min-height: 38px;
+  padding: 0 16px;
+}
+
+.pi-side-card {
+  padding: 20px;
+}
+
+.pi-side-card h2,
+.pi-support-card h2 {
+  margin: 0;
+  color: #07152f;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.pi-covered-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pi-covered-list article {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.pi-covered-list article > span {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #eaf3ff;
+  color: #1f6bff;
+}
+
+.pi-covered-list strong {
+  display: block;
+  color: #172554;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.pi-covered-list small {
+  display: block;
+  margin-top: 3px;
+  color: #71809d;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.pi-covered-list article > .patient-lucide-icon {
+  color: #13a85d;
+  width: 18px;
+  height: 18px;
+}
+
+.pi-covered-card > button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px auto 0;
+  border: 0;
+  background: transparent;
+  color: #1265f5;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pi-upload-card p {
+  margin: 6px 0 14px;
+  color: #71809d;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.pi-upload-card > div {
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed rgba(31, 107, 255, 0.32);
+  border-radius: 14px;
+  background: #fbfdff;
+  text-align: center;
+}
+
+.pi-upload-card > div > .patient-lucide-icon {
+  width: 36px;
+  height: 36px;
+  color: #1f6bff;
+}
+
+.pi-upload-card strong {
+  color: #314568;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.pi-upload-card span,
+.pi-upload-card small {
+  color: #71809d;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.pi-upload-card button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+}
+
+.pi-upload-card button .patient-lucide-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.pi-support-card {
+  min-height: 122px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #246dff 0%, #8f62ff 100%);
+  color: #ffffff;
+  box-shadow: 0 18px 38px rgba(82, 85, 255, 0.22);
+}
+
+.pi-support-card h2,
+.pi-support-card p {
+  color: #ffffff;
+}
+
+.pi-support-card p {
+  margin: 6px 0 14px;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.4;
+  opacity: 0.88;
+}
+
+.pi-support-card button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  background: #ffffff;
+  color: #1f6bff;
+}
+
+.pi-support-card > span {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.pi-support-card > span .patient-lucide-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.pi-support-chatbot {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 80;
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  height: 440px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(207, 217, 232, 0.9);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.24);
+}
+
+.pi-support-chatbot-header {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 15px;
+  background: linear-gradient(135deg, #1f6bff 0%, #4b6dff 100%);
+  color: #ffffff;
+}
+
+.pi-support-chatbot-agent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pi-support-chatbot-avatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: visible;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #1f6bff;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+}
+
+.pi-support-chatbot-avatar img,
+.pi-support-chatbot-avatar video {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.pi-support-chatbot-avatar > span {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.pi-support-chatbot-avatar .patient-lucide-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.pi-support-chatbot-header h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.pi-support-chatbot-header p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pi-support-chatbot-header > button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.pi-support-chatbot-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  overflow-y: auto;
+  background: #f8fafc;
+}
+
+.pi-support-chatbot-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pi-support-chatbot-message--user {
+  justify-content: flex-end;
+}
+
+.pi-support-chatbot-message-icon {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #1f6bff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+.pi-support-chatbot-message-icon img,
+.pi-support-chatbot-message-icon video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.pi-support-chatbot-bubble {
+  max-width: 85%;
+  padding: 12px 13px;
+  border: 1px solid rgba(207, 217, 232, 0.78);
+  border-radius: 16px;
+  border-top-left-radius: 5px;
+  background: #ffffff;
+  color: #314568;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+.pi-support-chatbot-message--user .pi-support-chatbot-bubble {
+  border-color: transparent;
+  border-radius: 16px;
+  border-top-right-radius: 5px;
+  background: #1f6bff;
+  color: #ffffff;
+}
+
+.pi-support-chatbot-input {
+  padding: 10px;
+  border-top: 1px solid rgba(207, 217, 232, 0.74);
+  background: #ffffff;
+}
+
+.pi-support-chatbot-input > div {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: #f1f5f9;
+}
+
+.pi-support-chatbot-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #172554;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  outline: none;
+}
+
+.pi-support-chatbot-input button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #1f6bff;
+  cursor: pointer;
+}
+
+.pi-support-chatbot-input button .patient-lucide-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.pi-back-link {
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: #eef5ff;
+  color: #1265f5;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+@media (max-width: 1280px) {
+  .pi-dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-dashboard-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pi-support-card,
+  .pi-back-link {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1040px) {
+  .pi-hero-card,
+  .pi-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pi-entry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pi-hero-ring {
+    justify-self: start;
+  }
+
+  .pi-hero-actions {
+    gap: 8px;
+  }
+
+  .pi-claim-table {
+    overflow-x: auto;
+  }
+
+  .pi-claim-table-row {
+    min-width: 860px;
+  }
+}
+
+@media (max-width: 720px) {
+  .pi-support-chatbot {
+    right: 16px;
+    bottom: 16px;
+    width: calc(100vw - 32px);
+    max-width: none;
+    height: min(440px, calc(100dvh - 32px));
+  }
+
+  .pi-dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pi-dashboard-illustration {
+    width: 100%;
+  }
+
+  .pi-hero-card,
+  .pi-kpi-grid,
+  .pi-dashboard-side,
+  .pi-entry-grid,
+  .pi-benefit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pi-hero-actions button {
+    width: 100%;
+  }
+
+  .pi-tabs {
+    gap: 12px;
+    overflow-x: auto;
+  }
+
+  .pi-tabs button {
+    flex: 0 0 auto;
+  }
+
+  .pi-table-headline {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -1088,6 +1088,100 @@
   white-space: nowrap;
 }
 
+.patient-support-chat-prompt {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 30px 0 12px;
+  padding: 16px 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 18%, rgba(255, 255, 255, 0.32), transparent 22%),
+    linear-gradient(135deg, #1265f5 0%, #2f7cff 46%, #8b5cf6 100%);
+  color: #ffffff;
+  box-shadow: 0 22px 48px rgba(13, 99, 243, 0.24);
+}
+
+.patient-labs-page + .patient-support-chat-prompt {
+  margin-top: 64px;
+}
+
+.patient-support-chat-prompt__icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+  background: #ffffff;
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.patient-support-chat-prompt__icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.patient-support-chat-prompt__icon .patient-lucide-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.patient-support-chat-prompt > div:nth-child(2) {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.patient-support-chat-prompt strong {
+  display: block;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+  text-shadow: 0 1px 10px rgba(9, 30, 66, 0.18);
+}
+
+.patient-support-chat-prompt p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.patient-support-chat-prompt button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1265f5;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 14px 28px rgba(9, 30, 66, 0.22);
+}
+
+.patient-support-chat-prompt button .patient-lucide-icon {
+  width: 16px;
+  height: 16px;
+}
+
 .patient-placeholder {
   min-height: 420px;
   display: flex;
@@ -1711,5 +1805,16 @@
     width: 26px;
     height: 26px;
     min-width: 26px;
+  }
+}
+
+@media (max-width: 640px) {
+  .patient-support-chat-prompt {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .patient-support-chat-prompt button {
+    width: 100%;
   }
 }

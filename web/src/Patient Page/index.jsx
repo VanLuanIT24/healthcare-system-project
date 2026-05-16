@@ -18,6 +18,7 @@ import {
 import { clearStoredAuth, readStoredAuth, writeStoredAuth } from '../lib/storage'
 import PatientIcon from './components/PatientIcon'
 import PatientSidebar from './components/PatientSidebar'
+import PatientSupportChatbot, { PatientSupportChatPrompt } from './components/PatientSupportChatbot'
 import PatientTopbar from './components/PatientTopbar'
 import { notificationFeed } from './data/patientPageData'
 import PatientAppointmentsPage from './pages/PatientAppointmentsPage'
@@ -31,6 +32,7 @@ import PatientInsurancePage from './pages/PatientInsurancePage'
 import PatientInpatientPage from './pages/PatientInpatientPage'
 import PatientLabResultsPage from './pages/PatientLabResultsPage'
 import PatientMedicalHistoryPage from './pages/PatientMedicalHistoryPage'
+import PatientMedicalRecordsPage from './pages/PatientMedicalRecordsPage'
 import PatientMedicationsPage from './pages/PatientMedicationsPage'
 import PatientMessagesPage from './pages/PatientMessagesPage'
 import PatientNotificationsPage from './pages/PatientNotificationsPage'
@@ -47,6 +49,7 @@ import './styles/directory.css'
 import './styles/documents.css'
 import './styles/emergency.css'
 import './styles/history.css'
+import './styles/medical-records.css'
 import './styles/imaging.css'
 import './styles/insurance.css'
 import './styles/inpatient-procedures.css'
@@ -174,6 +177,30 @@ const patientSectionKeys = new Set([
   'support',
 ])
 
+const sharedSupportChatSections = new Set([
+  'book-appointment',
+  'appointments',
+  'medical-records',
+  'imaging',
+  'lab-results',
+  'documents',
+  'inpatient',
+  'procedures',
+])
+
+const sharedSupportChatLabels = {
+  support: 'hỗ trợ',
+  'book-appointment': 'đặt lịch khám',
+  appointments: 'lịch hẹn',
+  'medical-records': 'hồ sơ y tế',
+  imaging: 'chẩn đoán hình ảnh',
+  'lab-results': 'kết quả xét nghiệm',
+  documents: 'kho tài liệu',
+  inpatient: 'nội trú',
+  procedures: 'thủ thuật',
+  billing: 'thanh toán',
+}
+
 function getPatientSectionFromSearch(search) {
   const section = new URLSearchParams(search || '').get('section')
   return patientSectionKeys.has(section) ? section : ''
@@ -187,6 +214,7 @@ export default function PatientPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const mainColumnRef = useRef(null)
+  const lastNonMessageSectionRef = useRef('dashboard')
   const [authState, setAuthState] = useState(readPatientAuth)
 
   const [activeSection, setActiveSection] = useState(() => getInitialPatientSection(location.search))
@@ -206,6 +234,7 @@ export default function PatientPage() {
     currentPassword: '',
     newPassword: '',
   })
+  const [patientSupportChatOpen, setPatientSupportChatOpen] = useState(false)
   const [sessions, setSessions] = useState([])
   const [loginHistory, setLoginHistory] = useState([])
   const [notificationItems, setNotificationItems] = useState(() => notificationFeed)
@@ -278,6 +307,10 @@ export default function PatientPage() {
   }
 
   const openSection = (sectionKey) => {
+    if (sectionKey !== 'messages') {
+      lastNonMessageSectionRef.current = sectionKey
+    }
+
     setActiveSection(sectionKey)
 
     if (mainColumnRef.current) {
@@ -286,6 +319,28 @@ export default function PatientPage() {
         behavior: 'smooth',
       })
     }
+  }
+
+  const toggleMessagesSection = () => {
+    setActiveSection((currentSection) => {
+      if (currentSection === 'messages') {
+        return lastNonMessageSectionRef.current || 'dashboard'
+      }
+
+      lastNonMessageSectionRef.current = currentSection || 'dashboard'
+      return 'messages'
+    })
+
+    if (mainColumnRef.current) {
+      mainColumnRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      })
+    }
+  }
+
+  const openPatientSupportChat = () => {
+    setPatientSupportChatOpen(true)
   }
 
   useEffect(() => {
@@ -704,6 +759,7 @@ export default function PatientPage() {
           appointments={patientAppointments}
           departments={patientDepartments}
           loading={patientDataLoading}
+          onOpenSupportChat={openPatientSupportChat}
           onAppointmentCreated={loadPatientPortalData}
           patientProfile={patientProfile}
           schedules={patientSchedules}
@@ -719,6 +775,7 @@ export default function PatientPage() {
           appointments={patientAppointments}
           departments={patientDepartments}
           loading={patientDataLoading}
+          onOpenSupportChat={openPatientSupportChat}
           onAppointmentCreated={loadPatientPortalData}
           patientProfile={patientProfile}
           schedules={patientSchedules}
@@ -730,13 +787,12 @@ export default function PatientPage() {
 
     if (activeSection === 'medical-records') {
       return (
-        <PatientMedicalHistoryPage
+        <PatientMedicalRecordsPage
           encounters={patientEncounters}
           labResults={patientLabResults}
           loading={patientDataLoading}
           medicalRecords={patientMedicalRecords}
           prescriptions={patientPrescriptions}
-          viewMode="records"
         />
       )
     }
@@ -855,6 +911,7 @@ export default function PatientPage() {
           error={patientDataError}
           invoices={patientInvoices}
           loading={patientDataLoading}
+          onOpenSupportChat={openPatientSupportChat}
           payments={patientPayments}
         />
       )
@@ -892,7 +949,7 @@ export default function PatientPage() {
     }
 
     if (activeSection === 'support') {
-      return <PatientSupportPage />
+      return <PatientSupportPage onOpenSupportChat={openPatientSupportChat} />
     }
 
     return (
@@ -920,7 +977,7 @@ export default function PatientPage() {
           onHomeOpen={() => navigate('/home')}
           onMarkAllNotificationsAsRead={markAllNotificationsAsRead}
           onMarkNotificationAsRead={markNotificationAsRead}
-          onMessagesOpen={() => openSection('messages')}
+          onMessagesOpen={toggleMessagesSection}
           onNotificationsOpen={() => openSection('notifications')}
           onLogout={handleLogout}
           onProfileOpen={() => openSection('profile')}
@@ -928,7 +985,15 @@ export default function PatientPage() {
           patientName={patientName}
         />
 
-        <main className="patient-content">{renderContent()}</main>
+        <main className="patient-content">
+          {renderContent()}
+          {sharedSupportChatSections.has(activeSection) ? (
+            <PatientSupportChatPrompt
+              label={sharedSupportChatLabels[activeSection] || 'mục này'}
+              onOpen={openPatientSupportChat}
+            />
+          ) : null}
+        </main>
 
         <section className="patient-mobile-tail-actions">
           <button
@@ -972,6 +1037,10 @@ export default function PatientPage() {
           </button>
         </section>
       </div>
+      <PatientSupportChatbot
+        open={patientSupportChatOpen}
+        onClose={() => setPatientSupportChatOpen(false)}
+      />
     </div>
   )
 }

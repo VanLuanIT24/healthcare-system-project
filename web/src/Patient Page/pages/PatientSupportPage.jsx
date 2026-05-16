@@ -9,7 +9,7 @@ import {
   supportHero,
 } from '../data/supportPageData'
 
-export default function PatientSupportPage() {
+export default function PatientSupportPage({ onOpenSupportChat }) {
   const [openFaqId, setOpenFaqId] = useState(supportFaqs[0]?.id || '')
 
   return (
@@ -84,7 +84,7 @@ export default function PatientSupportPage() {
           <h2>{supportCta.title}</h2>
           <p>{supportCta.body}</p>
           <div className="patient-support-cta-actions">
-            <button className="patient-support-cta-primary" type="button">
+            <button className="patient-support-cta-primary" type="button" onClick={onOpenSupportChat}>
               {supportCta.primaryAction}
             </button>
             <button className="patient-support-cta-secondary" type="button">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
+import inpatientWardHero from '../assets/inpatient-ward-hero.png'
 
 const admissionFilters = [
   { id: 'all', label: 'Tất cả' },
@@ -36,6 +37,35 @@ function formatDate(value) {
   if (Number.isNaN(date.getTime())) return 'Chưa có ngày'
 
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(date)
+}
+
+function formatShortDate(value) {
+  if (!value) return 'Chưa cập nhật'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Chưa cập nhật'
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
+}
+
+function formatRelativeDays(value) {
+  if (!value) return 'Chưa có dữ liệu'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Chưa có dữ liệu'
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  date.setHours(0, 0, 0, 0)
+
+  const diffDays = Math.round((today.getTime() - date.getTime()) / 86400000)
+  if (diffDays === 0) return 'Hôm nay'
+  if (diffDays > 0) return `${diffDays} ngày trước`
+  return `${Math.abs(diffDays)} ngày tới`
 }
 
 function formatStayLength(startValue, endValue) {
@@ -94,6 +124,13 @@ function mapAdmission(admission, index) {
   const status = getAdmissionStatusMeta(admission.status)
   const admittedAt = admission.admitted_at || admission.created_at
   const endedAt = admission.discharged_at || admission.cancelled_at
+  const endLabel = status.group === 'cancelled'
+    ? 'Đã hủy'
+    : status.group === 'completed'
+      ? 'Ra viện'
+      : status.group === 'active'
+        ? 'Dự kiến ra viện'
+        : 'Dự kiến nhập viện'
 
   return {
     id,
@@ -108,32 +145,92 @@ function mapAdmission(admission, index) {
     admittedAt: formatDateTime(admittedAt),
     dischargedAt: endedAt ? formatDateTime(endedAt) : 'Chưa ra viện',
     stayLength: formatStayLength(admittedAt, endedAt),
+    admittedDate: formatShortDate(admittedAt),
+    endedDate: endedAt ? formatShortDate(endedAt) : 'Chưa cập nhật',
+    endLabel,
     reason: admission.reason || admission.discharge_summary || 'Chưa có ghi chú từ backend.',
     disposition: admission.discharge_disposition || 'Chưa cập nhật',
     rawAdmittedAt: admittedAt,
   }
 }
 
+function formatCount(value) {
+  return String(value).padStart(2, '0')
+}
+
+function getLatestAdmission(admissions) {
+  return admissions.reduce((latest, admission) => {
+    if (!admission.rawAdmittedAt) return latest
+    if (!latest) return admission
+
+    const currentTime = new Date(admission.rawAdmittedAt).getTime()
+    const latestTime = new Date(latest.rawAdmittedAt).getTime()
+    return currentTime > latestTime ? admission : latest
+  }, null)
+}
+
+function InpatientHeroArt() {
+  return (
+    <div className="patient-inpatient-hero-photo" aria-hidden="true">
+      <img src={inpatientWardHero} alt="" />
+    </div>
+  )
+}
+
+function InpatientEmptyState() {
+  return (
+    <div className="patient-inpatient-empty-state">
+      <div className="patient-inpatient-empty-art" aria-hidden="true">
+        <span className="patient-inpatient-empty-art__leaf patient-inpatient-empty-art__leaf--left" />
+        <span className="patient-inpatient-empty-art__leaf patient-inpatient-empty-art__leaf--right" />
+        <div className="patient-inpatient-empty-art__board">
+          <span className="patient-inpatient-empty-art__clip" />
+          <PatientIcon name="add" />
+          <span className="patient-inpatient-empty-art__line" />
+          <span className="patient-inpatient-empty-art__line" />
+          <span className="patient-inpatient-empty-art__line" />
+        </div>
+      </div>
+      <strong>Chưa có hồ sơ nội trú để hiển thị.</strong>
+      <p>Các lần nhập viện sẽ được hiển thị tại đây.</p>
+    </div>
+  )
+}
+
 export default function PatientInpatientPage({ admissions = [], error = '', loading = false }) {
   const [activeFilter, setActiveFilter] = useState('all')
   const [selectedAdmissionId, setSelectedAdmissionId] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const admissionRows = useMemo(() => admissions.map(mapAdmission), [admissions])
   const filteredRows = useMemo(() => {
     if (activeFilter === 'all') return admissionRows
     return admissionRows.filter((admission) => admission.statusGroup === activeFilter)
   }, [activeFilter, admissionRows])
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const pagedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredRows.slice(start, start + pageSize)
+  }, [currentPage, filteredRows, pageSize])
   const selectedAdmission =
-    filteredRows.find((admission) => admission.id === selectedAdmissionId) || filteredRows[0] || null
-  const latestAdmission = admissionRows[0]
+    filteredRows.find((admission) => admission.id === selectedAdmissionId) || null
+  const latestAdmission = getLatestAdmission(admissionRows)
+  const activeCount = admissionRows.filter((admission) => admission.statusGroup === 'active').length
+  const completedCount = admissionRows.filter((admission) => admission.statusGroup === 'completed').length
+  const displayStart = filteredRows.length ? (currentPage - 1) * pageSize + 1 : 0
+  const displayEnd = Math.min(currentPage * pageSize, filteredRows.length)
 
   useEffect(() => {
-    if (!filteredRows.length) {
-      setSelectedAdmissionId('')
-      return
-    }
+    setCurrentPage(1)
+  }, [activeFilter])
 
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages))
+  }, [totalPages])
+
+  useEffect(() => {
     if (!filteredRows.some((admission) => admission.id === selectedAdmissionId)) {
-      setSelectedAdmissionId(filteredRows[0].id)
+      setSelectedAdmissionId('')
     }
   }, [filteredRows, selectedAdmissionId])
 
@@ -141,28 +238,36 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
     {
       id: 'total',
       label: 'Tổng lần nội trú',
-      value: admissionRows.length,
+      value: formatCount(admissionRows.length),
+      unit: 'Lần',
       icon: 'local_hospital',
       tone: 'blue',
     },
     {
       id: 'active',
       label: 'Đang nội trú',
-      value: admissionRows.filter((admission) => admission.statusGroup === 'active').length,
+      value: formatCount(activeCount),
+      unit: 'Lần',
+      caption: 'so với 6 tháng trước',
+      trend: activeCount ? `↑ ${activeCount}` : '',
       icon: 'monitor_heart',
       tone: 'green',
     },
     {
       id: 'completed',
       label: 'Đã ra viện',
-      value: admissionRows.filter((admission) => admission.statusGroup === 'completed').length,
+      value: formatCount(completedCount),
+      unit: 'Lần',
+      caption: 'so với 6 tháng trước',
+      trend: '−',
       icon: 'check_circle',
       tone: 'soft',
     },
     {
       id: 'latest',
       label: 'Lần gần nhất',
-      value: latestAdmission ? formatDate(latestAdmission.rawAdmittedAt) : 'Chưa có',
+      value: latestAdmission ? formatShortDate(latestAdmission.rawAdmittedAt) : 'Chưa có',
+      caption: latestAdmission ? formatRelativeDays(latestAdmission.rawAdmittedAt) : 'Chưa có dữ liệu',
       icon: 'calendar_today',
       tone: 'slate',
       compact: true,
@@ -171,33 +276,39 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
 
   return (
     <section className="patient-care-page patient-care-page--inpatient">
-      <header className="patient-care-header">
+      <header className="patient-care-header patient-inpatient-hero">
         <div>
           <span className="patient-care-eyebrow">Điều trị nội trú</span>
           <h1>Nội trú</h1>
           <p>Theo dõi các lần nhập viện, khoa điều trị, bác sĩ phụ trách, giường bệnh và trạng thái ra viện.</p>
         </div>
-        <span className="patient-care-header-icon" aria-hidden="true">
-          <PatientIcon name="local_hospital" />
-        </span>
+        <div className="patient-care-summary-grid">
+          {summaryCards.map((card) => (
+            <article className={`patient-care-summary-card ${card.tone}`} key={card.id}>
+              <span aria-hidden="true">
+                <PatientIcon name={card.icon} />
+              </span>
+              <div>
+                <strong>{card.label}</strong>
+                <p className={card.compact ? 'is-compact' : ''}>
+                  {card.value}
+                  {card.unit ? <small>{card.unit}</small> : null}
+                </p>
+                {card.caption || card.trend ? (
+                  <div className="patient-inpatient-card-meta">
+                    {card.caption ? <small>{card.caption}</small> : null}
+                    {card.trend ? <em>{card.trend}</em> : null}
+                  </div>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </div>
+        <InpatientHeroArt />
       </header>
 
       {loading ? <div className="patient-care-state">Đang tải dữ liệu nội trú...</div> : null}
       {!loading && error ? <div className="patient-care-state is-error">{error}</div> : null}
-
-      <div className="patient-care-summary-grid">
-        {summaryCards.map((card) => (
-          <article className={`patient-care-summary-card ${card.tone}`} key={card.id}>
-            <span aria-hidden="true">
-              <PatientIcon name={card.icon} />
-            </span>
-            <div>
-              <strong>{card.label}</strong>
-              <p className={card.compact ? 'is-compact' : ''}>{card.value}</p>
-            </div>
-          </article>
-        ))}
-      </div>
 
       <div className="patient-care-tabs" role="tablist" aria-label="Lọc hồ sơ nội trú">
         {admissionFilters.map((filter) => {
@@ -220,11 +331,12 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
 
       <div className="patient-care-layout">
         <div className="patient-care-list-panel">
-          <div className="patient-care-list-head">
+          <div className="patient-care-list-head patient-care-list-head--inpatient">
             <span>Mã nội trú</span>
             <span>Khoa</span>
             <span>Thời gian</span>
             <span>Trạng thái</span>
+            <span>Thao tác</span>
           </div>
 
           <div className="patient-care-list">
@@ -232,23 +344,77 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
               <div className="patient-care-empty">Chưa có hồ sơ nội trú phù hợp.</div>
             ) : null}
 
-            {filteredRows.map((admission) => (
-              <button
+            {pagedRows.map((admission) => (
+              <div
                 key={admission.id}
-                className={`patient-care-row${selectedAdmission?.id === admission.id ? ' is-selected' : ''}`}
-                type="button"
-                onClick={() => setSelectedAdmissionId(admission.id)}
+                className={`patient-care-row patient-care-row--inpatient${
+                  selectedAdmission?.id === admission.id ? ' is-selected' : ''
+                }`}
               >
                 <strong>{admission.number}</strong>
                 <span>{admission.department}</span>
-                <span>{admission.admittedAt}</span>
+                <span className="patient-inpatient-time">
+                  <span>Nhập viện: {admission.admittedDate}</span>
+                  <span>{admission.endLabel}: {admission.endedDate}</span>
+                </span>
                 <em className={`patient-care-status ${admission.statusTone}`}>{admission.status}</em>
-              </button>
+                <button
+                  className="patient-inpatient-detail-button"
+                  type="button"
+                  onClick={() => setSelectedAdmissionId(admission.id)}
+                >
+                  <span>Xem chi tiết</span>
+                  <PatientIcon name="chevron_right" aria-hidden="true" />
+                </button>
+              </div>
             ))}
           </div>
+
+          <footer className="patient-inpatient-table-footer">
+            <span>
+              Hiển thị {displayStart} - {displayEnd} của {filteredRows.length} kết quả
+            </span>
+            <div className="patient-inpatient-pagination">
+              <button
+                type="button"
+                aria-label="Trang trước"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              >
+                <PatientIcon name="chevron_left" />
+              </button>
+              <button
+                type="button"
+                className="is-current"
+                aria-label={`Trang ${currentPage}`}
+              >
+                {currentPage}
+              </button>
+              <button
+                type="button"
+                aria-label="Trang sau"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              >
+                <PatientIcon name="chevron_right" />
+              </button>
+              <select
+                aria-label="Số dòng mỗi trang"
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value))
+                  setCurrentPage(1)
+                }}
+              >
+                <option value={10}>10 / trang</option>
+                <option value={20}>20 / trang</option>
+                <option value={50}>50 / trang</option>
+              </select>
+            </div>
+          </footer>
         </div>
 
-        <aside className="patient-care-detail-panel">
+        <aside className="patient-care-detail-panel patient-inpatient-side-panel">
           {selectedAdmission ? (
             <>
               <div className="patient-care-detail-head">
@@ -301,7 +467,7 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
               </section>
             </>
           ) : (
-            <div className="patient-care-empty">Chưa có hồ sơ nội trú để hiển thị.</div>
+            <InpatientEmptyState />
           )}
         </aside>
       </div>
