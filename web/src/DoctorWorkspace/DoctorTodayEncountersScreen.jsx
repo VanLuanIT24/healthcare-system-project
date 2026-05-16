@@ -935,7 +935,7 @@ export function DoctorTodayEncountersScreen({ user, view = 'today' }) {
   }
 
   return (
-    <div className="doctor-encounter-ref-page">
+    <div className={`doctor-encounter-ref-page is-${view || 'today'}`}>
       <header className="doctor-encounter-ref-header">
         <div>
           <h1>{view === 'active' ? 'Phiên khám đang khám' : view === 'completed' ? 'Phiên khám đã hoàn tất' : 'Phiên khám hôm nay'}</h1>

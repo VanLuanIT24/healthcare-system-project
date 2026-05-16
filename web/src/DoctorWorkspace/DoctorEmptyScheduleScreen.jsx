@@ -7,6 +7,12 @@ import { getApiErrorMessage } from '../utils/api'
 
 const VI_WEEKDAYS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
 const SHIFT_ORDER = ['Ca sáng', 'Ca chiều', 'Ca tối']
+const HEATMAP_SHIFTS = [
+  { label: 'Ca sáng 1', time: '07:00 - 09:00', from: 7, to: 9 },
+  { label: 'Ca sáng 2', time: '09:00 - 11:30', from: 9, to: 12 },
+  { label: 'Ca chiều 1', time: '13:30 - 15:30', from: 12, to: 15 },
+  { label: 'Ca chiều 2', time: '15:30 - 17:30', from: 15, to: 18 },
+]
 
 function scheduleIdOf(schedule = {}) {
   return schedule.doctor_schedule_id || schedule.schedule_id || schedule.id || schedule._id || ''
@@ -131,15 +137,32 @@ function slotTimeText(slot = {}, schedule = {}) {
 function statusLabel(slot = {}) {
   const raw = String(slot.status || '').toLowerCase()
   if (raw.includes('block')) return 'Đã chặn'
-  if (raw.includes('hold')) return 'Tạm giữ'
-  return 'Trống'
+  if (raw.includes('hold')) return 'Giữ tạm'
+  return 'Còn trống'
 }
 
 function statusTone(slot = {}) {
   const label = statusLabel(slot)
-  if (label === 'Trống') return 'green'
-  if (label === 'Tạm giữ') return 'amber'
+  if (label === 'Còn trống') return 'green'
+  if (label === 'Giữ tạm') return 'amber'
   return 'slate'
+}
+
+function compactDate(value) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '--'
+  return `${VI_WEEKDAYS[parsed.getDay()]}, ${displayDate(parsed)}`
+}
+
+function tableShiftLabel(row = {}) {
+  const hour = new Date(row.timeValue).getHours()
+  if (row.shift === 'Ca sáng') return hour < 9 ? 'Ca sáng 1' : 'Ca sáng 2'
+  if (row.shift === 'Ca chiều') return hour < 15 ? 'Ca chiều 1' : 'Ca chiều 2'
+  return row.shift
+}
+
+function rowActionLabel(slot = {}) {
+  return statusTone(slot) === 'green' ? 'Đặt nhanh' : 'Tạo lịch hẹn'
 }
 
 function slotDuration(slot = {}, schedule = {}, totalSlots = 0) {
@@ -243,22 +266,21 @@ function EmptyKpiCard({ icon, tone, label, value, hint }) {
   )
 }
 
-function EmptyDonut({ percent, value }) {
+function EmptyDonut({ percent, value, label = 'Tổng slot trống' }) {
   return (
     <div className="doctor-empty-donut" style={{ '--empty-percent': `${percent}%` }}>
       <div>
         <strong>{value}</strong>
-        <span>Tổng slot trống</span>
+        <span>{label}</span>
       </div>
     </div>
   )
 }
 
 function heatTone(value, max) {
-  if (!value) return 'none'
-  const ratio = max ? value / max : 0
-  if (ratio >= .78) return 'high'
-  if (ratio >= .48) return 'medium'
+  if (value <= 0) return 'none'
+  if (value >= 10) return 'high'
+  if (value >= 5) return 'medium'
   return 'low'
 }
 
@@ -361,13 +383,17 @@ export function DoctorEmptyScheduleScreen({ user }) {
     const mostDay = dayCounts.reduce((best, item) => (item.value > best.value ? item : best), dayCounts[0] || null)
     const leastDay = dayCounts.reduce((best, item) => (item.value < best.value ? item : best), dayCounts[0] || null)
 
-    const heatmap = SHIFT_ORDER.map((shift) => ({
-      shift,
+    const heatmap = HEATMAP_SHIFTS.map((shift) => ({
+      ...shift,
       cells: days.map((day) => {
         const key = toDateKey(day)
+        const value = rows.filter((row) => {
+          const hour = new Date(row.timeValue).getHours()
+          return row.dateKey === key && hour >= shift.from && hour < shift.to
+        }).length
         return {
           key,
-          value: rows.filter((row) => row.dateKey === key && row.shift === shift).length,
+          value,
         }
       }),
     }))
@@ -405,22 +431,33 @@ export function DoctorEmptyScheduleScreen({ user }) {
       </section>
 
       <section className="doctor-empty-filters" aria-label="Bộ lọc lịch trống">
-        <label>
-          <span>Khoảng thời gian</span>
-          <button type="button"><DoctorIcon name="calendar" /> {weekRangeText(state.data.monday)} <DoctorIcon name="refresh" /></button>
-        </label>
-        <label>
+        <button className="doctor-empty-filter-field is-date" type="button">
+          <DoctorIcon name="calendar" />
+          <strong>{weekRangeText(state.data.monday)}</strong>
+          <DoctorIcon name="chevron_down" />
+        </button>
+        <button className="doctor-empty-filter-field" type="button">
           <span>Ca khám</span>
-          <button type="button">Tất cả ca <DoctorIcon name="chevron_down" /></button>
-        </label>
-        <label>
+          <strong>Tất cả ca</strong>
+          <DoctorIcon name="chevron_down" />
+        </button>
+        <button className="doctor-empty-filter-field" type="button">
           <span>Phòng khám</span>
-          <button type="button">Tất cả phòng khám <DoctorIcon name="chevron_down" /></button>
-        </label>
-        <label>
+          <strong>Tất cả phòng</strong>
+          <DoctorIcon name="chevron_down" />
+        </button>
+        <button className="doctor-empty-filter-field" type="button">
           <span>Trạng thái</span>
-          <button type="button">Tất cả trạng thái <DoctorIcon name="chevron_down" /></button>
-        </label>
+          <strong>Tất cả</strong>
+          <DoctorIcon name="chevron_down" />
+        </button>
+        <button className="doctor-empty-filter-action is-primary" type="button">
+          <DoctorIcon name="settings" />
+          Bộ lọc
+        </button>
+        <button className="doctor-empty-filter-action" type="button" onClick={reload} disabled={state.loading}>
+          Đặt lại
+        </button>
       </section>
 
       <section className="doctor-empty-main">
@@ -442,11 +479,11 @@ export function DoctorEmptyScheduleScreen({ user }) {
             ) : empty.rows.length ? empty.rows.slice(0, 8).map((row, index) => (
               <div className="doctor-empty-row" key={`${scheduleIdOf(row.schedule)}-${row.timeValue}-${row.virtualIndex || index}`}>
                 <strong>{row.timeText}</strong>
-                <span><b>{fullDate(row.timeValue || row.dateKey)}</b><small>{VI_WEEKDAYS[new Date(row.timeValue || row.dateKey).getDay()] || '--'}</small></span>
-                <span><em className={row.shift === 'Ca sáng' ? 'is-blue' : row.shift === 'Ca chiều' ? 'is-purple' : 'is-amber'}>{row.shift}</em></span>
-                <span><b>{row.room}</b><small>{row.department}</small></span>
+                <span><b>{compactDate(row.timeValue || row.dateKey)}</b></span>
+                <span><b>{tableShiftLabel(row)}</b></span>
+                <span><b>{row.room}</b></span>
                 <span><i className={`is-${statusTone(row.slot)}`}>{statusLabel(row.slot)}</i></span>
-                <span className="doctor-empty-actions"><button type="button">Đặt nhanh</button><DoctorIcon name="more" /></span>
+                <span className="doctor-empty-actions"><button type="button">{rowActionLabel(row.slot)}</button></span>
               </div>
             )) : (
               <div className="doctor-empty-state">Chưa có slot trống trong tuần này.</div>
@@ -466,30 +503,54 @@ export function DoctorEmptyScheduleScreen({ user }) {
           </footer>
         </article>
 
+        <article className="doctor-empty-panel doctor-empty-heatmap">
+          <header>
+            <h2>Lịch trống theo ngày & ca khám <span className="doctor-empty-info-mark">i</span></h2>
+          </header>
+          <div className="doctor-empty-heatmap__grid" style={{ '--empty-day-count': empty.days.length }}>
+            <span>Ca khám</span>
+            {empty.days.map((day) => <span key={toDateKey(day)}><b>{VI_WEEKDAYS[day.getDay()]}</b><small>{displayDate(day)}</small></span>)}
+            {empty.heatmap.map((row) => (
+              <div className="doctor-empty-heatmap__row" key={row.label}>
+                <strong>{row.label} ({row.time})</strong>
+                {row.cells.map((cell) => (
+                  <em className={`is-${heatTone(cell.value, empty.maxDay)}`} key={`${row.label}-${cell.key}`}>{cell.value}</em>
+                ))}
+              </div>
+            ))}
+          </div>
+          <footer>
+            <div>
+              <span><i className="is-high" /> Nhiều (≥10)</span>
+              <span><i className="is-medium" /> Trung bình (5 - 9)</span>
+              <span><i className="is-low" /> Ít (1 - 4)</span>
+              <span><i className="is-none" /> Hết (0)</span>
+            </div>
+            <button type="button">Xem lịch theo biểu đồ <DoctorIcon name="chevron_right" /></button>
+          </footer>
+        </article>
+
         <aside className="doctor-empty-side">
           <article className="doctor-empty-panel doctor-empty-summary">
             <header>
-              <h2>Tóm tắt slot trống</h2>
-              <button type="button">Tuần này <DoctorIcon name="chevron_down" /></button>
+              <h2>Tổng quan lịch trống</h2>
+              <button type="button">Xem chi tiết</button>
             </header>
             <div className="doctor-empty-summary__top">
-              <EmptyDonut percent={empty.emptyRate} value={empty.availableCount} />
+              <EmptyDonut percent={empty.emptyRate} value={`${empty.emptyRate}%`} label="Tỷ lệ trống" />
               <dl>
-                {empty.byShift.map((item) => (
-                  <div key={item.label}>
-                    <dt><i className={item.label === 'Ca sáng' ? 'is-green' : item.label === 'Ca chiều' ? 'is-mint' : 'is-orange'} /> {item.label}</dt>
-                    <dd>{item.value} ({empty.availableCount ? Math.round((item.value / empty.availableCount) * 100) : 0}%)</dd>
-                  </div>
-                ))}
-                <div><dt><i className="is-slate" /> Hết slot</dt><dd>{Math.max(0, empty.totalSlots - empty.availableCount - empty.bookedCount)}</dd></div>
+                <div><dt><i className="is-green" /> Slot trống</dt><dd>{empty.availableCount}</dd></div>
+                <div><dt><i className="is-blue" /> Đã đặt</dt><dd>{empty.bookedCount}</dd></div>
+                <div><dt><i className="is-orange" /> Giữ tạm</dt><dd>{empty.rows.filter((row) => statusTone(row.slot) === 'amber').length}</dd></div>
+                <div><dt><i className="is-red" /> Hết slot</dt><dd>{Math.max(0, empty.totalSlots - empty.availableCount - empty.bookedCount)}</dd></div>
+                <div><dt><i className="is-slate" /> Tổng slot</dt><dd>{empty.totalSlots}</dd></div>
               </dl>
             </div>
             <div className="doctor-empty-summary__list">
-              <div><span>Tổng khung giờ còn trống</span><strong>{durationText(empty.availableMinutes)}</strong></div>
-              <div><span>Phòng khám khả dụng</span><strong>{empty.availableRooms.size} / {empty.rooms.size || 0}</strong></div>
-              <div><span>Ca khám có slot trống</span><strong>{empty.byShift.filter((item) => item.value > 0).length} / {SHIFT_ORDER.length}</strong></div>
-              <div><span>Ngày nhiều trống nhất</span><strong>{empty.mostDay ? `${empty.mostDay.label} (${empty.mostDay.value})` : '--'}</strong></div>
-              <div><span>Ngày ít trống nhất</span><strong>{empty.leastDay ? `${empty.leastDay.label} (${empty.leastDay.value})` : '--'}</strong></div>
+              <div><span><DoctorIcon name="clock" />Tổng khung giờ trống</span><strong>{durationText(empty.availableMinutes)}</strong></div>
+              <div><span><DoctorIcon name="refresh" />Slot trống trung bình mỗi ngày</span><strong>{Math.round(empty.availableCount / Math.max(1, empty.days.length))} slot</strong></div>
+              <div><span><DoctorIcon name="patients" />Phòng khám có slot trống</span><strong>{empty.availableRooms.size} / {empty.rooms.size || 0}</strong></div>
+              <div><span><DoctorIcon name="pulse" />Tỷ lệ trống trung bình</span><strong>{empty.emptyRate}%</strong></div>
             </div>
           </article>
 
@@ -497,20 +558,26 @@ export function DoctorEmptyScheduleScreen({ user }) {
             <h2>Thao tác nhanh</h2>
             <button type="button">
               <span><DoctorIcon name="calendar" /></span>
-              <b>Mở lịch mới</b>
-              <small>Tạo lịch làm việc cho ngày mới</small>
+              <b>Mở lịch hẹn mới</b>
+              <small>Tạo lịch hẹn cho bệnh nhân</small>
               <DoctorIcon name="chevron_right" />
             </button>
-            <button type="button" onClick={reload} disabled={state.loading}>
-              <span><DoctorIcon name="refresh" /></span>
-              <b>Làm mới</b>
-              <small>Cập nhật trạng thái slot trống</small>
+            <button type="button">
+              <span><DoctorIcon name="message" /></span>
+              <b>Gửi lời mời khám</b>
+              <small>Gửi lời mời đến bệnh nhân tiềm năng</small>
+              <DoctorIcon name="chevron_right" />
+            </button>
+            <button type="button">
+              <span><DoctorIcon name="calendar" /></span>
+              <b>Xem lịch làm việc</b>
+              <small>Xem toàn bộ lịch theo tuần/tháng</small>
               <DoctorIcon name="chevron_right" />
             </button>
             <button type="button">
               <span><DoctorIcon name="note" /></span>
-              <b>Xuất danh sách slot</b>
-              <small>Xuất file Excel danh sách slot</small>
+              <b>Xuất báo cáo</b>
+              <small>Xuất báo cáo slot trống & công suất</small>
               <DoctorIcon name="chevron_right" />
             </button>
           </article>
@@ -519,27 +586,29 @@ export function DoctorEmptyScheduleScreen({ user }) {
 
       <article className="doctor-empty-panel doctor-empty-heatmap">
         <header>
-          <h2>Lịch trống theo ngày & ca khám <DoctorIcon name="warning" /></h2>
-          <div>
-            <span><i className="is-high" /> Nhiều trống</span>
-            <span><i className="is-medium" /> Trung bình</span>
-            <span><i className="is-low" /> Ít trống</span>
-            <span><i className="is-none" /> Hết slot</span>
-          </div>
+          <h2>Lịch trống theo ngày & ca khám <span className="doctor-empty-info-mark">i</span></h2>
         </header>
         <div className="doctor-empty-heatmap__grid" style={{ '--empty-day-count': empty.days.length }}>
           <span>Ca khám</span>
-          {empty.days.map((day) => <span key={toDateKey(day)}><b>{VI_WEEKDAYS[day.getDay()].replace('Thứ ', 'T')}</b><small>{displayDate(day)}</small></span>)}
+          {empty.days.map((day) => <span key={toDateKey(day)}><b>{VI_WEEKDAYS[day.getDay()]}</b><small>{displayDate(day)}</small></span>)}
           {empty.heatmap.map((row) => (
-            <div className="doctor-empty-heatmap__row" key={row.shift}>
-              <strong>{row.shift}</strong>
+            <div className="doctor-empty-heatmap__row" key={row.label}>
+              <strong>{row.label} ({row.time})</strong>
               {row.cells.map((cell) => (
-                <em className={`is-${heatTone(cell.value, empty.maxDay)}`} key={`${row.shift}-${cell.key}`}>{cell.value}</em>
+                <em className={`is-${heatTone(cell.value, empty.maxDay)}`} key={`${row.label}-${cell.key}`}>{cell.value}</em>
               ))}
             </div>
           ))}
         </div>
-        <button type="button">Xem lịch chi tiết theo tuần <DoctorIcon name="chevron_right" /></button>
+        <footer>
+          <div>
+            <span><i className="is-high" /> Nhiều (≥10)</span>
+            <span><i className="is-medium" /> Trung bình (5 - 9)</span>
+            <span><i className="is-low" /> Ít (1 - 4)</span>
+            <span><i className="is-none" /> Hết (0)</span>
+          </div>
+          <button type="button">Xem lịch theo biểu đồ <DoctorIcon name="chevron_right" /></button>
+        </footer>
       </article>
     </div>
   )

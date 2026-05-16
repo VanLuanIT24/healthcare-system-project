@@ -36,7 +36,7 @@ function startOfWeek(value = new Date()) {
 }
 
 function weekDays(monday) {
-  return Array.from({ length: 6 }, (_, index) => addDays(monday, index))
+  return Array.from({ length: 7 }, (_, index) => addDays(monday, index))
 }
 
 function displayDate(date) {
@@ -208,6 +208,17 @@ function WeekDonut({ percent }) {
   )
 }
 
+function WeekSummaryRing({ percent }) {
+  return (
+    <div className="doctor-week-ref-ring" style={{ '--week-ring-percent': `${percent}%` }}>
+      <div>
+        <strong>{percent}%</strong>
+        <span>Hiệu suất</span>
+      </div>
+    </div>
+  )
+}
+
 function ScheduleCell({ bundle }) {
   if (!bundle) {
     return (
@@ -224,6 +235,37 @@ function ScheduleCell({ bundle }) {
       <span>{bundle.bookedCount}/{bundle.totalSlots || 0} slot</span>
       <i><b style={{ width: `${bundle.utilization}%` }} /></i>
       <em>{bundle.state.label}</em>
+    </div>
+  )
+}
+
+function shiftPeriodOf(bundle = {}) {
+  const raw = String(bundle.schedule?.shift_type || bundle.schedule?.type || bundle.shiftName || '').toLowerCase()
+  if (raw.includes('morning') || raw.includes('sáng') || raw.includes('sÃ¡ng')) return 'morning'
+  if (raw.includes('afternoon') || raw.includes('chiều') || raw.includes('chiá»u')) return 'afternoon'
+  const hour = new Date(bundle.schedule?.shift_start || bundle.schedule?.start_time).getHours()
+  if (!Number.isNaN(hour) && hour < 12) return 'morning'
+  return 'afternoon'
+}
+
+function WeekShiftPreview({ bundle }) {
+  if (!bundle) {
+    return (
+      <div className="doctor-week-ref-shift is-empty">
+        <i />
+        <span>Không làm việc</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`doctor-week-ref-shift is-${bundle.state.tone}`}>
+      <div>
+        <strong>{roomName(bundle.schedule)}</strong>
+        <small>{bundle.bookedCount}/{bundle.totalSlots || 0} slot</small>
+      </div>
+      <em>{bundle.state.label}</em>
+      <b><span style={{ width: `${bundle.utilization}%` }} /></b>
     </div>
   )
 }
@@ -303,11 +345,29 @@ export function DoctorWeekScheduleScreen({ user }) {
     const workDays = new Set(schedules.map((item) => item.dateKey).filter(Boolean)).size
     const primaryRoom = schedules.find((item) => roomName(item.schedule))?.schedule
     const upcoming = schedules.filter((item) => new Date(item.schedule.shift_start || item.schedule.start_time).getTime() >= Date.now()).slice(0, 5)
+    const daySummaries = days.map((day) => {
+      const dateKey = toDateKey(day)
+      const dayBundles = schedules.filter((item) => item.dateKey === dateKey)
+      const morning = dayBundles.find((item) => shiftPeriodOf(item) === 'morning')
+      const afternoon = dayBundles.find((item) => shiftPeriodOf(item) === 'afternoon')
+      const dayTotal = dayBundles.reduce((sum, item) => sum + item.totalSlots, 0)
+      const dayBooked = dayBundles.reduce((sum, item) => sum + item.bookedCount, 0)
+      return {
+        day,
+        dateKey,
+        morning,
+        afternoon,
+        totalSlots: dayTotal,
+        bookedCount: dayBooked,
+        utilization: dayTotal ? Math.round((dayBooked / dayTotal) * 100) : 0,
+      }
+    })
     const highlighted = schedules
       .map((item) => ({
         time: `${formatTime(item.schedule.shift_start || item.schedule.start_time)} - ${formatTime(item.schedule.shift_end || item.schedule.end_time)}`,
         percent: item.utilization,
         level: HighlightLevel({ percent: item.utilization }),
+        day: weekdayName(item.schedule.shift_start || item.schedule.start_time),
       }))
       .sort((a, b) => b.percent - a.percent)
       .slice(0, 4)
@@ -315,6 +375,7 @@ export function DoctorWeekScheduleScreen({ user }) {
     return {
       days,
       rows,
+      daySummaries,
       byDay,
       schedules,
       totalSlots,
@@ -337,6 +398,134 @@ export function DoctorWeekScheduleScreen({ user }) {
         <WeekKpiCard icon="patients" tone="green" label="Tổng slot đã đặt" value={week.bookedCount} hint={`${week.utilization}% tổng slot`} />
         <WeekKpiCard icon="calendar" tone="orange" label="Slot còn trống" value={week.availableCount} hint={week.totalSlots ? `${Math.max(0, 100 - week.utilization)}% tổng slot` : '--'} />
         <WeekKpiCard icon="pulse" tone="purple" label="Hiệu suất tuần" value={`${week.utilization}%`} hint="Theo dữ liệu slot hiện tại" />
+      </section>
+
+      <section className="doctor-week-reference-layout">
+        <div className="doctor-week-reference-left">
+          <article className="doctor-week-panel doctor-week-reference-calendar">
+            <header>
+              <h2>Lịch làm việc trong tuần</h2>
+              <button className="doctor-week-ref-link" type="button" onClick={reload} disabled={state.loading}>
+                Xem lịch trong tuần <DoctorIcon name="chevron_right" />
+              </button>
+            </header>
+
+            <div className="doctor-week-ref-table">
+              <div className="doctor-week-ref-head">
+                <span>Ngày</span>
+                <span>Buổi sáng (07:30 - 11:30)</span>
+                <span>Buổi chiều (13:30 - 17:30)</span>
+                <span>Tổng quan</span>
+              </div>
+              {state.loading ? (
+                <div className="doctor-week-loading">Đang tải lịch tuần này...</div>
+              ) : week.daySummaries.map((dayItem) => (
+                <div className="doctor-week-ref-row" key={dayItem.dateKey}>
+                  <div className="doctor-week-ref-day">
+                    <strong>{VI_WEEKDAYS[dayItem.day.getDay()]}</strong>
+                    <small>{displayDate(dayItem.day)}</small>
+                  </div>
+                  <WeekShiftPreview bundle={dayItem.morning} />
+                  <WeekShiftPreview bundle={dayItem.afternoon} />
+                  <div className="doctor-week-ref-total">
+                    <strong>{dayItem.bookedCount}/{dayItem.totalSlots || 0}</strong>
+                    <b><span style={{ width: `${dayItem.utilization}%` }} /></b>
+                    <DoctorIcon name="chevron_right" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <div className="doctor-week-reference-bottom">
+            <article className="doctor-week-panel doctor-week-upcoming">
+              <header>
+                <h2>Lịch sắp tới trong tuần</h2>
+                <button className="doctor-week-ref-link" type="button">Xem tất cả</button>
+              </header>
+              <div className="doctor-week-ref-upcoming-list">
+                {(week.upcoming.length ? week.upcoming : week.schedules.slice(0, 4)).map((item) => (
+                  <div className="doctor-week-ref-upcoming-row" key={scheduleIdOf(item.schedule) || `${item.dateKey}-${item.shiftName}`}>
+                    <span><strong>{weekdayName(item.schedule.shift_start || item.schedule.start_time)}</strong><small>{displayDate(new Date(item.schedule.shift_start || item.schedule.start_time))}</small></span>
+                    <span><small>{formatTime(item.schedule.shift_start || item.schedule.start_time)} - {formatTime(item.schedule.shift_end || item.schedule.end_time)}</small></span>
+                    <span><strong>{roomName(item.schedule)}</strong><small>{item.bookedCount}/{item.totalSlots || 0} slot đã đặt</small></span>
+                    <b className={`is-${item.state.tone}`}>{item.state.label}</b>
+                  </div>
+                ))}
+                {!week.schedules.length && !state.loading ? <div className="doctor-week-empty">Chưa có lịch sắp tới.</div> : null}
+              </div>
+              <button className="doctor-week-link-button" type="button">Xem lịch đầy đủ <DoctorIcon name="chevron_right" /></button>
+            </article>
+
+            <article className="doctor-week-panel doctor-week-highlight">
+              <header>
+                <h2>Khung giờ nổi bật</h2>
+                <button className="doctor-week-ref-link" type="button">Xem chi tiết</button>
+              </header>
+              <div className="doctor-week-ref-highlight-list">
+                {(week.highlighted.length ? week.highlighted.slice(0, 3) : [{ time: '--', percent: 0, day: '--', level: HighlightLevel({ percent: 0 }) }]).map((item, index) => (
+                  <div className={`doctor-week-ref-highlight-row is-${item.level.tone}`} key={`${item.time}-${index}`}>
+                    <span><DoctorIcon name={index === 1 ? 'clock' : index === 2 ? 'pulse' : 'check_circle'} /></span>
+                    <div>
+                      <strong>{index === 0 ? 'Giờ cao điểm' : index === 1 ? 'Giờ thấp điểm' : 'Hiệu suất cao nhất'}</strong>
+                      <small>{item.time} (Tỷ lệ đặt: {item.percent}%)</small>
+                    </div>
+                    <em>{item.day}</em>
+                  </div>
+                ))}
+              </div>
+              <button className="doctor-week-link-button" type="button">Xem phân tích chi tiết <DoctorIcon name="chevron_right" /></button>
+            </article>
+
+          </div>
+        </div>
+
+        <aside className="doctor-week-reference-side">
+          <article className="doctor-week-panel doctor-week-ref-overview">
+            <h2>Tổng quan tuần</h2>
+            <div className="doctor-week-ref-overview-main">
+              <WeekSummaryRing percent={week.utilization} />
+              <dl className="doctor-week-ref-legend">
+                <div><dt><i className="is-green" />Tổng số slot</dt><dd>{week.totalSlots}</dd></div>
+                <div><dt><i className="is-blue" />Slot đã đặt</dt><dd>{week.bookedCount}</dd></div>
+                <div><dt><i className="is-orange" />Slot còn trống</dt><dd>{week.availableCount}</dd></div>
+                <div><dt><i className="is-green" />Đã hoàn thành</dt><dd>{week.schedules.filter((item) => item.state.tone === 'green').length}</dd></div>
+                <div><dt><i className="is-blue" />Đang diễn ra</dt><dd>{week.schedules.filter((item) => item.state.tone === 'blue').length}</dd></div>
+                <div><dt><i className="is-amber" />Sắp diễn ra</dt><dd>{week.schedules.filter((item) => item.state.tone === 'amber').length}</dd></div>
+                <div><dt><i className="is-slate" />Không làm việc</dt><dd>{Math.max(0, (week.days.length * 2) - week.schedules.length)}</dd></div>
+              </dl>
+            </div>
+            <div className="doctor-week-ref-summary-list">
+              <div><span><DoctorIcon name="clock" /></span><b>Thời gian làm việc</b><strong>{Math.round((week.schedules.reduce((sum, item) => sum + minutesBetween(item.schedule.shift_start || item.schedule.start_time, item.schedule.shift_end || item.schedule.end_time), 0)) / 60)} giờ</strong></div>
+              <div><span><DoctorIcon name="pin" /></span><b>Phòng khám chính</b><strong>{week.primaryRoom ? roomName(week.primaryRoom) : '--'}</strong></div>
+              <div><span><DoctorIcon name="doctor" /></span><b>Bác sĩ phụ trách</b><strong>{user?.full_name || user?.name || 'Bác sĩ'}</strong></div>
+            </div>
+          </article>
+
+          <article className="doctor-week-panel doctor-week-ref-actions">
+            <h2>Thao tác nhanh</h2>
+            <button type="button">
+              <span className="is-blue"><DoctorIcon name="calendar" /></span>
+              <div><strong>Xem lịch trống trong tuần</strong><small>Tìm khung giờ còn trống để đặt thêm</small></div>
+              <DoctorIcon name="chevron_right" />
+            </button>
+            <button type="button">
+              <span className="is-green"><DoctorIcon name="plus" /></span>
+              <div><strong>Tạo ca làm việc mới</strong><small>Thêm ca trực hoặc khung giờ làm việc</small></div>
+              <DoctorIcon name="chevron_right" />
+            </button>
+            <button type="button">
+              <span className="is-purple"><DoctorIcon name="note" /></span>
+              <div><strong>Xuất báo cáo tuần</strong><small>Tải báo cáo hiệu suất làm việc tuần</small></div>
+              <DoctorIcon name="chevron_right" />
+            </button>
+            <button type="button" onClick={reload} disabled={state.loading}>
+              <span className="is-green"><DoctorIcon name="refresh" /></span>
+              <div><strong>Đồng bộ lịch cá nhân</strong><small>Kết nối với Google Calendar / Outlook</small></div>
+              <DoctorIcon name="chevron_right" />
+            </button>
+          </article>
+        </aside>
       </section>
 
       <section className="doctor-week-main">
