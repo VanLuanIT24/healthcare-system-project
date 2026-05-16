@@ -1,9 +1,12 @@
+import { Link } from 'react-router-dom'
 import PatientIcon from '../components/PatientIcon'
 import {
+  appointmentDoctors as fallbackRecommendedDoctors,
   emergencyProfile,
   metrics as healthMetrics,
   notifications as fallbackNotifications,
 } from '../data/patientPageData'
+import { NEWS_ARTICLES } from '../../Home/pages/newsData'
 import { formatDateTime } from '../utils/patientHelpers'
 
 function getStatusMeta(status) {
@@ -21,6 +24,13 @@ function getStatusMeta(status) {
 
   return { label: status || 'Chưa xác định', tone: 'soft' }
 }
+
+const dashboardNotificationVisuals = [
+  { tone: 'danger', icon: 'calendar_today', actionLabel: '' },
+  { tone: 'warning', icon: 'biotech', actionLabel: 'Xem ngay' },
+  { tone: 'info', icon: 'medication', actionLabel: 'Xem chi tiết' },
+  { tone: 'success', icon: 'campaign', actionLabel: 'Xem chi tiết' },
+]
 
 export default function PatientDashboardPage({
   accountError,
@@ -101,6 +111,9 @@ export default function PatientDashboardPage({
       kicker: 'Theo dõi tim mạch',
     },
   ]
+  const dashboardNotifications = (notifications.length > 0 ? notifications : fallbackNotifications).slice(0, 4)
+  const recommendedDoctors = fallbackRecommendedDoctors.slice(1, 4)
+  const healthNewsItems = NEWS_ARTICLES.slice(1, 3)
 
   return (
     <>
@@ -220,40 +233,105 @@ export default function PatientDashboardPage({
           ) : null}
         </div>
 
-        <div className="patient-dashboard-side-column">
-          <aside className="patient-panel patient-notification-panel patient-notification-panel-featured">
-            <div className="patient-panel-head patient-panel-head-compact">
-              <div className="patient-notification-title-wrap">
-                <h2>Thông báo mới nhất</h2>
-                <span className="patient-notify-dot static-dot" />
-              </div>
+        <div className="patient-dashboard-side-column patient-dashboard-right-rail">
+          <aside className="patient-dashboard-mini-card patient-dashboard-notification-card">
+            <div className="patient-dashboard-card-head">
+              <h2>Thông báo</h2>
+              <button className="patient-dashboard-card-link" type="button" onClick={onOpenNotifications}>
+                Xem tất cả
+              </button>
             </div>
 
-            <div className="patient-notification-list patient-notification-list-featured">
-              {notifications.map((item, index) => (
-                <article
-                  key={item.id || `${item.title}-${item.time}-${index}`}
-                  className="patient-notification-item patient-notification-item-featured"
-                >
-                  <div className={`patient-notification-icon ${item.tone || item.iconTone || 'slate'}`}>
-                    <PatientIcon name={item.icon || 'notifications'} aria-hidden="true" />
-                  </div>
+            <div className="patient-dashboard-notice-list">
+              {dashboardNotifications.map((item, index) => {
+                const visual = dashboardNotificationVisuals[index % dashboardNotificationVisuals.length]
+
+                return (
+                  <button
+                    key={item.id || `${item.title}-${item.time}-${index}`}
+                    className="patient-dashboard-notice-row"
+                    type="button"
+                    onClick={onOpenNotifications}
+                  >
+                    <span className={`patient-dashboard-notice-icon ${visual.tone}`} aria-hidden="true">
+                      <PatientIcon name={item.icon || visual.icon} />
+                    </span>
+
+                    <span className="patient-dashboard-notice-copy">
+                      <span className="patient-dashboard-notice-title">{item.title}</span>
+                      <span className="patient-dashboard-notice-body">{item.body}</span>
+                      {visual.actionLabel ? (
+                        <span className="patient-dashboard-notice-action">{visual.actionLabel}</span>
+                      ) : null}
+                    </span>
+
+                    <span className="patient-dashboard-notice-meta">
+                      <span>{item.time}</span>
+                      <PatientIcon name="chevron_right" aria-hidden="true" />
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+
+          <aside className="patient-dashboard-mini-card patient-dashboard-interest-card">
+            <div className="patient-dashboard-card-head">
+              <div className="patient-dashboard-card-title">
+                <PatientIcon name="medical_services" aria-hidden="true" />
+                <h2>Bác sĩ bạn quan tâm</h2>
+              </div>
+              <button className="patient-dashboard-card-link" type="button" onClick={onBookAppointment}>
+                Xem tất cả
+              </button>
+            </div>
+
+            <div className="patient-dashboard-interest-list">
+              {recommendedDoctors.map((doctor) => (
+                <article className="patient-dashboard-doctor-row" key={doctor.id || doctor.name}>
+                  <img src={doctor.avatar} alt={doctor.name} loading="lazy" />
                   <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.body}</p>
-                    <span>{item.time}</span>
+                    <h3>{doctor.name}</h3>
+                    <p>{doctor.specialty}</p>
+                    <span className="patient-dashboard-doctor-rating">
+                      <PatientIcon name="star" aria-hidden="true" />
+                      {doctor.rating} ({doctor.reviews})
+                    </span>
                   </div>
+                  <button
+                    className="patient-dashboard-favorite-button"
+                    type="button"
+                    aria-label={`Lưu ${doctor.name}`}
+                  >
+                    <PatientIcon name="favorite" aria-hidden="true" />
+                  </button>
                 </article>
               ))}
             </div>
+          </aside>
 
-            <button
-              className="patient-outline-button patient-outline-button-featured"
-              type="button"
-              onClick={onOpenNotifications}
-            >
-              Xem tất cả thông báo
-            </button>
+          <aside className="patient-dashboard-mini-card patient-dashboard-news-card">
+            <div className="patient-dashboard-card-head">
+              <div className="patient-dashboard-card-title">
+                <PatientIcon name="description" aria-hidden="true" />
+                <h2>Tin tức sức khỏe</h2>
+              </div>
+              <Link className="patient-dashboard-card-link" to="/news">
+                Xem tất cả
+              </Link>
+            </div>
+
+            <div className="patient-dashboard-news-list">
+              {healthNewsItems.map((article) => (
+                <Link className="patient-dashboard-news-row" key={article.slug} to={`/news/${article.slug}`}>
+                  <img src={article.image} alt={article.title} loading="lazy" />
+                  <span>
+                    <strong>{article.title}</strong>
+                    <small>{article.publishedAt}</small>
+                  </span>
+                </Link>
+              ))}
+            </div>
           </aside>
         </div>
       </div>

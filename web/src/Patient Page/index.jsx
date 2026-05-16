@@ -6,10 +6,12 @@ import {
   billingAPI,
   departmentAPI,
   imagingAPI,
+  inpatientAPI,
   labAPI,
   notificationAPI,
   patientAPI,
   prescriptionAPI,
+  procedureAPI,
   recordsAPI,
   scheduleAPI,
 } from '../utils/api'
@@ -26,11 +28,13 @@ import PatientDocumentsPage from './pages/PatientDocumentsPage'
 import PatientEmergencyIdentityPage from './pages/PatientEmergencyIdentityPage'
 import PatientImagingPage from './pages/PatientImagingPage'
 import PatientInsurancePage from './pages/PatientInsurancePage'
+import PatientInpatientPage from './pages/PatientInpatientPage'
 import PatientLabResultsPage from './pages/PatientLabResultsPage'
 import PatientMedicalHistoryPage from './pages/PatientMedicalHistoryPage'
 import PatientMedicationsPage from './pages/PatientMedicationsPage'
 import PatientMessagesPage from './pages/PatientMessagesPage'
 import PatientNotificationsPage from './pages/PatientNotificationsPage'
+import PatientProceduresPage from './pages/PatientProceduresPage'
 import PatientProfileSettingsPage from './pages/PatientProfileSettingsPage'
 import PatientPlaceholderPage from './pages/PatientPlaceholderPage'
 import PatientSupportPage from './pages/PatientSupportPage'
@@ -45,6 +49,7 @@ import './styles/emergency.css'
 import './styles/history.css'
 import './styles/imaging.css'
 import './styles/insurance.css'
+import './styles/inpatient-procedures.css'
 import './styles/lab-results.css'
 import './styles/medications.css'
 import './styles/messages.css'
@@ -161,6 +166,8 @@ const patientSectionKeys = new Set([
   'messages',
   'documents',
   'history',
+  'inpatient',
+  'procedures',
   'billing',
   'profile',
   'settings',
@@ -205,6 +212,8 @@ export default function PatientPage() {
   const [patientProfile, setPatientProfile] = useState(null)
   const [patientAppointments, setPatientAppointments] = useState([])
   const [patientEncounters, setPatientEncounters] = useState([])
+  const [patientAdmissions, setPatientAdmissions] = useState([])
+  const [patientProcedureHistory, setPatientProcedureHistory] = useState([])
   const [patientPrescriptions, setPatientPrescriptions] = useState([])
   const [patientDepartments, setPatientDepartments] = useState([])
   const [patientSchedules, setPatientSchedules] = useState([])
@@ -393,6 +402,8 @@ export default function PatientPage() {
       setPatientProfile(null)
       setPatientAppointments([])
       setPatientEncounters([])
+      setPatientAdmissions([])
+      setPatientProcedureHistory([])
       setPatientPrescriptions([])
       setPatientDepartments([])
       setPatientSchedules([])
@@ -422,6 +433,8 @@ export default function PatientPage() {
       patientAPI.getMyProfile(),
       appointmentAPI.getMyAppointments({ limit: 100 }),
       patientAPI.getMyEncounters({ limit: 30 }),
+      inpatientAPI.getMyAdmissions({ limit: 50 }),
+      procedureAPI.getMyHistory({ limit: 50 }),
       prescriptionAPI.getMyPrescriptions({ limit: 30 }),
       departmentAPI.getActiveDepartments(),
       scheduleAPI.getByDateRange({
@@ -446,24 +459,28 @@ export default function PatientPage() {
     const profileData = getResponseData(results[0])
     const appointmentsData = getResponseData(results[1])
     const encountersData = getResponseData(results[2])
-    const prescriptionsData = getResponseData(results[3])
-    const departmentsData = getResponseData(results[4])
-    const schedulesData = getResponseData(results[5])
-    const medicalRecordsData = getResponseData(results[6])
-    const documentsData = getResponseData(results[7])
-    const documentTimelineData = getResponseData(results[8])
-    const labResultsData = getResponseData(results[9])
-    const imagingReportsData = getResponseData(results[10])
-    const billingSummaryData = getResponseData(results[11])
-    const invoicesData = getResponseData(results[12])
-    const paymentsData = getResponseData(results[13])
-    const insurancePoliciesData = getResponseData(results[14])
-    const insuranceClaimsData = getResponseData(results[15])
-    const notificationsData = getResponseData(results[16])
+    const admissionsData = getResponseData(results[3])
+    const proceduresData = getResponseData(results[4])
+    const prescriptionsData = getResponseData(results[5])
+    const departmentsData = getResponseData(results[6])
+    const schedulesData = getResponseData(results[7])
+    const medicalRecordsData = getResponseData(results[8])
+    const documentsData = getResponseData(results[9])
+    const documentTimelineData = getResponseData(results[10])
+    const labResultsData = getResponseData(results[11])
+    const imagingReportsData = getResponseData(results[12])
+    const billingSummaryData = getResponseData(results[13])
+    const invoicesData = getResponseData(results[14])
+    const paymentsData = getResponseData(results[15])
+    const insurancePoliciesData = getResponseData(results[16])
+    const insuranceClaimsData = getResponseData(results[17])
+    const notificationsData = getResponseData(results[18])
 
     setPatientProfile(profileData || null)
     setPatientAppointments(appointmentsData?.items || [])
     setPatientEncounters(encountersData?.items || [])
+    setPatientAdmissions(admissionsData?.items || [])
+    setPatientProcedureHistory(proceduresData?.items || [])
     setPatientPrescriptions(prescriptionsData?.items || [])
     setPatientDepartments(departmentsData?.items || [])
     setPatientSchedules(schedulesData?.items || [])
@@ -807,6 +824,26 @@ export default function PatientPage() {
           medicalRecords={patientMedicalRecords}
           prescriptions={patientPrescriptions}
           viewMode="history"
+        />
+      )
+    }
+
+    if (activeSection === 'inpatient') {
+      return (
+        <PatientInpatientPage
+          admissions={patientAdmissions}
+          error={patientDataError}
+          loading={patientDataLoading}
+        />
+      )
+    }
+
+    if (activeSection === 'procedures') {
+      return (
+        <PatientProceduresPage
+          error={patientDataError}
+          loading={patientDataLoading}
+          procedures={patientProcedureHistory}
         />
       )
     }

@@ -6,6 +6,8 @@ export const sidebarSections = [
       { key: 'appointments', icon: 'calendar_today', label: 'Lịch hẹn' },
       { key: 'book-appointment', icon: 'calendar_add_on', label: 'Đặt lịch khám' },
       { key: 'history', icon: 'history_edu', label: 'Lịch sử khám' },
+      { key: 'inpatient', icon: 'local_hospital', label: 'Nội trú' },
+      { key: 'procedures', icon: 'clinical_notes', label: 'Thủ thuật' },
       { key: 'medications', icon: 'medication', label: 'Đơn thuốc' },
       { key: 'lab-results', icon: 'biotech', label: 'Kết quả xét nghiệm' },
       { key: 'imaging', icon: 'radiology', label: 'Chẩn đoán hình ảnh' },
@@ -1159,6 +1161,16 @@ export const sectionMeta = {
     eyebrow: 'Lưu trữ lâm sàng',
     title: 'Lịch sử khám',
     body: 'Lịch sử bệnh án, kết quả cận lâm sàng và toa thuốc được tập trung tại đây để bạn xem nhanh.',
+  },
+  inpatient: {
+    eyebrow: 'Điều trị nội trú',
+    title: 'Nội trú',
+    body: 'Danh sách các lần nhập viện, khoa điều trị, bác sĩ phụ trách, giường bệnh và thông tin ra viện.',
+  },
+  procedures: {
+    eyebrow: 'Can thiệp và thủ thuật',
+    title: 'Thủ thuật',
+    body: 'Lịch sử thủ thuật đã hoàn tất, lịch thực hiện, người phụ trách và ghi chú kết quả.',
   },
   messages: {
     eyebrow: 'Đội ngũ chăm sóc',
