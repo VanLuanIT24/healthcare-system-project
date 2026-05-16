@@ -405,9 +405,6 @@ export function DoctorWeekScheduleScreen({ user }) {
           <article className="doctor-week-panel doctor-week-reference-calendar">
             <header>
               <h2>Lịch làm việc trong tuần</h2>
-              <button className="doctor-week-ref-link" type="button" onClick={reload} disabled={state.loading}>
-                Xem lịch trong tuần <DoctorIcon name="chevron_right" />
-              </button>
             </header>
 
             <div className="doctor-week-ref-table">
@@ -428,12 +425,21 @@ export function DoctorWeekScheduleScreen({ user }) {
                   <WeekShiftPreview bundle={dayItem.morning} />
                   <WeekShiftPreview bundle={dayItem.afternoon} />
                   <div className="doctor-week-ref-total">
-                    <strong>{dayItem.bookedCount}/{dayItem.totalSlots || 0}</strong>
+                    <div>
+                      <strong>{dayItem.bookedCount}/{dayItem.totalSlots || 0}</strong>
+                      <small>{dayItem.utilization}%</small>
+                    </div>
                     <b><span style={{ width: `${dayItem.utilization}%` }} /></b>
                     <DoctorIcon name="chevron_right" />
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="doctor-week-ref-footer">
+              <button className="doctor-week-ref-link" type="button" onClick={reload} disabled={state.loading}>
+                Xem lịch trong tuần <DoctorIcon name="chevron_right" />
+              </button>
             </div>
           </article>
 

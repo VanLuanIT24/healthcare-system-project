@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   FolderOpen,
   HeartPulse,
+  Hourglass,
   Image as ImageIcon,
   Pause,
   Pill,
@@ -242,21 +243,21 @@ function StatusPill({ encounter }) {
 function Donut({ dashboard }) {
   const total = dashboard.total || 1
   const activeEnd = percent(dashboard.active, total)
-  const holdEnd = activeEnd + percent(dashboard.onHold, total)
-  const needSignEnd = holdEnd + percent(dashboard.needSign, total)
-  const activeRxEnd = needSignEnd + percent(dashboard.activePrescription, total)
+  const waitingEnd = activeEnd + percent(dashboard.waiting, total)
+  const completedEnd = waitingEnd + percent(dashboard.completed, total)
+  const holdEnd = completedEnd + percent(dashboard.onHold, total)
   const style = {
     '--active-end': `${activeEnd}%`,
+    '--waiting-end': `${waitingEnd}%`,
+    '--completed-end': `${completedEnd}%`,
     '--hold-end': `${holdEnd}%`,
-    '--need-sign-end': `${needSignEnd}%`,
-    '--active-rx-end': `${activeRxEnd}%`,
   }
 
   return (
     <div className="doctor-encounter-ref-donut" style={style}>
       <div>
         <strong>{dashboard.total}</strong>
-        <span>Tổng phiên</span>
+        <span>Tổng phiên khám</span>
       </div>
     </div>
   )
@@ -960,23 +961,34 @@ export function DoctorTodayEncountersScreen({ user, view = 'today' }) {
 
       {state.error ? <div className="doctor-encounter-ref-error">{state.error}</div> : null}
 
-      <section className="doctor-encounter-ref-stats" aria-label="Tổng quan phiên khám đang khám">
-        <StatCard icon={Stethoscope} tone="green" label="Đang khám" value={dashboard.active} hint={`${dashboard.activeRate}% tổng số`} />
-        <StatCard icon={CirclePause} tone="orange" label="Tạm dừng" value={dashboard.onHold} hint={`${dashboard.onHoldRate}% tổng số`} />
-        <StatCard icon={FilePenLine} tone="purple" label="Chờ ký consultation" value={dashboard.needSign} hint={`${dashboard.needSignRate}% tổng số`} />
-        <StatCard icon={Pill} tone="blue" label="Có đơn thuốc hoạt động" value={dashboard.activePrescription} hint={`${dashboard.activePrescriptionRate}% tổng số`} />
+      <section className="doctor-encounter-ref-stats" aria-label={view === 'active' ? 'Tổng quan phiên khám đang khám' : 'Tổng quan phiên khám hôm nay'}>
+        {view === 'active' ? (
+          <>
+            <StatCard icon={Stethoscope} tone="green" label="Đang khám" value={dashboard.active} hint={`${dashboard.activeRate}% tổng số`} />
+            <StatCard icon={CirclePause} tone="orange" label="Tạm dừng" value={dashboard.onHold} hint={`${dashboard.onHoldRate}% tổng số`} />
+            <StatCard icon={FilePenLine} tone="purple" label="Chờ ký consultation" value={dashboard.needSign} hint={`${dashboard.needSignRate}% tổng số`} />
+            <StatCard icon={Pill} tone="blue" label="Có đơn thuốc hoạt động" value={dashboard.activePrescription} hint={`${dashboard.activePrescriptionRate}% tổng số`} />
+          </>
+        ) : (
+          <>
+            <StatCard icon={CalendarDays} tone="blue" label="Tổng phiên khám" value={dashboard.total} hint="100% tổng số hôm nay" />
+            <StatCard icon={Stethoscope} tone="green" label="Đang khám" value={dashboard.active} hint={`${dashboard.activeRate}% tổng số`} />
+            <StatCard icon={Hourglass} tone="orange" label="Chờ bắt đầu" value={dashboard.waiting} hint={`${dashboard.waitingRate}% tổng số`} />
+            <StatCard icon={CheckCircle2} tone="purple" label="Đã hoàn tất" value={dashboard.completed} hint={`${dashboard.completedRate}% tổng số`} />
+          </>
+        )}
       </section>
 
       <section className="doctor-encounter-ref-main-grid">
         <article className="doctor-encounter-ref-panel doctor-encounter-ref-list">
           <header>
-            <h2>Danh sách đang khám</h2>
+            <h2>{view === 'active' ? 'Danh sách đang khám' : 'Danh sách phiên khám hôm nay'}</h2>
           </header>
 
           <div className="doctor-encounter-ref-table-head">
-            <span>Giờ bắt đầu</span>
+            <span>{view === 'active' ? 'Giờ bắt đầu' : 'Giờ khám'}</span>
             <span>Bệnh nhân</span>
-            <span>Chuyên khoa / Chẩn đoán chính</span>
+            <span>{view === 'active' ? 'Chuyên khoa / Chẩn đoán chính' : 'Chuyên khoa / Lý do khám'}</span>
             <span>Trạng thái</span>
             <span>Bác sĩ</span>
             <span>Phòng khám</span>
@@ -1070,7 +1082,7 @@ export function DoctorTodayEncountersScreen({ user, view = 'today' }) {
               </button>
             </div>
             <span>
-              Hiển thị {dashboard.total ? `${(page - 1) * PAGE_SIZE + 1} đến ${Math.min(page * PAGE_SIZE, dashboard.total)}` : '0'} của {dashboard.total} phiên đang khám
+              Hiển thị {dashboard.total ? `${(page - 1) * PAGE_SIZE + 1} đến ${Math.min(page * PAGE_SIZE, dashboard.total)}` : '0'} của {dashboard.total} {view === 'active' ? 'phiên đang khám' : 'phiên khám'}
             </span>
           </footer>
         </article>
@@ -1154,51 +1166,103 @@ export function DoctorTodayEncountersScreen({ user, view = 'today' }) {
         <aside className="doctor-encounter-ref-side">
           <article className="doctor-encounter-ref-panel doctor-encounter-ref-overview">
             <header>
-              <h2>Tổng quan đang khám</h2>
+              <h2>{view === 'active' ? 'Tổng quan đang khám' : 'Tổng quan hôm nay'}</h2>
             </header>
             <div className="doctor-encounter-ref-overview__top">
               <Donut dashboard={dashboard} />
               <dl>
-                <div><dt><i className="is-green" /> Đang khám</dt><dd>{dashboard.active} ({dashboard.activeRate}%)</dd></div>
-                <div><dt><i className="is-orange" /> Tạm dừng</dt><dd>{dashboard.onHold} ({dashboard.onHoldRate}%)</dd></div>
-                <div><dt><i className="is-purple" /> Cần ký</dt><dd>{dashboard.needSign} ({dashboard.needSignRate}%)</dd></div>
-                <div><dt><i className="is-yellow" /> Có toa thuốc</dt><dd>{dashboard.activePrescription} ({dashboard.activePrescriptionRate}%)</dd></div>
+                {view === 'active' ? (
+                  <>
+                    <div><dt><i className="is-green" /> Đang khám</dt><dd>{dashboard.active} ({dashboard.activeRate}%)</dd></div>
+                    <div><dt><i className="is-orange" /> Tạm dừng</dt><dd>{dashboard.onHold} ({dashboard.onHoldRate}%)</dd></div>
+                    <div><dt><i className="is-purple" /> Cần ký</dt><dd>{dashboard.needSign} ({dashboard.needSignRate}%)</dd></div>
+                    <div><dt><i className="is-yellow" /> Có toa thuốc</dt><dd>{dashboard.activePrescription} ({dashboard.activePrescriptionRate}%)</dd></div>
+                  </>
+                ) : (
+                  <>
+                    <div><dt><i className="is-green" /> Đang khám</dt><dd>{dashboard.active} ({dashboard.activeRate}%)</dd></div>
+                    <div><dt><i className="is-orange" /> Chờ bắt đầu</dt><dd>{dashboard.waiting} ({dashboard.waitingRate}%)</dd></div>
+                    <div><dt><i className="is-purple" /> Đã hoàn tất</dt><dd>{dashboard.completed} ({dashboard.completedRate}%)</dd></div>
+                    <div><dt><i className="is-yellow" /> Tạm dừng</dt><dd>{dashboard.onHold} ({dashboard.onHoldRate}%)</dd></div>
+                  </>
+                )}
               </dl>
             </div>
             <div className="doctor-encounter-ref-overview__list">
               <div><UserRound size={17} /><span>Bác sĩ phụ trách</span><strong>{doctorName(dashboard.first || {}, user)}</strong></div>
-              <div><ClipboardList size={17} /><span>Phòng khám hiện tại</span><strong>{roomName(selected) !== '--' ? roomName(selected) : roomName(dashboard.first || {})}</strong></div>
-              <div><Clock3 size={17} /><span>Thời gian khám TB</span><strong>{dashboard.averageMinutes} phút</strong></div>
-              <div><CheckCircle2 size={17} /><span>Có thể hoàn tất</span><strong>{selectedExtra.readiness?.can_complete ? 'Có' : 'Chưa'}</strong></div>
+              {view === 'active' ? (
+                <>
+                  <div><ClipboardList size={17} /><span>Phòng khám hiện tại</span><strong>{roomName(selected) !== '--' ? roomName(selected) : roomName(dashboard.first || {})}</strong></div>
+                  <div><Clock3 size={17} /><span>Thời gian khám TB</span><strong>{dashboard.averageMinutes} phút</strong></div>
+                  <div><CheckCircle2 size={17} /><span>Có thể hoàn tất</span><strong>{selectedExtra.readiness?.can_complete ? 'Có' : 'Chưa'}</strong></div>
+                </>
+              ) : (
+                <>
+                  <div><ClipboardList size={17} /><span>Khoa / Phòng khám</span><strong>{departmentName(dashboard.first || {})} / {roomName(dashboard.first || {})}</strong></div>
+                  <div><Activity size={17} /><span>Tỷ lệ hoàn tất</span><strong>{dashboard.completedRate}% ({dashboard.completed}/{dashboard.total || 0})</strong></div>
+                  <div><Clock3 size={17} /><span>Khung giờ cao điểm</span><strong>08:00 - 11:00</strong></div>
+                </>
+              )}
             </div>
           </article>
 
           <article className="doctor-encounter-ref-panel doctor-encounter-ref-quick">
             <h2>Thao tác nhanh</h2>
-            <button type="button" onClick={() => selectedEncounterId && runAction(selected, statusInfo(selected).group === 'hold' ? 'resume' : 'start')} disabled={!selectedEncounterId || Boolean(actingId)}>
-              <span><Play size={20} /></span>
-              <b>Tiếp tục encounter</b>
-              <small>Tiếp tục phiên khám đang chọn</small>
-              <ChevronRight size={18} />
-            </button>
-            <button type="button" onClick={() => selectedEncounterId && runAction(selected, 'complete')} disabled={!selectedEncounterId || Boolean(actingId)}>
-              <span><CheckCircle2 size={20} /></span>
-              <b>Hoàn tất khám</b>
-              <small>Hoàn tất và kết thúc phiên khám</small>
-              <ChevronRight size={18} />
-            </button>
-            <button type="button" onClick={() => selectedEncounterId && runAction(selected, 'hold')} disabled={!selectedEncounterId || Boolean(actingId)}>
-              <span><Pause size={20} /></span>
-              <b>Tạm dừng khám</b>
-              <small>Tạm giữ phiên khám đang xử lý</small>
-              <ChevronRight size={18} />
-            </button>
-            <button type="button" onClick={() => navigate('/doctor/orders?view=encounter')} disabled={!selectedEncounterId}>
-              <span><FilePenLine size={20} /></span>
-              <b>Mở consultation</b>
-              <small>Xem và chỉnh sửa consultation hiện tại</small>
-              <ChevronRight size={18} />
-            </button>
+            {view === 'active' ? (
+              <>
+                <button type="button" onClick={() => selectedEncounterId && runAction(selected, statusInfo(selected).group === 'hold' ? 'resume' : 'start')} disabled={!selectedEncounterId || Boolean(actingId)}>
+                  <span><Play size={20} /></span>
+                  <b>Tiếp tục encounter</b>
+                  <small>Tiếp tục phiên khám đang chọn</small>
+                  <ChevronRight size={18} />
+                </button>
+                <button type="button" onClick={() => selectedEncounterId && runAction(selected, 'complete')} disabled={!selectedEncounterId || Boolean(actingId)}>
+                  <span><CheckCircle2 size={20} /></span>
+                  <b>Hoàn tất khám</b>
+                  <small>Hoàn tất và kết thúc phiên khám</small>
+                  <ChevronRight size={18} />
+                </button>
+                <button type="button" onClick={() => selectedEncounterId && loadSelectedEncounter(selected).then((data) => setSelectedData({ loading: false, data }))} disabled={!selectedEncounterId}>
+                  <span><Activity size={20} /></span>
+                  <b>Xem timeline</b>
+                  <small>Xem tiến trình chi tiết của encounter</small>
+                  <ChevronRight size={18} />
+                </button>
+                <button type="button" onClick={() => navigate('/doctor/orders?view=encounter')} disabled={!selectedEncounterId}>
+                  <span><FilePenLine size={20} /></span>
+                  <b>Mở consultation</b>
+                  <small>Xem và chỉnh sửa consultation hiện tại</small>
+                  <ChevronRight size={18} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => navigate('/doctor/encounters?view=active')}>
+                  <span><CalendarDays size={20} /></span>
+                  <b>Tạo encounter</b>
+                  <small>Tạo phiên khám mới cho bệnh nhân</small>
+                  <ChevronRight size={18} />
+                </button>
+                <button type="button" onClick={reload}>
+                  <span><RotateCcw size={20} /></span>
+                  <b>Làm mới danh sách</b>
+                  <small>Cập nhật danh sách phiên khám</small>
+                  <ChevronRight size={18} />
+                </button>
+                <button type="button" onClick={() => navigate('/doctor/encounters?view=active')}>
+                  <span><UserRound size={20} /></span>
+                  <b>Xem đang khám</b>
+                  <small>Xem danh sách các phiên đang khám</small>
+                  <ChevronRight size={18} />
+                </button>
+                <button type="button" onClick={exportCompletedCsv}>
+                  <span><FileSpreadsheet size={20} /></span>
+                  <b>Xuất danh sách</b>
+                  <small>Xuất file danh sách phiên khám</small>
+                  <ChevronRight size={18} />
+                </button>
+              </>
+            )}
           </article>
         </aside>
       </section>

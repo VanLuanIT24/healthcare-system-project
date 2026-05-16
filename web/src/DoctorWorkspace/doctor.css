@@ -15753,6 +15753,10 @@
   background: #edf4ff;
 }
 
+.doctor-queue-report-page > .doctor-performance-header {
+  display: none;
+}
+
 .doctor-queue-linechart polyline.is-blue {
   stroke: #1269f3;
 }
@@ -26167,6 +26171,7 @@
 .doctor-all-appointment-list {
   min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .doctor-all-appointment-panel > header {
@@ -26259,10 +26264,10 @@
 .doctor-all-appointment-head,
 .doctor-all-appointment-row {
   display: grid;
-  grid-template-columns: 52px 58px minmax(148px, 1.1fr) minmax(150px, 1.2fr) 92px 58px 62px 58px 72px 76px;
+  grid-template-columns: 58px 64px minmax(190px, 1.12fr) minmax(210px, 1.18fr) 110px 70px 72px 64px 82px 108px;
   align-items: center;
   gap: 10px;
-  min-width: 1060px;
+  min-width: 1180px;
 }
 
 .doctor-all-appointment-head {
@@ -26437,12 +26442,12 @@
 
 .doctor-all-appointment-footer {
   display: grid;
-  grid-template-columns: 150px 1fr 230px;
+  grid-template-columns: 150px minmax(0, 1fr) minmax(0, 230px);
   align-items: center;
   gap: 14px;
   min-height: 54px;
   padding-top: 12px;
-  min-width: 1060px;
+  min-width: 1180px;
 }
 
 .doctor-all-appointment-footer > button,
@@ -30503,14 +30508,17 @@ img.doctor-calling-avatar {
 
 .doctor-appointment-list-card {
   min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .doctor-appointment-list-head,
 .doctor-appointment-list-row {
   display: grid;
-  grid-template-columns: 70px minmax(185px, 1.25fr) minmax(165px, 1.1fr) 106px 76px 64px 82px 166px;
+  grid-template-columns: 70px minmax(165px, 1.2fr) minmax(155px, 1.05fr) 96px 72px 62px 78px 118px;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-width: 920px;
 }
 
 .doctor-appointment-list-head {
@@ -30528,7 +30536,7 @@ img.doctor-calling-avatar {
   border: 1px solid #e2e9f4;
   border-top: 0;
   border-radius: 0 0 9px 9px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .doctor-appointment-list-row {
@@ -30622,12 +30630,16 @@ img.doctor-calling-avatar {
 
 .doctor-appointment-row-actions {
   display: grid;
-  grid-template-columns: 64px 88px;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  min-width: 0;
 }
 
 .doctor-appointment-row-actions button {
+  width: 100%;
+  min-width: 0;
   min-height: 28px;
+  padding: 0 6px;
   border: 1px solid #9fc5ff;
   border-radius: 7px;
   display: inline-flex;
@@ -30639,7 +30651,15 @@ img.doctor-calling-avatar {
   font: inherit;
   font-size: .68rem;
   font-weight: 950;
+  line-height: 1.05;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
+}
+
+.doctor-appointment-row-actions button + button {
+  display: none;
 }
 
 .doctor-appointment-row-actions button svg {
@@ -30662,11 +30682,12 @@ img.doctor-calling-avatar {
 
 .doctor-appointment-list-footer {
   display: grid;
-  grid-template-columns: 150px 1fr 220px;
+  grid-template-columns: 150px minmax(0, 1fr) minmax(0, 220px);
   align-items: center;
   gap: 14px;
   min-height: 54px;
   padding-top: 12px;
+  min-width: 920px;
 }
 
 .doctor-appointment-list-footer > button,
@@ -31539,6 +31560,17 @@ img.doctor-calling-avatar {
   --doctor-shell-width: 238px;
 }
 
+.doctor-shell.is-dashboard-variant .doctor-shell-main,
+.doctor-shell.is-dashboard-variant .doctor-shell-content,
+.doctor-shell.is-dashboard-variant .doctor-shell-inner {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-topbar {
+  overflow-x: hidden;
+}
+
 .doctor-shell.is-dashboard-variant .doctor-dashboard-sidebar {
   width: 100%;
   min-width: 0;
@@ -31549,6 +31581,733 @@ img.doctor-calling-avatar {
   gap: 2px;
   padding: 8px;
   overflow: hidden;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+  min-width: 0;
+}
+
+.doctor-encounter-ref-page.is-today {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-main-grid,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-bottom {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat {
+  min-width: 0;
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid #dfe7f3;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 37, 86, 0.04);
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat__icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  justify-self: start;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat__icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat__icon.is-blue {
+  color: #126dff;
+  background: #eaf3ff;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat__icon.is-green {
+  color: #18a86b;
+  background: #dcf7e9;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat__icon.is-orange {
+  color: #ee8c00;
+  background: #fff1dc;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat__icon.is-purple {
+  color: #7938f2;
+  background: #efe7ff;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat p {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: #071a5c;
+  font-size: 0.76rem;
+  line-height: 1.15;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat strong {
+  margin-top: 7px;
+  color: #071a5c;
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-stat small {
+  margin-top: 7px;
+  min-width: 0;
+  overflow: hidden;
+  color: #566592;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1020px) {
+  .doctor-encounter-ref-page.is-today .doctor-encounter-ref-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .doctor-encounter-ref-page.is-today .doctor-encounter-ref-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.55fr) minmax(300px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-processing {
+  display: none;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-side {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-list {
+  width: 100%;
+  max-width: 100%;
+  justify-self: start;
+  min-height: 600px;
+  padding: 16px 18px 12px;
+  overflow: hidden;
+  border: 1px solid #dfe7f3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-list > header {
+  padding: 0;
+  margin-bottom: 14px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-list h2 {
+  color: #071a5c;
+  font-size: 0.92rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-table-head,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-row {
+  grid-template-columns: 58px minmax(132px, 1.18fr) minmax(142px, 1.2fr) 82px minmax(116px, 0.96fr) 72px 72px 70px 64px 94px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-table-head {
+  min-height: 34px;
+  padding: 0 6px;
+  border: 1px solid #e9eef7;
+  border-radius: 6px 6px 0 0;
+  background: #fbfdff;
+  color: #071a5c;
+  font-size: 0.58rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-table {
+  min-width: 0;
+  min-height: 404px;
+  border: 1px solid #e9eef7;
+  border-top: 0;
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-row {
+  min-height: 40px;
+  padding: 5px 6px;
+  border-bottom: 1px solid #edf2f8;
+  background: #fff;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-row:last-child {
+  border-bottom: 0;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-row:hover,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-row.is-selected {
+  background: #f8fbff;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-row > strong,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-cell-strong,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-count {
+  color: #071a5c;
+  font-size: 0.62rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-patient {
+  gap: 8px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-avatar.is-sm {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  font-size: 0.55rem;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-patient b,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-reason b {
+  color: #071a5c;
+  font-size: 0.62rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-patient small,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-reason small {
+  margin-top: 2px;
+  color: #617096;
+  font-size: 0.54rem;
+  line-height: 1.2;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-status {
+  min-height: 21px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 0.56rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-actions {
+  grid-template-columns: minmax(0, 1fr) 25px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-actions button {
+  min-height: 26px;
+  gap: 4px;
+  font-size: 0.56rem;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-actions button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-footer {
+  grid-template-columns: minmax(120px, 1fr) auto minmax(180px, 1fr);
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 0;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-footer button {
+  min-height: 30px;
+  border-radius: 6px;
+  font-size: 0.66rem;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-footer > div {
+  gap: 7px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-footer > div button {
+  width: 30px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-footer > span {
+  color: #5e6d94;
+  font-size: 0.66rem;
+  font-weight: 760;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-overview {
+  padding: 16px 18px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-overview h2,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-quick h2 {
+  color: #071a5c;
+  font-size: 0.92rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-overview__top {
+  grid-template-columns: 124px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-donut {
+  width: 118px;
+  height: 118px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-donut > div {
+  width: 78px;
+  height: 78px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-donut strong {
+  font-size: 1.45rem;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-donut span {
+  font-size: 0.64rem;
+  text-align: center;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-overview__list {
+  margin-top: 16px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-overview__list div {
+  min-height: 39px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-overview__list div:nth-child(3) strong {
+  color: #18a86b;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-quick {
+  padding: 16px 18px;
+  gap: 10px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-quick button {
+  min-height: 52px;
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  column-gap: 11px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-quick button > span {
+  width: 30px;
+  height: 30px;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-quick button:nth-of-type(1) > span {
+  color: #14a66d;
+  background: #dcf8ea;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-quick button:nth-of-type(2) > span {
+  color: #0b6ff2;
+  background: #eaf3ff;
+}
+
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-quick button:nth-of-type(3) > span,
+.doctor-encounter-ref-page.is-today .doctor-encounter-ref-quick button:nth-of-type(4) > span {
+  color: #0b6ff2;
+  background: #eef4ff;
+}
+
+@media (max-width: 1180px) {
+  .doctor-encounter-ref-page.is-today .doctor-encounter-ref-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stat {
+  min-width: 0;
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stat__icon {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stat__icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stat p,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stat small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stat p {
+  font-size: 0.66rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stat strong {
+  margin-top: 5px;
+  font-size: 1.18rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stat small {
+  margin-top: 5px;
+  font-size: 0.6rem;
+}
+
+.doctor-encounter-ref-page.is-active {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-main-grid,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-bottom {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-main-grid {
+  grid-template-columns: minmax(0, 1.72fr) minmax(330px, 0.82fr) minmax(300px, 0.74fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-side {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-list,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-processing {
+  border: 1px solid #dfe7f3;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 37, 86, 0.04);
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-list {
+  width: 100%;
+  min-width: 0;
+  padding: 14px 14px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-list > header,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-processing > header {
+  margin-bottom: 10px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-list h2,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-processing h2,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview h2,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-quick h2 {
+  color: #071a5c;
+  font-size: 0.92rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-table-head,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-row {
+  grid-template-columns: 72px minmax(175px, 1.12fr) minmax(210px, 1.16fr) 102px minmax(125px, 0.82fr) 82px 82px 74px 72px 118px;
+  gap: 8px;
+  min-width: 1220px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-table-head {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #e7edf7;
+  border-radius: 6px 6px 0 0;
+  background: #fbfdff;
+  color: #071a5c;
+  font-size: 0.68rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-table {
+  min-width: 1220px;
+  min-height: 0;
+  border: 1px solid #e7edf7;
+  border-top: 0;
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-row {
+  min-height: 58px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #edf2f8;
+  background: #fff;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-row:last-child {
+  border-bottom: 0;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-row > strong,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-cell-strong,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-count {
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-patient {
+  gap: 6px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-avatar.is-sm {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  font-size: 0.68rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-patient b,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-reason b {
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-patient small,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-reason small {
+  margin-top: 2px;
+  font-size: 0.6rem;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-status {
+  min-height: 24px;
+  padding: 0 10px;
+  gap: 5px;
+  font-size: 0.64rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-status::before {
+  width: 4px;
+  height: 4px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-actions {
+  grid-template-columns: minmax(0, 1fr) 30px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-actions button {
+  min-height: 30px;
+  gap: 5px;
+  font-size: 0.66rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-actions button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-footer {
+  grid-template-columns: minmax(92px, 1fr) auto minmax(120px, 1fr);
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 0;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-footer button {
+  min-height: 34px;
+  font-size: 0.72rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-footer > div {
+  gap: 6px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-footer > div button {
+  width: 34px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-footer > span {
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-processing {
+  min-width: 0;
+  padding: 14px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-selected {
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-avatar.is-lg {
+  width: 46px;
+  height: 46px;
+  flex-basis: 46px;
+  font-size: 0.78rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-selected-title h3,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-selected-title strong {
+  font-size: 0.82rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-selected-title p,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-selected-grid dt,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-selected-grid dd {
+  font-size: 0.62rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-stepper {
+  margin: 10px 0;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-clinical-grid {
+  gap: 8px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-clinical-grid article {
+  padding: 9px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-quick {
+  padding: 14px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview__top {
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-donut {
+  width: 104px;
+  height: 104px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-donut > div {
+  width: 70px;
+  height: 70px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-donut strong {
+  font-size: 1.28rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-donut span {
+  max-width: 58px;
+  font-size: 0.5rem;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview dl {
+  gap: 7px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview dt,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview dd,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview__list span,
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview__list strong {
+  font-size: 0.64rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview__list {
+  margin-top: 10px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview__list div {
+  min-height: 38px;
+  grid-template-columns: 15px minmax(0, 1fr) auto;
+  gap: 9px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview__list svg {
+  width: 14px;
+  height: 14px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-overview__list strong {
+  max-width: 116px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-quick {
+  gap: 8px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-quick button {
+  min-height: 52px;
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  column-gap: 10px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-quick button > span {
+  width: 31px;
+  height: 31px;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-quick button b {
+  font-size: 0.7rem;
+}
+
+.doctor-encounter-ref-page.is-active .doctor-encounter-ref-quick button small {
+  font-size: 0.58rem;
+}
+
+@media (max-width: 1180px) {
+  .doctor-encounter-ref-page.is-active .doctor-encounter-ref-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1020px) {
+  .doctor-encounter-ref-page.is-active .doctor-encounter-ref-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .doctor-shell.is-dashboard-variant .doctor-dashboard-sidebar .doctor-sidebar-brand {
@@ -35447,9 +36206,28 @@ img.doctor-calling-avatar {
   color: #1167f2;
 }
 
+.doctor-week-ref-total > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.doctor-week-ref-total small {
+  color: #0b2b72;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .doctor-week-ref-total svg {
   width: 15px;
   height: 15px;
+}
+
+.doctor-week-ref-footer {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .doctor-week-reference-bottom {
