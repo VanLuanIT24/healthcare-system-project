@@ -1,4 +1,5 @@
 const ApiError = require('../../common/errors/api-error');
+const ERROR_CODE = require('../../common/errors/error-codes');
 
 function canTransition(transitions, currentStatus, nextStatus) {
   if (!currentStatus || !nextStatus) return false;
@@ -28,7 +29,7 @@ function assertTransition(transitions, currentStatus, nextStatus, entityName = '
     currentStatus,
     nextStatus,
     allowed,
-  });
+  }, ERROR_CODE.INVALID_STATE_TRANSITION);
 }
 
 module.exports = {

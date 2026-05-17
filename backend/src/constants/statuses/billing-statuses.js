@@ -45,6 +45,7 @@ const INVOICE_STATUSES = Object.values(INVOICE_STATUS);
 
 const PAYMENT_METHOD = {
   CASH: 'cash',
+  QR: 'qr',
   CARD: 'card',
   BANK_TRANSFER: 'bank_transfer',
   INSURANCE: 'insurance',
@@ -56,9 +57,16 @@ const PAYMENT_METHODS = Object.values(PAYMENT_METHOD);
 
 const PAYMENT_STATUS = {
   PENDING: 'pending',
+  PENDING_MANUAL_CONFIRMATION: 'pending_manual_confirmation',
+  SUBMITTED_RECEIPT: 'submitted_receipt',
+  CONFIRMED: 'confirmed',
   COMPLETED: 'completed',
   FAILED: 'failed',
+  REJECTED: 'rejected',
+  EXPIRED: 'expired',
+  CANCELLED: 'cancelled',
   REFUNDED: 'refunded',
+  REFUNDED_MANUAL: 'refunded_manual',
   VOIDED: 'voided',
 };
 

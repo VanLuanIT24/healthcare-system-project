@@ -53,17 +53,18 @@ const ATTACHMENT_ENTITY_TYPES = Object.values(ATTACHMENT_ENTITY_TYPE);
 const NOTIFICATION_CHANNEL = {
   IN_APP: 'in_app',
   EMAIL: 'email',
-  SMS: 'sms',
   PUSH: 'push',
 };
 
 const NOTIFICATION_CHANNELS = Object.values(NOTIFICATION_CHANNEL);
 
 const NOTIFICATION_STATUS = {
+  UNREAD: 'unread',
   QUEUED: 'queued',
   SENT: 'sent',
   DELIVERED: 'delivered',
   READ: 'read',
+  ARCHIVED: 'archived',
   FAILED: 'failed',
   CANCELLED: 'cancelled',
 };

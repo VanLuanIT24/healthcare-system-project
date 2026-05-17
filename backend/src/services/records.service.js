@@ -53,6 +53,10 @@ const { CODE_TYPE, generateBusinessCode } = require('./code-generator.service');
 const permissionService = require('./permission.service');
 const notificationService = require('./notification.service');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
+const actorContext = require('../common/actors');
+const signedUrlService = require('../files/signed-url.service');
+const fileScanService = require('../files/file-scan.service');
+const ERROR_CODE = require('../common/errors/error-codes');
 
 const ACTIVE_RECORD_STATUSES = [
   MEDICAL_RECORD_STATUS.DRAFT,
@@ -143,7 +147,7 @@ function isDuplicateKeyError(error) {
 }
 
 function isRelativeActor(actor = {}) {
-  return [ 'relative', 'patient_relative' ].includes(actorType(actor));
+  return actorContext.isPatientRelative(actor);
 }
 
 function hasActiveRelativeAuthorization(relativeId, patientId, authorizationType = AUTHORIZATION_TYPE.VIEW_RECORDS, session = null) {
@@ -247,14 +251,18 @@ function normalizeAttachmentPayload(payload = {}, file = null) {
     mime_type: mimeType,
     file_size: fileSize,
     storage_path: storagePath,
+    storage_provider: normalizeString(payload.storage_provider || payload.storageProvider) || 'local',
+    storage_key: normalizeString(payload.storage_key || payload.storageKey) || storagePath,
     checksum: normalizeString(payload.checksum),
+    checksum_sha256: normalizeString(payload.checksum_sha256 || payload.checksumSha256 || payload.sha256),
+    ...fileScanService.buildPendingScanResult(),
     category: normalizeString(payload.category || 'document'),
     description: normalizeString(payload.description),
   };
 }
 
 function actorType(actor = {}) {
-  return actor.actorType || actor.actor_type;
+  return actorContext.getActorType(actor);
 }
 
 function actorDepartmentId(actor = {}) {
@@ -270,7 +278,7 @@ function hasAnyPermission(actor = {}, permissions = []) {
 }
 
 function assertStaffPermission(actor = {}, permissions = [], message = 'Bạn không có quyền thao tác Medical Records Module.') {
-  if (actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
+  if (actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
   if (actorType(actor) !== 'staff') throw createError(message, 403);
   if (!hasAnyPermission(actor, Array.isArray(permissions) ? permissions : [permissions])) {
     throw createError(message, 403);
@@ -437,11 +445,11 @@ async function loadRecordAccessContext(record, session = null) {
 }
 
 async function assertMedicalRecordAccess(record, actor = {}, action = 'read', session = null) {
-  if (actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
+  if (actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
   if (actorType(actor) === 'patient') {
     assertPatientSelf(actor, record.patient_id, PERMISSION.MEDICAL_RECORDS.SELF_READ_RELEASED);
     if (record.status === MEDICAL_RECORD_STATUS.VOIDED || !record.released_to_patient) {
-      throw createError('Medical record chưa được release cho patient.', 403);
+      throw createError('Medical record chưa được release cho patient.', 403, null, ERROR_CODE.DOCUMENT_NOT_RELEASED);
     }
     return true;
   }
@@ -451,7 +459,7 @@ async function assertMedicalRecordAccess(record, actor = {}, action = 'read', se
       throw createError('Người nhà không có quyền xem medical record.', 403);
     }
     if (!record.released_to_patient || !FINALIZED_RECORD_STATUSES.includes(record.status)) {
-      throw createError('Medical record chưa được release cho người nhà xem.', 403);
+      throw createError('Medical record chưa được release cho người nhà xem.', 403, null, ERROR_CODE.DOCUMENT_NOT_RELEASED);
     }
     const authorized = await hasActiveRelativeAuthorization(actor.relativeId || actor.relative_id, record.patient_id, AUTHORIZATION_TYPE.VIEW_RECORDS, session);
     if (!authorized) throw createError('Người nhà không còn ủy quyền hợp lệ cho patient này.', 403);
@@ -483,7 +491,7 @@ function appendAndFilter(filter, condition) {
 }
 
 async function applyStaffRecordScope(filter, actor = {}) {
-  if (actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return;
+  if (actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return;
   if (hasPermission(actor, PERMISSION.MEDICAL_RECORDS.READ)) return;
   if (hasPermission(actor, PERMISSION.MEDICAL_RECORDS.READ_DEPARTMENT)) {
     const departmentId = actorDepartmentId(actor);
@@ -901,7 +909,7 @@ function uploadPermissionsForEntity(entityType) {
 }
 
 async function assertAttachmentEntityScope(entity, attachment, actor = {}, action = 'read', session = null) {
-  if (actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
+  if (actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
 
   const patientId = entity?.patient_id || attachment?.patient_id;
   if (!patientId) throw createError('Thiếu patient scope cho attachment.', 403);
@@ -909,7 +917,7 @@ async function assertAttachmentEntityScope(entity, attachment, actor = {}, actio
   if (actorType(actor) === 'patient') {
     assertPatientSelf(actor, patientId, action === 'download' ? PERMISSION.ATTACHMENTS.SELF_DOWNLOAD_RELEASED : PERMISSION.ATTACHMENTS.SELF_READ_RELEASED);
     if (!attachment?.released_to_patient || attachment?.status !== ATTACHMENT_STATUS.ACTIVE) {
-      throw createError('Attachment chưa được release cho patient.', 403);
+      throw createError('Attachment chưa được release cho patient.', 403, null, ERROR_CODE.DOCUMENT_NOT_RELEASED);
     }
     return true;
   }
@@ -920,7 +928,7 @@ async function assertAttachmentEntityScope(entity, attachment, actor = {}, actio
     }
     await assertRelativeAuthorizationScope(patientId, actor, AUTHORIZATION_TYPE.VIEW_RECORDS, session);
     if (!attachment?.released_to_patient || attachment?.status !== ATTACHMENT_STATUS.ACTIVE) {
-      throw createError('Attachment chưa được release cho người nhà xem.', 403);
+      throw createError('Attachment chưa được release cho người nhà xem.', 403, null, ERROR_CODE.DOCUMENT_NOT_RELEASED);
     }
     return true;
   }
@@ -947,19 +955,19 @@ async function assertAttachmentEntityScope(entity, attachment, actor = {}, actio
 }
 
 async function assertAttachmentAccess(attachment, actor = {}, action = 'read') {
-  if (actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
+  if (actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
   if (actorType(actor) === 'patient') {
     const permission = action === 'download' ? PERMISSION.ATTACHMENTS.SELF_DOWNLOAD_RELEASED : PERMISSION.ATTACHMENTS.SELF_READ_RELEASED;
     assertPatientSelf(actor, attachment.patient_id, permission);
     if (attachment.status !== ATTACHMENT_STATUS.ACTIVE || !attachment.released_to_patient) {
-      throw createError('Attachment chưa được release cho patient.', 403);
+      throw createError('Attachment chưa được release cho patient.', 403, null, ERROR_CODE.DOCUMENT_NOT_RELEASED);
     }
     return true;
   }
   if (isRelativeActor(actor)) {
     if (!hasPermission(actor, PERMISSION.MEDICAL_RECORDS.RELATIVE_READ_RELEASED_IF_AUTHORIZED)) throw createError('Người nhà không có quyền truy cập attachment này.', 403);
     if (attachment.status !== ATTACHMENT_STATUS.ACTIVE || !attachment.released_to_patient) {
-      throw createError('Attachment chưa được release cho người nhà xem.', 403);
+      throw createError('Attachment chưa được release cho người nhà xem.', 403, null, ERROR_CODE.DOCUMENT_NOT_RELEASED);
     }
     return true;
   }
@@ -1061,15 +1069,106 @@ async function downloadAttachment(attachmentId, actor = {}, requestMeta = {}) {
   await assertAttachmentAccess(attachment, actor, 'download');
   const entity = await resolveEntityForAttachment(attachment.entity_type, attachment.entity_id);
   await assertAttachmentEntityScope(entity, attachment, actor, 'download');
+  const signedDownload = signedUrlService.createSignedDownloadUrl(attachment);
+  await Attachment.updateOne(
+    { _id: attachment._id },
+    {
+      $inc: { download_count: 1 },
+      $set: { last_downloaded_at: new Date() },
+    },
+  );
   await recordAuditLog({ actor, action: 'attachments.download', targetType: 'attachment', targetId: attachment._id, status: 'success', message: 'Download attachment được ghi nhận.', requestMeta });
   return {
     attachment: sanitizeAttachment(attachment),
     download: {
-      mode: 'backend_stream_required',
+      mode: 'signed_url',
+      url: signedDownload.url,
+      expires_at: signedDownload.expires_at,
       file_name: attachment.original_name || attachment.file_name,
       mime_type: attachment.mime_type,
       file_size: attachment.file_size,
     },
+  };
+}
+
+async function signedDownloadAttachment(attachmentId, token, requestMeta = {}) {
+  const systemActor = { actorType: 'system', actor_type: 'system', serviceName: 'signed-download' };
+  const auditFailure = async (reason, targetId = attachmentId) => {
+    await recordAuditLog({
+      actor: systemActor,
+      action: 'attachments.signed_download',
+      targetType: 'attachment',
+      targetId,
+      status: 'failed',
+      message: 'Signed attachment download denied.',
+      requestMeta,
+      metadata: { reason },
+    }).catch(() => {});
+  };
+
+  const verification = signedUrlService.verifySignedDownloadToken(token);
+  if (!verification.valid) {
+    await auditFailure(verification.reason);
+    throw createError(`Signed download token không hợp lệ: ${verification.reason}`, 403);
+  }
+  if (!sameId(verification.payload.attachment_id, attachmentId)) {
+    await auditFailure('attachment_id_mismatch', verification.payload.attachment_id);
+    throw createError('Signed download token không khớp attachment.', 403);
+  }
+
+  const attachment = await Attachment.findById(attachmentId).lean();
+  if (!attachment || attachment.status === ATTACHMENT_STATUS.DELETED) {
+    await auditFailure('attachment_not_found_or_deleted');
+    throw createError('Không tìm thấy attachment.', 404);
+  }
+  if (attachment.status !== ATTACHMENT_STATUS.ACTIVE) {
+    await auditFailure('attachment_not_active', attachment._id);
+    throw createError('Attachment không còn active.', 403, null, ERROR_CODE.DOCUMENT_NOT_RELEASED);
+  }
+  if (Number(attachment.signed_download_token_version || 1) !== Number(verification.payload.token_version)) {
+    await auditFailure('token_version_revoked', attachment._id);
+    throw createError('Signed download token đã bị thu hồi.', 403);
+  }
+  if (
+    attachment.signed_download_revoked_at
+    && verification.payload.iat
+    && new Date(attachment.signed_download_revoked_at).getTime() >= Number(verification.payload.iat) * 1000
+  ) {
+    await auditFailure('token_revoked_at', attachment._id);
+    throw createError('Signed download token đã bị thu hồi.', 403);
+  }
+  if (verification.payload.storage_key !== (attachment.storage_key || attachment.storage_path)) {
+    await auditFailure('storage_key_mismatch', attachment._id);
+    throw createError('Signed download token không khớp storage.', 403);
+  }
+  if (verification.payload.released_to_patient && !attachment.released_to_patient) {
+    await auditFailure('document_release_revoked', attachment._id);
+    throw createError('Attachment chưa được release cho patient.', 403, null, ERROR_CODE.DOCUMENT_NOT_RELEASED);
+  }
+
+  await Attachment.updateOne(
+    { _id: attachment._id },
+    {
+      $inc: { download_count: 1 },
+      $set: { last_downloaded_at: new Date() },
+    },
+  );
+  await recordAuditLog({
+    actor: systemActor,
+    action: 'attachments.signed_download',
+    targetType: 'attachment',
+    targetId: attachment._id,
+    status: 'success',
+    message: 'Signed attachment download token accepted.',
+    requestMeta,
+  });
+  return {
+    mode: 'backend_stream_required',
+    file_name: attachment.original_name || attachment.file_name,
+    mime_type: attachment.mime_type,
+    file_size: attachment.file_size,
+    storage_provider: attachment.storage_provider || 'local',
+    storage_key: attachment.storage_key || attachment.storage_path,
   };
 }
 
@@ -1152,6 +1251,8 @@ async function archiveAttachment(attachmentId, payload = {}, actor = {}, request
   attachment.archived_by = actor.userId;
   attachment.archived_at = new Date();
   attachment.archive_reason = normalizeString(payload.reason || payload.archive_reason);
+  attachment.signed_download_token_version = Number(attachment.signed_download_token_version || 1) + 1;
+  attachment.signed_download_revoked_at = new Date();
   attachment.updated_by = actor.userId;
   await attachment.save();
   await recordAuditLog({ actor, action: 'attachments.archive', targetType: 'attachment', targetId: attachment._id, status: 'success', message: 'Archive attachment thành công.', requestMeta, metadata: { reason: attachment.archive_reason } });
@@ -1177,6 +1278,8 @@ async function softDeleteAttachment(attachmentId, payload = {}, actor = {}, requ
   attachment.deleted_by = actor.userId;
   attachment.deleted_at = new Date();
   attachment.delete_reason = reason;
+  attachment.signed_download_token_version = Number(attachment.signed_download_token_version || 1) + 1;
+  attachment.signed_download_revoked_at = new Date();
   attachment.updated_by = actor.userId;
   await attachment.save();
   await recordAuditLog({ actor, action: 'attachments.soft_delete', targetType: 'attachment', targetId: attachment._id, status: 'success', message: 'Soft delete attachment thành công.', requestMeta, metadata: { reason } });
@@ -1194,6 +1297,8 @@ async function restoreAttachment(attachmentId, actor = {}, requestMeta = {}) {
   attachment.deleted_by = undefined;
   attachment.deleted_at = undefined;
   attachment.delete_reason = undefined;
+  attachment.signed_download_token_version = Number(attachment.signed_download_token_version || 1) + 1;
+  attachment.signed_download_revoked_at = new Date();
   attachment.updated_by = actor.userId;
   await attachment.save();
   await recordAuditLog({ actor, action: 'attachments.restore', targetType: 'attachment', targetId: attachment._id, status: 'success', message: 'Restore attachment thành công.', requestMeta });
@@ -1210,6 +1315,8 @@ async function releaseAttachmentToPatient(attachmentId, actor = {}, requestMeta 
   attachment.released_to_patient = true;
   attachment.released_at = new Date();
   attachment.released_by = actor.userId;
+  attachment.signed_download_token_version = Number(attachment.signed_download_token_version || 1) + 1;
+  attachment.signed_download_revoked_at = new Date();
   attachment.updated_by = actor.userId;
   await attachment.save();
   await recordAuditLog({ actor, action: 'attachments.release_to_patient', targetType: 'attachment', targetId: attachment._id, status: 'success', message: 'Release attachment to patient thành công.', requestMeta });
@@ -1261,7 +1368,7 @@ function timelineEvent(event) {
 }
 
 async function buildDocumentTimelineScope(patientId, actor = {}) {
-  if (actorType(actor) === 'patient' || isRelativeActor(actor) || actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) {
+  if (actorType(actor) === 'patient' || isRelativeActor(actor) || actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) {
     return { global: true };
   }
   if (hasAnyPermission(actor, [PERMISSION.DOCUMENTS.TIMELINE_READ, PERMISSION.MEDICAL_RECORDS.READ])) {
@@ -1497,6 +1604,7 @@ module.exports = {
   getAttachmentDetail,
   // downloadAttachment: Tải xuống tệp đính kèm.
   downloadAttachment,
+  signedDownloadAttachment,
   // getAttachmentsByEntity: Lấy tệp đính kèm theo đối tượng.
   getAttachmentsByEntity,
   // listPatientAttachments: Liệt kê tệp đính kèm của bệnh nhân.

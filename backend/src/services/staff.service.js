@@ -8,6 +8,7 @@ const {
   DoctorProfile,
   DoctorSchedule,
   Encounter,
+  PatientAccount,
   Role,
   User,
   UserRole,
@@ -446,6 +447,10 @@ async function updateStaffAccount(userId, payload, actor, requestMeta = {}) {
     if (existed) {
       throw createError('Email đã được sử dụng bởi tài khoản khác.', 409);
     }
+    const patientAccount = await PatientAccount.findOne({ email: nextEmail, is_deleted: false }).lean();
+    if (patientAccount) {
+      throw createError('Email đã được sử dụng bởi tài khoản bệnh nhân.', 409);
+    }
   }
 
   if (nextEmployeeCode && nextEmployeeCode !== user.employee_code) {
@@ -467,6 +472,10 @@ async function updateStaffAccount(userId, payload, actor, requestMeta = {}) {
     }).lean();
     if (existed) {
       throw createError('Số điện thoại đã được sử dụng bởi tài khoản khác.', 409);
+    }
+    const patientAccount = await PatientAccount.findOne({ phone: nextPhone, is_deleted: false }).lean();
+    if (patientAccount) {
+      throw createError('Số điện thoại đã được sử dụng bởi tài khoản bệnh nhân.', 409);
     }
   }
 
@@ -1004,6 +1013,7 @@ async function transferStaffDepartment(userId, departmentId, actor, requestMeta 
 
   const before = user.toObject();
   user.department_id = department._id;
+  user.permission_version = Number(user.permission_version || 1) + 1;
   user.updated_by = getActorId(actor);
   await user.save();
 
@@ -1031,6 +1041,12 @@ async function transferStaffDepartment(userId, departmentId, actor, requestMeta 
       from_department_id: before.department_id ? String(before.department_id) : null,
       to_department_id: String(department._id),
     },
+  });
+
+  await authService.invalidateAllUserSessions('staff', user._id, requestMeta, {
+    actorType: actor.actorType,
+    actorId: getActorId(actor),
+    reason: 'department_changed',
   });
 
   return getStaffAccountDetail(user._id, actor);

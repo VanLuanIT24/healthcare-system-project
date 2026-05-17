@@ -1,9 +1,11 @@
 const notificationService = require('../services/notification.service');
+const counterService = require('../services/counter.service');
 const { controllerHandler: wrap, markLegacyControllerError, requestMeta, sendSuccess } = require('../common/controllers');
 
 module.exports = {
   getMyNotifications: wrap((req) => notificationService.getMyNotifications(req.query, req.auth), 'Lấy notifications thành công.'),
   getUnreadCount: wrap((req) => notificationService.getUnreadCount(req.auth), 'Lấy unread count thành công.'),
+  getCounters: wrap((req) => counterService.getActorCounters(req.auth), 'Lấy realtime counters thành công.'),
   getNotificationDetail: wrap((req) => notificationService.getNotificationDetail(req.params.notificationId, req.auth), 'Lấy chi tiết notification thành công.'),
   markNotificationRead: wrap((req) => notificationService.markNotificationRead(req.params.notificationId, req.auth, requestMeta(req)), 'Mark notification read thành công.'),
   markAllNotificationsRead: wrap((req) => notificationService.markAllNotificationsRead(req.auth, req.body || req.query, requestMeta(req)), 'Mark all notifications read thành công.'),

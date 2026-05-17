@@ -25,6 +25,7 @@ const {
   ENCOUNTER_STATUS,
   QUEUE_STATUS,
   QUEUE_TYPE,
+  REALTIME_EVENT_TYPE,
 } = require('../constants/statuses');
 const { QUEUE_TRANSITIONS } = require('../constants/transitions');
 const { assertTransition } = require('../shared/utils/status-transition');
@@ -33,6 +34,8 @@ const { PERMISSION } = require('../constants/permissions');
 const { CODE_TYPE, generateBusinessCode } = require('./code-generator.service');
 const permissionService = require('./permission.service');
 const scheduleService = require('./schedule.service');
+const qrTokenService = require('./qr-token.service');
+const eventBus = require('../events/event-bus.service');
 
 const QUEUE_PRIORITY_WEIGHT = {
   [QUEUE_TYPE.VIP]: 3,
@@ -63,7 +66,32 @@ const QUEUE_OWN_WRITE_PERMISSIONS_BY_ACTION = {
   recall: [PERMISSION.QUEUE.CALL_OWN],
   start_service: [PERMISSION.QUEUE.START_SERVICE_OWN],
 };
-const TERMINAL_QUEUE_STATUSES = [QUEUE_STATUS.COMPLETED, QUEUE_STATUS.CANCELLED];
+const TERMINAL_QUEUE_STATUSES = [QUEUE_STATUS.COMPLETED, QUEUE_STATUS.CANCELLED, QUEUE_STATUS.NO_SHOW];
+
+async function publishQueueEvent(eventType, ticket, payload = {}) {
+  if (!ticket) return null;
+  return eventBus.publishDomainEvent({
+    eventType,
+    aggregateType: 'queue_ticket',
+    aggregateId: ticket._id,
+    recipientScope: {
+      patient_id: ticket.patient_id,
+      department_id: ticket.department_id,
+      user_id: ticket.doctor_id,
+      queue_id: ticket._id,
+      queue_ticket_id: ticket._id,
+      appointment_id: ticket.appointment_id,
+      recipients: [{ recipient_type: 'patient', recipient_id: ticket.patient_id, patient_id: ticket.patient_id }],
+    },
+    payload: {
+      ticket_id: String(ticket._id),
+      queue_number: ticket.queue_number,
+      display_number: ticket.display_number,
+      status: ticket.status,
+      ...payload,
+    },
+  });
+}
 
 function sessionOptions(session) {
   return session ? { session } : {};
@@ -469,6 +497,15 @@ async function createQueueTicket(payload, actor, requestMeta = {}, options = {})
     requestMeta,
   });
 
+  const createdTicket = await QueueTicket.findById(ticketId).lean();
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_TICKET_CREATED, createdTicket, {
+    notification: {
+      title: 'Bạn đã được thêm vào hàng chờ',
+      body: `Số thứ tự ${createdTicket?.display_number || createdTicket?.queue_number || ''}`.trim(),
+      priority: 'normal',
+    },
+  });
+
   return getQueueTicketDetail(ticketId, actor);
 }
 
@@ -563,6 +600,15 @@ async function callNextQueue({ department_id, doctor_id }, actor, requestMeta = 
     requestMeta,
   });
 
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_CALLED, claimedTicket, {
+    called_time: claimedTicket.called_time,
+    notification: {
+      title: 'Đã tới lượt của bạn',
+      body: `Số ${claimedTicket.display_number || claimedTicket.queue_number} đang được gọi.`,
+      priority: 'urgent',
+    },
+  });
+
   return getQueueTicketDetail(claimedTicket._id, actor);
 }
 
@@ -604,6 +650,15 @@ async function callQueueTicket(ticketId, actor, requestMeta = {}) {
     requestMeta,
   });
 
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_CALLED, ticket, {
+    called_time: ticket.called_time,
+    notification: {
+      title: 'Đã tới lượt của bạn',
+      body: `Số ${ticket.display_number || ticket.queue_number} đang được gọi.`,
+      priority: 'urgent',
+    },
+  });
+
   return getQueueTicketDetail(ticket._id, actor);
 }
 
@@ -643,6 +698,15 @@ async function recallQueueTicket(ticketId, actor, requestMeta = {}) {
     requestMeta,
   });
 
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_RECALLED, ticket, {
+    called_time: ticket.called_time,
+    notification: {
+      title: 'Số thứ tự được gọi lại',
+      body: `Số ${ticket.display_number || ticket.queue_number} đang được gọi lại.`,
+      priority: 'urgent',
+    },
+  });
+
   return getQueueTicketDetail(ticket._id, actor);
 }
 
@@ -665,6 +729,10 @@ async function skipQueueTicket(ticketId, payload = {}, actor, requestMeta = {}) 
     status: 'success',
     message: 'Bỏ qua tạm thời queue ticket thành công.',
     requestMeta,
+  });
+
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_SKIPPED, ticket, {
+    skip_reason: ticket.skip_reason,
   });
 
   return getQueueTicketDetail(ticket._id, actor);
@@ -766,6 +834,16 @@ async function startQueueService(ticketId, actor, requestMeta = {}) {
     requestMeta,
   });
 
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_SERVICE_STARTED, ticket, {
+    service_start_time: ticket.service_start_time,
+    encounter_id: ticket.encounter_id,
+    notification: {
+      title: 'Lượt khám đã bắt đầu',
+      body: `Số ${ticket.display_number || ticket.queue_number} đang được phục vụ.`,
+      priority: 'normal',
+    },
+  });
+
   return getQueueTicketDetail(ticket._id, actor);
 }
 
@@ -814,6 +892,10 @@ async function completeQueueTicket(ticketId, actor, requestMeta = {}) {
     requestMeta,
   });
 
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_COMPLETED, ticket, {
+    completed_time: ticket.completed_time,
+  });
+
   return getQueueTicketDetail(ticket._id, actor);
 }
 
@@ -854,6 +936,15 @@ async function cancelQueueTicket(ticketId, payload = {}, actor, requestMeta = {}
     status: 'success',
     message: 'Hủy queue ticket thành công.',
     requestMeta,
+  });
+
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_CANCELLED, ticket, {
+    cancel_reason: ticket.cancel_reason,
+    notification: {
+      title: 'Lượt hàng chờ đã bị hủy',
+      body: `Số ${ticket.display_number || ticket.queue_number} đã bị hủy.`,
+      priority: 'high',
+    },
   });
 
   return getQueueTicketDetail(ticket._id, actor);
@@ -1073,6 +1164,11 @@ async function transferQueueTicket(ticketId, payload = {}, actor, requestMeta = 
     },
   });
 
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_TRANSFERRED, ticket, {
+    doctor_id: ticket.doctor_id,
+    department_id: ticket.department_id,
+  });
+
   return getQueueTicketDetail(ticket._id, actor);
 }
 
@@ -1110,6 +1206,62 @@ async function completeQueueTicketByEncounter(encounterId, actor, requestMeta = 
   }
 
   return completeQueueTicket(ticket._id, actor, requestMeta);
+}
+
+async function getMyCurrentQueue(actor = {}) {
+  const patientId = actor.patientId || actor.patient_id;
+  if (!patientId) throw createError('Không xác định được patient.', 403);
+  return QueueTicket.findOne({
+    patient_id: patientId,
+    status: { $in: ACTIVE_QUEUE_STATUSES },
+  }).sort({ queue_date: -1, created_at: -1 }).lean();
+}
+
+async function getPublicQueueBoard(query = {}) {
+  const filter = {
+    status: { $in: [QUEUE_STATUS.WAITING, QUEUE_STATUS.CALLED, QUEUE_STATUS.RECALLED, QUEUE_STATUS.IN_SERVICE] },
+  };
+  if (query.department_id) filter.department_id = query.department_id;
+  if (query.doctor_id) filter.doctor_id = query.doctor_id;
+  if (query.date) {
+    filter.queue_date = {
+      $gte: getStartOfDay(query.date),
+      $lte: getEndOfDay(query.date),
+    };
+  }
+  const limit = Math.min(Math.max(Number(query.limit || 50), 1), 100);
+  const items = await QueueTicket.find(filter)
+    .sort({ queue_date: 1, status: 1, created_at: 1 })
+    .limit(limit)
+    .select('queue_number display_number status department_id doctor_id estimated_called_at counter_id called_time')
+    .lean();
+  return { items };
+}
+
+async function generateQueueTicketQr(ticketId, payload = {}, actor = {}, requestMeta = {}) {
+  return qrTokenService.createQueueTicketQr(ticketId, payload, actor, requestMeta);
+}
+
+async function markQueueTicketNoShow(ticketId, payload = {}, actor = {}, requestMeta = {}) {
+  const ticket = await QueueTicket.findById(ticketId);
+  if (!ticket) throw createError('Không tìm thấy queue ticket.', 404);
+  assertQueueWritable(ticket, actor, 'cancel');
+  if (TERMINAL_QUEUE_STATUSES.includes(ticket.status)) throw createError('Queue ticket đã ở trạng thái kết thúc.', 409);
+  ticket.status = QUEUE_STATUS.NO_SHOW;
+  ticket.no_show_at = new Date();
+  ticket.no_show_reason = payload.reason || payload.no_show_reason;
+  ticket.updated_by = actor.userId;
+  await ticket.save();
+  await recordAuditLog({ actor, action: 'queue.no_show', targetType: 'queue_ticket', targetId: ticket._id, status: 'success', message: 'Mark queue ticket no-show.', requestMeta });
+  await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_NO_SHOW, ticket, {
+    no_show_reason: ticket.no_show_reason,
+    notification: {
+      title: 'Lượt hàng chờ đã bị đánh dấu vắng mặt',
+      body: `Số ${ticket.display_number || ticket.queue_number} đã bị đánh dấu no-show.`,
+      priority: 'high',
+    },
+  });
+  return getQueueTicketDetail(ticket._id, actor);
 }
 
 module.exports = {
@@ -1161,4 +1313,8 @@ module.exports = {
   validateQueueStatusTransition,
   // checkQueueTicketCanCreateEncounter: Kiểm tra điều kiện tạo lượt khám từ phiếu hàng đợi.
   checkQueueTicketCanCreateEncounter,
+  getMyCurrentQueue,
+  getPublicQueueBoard,
+  generateQueueTicketQr,
+  markQueueTicketNoShow,
 };

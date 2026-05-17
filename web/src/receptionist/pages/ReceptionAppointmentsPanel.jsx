@@ -256,10 +256,34 @@ function normalizeDepartment(item) {
 
 function normalizeDoctor(item) {
   return {
-    user_id: item?.user_id || item?.doctor_id || item?.id || item?._id || '',
-    full_name: item?.full_name || item?.doctor_name || item?.name || 'Bác sĩ',
-    department_id: item?.department_id || '',
-    department_name: item?.department_name || '',
+    user_id: item?.user_id || item?.doctor_id || item?.id || item?._id || user?.user_id || user?.id || '',
+    doctor_profile_id: item?.doctor_profile_id || item?.profile_id || '',
+    full_name: item?.full_name || item?.doctor_name || item?.name || user?.full_name || 'Bác sĩ',
+    department_id: item?.department_id || department?.department_id || '',
+    department_name: item?.department_name || department?.department_name || '',
+    specialty: item?.specialty || '',
+    consultation_duration_minutes: item?.consultation_duration_minutes || null,
+    active_schedules_count: item?.active_schedules_count || 0,
+  };
+}
+
+function normalizeReferenceOptions(schedulingOptions, departmentsResult, doctorsResult) {
+  const optionDepartments = safeArray(schedulingOptions?.departments);
+  const optionDoctors = safeArray(schedulingOptions?.doctors);
+
+  return {
+    departments: (optionDepartments.length
+      ? optionDepartments
+      : departmentsResult.status === 'fulfilled'
+        ? safeArray(departmentsResult.value?.items)
+        : []
+    ).map(normalizeDepartment),
+    doctors: (optionDoctors.length
+      ? optionDoctors
+      : doctorsResult.status === 'fulfilled'
+        ? safeArray(doctorsResult.value?.items)
+        : []
+    ).map(normalizeDoctor),
   };
 }
 
@@ -352,20 +376,18 @@ function AppointmentListPanel({ mode, onNavigate }) {
     let mounted = true;
 
     async function loadRefs() {
-      const [departmentsResult, doctorsResult] = await Promise.allSettled([
+      const [schedulingOptionsResult, departmentsResult, doctorsResult] = await Promise.allSettled([
+        receptionAppointmentsApi.getSchedulingOptions({ limit: 100 }),
         receptionAppointmentsApi.listDepartments({ limit: 100 }),
         receptionAppointmentsApi.listDoctors({ limit: 100 }),
       ]);
 
       if (!mounted) return;
-      setRefs({
-        departments: departmentsResult.status === 'fulfilled'
-          ? safeArray(departmentsResult.value?.items).map(normalizeDepartment)
-          : [],
-        doctors: doctorsResult.status === 'fulfilled'
-          ? safeArray(doctorsResult.value?.items).map(normalizeDoctor)
-          : [],
-      });
+      setRefs(normalizeReferenceOptions(
+        schedulingOptionsResult.status === 'fulfilled' ? schedulingOptionsResult.value : null,
+        departmentsResult,
+        doctorsResult,
+      ));
     }
 
     loadRefs();
@@ -1196,19 +1218,17 @@ function CreateAppointmentPanel({ onNavigate }) {
   useEffect(() => {
     let mounted = true;
     async function loadRefs() {
-      const [departmentsResult, doctorsResult] = await Promise.allSettled([
+      const [schedulingOptionsResult, departmentsResult, doctorsResult] = await Promise.allSettled([
+        receptionAppointmentsApi.getSchedulingOptions({ limit: 100 }),
         receptionAppointmentsApi.listDepartments({ limit: 100 }),
         receptionAppointmentsApi.listDoctors({ limit: 100 }),
       ]);
       if (!mounted) return;
-      setRefs({
-        departments: departmentsResult.status === 'fulfilled'
-          ? safeArray(departmentsResult.value?.items).map(normalizeDepartment)
-          : [],
-        doctors: doctorsResult.status === 'fulfilled'
-          ? safeArray(doctorsResult.value?.items).map(normalizeDoctor)
-          : [],
-      });
+      setRefs(normalizeReferenceOptions(
+        schedulingOptionsResult.status === 'fulfilled' ? schedulingOptionsResult.value : null,
+        departmentsResult,
+        doctorsResult,
+      ));
     }
     loadRefs();
     return () => {
@@ -1540,7 +1560,9 @@ function CreateAppointmentPanel({ onNavigate }) {
                       <Stethoscope size={18} />
                       <div>
                         <strong>{doctor.full_name}</strong>
-                        <span>{doctor.department_name || 'Theo khoa đã chọn'}</span>
+                        <span>
+                          {[doctor.specialty, doctor.department_name].filter(Boolean).join(' · ') || 'Theo khoa đã chọn'}
+                        </span>
                       </div>
                     </button>
                   ))}

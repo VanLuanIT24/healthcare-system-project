@@ -52,6 +52,7 @@ const {
   STOCK_BATCH_TRANSITIONS,
 } = require('../constants/transitions');
 const { PERMISSION } = require('../constants/permissions');
+const ERROR_CODE = require('../common/errors/error-codes');
 const { assertTransition, canTransition } = require('../shared/utils/status-transition');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
 
@@ -1740,7 +1741,7 @@ async function selectStockBatch(medicationId, quantityNeeded, options = {}) {
     allocations.push({ stock_batch_id: batch._id, quantity });
     remaining -= quantity;
   }
-  if (remaining > 0 && !allowPartial) throw createError('Không đủ tồn kho khả dụng theo FEFO.', 409, { medication_id: medicationId, quantity_needed: remainingTotal, shortage: remaining });
+  if (remaining > 0 && !allowPartial) throw createError('Không đủ tồn kho khả dụng theo FEFO.', 409, { medication_id: medicationId, quantity_needed: remainingTotal, shortage: remaining }, ERROR_CODE.INSUFFICIENT_STOCK);
   return allocations;
 }
 
@@ -1760,7 +1761,7 @@ async function decrementStockBatchForDispense(batchId, quantity, actor, session 
     },
     { new: true },
   ), session);
-  if (!updatedBatch) throw createError('Không đủ tồn hoặc batch đã thay đổi, vui lòng chọn lại stock batch.', 409);
+  if (!updatedBatch) throw createError('Không đủ tồn hoặc batch đã thay đổi, vui lòng chọn lại stock batch.', 409, null, ERROR_CODE.INSUFFICIENT_STOCK);
   if (updatedBatch.quantity_on_hand === 0) {
     updatedBatch.status = STOCK_BATCH_STATUS.DEPLETED;
     updatedBatch.updated_by = actor?.userId;

@@ -97,4 +97,5 @@ export const receptionAppointmentsApi = {
     request(`/patients/${encodeURIComponent(patientId)}/appointments`, { params }),
   listDepartments: (params) => request('/departments/active', { params, auth: false }),
   listDoctors: (params) => request('/admin/doctor-profiles', { params }),
+  getSchedulingOptions: (params) => request('/schedules/resources/options', { params }),
 };

@@ -133,9 +133,10 @@ function normalizePatientUser(patient) {
 
   return {
     ...patient,
-    patientId: patient.patient_id,
+    patientId: patient.patient_id || patient._id || patient.relative_id || patient.id,
     patientCode: patient.patient_code,
-    patientAccountId: patient.patient_account_id,
+    patientAccountId: patient.patient_account_id || patient.relative_id,
+    relativeId: patient.relative_id,
     fullName: patient.full_name,
     lastLoginAt: patient.last_login_at,
   }
@@ -144,13 +145,17 @@ function normalizePatientUser(patient) {
 function readPatientAuth() {
   const auth = readStoredAuth()
 
-  if (auth?.actorType !== 'patient' || !auth?.tokens?.access_token) {
+  if (!['patient', 'patient_relative'].includes(auth?.actorType) || !auth?.tokens?.access_token) {
     return { auth: null, user: null }
   }
 
+  const portalProfile = auth.actorType === 'patient_relative'
+    ? auth.patient_relative || auth.relative || auth.patient
+    : auth.patient
+
   return {
     auth,
-    user: normalizePatientUser(auth.patient),
+    user: normalizePatientUser(portalProfile),
   }
 }
 
@@ -273,14 +278,19 @@ export default function PatientPage() {
   const refreshProfile = async () => {
     const response = await authAPI.getMe()
     const profile = response.data?.data?.profile
-    const patient = normalizePatientUser(profile)
+    const actorType = profile?.actor_type || authState.auth?.actorType || 'patient'
+    const portalProfile = actorType === 'patient_relative'
+      ? profile?.patient_relative || profile
+      : profile?.patient || profile
+    const patient = normalizePatientUser(portalProfile)
 
     if (profile) {
       setAuthState((current) => {
         const nextAuth = {
           ...(current.auth || readStoredAuth() || {}),
-          actorType: 'patient',
-          patient: profile,
+          actorType,
+          patient: portalProfile,
+          ...(actorType === 'patient_relative' ? { patient_relative: portalProfile } : {}),
         }
 
         writeStoredAuth(nextAuth)

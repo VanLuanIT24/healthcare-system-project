@@ -17,19 +17,30 @@
     "check:prescription-billing": "node src/scripts/check-prescription-billing-hardening.js",
     "sync:indexes": "node src/scripts/sync-indexes.js",
     "check:rbac": "node src/scripts/check-rbac-integrity.js",
+    "check:rbac-constants": "node src/scripts/check-rbac-integrity.js --constants-only",
     "check:permissions": "node src/scripts/check-permission-usage.js",
     "check:routes": "node src/scripts/check-route-guards.js",
-    "audit:backend": "node src/scripts/audit-backend.js --markdown"
+    "check:data": "node src/scripts/check-data-consistency.js",
+    "fix:data": "node src/scripts/fix-data-consistency.js",
+    "audit:backend": "node src/scripts/audit-backend.js",
+    "audit:backend:markdown": "node src/scripts/audit-backend.js --markdown",
+    "check:guards": "node src/scripts/check-route-guards.js",
+    "worker:events": "node src/workers/event-outbox.worker.js",
+    "worker:notifications": "node src/workers/notification-delivery.worker.js"
   },
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^2.4.3",
+    "bullmq": "^5.76.8",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.22.2",
     "helmet": "^8.0.0",
+    "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
     "morgan": "^1.10.0",
-    "nodemailer": "^8.0.7"
+    "nodemailer": "^8.0.7",
+    "socket.io": "^4.8.3"
   }
 }

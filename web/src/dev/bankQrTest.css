@@ -1,0 +1,301 @@
+.bank-qr-test {
+  min-height: 100vh;
+  background: #f5f7f8;
+  color: #172026;
+  padding: 24px;
+}
+
+.bank-qr-test__topbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 auto 16px;
+  max-width: 1280px;
+}
+
+.bank-qr-test__topbar h1 {
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.bank-qr-test__topbar p {
+  color: #5c6a72;
+  font-size: 14px;
+  margin: 6px 0 0;
+}
+
+.bank-qr-test__grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(320px, 1.1fr) minmax(280px, 0.95fr);
+  margin: 0 auto;
+  max-width: 1280px;
+}
+
+.bank-qr-test__panel {
+  background: #ffffff;
+  border: 1px solid #dce3e7;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(22, 31, 38, 0.06);
+  padding: 18px;
+}
+
+.bank-qr-test__panel-title {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.bank-qr-test__panel-title h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.bank-qr-test label {
+  color: #40505a;
+  display: grid;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.bank-qr-test input,
+.bank-qr-test select,
+.bank-qr-test textarea {
+  background: #ffffff;
+  border: 1px solid #cdd7dd;
+  border-radius: 6px;
+  color: #172026;
+  font: inherit;
+  min-height: 42px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.bank-qr-test textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.bank-qr-test input:focus,
+.bank-qr-test select:focus,
+.bank-qr-test textarea:focus {
+  border-color: #167d7f;
+  box-shadow: 0 0 0 3px rgba(22, 125, 127, 0.14);
+  outline: none;
+}
+
+.bank-qr-test__split {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 130px;
+}
+
+.bank-qr-test button {
+  align-items: center;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+}
+
+.bank-qr-test button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.bank-qr-test__primary {
+  background: #0f766e;
+  color: #ffffff;
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.bank-qr-test__danger {
+  background: #b42318;
+  color: #ffffff;
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.bank-qr-test__icon-button {
+  background: #ffffff;
+  border: 1px solid #dce3e7;
+  color: #172026;
+  height: 42px;
+  width: 42px;
+}
+
+.bank-qr-test__qr-frame {
+  align-items: center;
+  aspect-ratio: 1 / 1;
+  background: #f8fafb;
+  border: 1px solid #dce3e7;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 16px;
+  max-width: 360px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.bank-qr-test__qr-frame img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.bank-qr-test__summary {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.bank-qr-test__summary div {
+  align-items: center;
+  border-bottom: 1px solid #edf1f3;
+  display: flex;
+  justify-content: space-between;
+  min-height: 36px;
+}
+
+.bank-qr-test__summary dt {
+  color: #60717b;
+  font-size: 13px;
+}
+
+.bank-qr-test__summary dd {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  font-weight: 750;
+  gap: 8px;
+  margin: 0;
+  text-align: right;
+}
+
+.bank-qr-test__summary dd button {
+  background: #eef7f7;
+  color: #0f766e;
+  height: 30px;
+  width: 30px;
+}
+
+.bank-qr-test__link {
+  color: #0f766e;
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 14px;
+  text-decoration: none;
+}
+
+.bank-qr-test__empty {
+  align-items: center;
+  border: 1px dashed #cdd7dd;
+  border-radius: 8px;
+  color: #60717b;
+  display: flex;
+  min-height: 280px;
+  justify-content: center;
+  text-align: center;
+}
+
+.bank-qr-test__actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.bank-qr-test__alert {
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 auto 16px;
+  max-width: 1280px;
+  padding: 12px 14px;
+}
+
+.bank-qr-test__alert.is-success {
+  background: #e8f7f2;
+  color: #12604f;
+}
+
+.bank-qr-test__alert.is-error {
+  background: #fff0ed;
+  color: #a2281d;
+}
+
+.bank-qr-test__list {
+  margin: 16px auto 0;
+  max-width: 1280px;
+}
+
+.bank-qr-test__table {
+  display: grid;
+  gap: 8px;
+}
+
+.bank-qr-test__row {
+  background: #f8fafb;
+  border: 1px solid #e4eaee;
+  color: #172026;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1.1fr 1fr 1fr 1fr 1fr;
+  min-height: 46px;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.bank-qr-test__row.is-active {
+  background: #e8f7f2;
+  border-color: #71c7bc;
+}
+
+.bank-qr-test__row span,
+.bank-qr-test__row strong,
+.bank-qr-test__row time {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  .bank-qr-test__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .bank-qr-test {
+    padding: 16px;
+  }
+
+  .bank-qr-test__topbar {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .bank-qr-test__split,
+  .bank-qr-test__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .bank-qr-test__row {
+    align-items: start;
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+}

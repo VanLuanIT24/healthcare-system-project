@@ -4,6 +4,7 @@ const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
 const { validateObjectIdParam } = require('../common/validators');
+const { idempotencyRequired } = require('../common/middlewares/idempotency.middleware');
 
 const router = express.Router();
 
@@ -39,7 +40,7 @@ router.use(authorize({ actorTypes: ['staff'] }));
 
 router.get('/', authorize({ anyPermissions: readPermissions }), orderController.listOrders);
 router.get('/search', authorize({ anyPermissions: readPermissions }), orderController.searchOrders);
-router.post('/', authorize({ anyPermissions: createPermissions }), orderController.createOrder);
+router.post('/', authorize({ anyPermissions: createPermissions }), idempotencyRequired({ route: '/api/orders' }), orderController.createOrder);
 router.get('/patient/:patientId', authorize({ anyPermissions: [...readPermissions, PERMISSION.PATIENTS.READ, PERMISSION.PATIENTS.READ_ASSIGNED] }), orderController.listOrdersByPatient);
 router.get('/doctor/:doctorId', authorize({ anyPermissions: [PERMISSION.ORDERS.READ, PERMISSION.ORDERS.READ_OWN] }), orderController.listOrdersByDoctor);
 router.get('/department/:departmentId', authorize({ anyPermissions: [PERMISSION.ORDERS.READ, PERMISSION.ORDERS.READ_DEPARTMENT] }), orderController.listOrdersByDepartment);
@@ -54,6 +55,6 @@ router.post('/:orderId/start', authorize({ anyPermissions: [PERMISSION.ORDERS.ST
 router.post('/:orderId/complete', authorize({ anyPermissions: [PERMISSION.ORDERS.COMPLETE, PERMISSION.LAB_ORDERS.UPDATE_STATUS, PERMISSION.IMAGING_ORDERS.COMPLETE, PERMISSION.PROCEDURE_ORDERS.COMPLETE] }), orderController.completeOrder);
 router.post('/:orderId/cancel', authorize({ anyPermissions: [PERMISSION.ORDERS.CANCEL, PERMISSION.ORDERS.CANCEL_OWN, PERMISSION.ORDERS.CANCEL_DEPARTMENT] }), orderController.cancelOrder);
 router.post('/:orderId/entered-in-error', authorize({ permissions: [PERMISSION.ORDERS.ENTERED_IN_ERROR] }), orderController.markOrderEnteredInError);
-router.post('/:orderId/create-charge', authorize({ anyPermissions: [PERMISSION.ORDERS.CREATE_CHARGE, PERMISSION.CHARGES.CREATE, PERMISSION.CHARGES.MANAGE] }), orderController.createChargeForOrder);
+router.post('/:orderId/create-charge', authorize({ anyPermissions: [PERMISSION.ORDERS.CREATE_CHARGE, PERMISSION.CHARGES.CREATE, PERMISSION.CHARGES.MANAGE] }), idempotencyRequired({ route: '/api/orders/:orderId/create-charge' }), orderController.createChargeForOrder);
 
 module.exports = router;

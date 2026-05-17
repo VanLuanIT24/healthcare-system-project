@@ -1,5 +1,6 @@
 const express = require('express');
 const patientController = require('../controllers/patient.controller');
+const portalController = require('../controllers/portal.controller');
 const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
@@ -13,6 +14,7 @@ router.param('patientId', validateObjectIdParam);
 router.param('identifierId', validateObjectIdParam);
 router.param('problemId', validateObjectIdParam);
 router.param('allergyId', validateObjectIdParam);
+router.param('profileChangeRequestId', validateObjectIdParam);
 
 router.use(authenticate);
 
@@ -50,6 +52,17 @@ router.get('/merge/check', authorize({ permissions: [PERMISSION.PATIENTS.MERGE] 
 router.get('/merge/preview', authorize({ permissions: [PERMISSION.PATIENTS.MERGE] }), patientController.previewPatientMerge);
 router.post('/merge/preview', authorize({ permissions: [PERMISSION.PATIENTS.MERGE] }), patientController.previewPatientMerge);
 router.post('/merge', authorize({ permissions: [PERMISSION.PATIENTS.MERGE] }), patientController.mergePatients);
+
+router.post(
+  '/:patientId/profile-change-requests/:profileChangeRequestId/approve',
+  authorize({ anyPermissions: [PERMISSION.PATIENTS.UPDATE, PERMISSION.PATIENTS.UPDATE_BASIC, PERMISSION.PATIENTS.UPDATE_SENSITIVE] }),
+  portalController.approveProfileChangeRequest,
+);
+router.post(
+  '/:patientId/profile-change-requests/:profileChangeRequestId/reject',
+  authorize({ anyPermissions: [PERMISSION.PATIENTS.UPDATE, PERMISSION.PATIENTS.UPDATE_BASIC, PERMISSION.PATIENTS.UPDATE_SENSITIVE] }),
+  portalController.rejectProfileChangeRequest,
+);
 
 router.patch(
   '/relatives/:relativeId',

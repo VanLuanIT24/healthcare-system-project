@@ -11,6 +11,8 @@ const imagingReportSchema = new Schema(
     report_no: { type: String, required: true, unique: true, trim: true },
     radiologist_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     technician_id: { type: Schema.Types.ObjectId, ref: 'User' },
+    template_id: { type: Schema.Types.ObjectId },
+    pacs_url: { type: String, trim: true },
     findings: { type: String },
     impression: { type: String },
     recommendation: { type: String },
@@ -27,6 +29,7 @@ const imagingReportSchema = new Schema(
     cancelled_at: { type: Date },
     cancel_reason: { type: String },
     is_critical: { type: Boolean, default: false },
+    critical_finding: { type: String },
     critical_note: { type: String },
     critical_notified_at: { type: Date },
     critical_acknowledged_by: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -44,6 +47,7 @@ imagingReportSchema.index({ reported_at: 1 });
 imagingReportSchema.index({ released_to_patient: 1 });
 imagingReportSchema.index({ released_at: 1 });
 imagingReportSchema.index({ is_critical: 1 });
+imagingReportSchema.index({ template_id: 1 });
 imagingReportSchema.index({ status: 1 });
 imagingReportSchema.index({ patient_id: 1, reported_at: 1 });
 imagingReportSchema.index({ patient_id: 1, released_to_patient: 1, status: 1 });

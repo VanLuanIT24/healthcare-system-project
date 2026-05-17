@@ -3,7 +3,8 @@ const jwt = require('jsonwebtoken');
 const env = require('../../config/env');
 const ApiError = require('../../common/errors/api-error');
 const { hashRefreshToken } = require('../../models');
-const { ACTOR_TYPE, TOKEN_TYPE } = require('./auth.policy');
+const { AUTHENTICATED_ACTOR_TYPES, normalizeActorType } = require('../../constants/statuses');
+const { TOKEN_TYPE } = require('./auth.policy');
 
 function parseDurationToSeconds(value, fallbackSeconds) {
   if (typeof value === 'number') return value;
@@ -30,7 +31,7 @@ function assertJwtSecrets() {
 }
 
 function assertActorType(actorType) {
-  if (![ACTOR_TYPE.STAFF, ACTOR_TYPE.PATIENT, ACTOR_TYPE.RELATIVE, ACTOR_TYPE.PATIENT_RELATIVE].includes(actorType)) {
+  if (!AUTHENTICATED_ACTOR_TYPES.includes(normalizeActorType(actorType))) {
     throw ApiError.unauthorized('Loại tài khoản không hợp lệ.');
   }
 }
@@ -43,9 +44,10 @@ function getRefreshTokenExpiresInSeconds() {
   return parseDurationToSeconds(env.jwtRefreshExpiresIn, 7 * 24 * 60 * 60);
 }
 
-function generateAccessToken({ actorId, actorType, sessionId }) {
+function generateAccessToken({ actorId, actorType, sessionId, permissionVersion }) {
   assertJwtSecrets();
   assertActorType(actorType);
+  const canonicalActorType = normalizeActorType(actorType);
 
   if (!actorId || !sessionId) {
     throw ApiError.internal('actorId and sessionId are required to generate access token.');
@@ -55,13 +57,16 @@ function generateAccessToken({ actorId, actorType, sessionId }) {
     {
       sub: String(actorId),
       actor_id: String(actorId),
-      actor_type: actorType,
+      actor_type: canonicalActorType,
       session_id: String(sessionId),
       token_type: TOKEN_TYPE.ACCESS,
+      permission_version: permissionVersion === undefined ? undefined : Number(permissionVersion),
     },
     env.jwtAccessSecret,
     {
       expiresIn: env.jwtAccessExpiresIn,
+      issuer: env.jwtIssuer || undefined,
+      audience: env.jwtAudience || undefined,
     },
   );
 }
@@ -75,7 +80,10 @@ function verifyAccessToken(token) {
 
   let payload;
   try {
-    payload = jwt.verify(token, env.jwtAccessSecret);
+    payload = jwt.verify(token, env.jwtAccessSecret, {
+      issuer: env.jwtIssuer || undefined,
+      audience: env.jwtAudience || undefined,
+    });
   } catch (error) {
     throw ApiError.unauthorized('Access token is invalid or expired.');
   }
@@ -84,7 +92,8 @@ function verifyAccessToken(token) {
     throw ApiError.unauthorized('Token type is invalid.');
   }
 
-  assertActorType(payload.actor_type);
+  const actorType = normalizeActorType(payload.actor_type);
+  assertActorType(actorType);
 
   if (!payload.sub || !payload.session_id) {
     throw ApiError.unauthorized('Access token payload is incomplete.');
@@ -92,6 +101,8 @@ function verifyAccessToken(token) {
 
   return {
     ...payload,
+    actor_type: actorType,
+    actor_type_raw: payload.actor_type,
     actor_id: payload.actor_id || payload.sub,
   };
 }

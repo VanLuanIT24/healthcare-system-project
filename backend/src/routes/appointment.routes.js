@@ -1,9 +1,12 @@
 const express = require('express');
 const appointmentController = require('../controllers/appointment.controller');
+const appointmentWaitlistController = require('../controllers/appointment-waitlist.controller');
 const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
 const { validateObjectIdParam } = require('../common/validators');
+const { idempotencyRequired } = require('../common/middlewares/idempotency.middleware');
+const domainValidators = require('../validators');
 
 const router = express.Router();
 
@@ -11,11 +14,14 @@ router.param('appointmentId', validateObjectIdParam);
 router.param('patientId', validateObjectIdParam);
 router.param('doctorId', validateObjectIdParam);
 router.param('departmentId', validateObjectIdParam);
+router.param('waitlistId', validateObjectIdParam);
 
 router.use(authenticate);
 
 router.get('/my', authorize({ actorTypes: ['patient'] }), appointmentController.getMyAppointments);
-router.post('/portal', authorize({ actorTypes: ['patient'] }), appointmentController.createAppointmentFromPatientPortal);
+router.post('/portal', authorize({ actorTypes: ['patient'] }), domainValidators.appointment.request.booking, idempotencyRequired({ route: '/api/appointments/portal' }), appointmentController.createAppointmentFromPatientPortal);
+router.post('/me/waitlist', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.APPOINTMENTS.SELF_CREATE] }), appointmentWaitlistController.createWaitlist);
+router.get('/me/waitlist', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.APPOINTMENTS.SELF_READ] }), appointmentWaitlistController.listWaitlist);
 router.get('/my/:appointmentId', authorize({ actorTypes: ['patient'] }), appointmentController.getAppointmentDetail);
 router.post('/my/:appointmentId/cancel', authorize({ actorTypes: ['patient'] }), appointmentController.cancelAppointment);
 router.post('/my/:appointmentId/reschedule', authorize({ actorTypes: ['patient'] }), appointmentController.rescheduleAppointment);
@@ -29,11 +35,15 @@ router.post('/validate-slot', authorize({ anyPermissions: [PERMISSION.APPOINTMEN
 router.post('/check-doctor-availability', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CREATE, PERMISSION.SCHEDULES.READ] }), appointmentController.checkDoctorAvailability);
 router.post('/check-patient-duplicate', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CREATE] }), appointmentController.checkPatientDuplicateBooking);
 router.post('/validate-time', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CREATE] }), appointmentController.validateAppointmentTime);
-router.post('/validate-status-transition', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.UPDATE, PERMISSION.APPOINTMENTS.UPDATE_BASIC] }), appointmentController.validateAppointmentStatusTransition);
+router.post('/validate-status-transition', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.UPDATE, PERMISSION.APPOINTMENTS.UPDATE_BASIC] }), domainValidators.appointment.request.statusTransition, appointmentController.validateAppointmentStatusTransition);
 router.post('/check-doctor-conflict', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CREATE, PERMISSION.SCHEDULES.READ] }), appointmentController.checkAppointmentConflictForDoctor);
 router.post('/check-patient-conflict', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CREATE] }), appointmentController.checkAppointmentConflictForPatient);
-router.post('/', authorize({ permissions: [PERMISSION.APPOINTMENTS.CREATE] }), appointmentController.createAppointment);
-router.post('/staff-create', authorize({ permissions: [PERMISSION.APPOINTMENTS.CREATE] }), appointmentController.createAppointmentByStaff);
+router.post('/', authorize({ permissions: [PERMISSION.APPOINTMENTS.CREATE] }), domainValidators.appointment.request.booking, idempotencyRequired({ route: '/api/appointments' }), appointmentController.createAppointment);
+router.post('/staff-create', authorize({ permissions: [PERMISSION.APPOINTMENTS.CREATE] }), domainValidators.appointment.request.booking, idempotencyRequired({ route: '/api/appointments/staff-create' }), appointmentController.createAppointmentByStaff);
+router.get('/waitlist', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.READ_DEPARTMENT] }), appointmentWaitlistController.listWaitlist);
+router.post('/waitlist/:waitlistId/offer-slot', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CREATE, PERMISSION.SCHEDULE_SLOTS.READ] }), appointmentWaitlistController.offerSlot);
+router.post('/waitlist/:waitlistId/book', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CREATE] }), appointmentWaitlistController.bookWaitlist);
+router.post('/waitlist/:waitlistId/cancel', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CANCEL, PERMISSION.APPOINTMENTS.CANCEL_BY_POLICY] }), appointmentWaitlistController.cancelWaitlist);
 router.post('/bulk-confirm', authorize({ permissions: [PERMISSION.APPOINTMENTS.CONFIRM] }), appointmentController.bulkConfirmAppointments);
 router.post('/bulk-cancel', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CANCEL, PERMISSION.APPOINTMENTS.CANCEL_BY_POLICY] }), appointmentController.bulkCancelAppointments);
 router.get('/patient/:patientId', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.PATIENTS.READ, PERMISSION.PATIENTS.READ_ASSIGNED] }), appointmentController.listAppointmentsByPatient);

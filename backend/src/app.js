@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -13,6 +14,7 @@ const {
 
 const app = express();
 
+app.disable('x-powered-by');
 app.use(helmet());
 app.use(cors({
   origin(origin, callback) {
@@ -25,6 +27,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: env.requestBodyLimit }));
 app.use(express.urlencoded({ extended: true, limit: env.requestBodyLimit }));
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads/public')));
 app.use(validators.validateRequestShape());
 if (env.nodeEnv !== 'production') {
   app.use(morgan('dev'));

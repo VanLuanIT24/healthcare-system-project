@@ -30,6 +30,9 @@ function serializePermission(permission, extra = {}) {
     action_key: plain.action_key,
     description: plain.description,
     is_system: Boolean(plain.is_system),
+    is_mutable: plain.is_mutable !== false,
+    permission_version: Number(plain.permission_version || 1),
+    deprecated_at: plain.deprecated_at,
     ...extra,
   };
 }
@@ -76,6 +79,11 @@ async function validatePermissionAssignable(permissionCodesOrIds = [], actor = {
 
   if (permissions.length !== deduped.length) {
     throw ApiError.notFound('Có permission không tồn tại hoặc đã bị xóa mềm.');
+  }
+
+  const deprecated = permissions.find((permission) => permission.deprecated_at && permission.deprecated_at <= new Date());
+  if (deprecated) {
+    throw ApiError.conflict(`Permission đã deprecated, không được gán mới: ${deprecated.permission_code}.`);
   }
 
   permissions.forEach((permission) => assertCanAssignPermission(permission, actor));
@@ -257,6 +265,10 @@ async function updatePermission(permissionId, payload = {}, actor = {}, requestM
   const permission = await findPermissionByIdOrCode(permissionId);
   const before = permission.toObject();
 
+  if (permission.is_mutable === false && !isSuperAdmin(actor)) {
+    throw ApiError.forbidden('Permission này đang bị khóa sửa, chỉ super_admin được cập nhật.');
+  }
+
   if (permission.is_system && (payload.permission_code || payload.module_key || payload.action_key)) {
     throw ApiError.forbidden('Không được sửa permission_code/module_key/action_key của system permission.');
   }
@@ -286,6 +298,16 @@ async function updatePermission(permissionId, payload = {}, actor = {}, requestM
     permission.permission_name = permissionName;
   }
   if (payload.description !== undefined) permission.description = payload.description;
+  if (payload.is_mutable !== undefined) {
+    if (!isSuperAdmin(actor)) throw ApiError.forbidden('Chỉ super_admin mới được đổi is_mutable của permission.');
+    permission.is_mutable = payload.is_mutable !== false;
+  }
+  if (payload.deprecated_at !== undefined || payload.deprecatedAt !== undefined) {
+    if (!isSuperAdmin(actor)) throw ApiError.forbidden('Chỉ super_admin mới được deprecated permission.');
+    const value = payload.deprecated_at ?? payload.deprecatedAt;
+    permission.deprecated_at = value ? new Date(value) : undefined;
+  }
+  permission.permission_version = Number(permission.permission_version || 1) + 1;
   permission.updated_by = getActorId(actor);
   await permission.save();
 
@@ -322,6 +344,8 @@ async function deletePermissionSoft(permissionId, actor = {}, requestMeta = {}) 
   permission.is_deleted = true;
   permission.deleted_at = new Date();
   permission.deleted_by = getActorId(actor);
+  permission.deprecated_at = permission.deprecated_at || new Date();
+  permission.permission_version = Number(permission.permission_version || 1) + 1;
   permission.updated_by = getActorId(actor);
   await permission.save();
 

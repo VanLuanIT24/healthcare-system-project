@@ -10,6 +10,25 @@ function listRouteFiles() {
     .map((name) => path.join(ROUTES_DIR, name));
 }
 
+function stripLineComments(content) {
+  return content
+    .split('\n')
+    .map((line) => line.replace(/(^|[^:])\/\/.*$/, '$1'))
+    .join('\n');
+}
+
+function hasAuthenticateGuard(content) {
+  const source = stripLineComments(content);
+  return /router\.use\s*\(\s*authenticate\s*\)/.test(source) ||
+    /router\.(get|post|put|patch|delete)\s*\([^;]*\bauthenticate\b/.test(source);
+}
+
+function hasAuthorizeGuard(content) {
+  const source = stripLineComments(content);
+  return /router\.use\s*\(\s*authorize\s*\(/.test(source) ||
+    /router\.(get|post|put|patch|delete)\s*\([^;]*\bauthorize\s*\(/.test(source);
+}
+
 function checkRouteGuards() {
   const findings = [];
 
@@ -21,8 +40,8 @@ function checkRouteGuards() {
     if (PUBLIC_ROUTE_FILES.has(name)) continue;
     if (routeCalls.length === 0) continue;
 
-    const hasAuthenticate = content.includes('router.use(authenticate)') || content.includes('authenticate,');
-    const hasAuthorize = content.includes('authorize(');
+    const hasAuthenticate = hasAuthenticateGuard(content);
+    const hasAuthorize = hasAuthorizeGuard(content);
 
     if (!hasAuthenticate || !hasAuthorize) {
       findings.push({

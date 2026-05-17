@@ -3,6 +3,7 @@ const passwordService = require('./auth/password.service');
 const sessionService = require('./auth/auth-session.service');
 const staffAuthService = require('./auth/staff-auth.service');
 const patientAuthService = require('./auth/patient-auth.service');
+const googleAuthService = require('./auth/google-auth.service');
 const passwordResetService = require('./auth/password-reset.service');
 const currentProfileService = require('./auth/current-profile.service');
 const authAuditService = require('./auth/auth-audit.service');
@@ -77,6 +78,9 @@ module.exports = {
 
   registerPatient: patientAuthService.registerPatient,
   loginPatient: patientAuthService.loginPatient,
+  createGoogleOAuthState: googleAuthService.createOAuthState,
+  buildGoogleAuthorizationUrl: googleAuthService.buildAuthorizationUrl,
+  completeGoogleLogin: googleAuthService.completeGoogleLogin,
   updatePatientAccountEmail: patientAuthService.updatePatientAccountEmail,
   updatePatientAccountPhone: patientAuthService.updatePatientAccountPhone,
   changePatientUsername: patientAuthService.changePatientUsername,

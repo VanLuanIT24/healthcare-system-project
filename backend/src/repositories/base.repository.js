@@ -12,12 +12,13 @@ class BaseRepository {
     this.Model = Model;
     this.model = Model;
     this.softDeleteField = options.softDeleteField || 'is_deleted';
+    this.softDelete = options.softDelete ?? Boolean(Model.schema?.path(this.softDeleteField));
     this.defaultSort = options.defaultSort || { created_at: -1 };
     this.defaultNotFoundMessage = options.defaultNotFoundMessage || 'Không tìm thấy dữ liệu.';
   }
 
   applyNotDeleted(filter = {}, includeDeleted = false) {
-    if (includeDeleted) return filter;
+    if (includeDeleted || !this.softDelete) return filter;
     return {
       ...filter,
       [this.softDeleteField]: { $ne: true },
@@ -195,6 +196,9 @@ class BaseRepository {
   }
 
   softDeleteById(id, actorId, options = {}) {
+    if (!this.softDelete) {
+      throw ApiError.badRequest(`Model ${this.Model.modelName} không hỗ trợ soft delete.`);
+    }
     return this.updateById(
       id,
       {
@@ -256,6 +260,9 @@ class BaseRepository {
   }
 
   restoreById(id, actorId = null, options = {}) {
+    if (!this.softDelete) {
+      throw ApiError.badRequest(`Model ${this.Model.modelName} không hỗ trợ restore soft delete.`);
+    }
     return this.updateById(
       id,
       {

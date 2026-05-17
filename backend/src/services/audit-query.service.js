@@ -1,6 +1,6 @@
 const { AuditLog } = require('../models');
 const { PERMISSION } = require('../constants/permissions');
-const { AUDIT_STATUS } = require('../constants/statuses');
+const { ACTOR_TYPES, AUDIT_STATUS, normalizeActorType } = require('../constants/statuses');
 const permissionService = require('./permission.service');
 const {
   buildPagination,
@@ -223,8 +223,8 @@ async function getAuditLogsByActor(actorType, targetActorId, query = {}, actor =
     throw createError('Tài khoản hiện tại không có quyền xem audit theo actor.', 403);
   }
 
-  const normalizedActorType = normalizeString(actorType).toLowerCase();
-  if (!['staff', 'patient', 'relative', 'patient_relative', 'system'].includes(normalizedActorType)) {
+  const normalizedActorType = normalizeActorType(actorType);
+  if (!ACTOR_TYPES.includes(normalizedActorType)) {
     throw createError('actorType không hợp lệ.', 400);
   }
 
@@ -257,8 +257,8 @@ async function getAuditLogsByEntity(targetType, targetId, query = {}, actor = {}
 }
 
 async function getLoginHistory(actorType, targetActorId, query = {}, actor = {}) {
-  const normalizedActorType = normalizeString(actorType).toLowerCase();
-  if (!['staff', 'patient', 'relative', 'patient_relative', 'system'].includes(normalizedActorType)) {
+  const normalizedActorType = normalizeActorType(actorType);
+  if (!ACTOR_TYPES.includes(normalizedActorType)) {
     throw createError('actorType không hợp lệ.', 400);
   }
 

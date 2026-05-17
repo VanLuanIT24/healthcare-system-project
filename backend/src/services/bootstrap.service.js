@@ -3,6 +3,7 @@ const { normalizeScheduleType } = require('../constants/catalogs/schedule-types'
 const { Department, DoctorSchedule, Permission, Role, RolePermission, User, UserRole } = require('../models');
 const env = require('../config/env');
 const { hashPassword } = require('../common/auth/password-hash');
+const { ensureSystemConfigDefaults } = require('./system-config.service');
 
 const sampleDepartments = [
   {
@@ -273,6 +274,7 @@ async function bootstrapSystemAccess() {
   await ensureSuperAdmin();
   await ensureSampleDepartments();
   await ensureCanonicalScheduleTypes();
+  await ensureSystemConfigDefaults();
 }
 
 module.exports = {

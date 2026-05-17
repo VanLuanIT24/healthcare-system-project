@@ -10,6 +10,8 @@ const roleSchema = new Schema(
     role_name: { type: String, required: true, trim: true },
     description: { type: String },
     is_system: { type: Boolean, default: false, required: true },
+    is_mutable: { type: Boolean, default: true, required: true },
+    role_version: { type: Number, default: 1, min: 1, required: true },
     priority_level: { type: Number, default: 0, required: true, min: 0 },
     status: { type: String, enum: ROLE_STATUSES, default: ROLE_STATUS.ACTIVE, required: true },
     ...auditFields(),
@@ -22,6 +24,7 @@ roleSchema.index({ role_code: 1 }, { unique: true, partialFilterExpression: { is
 roleSchema.index({ role_name: 1 });
 roleSchema.index({ status: 1 });
 roleSchema.index({ is_system: 1 });
+roleSchema.index({ role_version: 1 });
 roleSchema.index({ priority_level: -1 });
 
 module.exports = model('Role', roleSchema);

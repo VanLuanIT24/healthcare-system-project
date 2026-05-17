@@ -5,6 +5,7 @@ backend/node_modules/
 backend/.env
 backend/.env.*
 !backend/.env.example
+!backend/.env.example.free-production
 npm-debug.log*
 dist/
 web/.vite-dev*.log

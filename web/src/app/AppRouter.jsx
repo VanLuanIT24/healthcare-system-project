@@ -39,6 +39,7 @@ import { DoctorsPage } from '../home/pages/DoctorsPage';
 import { FaqPage } from '../home/pages/FaqPage';
 import { NewsArticlePage, NewsPage } from '../home/pages/NewsPage';
 import { ContactPage } from '../home/pages/ContactPage';
+import { BankQrTestPage } from '../dev/BankQrTestPage';
 import { StaffAccessPage } from '../receptionist/pages/StaffAccessPage';
 import { DevPlaceholderPage } from '../receptionist/pages/DevPlaceholderPage';
 import { ReceptionDashboardPage } from '../receptionist/pages/ReceptionDashboardPage';
@@ -47,6 +48,7 @@ import { UnauthorizedPage } from '../receptionist/pages/UnauthorizedPage';
 import PatientPage from '../Patient Page';
 
 import DoctorWorkspace from '../DoctorWorkspace';
+import PharmacyWorkspace from '../PharmacyWorkspace';
 import {
   ScheduleBulkCreatePage,
   ScheduleCreatePage,
@@ -68,9 +70,8 @@ import {
 
 const devPlaceholderRoutes = [
   { path: '/nurse/dashboard', title: 'Điều dưỡng', workspaceKey: 'nurse', guard: 'staff' },
-  { path: '/pharmacy/dashboard', title: 'Nhà thuốc', workspaceKey: 'pharmacy', guard: 'staff' },
-  { path: '/lab/dashboard', title: 'Xét nghiệm & CĐHA', workspaceKey: 'lab', guard: 'staff' },
-  { path: '/lab/orders', title: 'Chỉ định xét nghiệm & CĐHA', workspaceKey: 'lab', guard: 'staff' },
+  { path: '/lab/dashboard', title: 'Cận lâm sàng', workspaceKey: 'lab', guard: 'staff' },
+  { path: '/lab/orders', title: 'Chỉ định cận lâm sàng', workspaceKey: 'lab', guard: 'staff' },
   { path: '/billing/dashboard', title: 'Viện phí & thanh toán', workspaceKey: 'billing', guard: 'staff' },
   { path: '/billing/invoices', title: 'Hóa đơn viện phí', workspaceKey: 'billing', guard: 'staff' },
   { path: '/reports/dashboard', title: 'Báo cáo & phân tích', workspaceKey: 'reports', guard: 'staff' },
@@ -80,7 +81,6 @@ const devPlaceholderRoutes = [
   { path: '/schedules', title: 'Danh sách lịch khám', workspaceKey: 'scheduling', guard: 'staff' },
   { path: '/queue', title: 'Hàng đợi tiếp nhận', workspaceKey: 'reception', guard: 'staff' },
   { path: '/encounters', title: 'Cuộc khám', workspaceKey: 'doctor', guard: 'staff' },
-  { path: '/prescriptions', title: 'Đơn thuốc', workspaceKey: 'pharmacy', guard: 'staff' },
   { path: '/patients', title: 'Danh sách bệnh nhân', workspaceKey: 'admin', guard: 'staff' },
   { path: '/audit-logs', title: 'Nhật ký kiểm toán', workspaceKey: 'admin', guard: 'staff' },
   { path: '/dev/ui-kit', title: 'Dev UI Kit', guard: 'super-admin' },
@@ -97,7 +97,7 @@ function PatientDashboardEntry() {
   }
 
   if (isSuperAdminSession(auth)) {
-    return <DevPlaceholderPage title="Bệnh nhân" route="/patient/dashboard" />;
+    return <DevPlaceholderPage title="Cổng bệnh nhân / Người thân" route="/portal/dashboard" />;
   }
 
   return <Navigate to={createLoginRedirectPath(location)} replace />;
@@ -122,6 +122,7 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/bank-qr-test" element={<BankQrTestPage />} />
         <Route path="/staff/login" element={<StaffLoginPage />} />
         <Route path="/staff/change-password" element={<StaffRoute><ChangePasswordPage standalone /></StaffRoute>} />
         <Route path="/register" element={<RegisterPage />} />
@@ -181,6 +182,22 @@ export function AppRouter() {
           }
         />
         <Route
+          path="/pharmacy/*"
+          element={
+            <StaffRoute requiredWorkspaceKey="pharmacy">
+              <PharmacyWorkspace />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/prescriptions"
+          element={
+            <StaffRoute requiredWorkspaceKey="pharmacy">
+              <Navigate to="/pharmacy/prescriptions" replace />
+            </StaffRoute>
+          }
+        />
+        <Route
           path="/reception/dashboard"
           element={
             <StaffRoute requiredWorkspaceKey="reception">
@@ -236,6 +253,15 @@ export function AppRouter() {
             </PatientRoute>
           }
         />
+        <Route
+          path="/portal"
+          element={
+            <PatientRoute>
+              <PatientPage />
+            </PatientRoute>
+          }
+        />
+        <Route path="/portal/dashboard" element={<PatientDashboardEntry />} />
         <Route path="/patient/dashboard" element={<PatientDashboardEntry />} />
         <Route
           path="/admin"

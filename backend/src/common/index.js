@@ -8,6 +8,7 @@ module.exports = {
   RESPONSE_MESSAGE: require('./responses/response-messages'),
   controllers: require('./controllers'),
   asyncHandler: require('./middlewares/async-handler'),
+  idempotency: require('./middlewares/idempotency.middleware'),
   errorMiddleware: errorMiddlewareModule.errorMiddleware,
   normalizeError: errorMiddlewareModule.normalizeError,
   validate: require('./middlewares/validate.middleware'),

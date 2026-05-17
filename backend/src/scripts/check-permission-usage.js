@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { PERMISSION } = require('../constants/permissions');
+const { PERMISSION, ROLE_PERMISSION_MAP } = require('../constants/permissions');
 
 const SRC_DIR = path.resolve(__dirname, '..');
 
@@ -39,6 +39,9 @@ function checkPermissionUsage() {
     files_scanned: files.length,
     permission_codes_used: used.size,
     missing_references: missing,
+    used_permissions_without_default_role: [...used].filter((permissionCode) => (
+      !Object.values(ROLE_PERMISSION_MAP).some((permissionCodes) => permissionCodes.includes(permissionCode))
+    )).sort(),
   };
 
   console.log(JSON.stringify(result, null, 2));

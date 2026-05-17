@@ -14,7 +14,7 @@ function buildUrl(path, params) {
   return url.toString()
 }
 
-async function request(path, { method = 'GET', params, body, auth = true, skipRefresh = false } = {}) {
+export async function request(path, { method = 'GET', params, body, auth = true, skipRefresh = false } = {}) {
   const storedAuth = readStoredAuth()
   const headers = {
     ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -70,26 +70,34 @@ export function getApiErrorMessage(error, fallback = 'Không thể xử lý yêu
 
 export const authAPI = {
   getMe: () => request('/auth/me'),
-  updateMyProfile: (body) => request('/auth/me', { method: 'PATCH', body }),
   getMyRoles: () => request('/auth/me/roles'),
   getMyPermissions: () => request('/auth/me/permissions'),
+  getMySession: () => request('/auth/me/session'),
   getCurrentSession: () => request('/auth/me/session'),
+  updateMyProfile: (body) => request('/auth/me', { method: 'PATCH', body }),
   getMySessions: () => request('/auth/me/sessions'),
   getLoginHistory: (params) => request('/auth/me/login-history', { params }),
   changePassword: (body) => request('/auth/change-password', { method: 'POST', body }),
   updatePatientAccountEmail: (body) => request('/auth/patient/account/email', { method: 'PATCH', body }),
   updatePatientAccountPhone: (body) => request('/auth/patient/account/phone', { method: 'PATCH', body }),
   updatePatientAccountUsername: (body) => request('/auth/patient/account/username', { method: 'PATCH', body }),
+  refreshToken: (refreshToken) =>
+    request('/auth/refresh-token', {
+      method: 'POST',
+      body: { refresh_token: refreshToken },
+      auth: false,
+      skipRefresh: true,
+    }),
   logout: (refreshToken) =>
     request('/auth/logout', {
       method: 'POST',
       body: refreshToken ? { refresh_token: refreshToken } : {},
     }),
   logoutAllDevices: () => request('/auth/logout-all-devices', { method: 'POST', body: {} }),
-  revokeOtherSessions: () => request('/auth/me/sessions/others', { method: 'DELETE' }),
   renameMySessionDevice: (sessionId, body) =>
     request(`/auth/me/sessions/${encodeURIComponent(sessionId)}/device`, { method: 'PATCH', body }),
   revokeMySession: (sessionId) => request(`/auth/me/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+  revokeOtherSessions: () => request('/auth/me/sessions/others', { method: 'DELETE' }),
   revokeSession: (sessionId) =>
     request('/auth/sessions/revoke', { method: 'POST', body: { session_id: sessionId } }),
 }
@@ -103,12 +111,12 @@ export const patientAPI = {
   search: (params) => request('/patients/search', { params }),
   detail: (patientId) => request(`/patients/${encodeURIComponent(patientId)}`),
   summary: (patientId) => request(`/patients/${encodeURIComponent(patientId)}/summary`),
+  allergies: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/allergies`, { params }),
+  problems: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/problems`, { params }),
   encounters: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/encounters`, { params }),
   appointments: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/appointments`, { params }),
   prescriptions: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/prescriptions`, { params }),
   timeline: (patientId) => request(`/patients/${encodeURIComponent(patientId)}/timeline`),
-  problems: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/problems`, { params }),
-  allergies: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/allergies`, { params }),
   appointmentsHistory: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/appointments/history`, { params }),
   encountersHistory: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/encounters/history`, { params }),
   prescriptionsHistory: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/prescriptions/history`, { params }),
@@ -175,12 +183,30 @@ export const billingAPI = {
   getMyInsuranceClaims: (params) => request('/billing/me/insurance-claims', { params }),
   getMyInsuranceClaimDetail: (claimId) =>
     request(`/billing/me/insurance-claims/${encodeURIComponent(claimId)}`),
+  charges: (params) => request('/billing/charges', { params }),
+  createCharge: (body) => request('/billing/charges', { method: 'POST', body }),
+  chargeDetail: (chargeId) => request(`/billing/charges/${encodeURIComponent(chargeId)}`),
+  postCharge: (chargeId, body = {}) => request(`/billing/charges/${encodeURIComponent(chargeId)}/post`, { method: 'POST', body }),
+  voidCharge: (chargeId, body = {}) => request(`/billing/charges/${encodeURIComponent(chargeId)}/void`, { method: 'POST', body }),
+  invoices: (params) => request('/billing/invoices', { params }),
+  createInvoiceFromCharges: (body) => request('/billing/invoices/from-charges', { method: 'POST', body }),
+  invoiceDetail: (invoiceId) => request(`/billing/invoices/${encodeURIComponent(invoiceId)}`),
+  invoiceItems: (invoiceId) => request(`/billing/invoices/${encodeURIComponent(invoiceId)}/items`),
+  issueInvoice: (invoiceId, body = {}) => request(`/billing/invoices/${encodeURIComponent(invoiceId)}/issue`, { method: 'POST', body }),
+  voidInvoice: (invoiceId, body = {}) => request(`/billing/invoices/${encodeURIComponent(invoiceId)}/void`, { method: 'POST', body }),
+  createInvoicePayment: (invoiceId, body) => request(`/billing/invoices/${encodeURIComponent(invoiceId)}/payments`, { method: 'POST', body }),
+  payments: (params) => request('/billing/payments', { params }),
+  paymentDetail: (paymentId) => request(`/billing/payments/${encodeURIComponent(paymentId)}`),
+  voidPayment: (paymentId, body = {}) => request(`/billing/payments/${encodeURIComponent(paymentId)}/void`, { method: 'POST', body }),
+  refundPayment: (paymentId, body = {}) => request(`/billing/payments/${encodeURIComponent(paymentId)}/refund`, { method: 'POST', body }),
+  patientSummary: (patientId) => request(`/billing/patients/${encodeURIComponent(patientId)}/summary`),
 }
 
 export const notificationAPI = {
   getMyNotifications: (params) => request('/notifications', { params }),
   getUnreadCount: () => request('/notifications/unread-count'),
   unreadCount: () => request('/notifications/unread-count'),
+  detail: (notificationId) => request(`/notifications/${encodeURIComponent(notificationId)}`),
   markAllRead: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
   markRead: (notificationId) =>
     request(`/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'POST', body: {} }),
@@ -283,10 +309,13 @@ export const reportAPI = {
   appointments: (params) => request('/reports/appointments', { params }),
   encounters: (params) => request('/reports/encounters', { params }),
   queue: (params) => request('/reports/queue', { params }),
+  inventory: (params) => request('/reports/inventory', { params }),
+  export: (params) => request('/reports/export', { params }),
 }
 
 export const dashboardAPI = {
   doctorMe: (params) => request('/dashboard/doctor/me', { params }),
+  inventory: (params) => request('/dashboard/inventory', { params }),
 }
 export const encounterAPI = {
   list: (params) => request('/encounters', { params }),
@@ -318,16 +347,23 @@ export const orderAPI = {
   list: (params) => request('/orders', { params }),
   search: (params) => request('/orders/search', { params }),
   summary: (params) => request('/orders', { params }),
+  listByPatient: (patientId, params) => request(`/orders/patient/${encodeURIComponent(patientId)}`, { params }),
   listByDoctor: (doctorId, params) => request(`/orders/doctor/${encodeURIComponent(doctorId)}`, { params }),
   listByDoctorPage: (doctorId, params) => request(`/orders/doctor/${encodeURIComponent(doctorId)}`, { params }),
+  listByDepartment: (departmentId, params) => request(`/orders/department/${encodeURIComponent(departmentId)}`, { params }),
+  listByEncounter: (encounterId, params) => request(`/orders/encounter/${encodeURIComponent(encounterId)}`, { params }),
+  encounterSummary: (encounterId, params) => request(`/orders/encounter/${encodeURIComponent(encounterId)}/summary`, { params }),
   detail: (orderId) => request(`/orders/${encodeURIComponent(orderId)}`),
   timeline: (orderId) => request(`/orders/${encodeURIComponent(orderId)}/timeline`),
   createForEncounter: (encounterId, body) => request(`/encounters/${encodeURIComponent(encounterId)}/orders`, { method: 'POST', body }),
+  update: (orderId, body) => request(`/orders/${encodeURIComponent(orderId)}`, { method: 'PATCH', body }),
   dispatch: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/dispatch`, { method: 'POST', body }),
   acknowledge: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/acknowledge`, { method: 'POST', body }),
   start: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/start`, { method: 'POST', body }),
   complete: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/complete`, { method: 'POST', body }),
   cancel: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST', body }),
+  enteredInError: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/entered-in-error`, { method: 'POST', body }),
+  createCharge: (orderId, body = {}) => request(`/orders/${encodeURIComponent(orderId)}/create-charge`, { method: 'POST', body }),
 }
 
 export const clinicalAPI = {
@@ -365,6 +401,7 @@ export const prescriptionAPI = {
   getMyPrescriptions: (params) => request('/prescriptions/me', { params }),
   getMyPrescriptionDetail: (prescriptionId) => request(`/prescriptions/me/${encodeURIComponent(prescriptionId)}`),
   list: (params) => request('/prescriptions', { params }),
+  search: (params) => request('/prescriptions/search', { params }),
   listByEncounter: (encounterId, params) => request(`/prescriptions/encounter/${encodeURIComponent(encounterId)}`, { params }),
   listByPatient: (patientId, params) => request(`/prescriptions/patient/${encodeURIComponent(patientId)}`, { params }),
   listActiveByPatient: (patientId, params) => request(`/prescriptions/patient/${encodeURIComponent(patientId)}/active`, { params }),
@@ -373,6 +410,7 @@ export const prescriptionAPI = {
   summary: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/summary`),
   create: (body) => request('/prescriptions', { method: 'POST', body }),
   createForEncounter: (encounterId, body) => request(`/prescriptions/encounters/${encodeURIComponent(encounterId)}/prescriptions`, { method: 'POST', body }),
+  update: (prescriptionId, body) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}`, { method: 'PATCH', body }),
   addItem: (body) => request('/prescriptions/items', { method: 'POST', body }),
   listItems: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/items`),
   updateItem: (itemId, body) => request(`/prescriptions/items/${encodeURIComponent(itemId)}`, { method: 'PATCH', body }),
@@ -385,9 +423,26 @@ export const prescriptionAPI = {
   checkInteractionConflict: (body) => request('/prescriptions/check-interaction-conflict', { method: 'POST', body }),
   checkDuplicateMedication: (body) => request('/prescriptions/check-duplicate-medication', { method: 'POST', body }),
   calculateItemQuantity: (body) => request('/prescriptions/calculate-item-quantity', { method: 'POST', body }),
+  verify: (prescriptionId, body = {}) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/verify`, { method: 'POST', body }),
   activate: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/activate`, { method: 'POST', body: {} }),
-  cancel: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/cancel`, { method: 'POST', body: {} }),
-  complete: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/complete`, { method: 'POST', body: {} }),
+  cancel: (prescriptionId, body = {}) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/cancel`, { method: 'POST', body }),
+  complete: (prescriptionId, body = {}) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/complete`, { method: 'POST', body }),
   duplicate: (prescriptionId) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/duplicate`, { method: 'POST', body: {} }),
   renew: (prescriptionId, body = {}) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/renew`, { method: 'POST', body }),
+  listDispenses: (params) => request('/prescriptions/dispenses', { params }),
+  dispenseDetail: (dispenseId) => request(`/prescriptions/dispenses/${encodeURIComponent(dispenseId)}`),
+  createDispense: (prescriptionId, body = {}) => request(`/prescriptions/${encodeURIComponent(prescriptionId)}/dispenses`, { method: 'POST', body }),
+  completeDispense: (dispenseId, body = {}) => request(`/prescriptions/dispenses/${encodeURIComponent(dispenseId)}/complete`, { method: 'POST', body }),
+  cancelDispense: (dispenseId, body = {}) => request(`/prescriptions/dispenses/${encodeURIComponent(dispenseId)}/cancel`, { method: 'POST', body }),
+  listMedications: (params) => request('/prescriptions/medications', { params }),
+  medicationDetail: (medicationId) => request(`/prescriptions/medications/${encodeURIComponent(medicationId)}`),
+  stockSelection: (medicationId, params) => request(`/prescriptions/medications/${encodeURIComponent(medicationId)}/stock-selection`, { params }),
+  listStockBatches: (params) => request('/prescriptions/stock-batches', { params }),
+  stockBatchDetail: (batchId) => request(`/prescriptions/stock-batches/${encodeURIComponent(batchId)}`),
+  adjustStockBatch: (batchId, body = {}) => request(`/prescriptions/stock-batches/${encodeURIComponent(batchId)}/adjustment`, { method: 'POST', body }),
+  markStockBatchExpired: (batchId, body = {}) => request(`/prescriptions/stock-batches/${encodeURIComponent(batchId)}/expire`, { method: 'POST', body }),
+  recallStockBatch: (batchId, body = {}) => request(`/prescriptions/stock-batches/${encodeURIComponent(batchId)}/recall`, { method: 'POST', body }),
+  listInventoryTransactions: (params) => request('/prescriptions/inventory/transactions', { params }),
+  receiveInventory: (body = {}) => request('/prescriptions/inventory/receipts', { method: 'POST', body }),
+  adjustInventory: (body = {}) => request('/prescriptions/inventory/adjustments', { method: 'POST', body }),
 }

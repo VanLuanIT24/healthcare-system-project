@@ -52,6 +52,9 @@ const logoutLimit = createAuthRateLimit({
   message: 'Quá nhiều yêu cầu đăng xuất. Vui lòng thử lại sau.',
 });
 
+router.get('/google', authController.googleLogin);
+router.get('/google/callback', authController.googleCallback);
+
 router.post('/staff/login', authRequest.staffLogin, authController.staffLogin); ///\\\ Ui done
 
 router.post('/patients/register', authRequest.patientRegister, authController.registerPatient);

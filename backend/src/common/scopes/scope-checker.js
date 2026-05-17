@@ -54,6 +54,101 @@ const RESOURCE_SCOPE_RULES = {
     patientFields: ['patient_id', 'patientId'],
     broadPermissions: [PERMISSION.PAYMENTS.READ],
   },
+  'lab_result:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.ASSIGNED, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['performed_by', 'verified_by', 'reported_by', 'ordered_by', 'created_by'],
+    assignedFields: ['ordered_by', 'doctor_id', 'attending_doctor_id', 'assigned_doctor_id'],
+    departmentFields: ['department_id', 'departmentId', 'ordering_department_id', 'lab_department_id'],
+    broadPermissions: [PERMISSION.LAB_RESULTS.READ],
+    requirePatientRelease: true,
+    authorizationPermission: AUTHORIZATION_TYPE.VIEW_RECORDS,
+  },
+  'imaging_report:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.ASSIGNED, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['radiologist_id', 'technician_id', 'verified_by', 'created_by'],
+    assignedFields: ['radiologist_id', 'doctor_id', 'attending_doctor_id', 'assigned_doctor_id'],
+    departmentFields: ['department_id', 'departmentId', 'ordering_department_id', 'imaging_department_id'],
+    broadPermissions: [PERMISSION.IMAGING_REPORTS.READ],
+    requirePatientRelease: true,
+    authorizationPermission: AUTHORIZATION_TYPE.VIEW_RECORDS,
+  },
+  'prescription:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['prescribed_by', 'verified_by', 'created_by'],
+    departmentFields: ['department_id', 'departmentId'],
+    broadPermissions: [PERMISSION.PRESCRIPTIONS.READ],
+    authorizationPermission: AUTHORIZATION_TYPE.VIEW_RECORDS,
+  },
+  'medical_record:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.ASSIGNED, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['finalized_by', 'created_by'],
+    assignedFields: ['attending_doctor_id', 'assigned_doctor_id', 'doctor_id'],
+    departmentFields: ['custodian_department_id', 'department_id', 'departmentId'],
+    broadPermissions: [PERMISSION.MEDICAL_RECORDS.READ],
+    requirePatientRelease: true,
+    authorizationPermission: AUTHORIZATION_TYPE.VIEW_RECORDS,
+  },
+  'attachment:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['uploaded_by', 'created_by'],
+    departmentFields: ['department_id', 'departmentId', 'custodian_department_id'],
+    broadPermissions: [PERMISSION.ATTACHMENTS.READ],
+    requirePatientRelease: true,
+    authorizationPermission: AUTHORIZATION_TYPE.VIEW_RECORDS,
+  },
+  'order:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.ASSIGNED, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['ordered_by', 'created_by'],
+    assignedFields: ['ordered_by', 'doctor_id', 'attending_doctor_id'],
+    departmentFields: ['department_id', 'departmentId'],
+    broadPermissions: [PERMISSION.ORDERS.READ],
+    authorizationPermission: AUTHORIZATION_TYPE.VIEW_RECORDS,
+  },
+  'admission:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.ASSIGNED, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['attending_doctor_id', 'admitted_by', 'discharged_by'],
+    assignedFields: ['attending_doctor_id', 'assigned_doctor_id'],
+    departmentFields: ['department_id', 'departmentId'],
+    broadPermissions: [PERMISSION.ADMISSIONS.READ],
+    authorizationPermission: AUTHORIZATION_TYPE.VIEW_RECORDS,
+  },
+  'dispense:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['dispensed_by', 'completed_by', 'created_by'],
+    departmentFields: ['department_id', 'departmentId', 'pharmacy_department_id'],
+    broadPermissions: [PERMISSION.DISPENSES.READ],
+    authorizationPermission: AUTHORIZATION_TYPE.VIEW_RECORDS,
+  },
+  'insurance_claim:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.DEPARTMENT, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    ownerFields: ['reviewed_by', 'created_by'],
+    departmentFields: ['department_id', 'departmentId', 'billing_department_id'],
+    broadPermissions: [PERMISSION.INSURANCE_CLAIMS.READ],
+    authorizationPermission: AUTHORIZATION_TYPE.BILLING,
+  },
+  'notification:read': {
+    scopes: [DATA_SCOPE.SELF, DATA_SCOPE.OWN, DATA_SCOPE.RELATIVE_AUTHORIZED],
+    patientFields: ['patient_id', 'patientId'],
+    accountFields: ['patient_account_id', 'patientAccountId'],
+    ownerFields: ['recipient_user_id', 'recipientUserId'],
+    relativeFields: ['relative_id', 'relativeId'],
+    broadPermissions: [PERMISSION.NOTIFICATIONS.READ],
+    authorizationPermission: AUTHORIZATION_TYPE.RECEIVE_NOTIFICATIONS,
+  },
+  'audit_log:read': {
+    scopes: [DATA_SCOPE.OWN],
+    ownerFields: ['actor_id', 'actorId', 'user_id', 'userId'],
+    broadPermissions: [PERMISSION.AUDIT_LOGS.READ],
+  },
 };
 
 function normalizeId(value) {
@@ -73,6 +168,21 @@ function firstMatchingField(resource = {}, fieldNames = []) {
 function readResourceField(resource = {}, fieldNames = []) {
   const fieldName = firstMatchingField(resource, fieldNames);
   return fieldName ? resource[fieldName] : null;
+}
+
+function isReleasedToPatient(resource = {}, options = {}) {
+  const releaseFields = options.releaseFields || ['released_to_patient', 'releasedToPatient', 'is_released_to_patient'];
+  const releasedValue = readResourceField(resource, releaseFields);
+  if (releasedValue !== null) return releasedValue === true;
+  return Boolean(readResourceField(resource, options.releaseDateFields || ['released_at', 'releasedAt']));
+}
+
+function releaseRequiredForScope(actor = {}, scope, options = {}) {
+  if (!options.requirePatientRelease) return false;
+  return (
+    (scope === DATA_SCOPE.SELF && actorContext.isPatient(actor)) ||
+    (scope === DATA_SCOPE.RELATIVE_AUTHORIZED && actorContext.isPatientRelative(actor))
+  );
 }
 
 function isSystemActor(actor = {}) {
@@ -132,6 +242,9 @@ async function isRelativeAuthorizedScope(actor = {}, resource = {}, options = {}
 
   if (!patientId || !relativeId) return false;
 
+  const relativeValue = readResourceField(resource, options.relativeFields || ['relative_id', 'relativeId']);
+  if (relativeValue && !idsEqual(relativeId, relativeValue)) return false;
+
   const now = new Date();
   const filter = {
     patient_id: patientId,
@@ -160,11 +273,17 @@ async function isRelativeAuthorizedScope(actor = {}, resource = {}, options = {}
 
 async function matchesScope(actor = {}, resource = {}, scope, options = {}) {
   if (isSystemActor(actor) || scope === DATA_SCOPE.ALL) return true;
-  if (scope === DATA_SCOPE.SELF) return isSelfScope(actor, resource, options);
+  if (scope === DATA_SCOPE.SELF) {
+    const matched = isSelfScope(actor, resource, options);
+    return matched && (!releaseRequiredForScope(actor, scope, options) || isReleasedToPatient(resource, options));
+  }
   if (scope === DATA_SCOPE.OWN) return isOwnScope(actor, resource, options);
   if (scope === DATA_SCOPE.ASSIGNED) return isAssignedScope(actor, resource, options);
   if (scope === DATA_SCOPE.DEPARTMENT) return isDepartmentScope(actor, resource, options);
-  if (scope === DATA_SCOPE.RELATIVE_AUTHORIZED) return isRelativeAuthorizedScope(actor, resource, options);
+  if (scope === DATA_SCOPE.RELATIVE_AUTHORIZED) {
+    const matched = await isRelativeAuthorizedScope(actor, resource, options);
+    return matched && (!releaseRequiredForScope(actor, scope, options) || isReleasedToPatient(resource, options));
+  }
   return false;
 }
 
@@ -268,6 +387,7 @@ module.exports = {
   isAssignedScope,
   isDepartmentScope,
   isRelativeAuthorizedScope,
+  isReleasedToPatient,
   matchesScope,
   hasAnyScope,
   assertScope,

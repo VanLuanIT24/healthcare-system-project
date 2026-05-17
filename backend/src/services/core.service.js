@@ -3,12 +3,13 @@ const codeGeneratorService = require('./code-generator.service');
 const { runInTransaction: runWithTransaction } = require('../shared/utils/transaction');
 const { createError: createFoundationError } = require('../common/errors/error-factory');
 const { startOfDay, endOfDay } = require('../common/helpers/date-time.helper');
+const { isSafeSortField } = require('../common/helpers/query.helper');
 
 const requestIdempotencyStore = new Map();
 const bookingLockStore = new Map();
 
-function createError(message, statusCode = 400) {
-  return createFoundationError(statusCode, message);
+function createError(message, statusCode = 400, details = null, code = null) {
+  return createFoundationError(statusCode, message, details, code);
 }
 
 function normalizeString(value) {
@@ -39,10 +40,14 @@ function getPagination(query = {}, defaultLimit = 20, maxLimit = 100) {
   return { page, limit, skip };
 }
 
-function validatePaginationParams(query = {}, defaultLimit = 20, maxLimit = 100) {
+function validatePaginationParams(query = {}, defaultLimit = 20, maxLimit = 100, allowedSortFields = []) {
   const page = Math.max(Number(query.page || 1), 1);
   const limit = Math.min(Math.max(Number(query.limit || defaultLimit), 1), maxLimit);
-  const sort_by = normalizeString(query.sort_by) || 'created_at';
+  const requestedSort = normalizeString(query.sort_by) || 'created_at';
+  const sort_by = isSafeSortField(requestedSort)
+    && (!allowedSortFields.length || allowedSortFields.includes(requestedSort))
+    ? requestedSort
+    : 'created_at';
   const sort_direction = String(query.sort_direction || 'desc').toLowerCase() === 'asc' ? 1 : -1;
   return {
     page,
@@ -60,8 +65,9 @@ function buildListQueryOptions({
   keywordFields = [],
   searchKey = 'search',
   baseFilter = {},
+  allowedSortFields = [],
 }) {
-  const options = validatePaginationParams(query, defaultLimit, maxLimit);
+  const options = validatePaginationParams(query, defaultLimit, maxLimit, allowedSortFields);
   const filter = { ...baseFilter };
 
   for (const field of allowedFilters) {

@@ -378,7 +378,26 @@ function parseModuleExports(content) {
   const objectBlock = findObjectBlock(content, start);
   if (!objectBlock) {
     const directRequire = content.match(/module\.exports\s*=\s*require\(([^)]+)\)/);
-    return directRequire ? ['__reexport__'] : [];
+    if (directRequire) return ['__reexport__'];
+
+    const wrappedExport = content
+      .slice(start)
+      .match(/module\.exports\s*=\s*[A-Za-z_$][\w$]*\(\s*([A-Za-z_$][\w$]*)\s*\)/);
+    if (wrappedExport) {
+      const variable = wrappedExport[1];
+      const declaration = new RegExp(`(?:const|let|var)\\s+${variable}\\s*=`);
+      const declarationMatch = declaration.exec(content);
+      if (declarationMatch) {
+        const variableObjectBlock = findObjectBlock(content, declarationMatch.index);
+        if (variableObjectBlock) {
+          return splitTopLevelObjectEntries(variableObjectBlock.body)
+            .map(getExportName)
+            .filter(Boolean);
+        }
+      }
+    }
+
+    return [];
   }
 
   return splitTopLevelObjectEntries(objectBlock.body)

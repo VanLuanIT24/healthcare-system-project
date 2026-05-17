@@ -38,6 +38,7 @@ const {
 const { PERMISSION } = require('../constants/permissions');
 const { assertTransition, canTransition } = require('../shared/utils/status-transition');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
+const ERROR_CODE = require('../common/errors/error-codes');
 
 const LAB_ORDER_TERMINAL_STATUSES = [
   LAB_ORDER_STATUS.COMPLETED,
@@ -1627,7 +1628,7 @@ async function releaseLabResultToPatient(resultId, actor, requestMeta = {}) {
     const { labOrder, ...context } = await loadResultContext(result, session);
     assertLabOrderAccess(labOrder, context, actor, writeAccessPermissions([PERMISSION.LAB_RESULTS.RELEASE_TO_PATIENT]));
     if (![LAB_RESULT_STATUS.FINAL, LAB_RESULT_STATUS.AMENDED].includes(result.status)) {
-      throw createError('Chỉ final/amended result mới được release cho patient.', 409);
+      throw createError('Chỉ final/amended result mới được release cho patient.', 409, null, ERROR_CODE.LAB_RESULT_NOT_FINALIZED);
     }
     if (result.is_current === false) {
       throw createError('Không release version lab result đã bị supersede.', 409);

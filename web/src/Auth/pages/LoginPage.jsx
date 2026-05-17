@@ -33,10 +33,12 @@ function parseRetryAfterSeconds(response, payload) {
 
 function buildAuthData(payload) {
   const data = payload?.data || {};
+  const actorType = data.actor_type || (data.patient_relative ? 'patient_relative' : 'patient');
 
   return {
-    actorType: data.actor_type || 'patient',
-    patient: data.patient || null,
+    actorType,
+    patient: data.patient || data.patient_relative || null,
+    patient_relative: data.patient_relative || null,
     permissions: data.permissions || [],
     roles: data.roles || [],
     tokens: data.tokens || {

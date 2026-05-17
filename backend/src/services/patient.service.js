@@ -28,6 +28,7 @@ const {
   PatientIdentifier,
   PatientRelative,
   Payment,
+  PaymentIntent,
   Prescription,
   PrescriptionItem,
   ProblemList,
@@ -61,15 +62,19 @@ const {
   PATIENT_ACCOUNT_STATUSES,
   PATIENT_STATUS,
   PATIENT_STATUSES,
+  PAYMENT_INTENT_STATUS,
   PAYMENT_STATUS,
   PRESCRIPTION_STATUS,
   PROBLEM_SEVERITIES,
   PROBLEM_STATUS,
   PROBLEM_STATUSES,
+  REALTIME_EVENT_TYPE,
 } = require('../constants/statuses');
 const { CODE_TYPE, generateBusinessCode } = require('./code-generator.service');
 const passwordService = require('./auth/password.service');
+const authSessionService = require('./auth/auth-session.service');
 const permissionService = require('./permission.service');
+const eventBus = require('../events/event-bus.service');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
 const {
   buildPagination,
@@ -98,6 +103,13 @@ const STAFF_STANDARD_UPDATE_FIELDS = [
   'full_name',
   'date_of_birth',
   'gender',
+  'national_id',
+  'insurance_number',
+];
+
+const PATIENT_IDENTITY_FIELDS = [
+  'full_name',
+  'date_of_birth',
   'national_id',
   'insurance_number',
 ];
@@ -290,6 +302,7 @@ function normalizeRelativeData(payload = {}) {
     address: hasOwn(payload, 'address') ? normalizeOptionalString(payload.address) : undefined,
     is_emergency_contact: hasOwn(payload, 'is_emergency_contact') ? Boolean(payload.is_emergency_contact) : undefined,
     is_primary_contact: hasOwn(payload, 'is_primary_contact') ? Boolean(payload.is_primary_contact) : undefined,
+    relationship_verified: hasOwn(payload, 'relationship_verified') ? Boolean(payload.relationship_verified) : undefined,
     status: hasOwn(payload, 'status') ? normalizeOptionalString(payload.status) : undefined,
   });
 }
@@ -321,6 +334,39 @@ function hasPermission(actor = {}, permissionCode) {
 
 function hasAnyPermission(actor = {}, permissionCodes = []) {
   return permissionService.hasAnyPermission(actor.permissions || [], permissionCodes);
+}
+
+const RELATIVE_AUTHORIZATION_SCOPE_ALIASES = {
+  [AUTHORIZATION_TYPE.VIEW_RECORDS]: [
+    AUTHORIZATION_TYPE.VIEW_RECORDS,
+    AUTHORIZATION_TYPE.RECORD_READ,
+    AUTHORIZATION_TYPE.LAB_RESULT_READ,
+    AUTHORIZATION_TYPE.IMAGING_REPORT_READ,
+    AUTHORIZATION_TYPE.PRESCRIPTION_READ,
+  ],
+  [AUTHORIZATION_TYPE.BOOK_APPOINTMENTS]: [
+    AUTHORIZATION_TYPE.BOOK_APPOINTMENTS,
+    AUTHORIZATION_TYPE.APPOINTMENT_READ,
+    AUTHORIZATION_TYPE.APPOINTMENT_MANAGE,
+  ],
+  [AUTHORIZATION_TYPE.BILLING]: [
+    AUTHORIZATION_TYPE.BILLING,
+    AUTHORIZATION_TYPE.BILLING_READ,
+    AUTHORIZATION_TYPE.BILLING_PAY,
+  ],
+};
+
+function expandAuthorizationScopes(scopeOrScopes = AUTHORIZATION_TYPE.VIEW_RECORDS) {
+  const requested = Array.isArray(scopeOrScopes) ? scopeOrScopes : [scopeOrScopes];
+  const scopes = new Set([AUTHORIZATION_TYPE.FULL_ACCESS]);
+  requested
+    .map(normalizeOptionalString)
+    .filter(Boolean)
+    .forEach((scope) => {
+      scopes.add(scope);
+      (RELATIVE_AUTHORIZATION_SCOPE_ALIASES[scope] || []).forEach((alias) => scopes.add(alias));
+    });
+  return [...scopes];
 }
 
 function hasFullPatientRead(actor = {}) {
@@ -469,6 +515,7 @@ async function checkRelativeAuthorization(relativeId, patientId, authorizationTy
   if (!relativeId || !patientId) return false;
 
   const now = new Date();
+  const scopes = expandAuthorizationScopes(authorizationType);
   const authorization = await PatientAuthorization.findOne({
     patient_id: patientId,
     relative_id: relativeId,
@@ -485,15 +532,21 @@ async function checkRelativeAuthorization(relativeId, patientId, authorizationTy
       },
       {
         $or: [
-          { authorization_type: AUTHORIZATION_TYPE.FULL_ACCESS },
-          { authorization_type: authorizationType },
-          { permissions: authorizationType },
+          { authorization_type: { $in: scopes } },
+          { permissions: { $in: scopes } },
         ],
       },
     ],
   }).lean();
 
   return Boolean(authorization);
+}
+
+async function assertRelativeHasScope(relativeId, patientId, authorizationType = AUTHORIZATION_TYPE.VIEW_RECORDS) {
+  if (await checkRelativeAuthorization(relativeId, patientId, authorizationType)) {
+    return true;
+  }
+  throw createError('Người nhà chưa có ủy quyền phù hợp cho phạm vi truy cập này.', 403);
 }
 
 async function canReadPatient(patientId, actor = {}, options = {}) {
@@ -557,6 +610,8 @@ function sanitizePatient(patient, actor = {}, options = {}) {
     output.address = patient.address;
     output.national_id = patient.national_id;
     output.insurance_number = patient.insurance_number;
+    output.identity_verified_at = patient.identity_verified_at;
+    output.identity_verified_by = patient.identity_verified_by ? toId(patient.identity_verified_by) : null;
     output.emergency_contact_name = patient.emergency_contact_name;
     output.emergency_contact_phone = patient.emergency_contact_phone;
     output.merged_into_patient_id = patient.merged_into_patient_id ? toId(patient.merged_into_patient_id) : null;
@@ -621,6 +676,9 @@ function sanitizeRelative(relative) {
     address: relative.address,
     is_emergency_contact: relative.is_emergency_contact,
     is_primary_contact: relative.is_primary_contact,
+    relationship_verified: Boolean(relative.relationship_verified),
+    verified_by: relative.verified_by ? toId(relative.verified_by) : null,
+    verified_at: relative.verified_at,
     status: relative.status,
     created_at: relative.created_at,
     updated_at: relative.updated_at,
@@ -939,6 +997,14 @@ async function validatePatientBeforeCreate(payload = {}, actor = null) {
     normalized,
     duplicate_warning: duplicates,
   };
+}
+
+function lockVerifiedIdentityFields(patient = {}, changes = {}, actor = {}) {
+  if (!patient.identity_verified_at) return true;
+  const lockedFields = PATIENT_IDENTITY_FIELDS.filter((field) => hasOwn(changes, field));
+  if (lockedFields.length === 0) return true;
+  if (actor?.allowVerifiedIdentityOverride === true) return true;
+  throw createError('Hồ sơ đã xác minh định danh; không được sửa trực tiếp thông tin định danh. Hãy tạo yêu cầu thay đổi và duyệt theo quy trình.', 409);
 }
 
 async function validatePatientIdentifierUnique(identifierType, identifierValue, excludeId = null, session = null) {
@@ -1405,6 +1471,7 @@ async function updatePatient(patientId, payload, actor = {}, requestMeta = {}) {
     return getPatientDetail(patient._id, actor);
   }
 
+  lockVerifiedIdentityFields(patient, changes, actor);
   await assertPatientIdentityUnique(changes, patient._id);
   const before = patient.toObject();
 
@@ -1481,7 +1548,7 @@ async function updatePatientStatus(patientId, status, actor = {}, requestMeta = 
 
 async function getArchiveBlockers(patientId) {
   const now = new Date();
-  const [futureAppointments, activeEncounters, activeAdmissions, unpaidInvoices] = await Promise.all([
+  const [futureAppointments, activeEncounters, activeAdmissions, unpaidInvoices, pendingPaymentIntents] = await Promise.all([
     Appointment.countDocuments({
       patient_id: patientId,
       is_deleted: false,
@@ -1495,6 +1562,16 @@ async function getArchiveBlockers(patientId) {
       status: { $in: OPEN_INVOICE_STATUSES },
       balance_due: { $gt: 0 },
     }),
+    PaymentIntent.countDocuments({
+      patient_id: patientId,
+      status: {
+        $in: [
+          PAYMENT_INTENT_STATUS.CREATED,
+          PAYMENT_INTENT_STATUS.PENDING,
+          PAYMENT_INTENT_STATUS.REQUIRES_ACTION,
+        ],
+      },
+    }),
   ]);
 
   return [
@@ -1502,6 +1579,7 @@ async function getArchiveBlockers(patientId) {
     activeEncounters ? { type: 'active_encounters', count: activeEncounters } : null,
     activeAdmissions ? { type: 'active_admissions', count: activeAdmissions } : null,
     unpaidInvoices ? { type: 'unpaid_invoices', count: unpaidInvoices } : null,
+    pendingPaymentIntents ? { type: 'pending_payment_intents', count: pendingPaymentIntents } : null,
   ].filter(Boolean);
 }
 
@@ -1904,6 +1982,8 @@ async function createPatientRelativeInternal(patientId, payload = {}, actor = {}
   return createDocument(PatientRelative, {
     patient_id: patientId,
     ...normalized,
+    verified_by: normalized.relationship_verified ? actor?.userId : undefined,
+    verified_at: normalized.relationship_verified ? new Date() : undefined,
     status: normalized.status || 'active',
     created_by: actor?.userId,
     updated_by: actor?.userId,
@@ -1967,6 +2047,10 @@ async function updatePatientRelative(relativeId, payload, actor = {}, requestMet
     Object.entries(normalized).forEach(([field, value]) => {
       relative[field] = value;
     });
+    if (hasOwn(normalized, 'relationship_verified')) {
+      relative.verified_by = normalized.relationship_verified ? actor?.userId : undefined;
+      relative.verified_at = normalized.relationship_verified ? new Date() : undefined;
+    }
     relative.updated_by = actor?.userId;
     await relative.save(sessionOptions(session));
 
@@ -1989,6 +2073,13 @@ async function updatePatientRelative(relativeId, payload, actor = {}, requestMet
 async function deletePatientRelativeSoft(relativeId, actor = {}, requestMeta = {}) {
   const relative = await PatientRelative.findOne({ _id: relativeId, is_deleted: false });
   if (!relative) throw createError('Không tìm thấy người nhà bệnh nhân.', 404);
+
+  const authorizationsToRevoke = await PatientAuthorization.find({
+    patient_id: relative.patient_id,
+    relative_id: relative._id,
+    status: { $in: [AUTHORIZATION_STATUS.ACTIVE, AUTHORIZATION_STATUS.PENDING] },
+    is_deleted: false,
+  }).lean();
 
   const before = relative.toObject();
   await withOptionalTransaction(async (session) => {
@@ -2030,6 +2121,25 @@ async function deletePatientRelativeSoft(relativeId, actor = {}, requestMeta = {
     });
   }, { fallbackToNoTransaction: true });
 
+  await Promise.all(authorizationsToRevoke.map((authorization) => publishPatientAuthorizationEvent(
+    REALTIME_EVENT_TYPE.RELATIVE_ACCESS_REVOKED,
+    { ...authorization, status: AUTHORIZATION_STATUS.REVOKED },
+    requestMeta,
+    { reason: 'relative_deleted' },
+  )));
+  if (authorizationsToRevoke.length > 0) {
+    await authSessionService.invalidateAllUserSessions(
+      'patient_relative',
+      relative._id,
+      requestMeta,
+      {
+        actorType: actor?.actorType || actor?.actor_type,
+        actorId: actor?.userId || actor?.actorId || actor?.actor_id,
+        reason: 'relative_deleted',
+      },
+    );
+  }
+
   return { success: true };
 }
 
@@ -2047,13 +2157,59 @@ function normalizeAuthorizationPayload(payload = {}) {
   if (!AUTHORIZATION_STATUSES.includes(status)) {
     throw createError('Trạng thái ủy quyền không hợp lệ.', 422);
   }
+  const permissions = Array.isArray(payload.permissions)
+    ? payload.permissions.map(normalizeOptionalString).filter(Boolean)
+    : [];
+  const invalidPermissions = permissions.filter((permission) => !AUTHORIZATION_TYPES.includes(permission));
+  if (invalidPermissions.length > 0) {
+    throw createError(`permissions chứa scope không hợp lệ: ${invalidPermissions.join(', ')}`, 422);
+  }
+  const explicitPermissions = permissions.length > 0
+    ? permissions
+    : expandAuthorizationScopes(authorizationType).filter((scope) => scope !== AUTHORIZATION_TYPE.FULL_ACCESS);
+  if (authorizationType !== AUTHORIZATION_TYPE.FULL_ACCESS && explicitPermissions.length === 0) {
+    throw createError('Ủy quyền người nhà phải có scope cụ thể.', 422);
+  }
   return {
     authorization_type: authorizationType,
-    permissions: Array.isArray(payload.permissions) ? payload.permissions.map(normalizeOptionalString).filter(Boolean) : [],
+    permissions: authorizationType === AUTHORIZATION_TYPE.FULL_ACCESS
+      ? [...new Set(permissions)]
+      : [...new Set(explicitPermissions)],
     valid_from: validFrom,
     valid_to: validTo,
     status,
   };
+}
+
+function patientAuthorizationRecipientScope(authorization = {}) {
+  return {
+    patient_id: authorization.patient_id,
+    relative_id: authorization.relative_id,
+    recipients: [
+      { recipient_type: 'patient', recipient_id: authorization.patient_id, patient_id: authorization.patient_id },
+      { recipient_type: 'relative', recipient_id: authorization.relative_id, relative_id: authorization.relative_id, patient_id: authorization.patient_id },
+    ],
+  };
+}
+
+async function publishPatientAuthorizationEvent(eventType, authorization = {}, requestMeta = {}, extraPayload = {}) {
+  if (!authorization?._id) return null;
+  return eventBus.publishDomainEvent({
+    eventType,
+    aggregateType: 'patient_authorization',
+    aggregateId: authorization._id,
+    recipientScope: patientAuthorizationRecipientScope(authorization),
+    payload: {
+      patient_authorization_id: toId(authorization._id),
+      patient_id: toId(authorization.patient_id),
+      relative_id: toId(authorization.relative_id),
+      status: authorization.status,
+      authorization_type: authorization.authorization_type,
+      permissions: authorization.permissions || [],
+      request_id: requestMeta.requestId || requestMeta.request_id,
+      ...extraPayload,
+    },
+  });
 }
 
 async function createPatientAuthorization(patientId, relativeId, payload, actor = {}, requestMeta = {}) {
@@ -2065,6 +2221,9 @@ async function createPatientAuthorization(patientId, relativeId, payload, actor 
     PatientRelative.findOne({ _id: relativeId, patient_id: patientId, is_deleted: false }),
   ]);
   if (!relative) throw createError('Không tìm thấy người nhà thuộc bệnh nhân này.', 404);
+  if (relative.status !== 'active') {
+    throw createError('Người nhà không active nên không thể cấp ủy quyền mới.', 409);
+  }
 
   const normalized = normalizeAuthorizationPayload(payload);
   const authorization = await PatientAuthorization.create({
@@ -2087,6 +2246,15 @@ async function createPatientAuthorization(patientId, relativeId, payload, actor 
     requestMeta,
     after: authorization.toObject(),
   });
+
+  if (authorization.status === AUTHORIZATION_STATUS.ACTIVE) {
+    await publishPatientAuthorizationEvent(
+      REALTIME_EVENT_TYPE.RELATIVE_ACCESS_GRANTED,
+      authorization,
+      requestMeta,
+      { action: 'created' },
+    );
+  }
 
   return sanitizeAuthorization(authorization);
 }
@@ -2129,6 +2297,13 @@ async function approvePatientAuthorization(authorizationId, actor = {}, requestM
     after: authorization.toObject(),
   });
 
+  await publishPatientAuthorizationEvent(
+    REALTIME_EVENT_TYPE.RELATIVE_ACCESS_GRANTED,
+    authorization,
+    requestMeta,
+    { action: 'approved' },
+  );
+
   return sanitizeAuthorization(authorization);
 }
 
@@ -2159,7 +2334,87 @@ async function revokePatientAuthorization(authorizationId, reason, actor = {}, r
     after: authorization.toObject(),
   });
 
+  await publishPatientAuthorizationEvent(
+    REALTIME_EVENT_TYPE.RELATIVE_ACCESS_REVOKED,
+    authorization,
+    requestMeta,
+    { reason: authorization.revoke_reason },
+  );
+  await authSessionService.invalidateAllUserSessions(
+    'patient_relative',
+    authorization.relative_id,
+    requestMeta,
+    {
+      actorType: actor?.actorType || actor?.actor_type,
+      actorId: actor?.userId || actor?.actorId || actor?.actor_id,
+      reason: 'relative_access_revoked',
+    },
+  );
+
   return sanitizeAuthorization(authorization);
+}
+
+async function expireAuthorizations(options = {}, actor = {}, requestMeta = {}) {
+  const now = options.now || new Date();
+  const limit = Math.min(Math.max(Number(options.limit || 100), 1), 500);
+  const candidates = await PatientAuthorization.find({
+    status: AUTHORIZATION_STATUS.ACTIVE,
+    is_deleted: false,
+    valid_to: { $lte: now },
+  })
+    .sort({ valid_to: 1 })
+    .limit(limit);
+
+  const expired = [];
+  for (const candidate of candidates) {
+    const authorization = await PatientAuthorization.findOneAndUpdate(
+      {
+        _id: candidate._id,
+        status: AUTHORIZATION_STATUS.ACTIVE,
+        is_deleted: false,
+        valid_to: { $lte: now },
+      },
+      {
+        $set: {
+          status: AUTHORIZATION_STATUS.EXPIRED,
+          updated_by: actor?.userId,
+        },
+      },
+      { new: true },
+    );
+    if (!authorization) continue;
+    expired.push(sanitizeAuthorization(authorization));
+    await publishPatientAuthorizationEvent(
+      REALTIME_EVENT_TYPE.AUTHORIZATION_EXPIRED,
+      authorization,
+      requestMeta,
+      { expired_at: now },
+    );
+    await authSessionService.invalidateAllUserSessions(
+      'patient_relative',
+      authorization.relative_id,
+      requestMeta,
+      {
+        actorType: actor?.actorType || actor?.actor_type,
+        actorId: actor?.userId || actor?.actorId || actor?.actor_id,
+        reason: 'relative_authorization_expired',
+      },
+    );
+  }
+
+  if (expired.length > 0) {
+    await recordAuditLog({
+      actor,
+      action: 'patient.authorization.expire',
+      targetType: 'patient_authorization',
+      status: 'success',
+      message: 'Tự động hết hạn ủy quyền người nhà.',
+      requestMeta,
+      metadata: { expired_count: expired.length },
+    });
+  }
+
+  return { expired_count: expired.length, items: expired };
 }
 
 async function validateEncounterBelongsToPatient(patientId, encounterId) {
@@ -2769,9 +3024,10 @@ async function checkPatientCanBeMerged(sourcePatientId, targetPatientId, actor =
   if (source.status === PATIENT_STATUS.MERGED) blockers.push({ type: 'source_already_merged' });
   if (target.status !== PATIENT_STATUS.ACTIVE) blockers.push({ type: 'target_not_active', status: target.status });
 
-  const [activeEncounters, activeAdmissions, openInvoices, sourceAccount, targetAccount, sourceIdentifiers, targetIdentifiers] = await Promise.all([
+  const [activeEncounters, activeAdmissions, targetActiveAdmissions, openInvoices, sourceAccount, targetAccount, sourceIdentifiers, targetIdentifiers] = await Promise.all([
     Encounter.countDocuments({ patient_id: source._id, status: { $in: ACTIVE_ENCOUNTER_STATUSES } }),
     Admission.countDocuments({ patient_id: source._id, status: { $in: ACTIVE_ADMISSION_STATUSES } }),
+    Admission.countDocuments({ patient_id: target._id, status: { $in: ACTIVE_ADMISSION_STATUSES } }),
     Invoice.countDocuments({ patient_id: source._id, status: { $in: OPEN_INVOICE_STATUSES }, balance_due: { $gt: 0 } }),
     PatientAccount.findOne({ patient_id: source._id, is_deleted: false }).lean(),
     PatientAccount.findOne({ patient_id: target._id, is_deleted: false }).lean(),
@@ -2781,6 +3037,7 @@ async function checkPatientCanBeMerged(sourcePatientId, targetPatientId, actor =
 
   if (activeEncounters) blockers.push({ type: 'source_active_encounters', count: activeEncounters });
   if (activeAdmissions) blockers.push({ type: 'source_active_admissions', count: activeAdmissions });
+  if (targetActiveAdmissions) blockers.push({ type: 'target_active_admissions', count: targetActiveAdmissions });
   if (openInvoices) blockers.push({ type: 'source_unpaid_invoices', count: openInvoices });
   if (sourceAccount && targetAccount) blockers.push({ type: 'both_patients_have_portal_accounts' });
 
@@ -3156,6 +3413,8 @@ module.exports = {
   detectDuplicatePatients,
   // validatePatientBeforeCreate: Kiểm tra tính hợp lệ của bệnh nhân trước khi tạo mới.
   validatePatientBeforeCreate,
+  // lockVerifiedIdentityFields: Chặn sửa trực tiếp định danh đã xác minh.
+  lockVerifiedIdentityFields,
   // createPatient: Tạo bệnh nhân.
   createPatient,
   // listPatients: Liệt kê bệnh nhân.
@@ -3206,14 +3465,22 @@ module.exports = {
   deletePatientRelativeSoft,
   // createPatientAuthorization: Tạo ủy quyền bệnh nhân.
   createPatientAuthorization,
+  // grantRelativeAccess: Alias nghiệp vụ cho tạo/cấp ủy quyền người nhà.
+  grantRelativeAccess: createPatientAuthorization,
   // listPatientAuthorizations: Liệt kê ủy quyền bệnh nhân.
   listPatientAuthorizations,
   // approvePatientAuthorization: Phê duyệt ủy quyền bệnh nhân.
   approvePatientAuthorization,
   // revokePatientAuthorization: Thu hồi ủy quyền bệnh nhân.
   revokePatientAuthorization,
+  // revokeRelativeAccess: Alias nghiệp vụ cho thu hồi ủy quyền người nhà.
+  revokeRelativeAccess: revokePatientAuthorization,
+  // expireAuthorizations: Hết hạn các ủy quyền đã quá hạn và revoke session người nhà.
+  expireAuthorizations,
   // checkRelativeAuthorization: Kiểm tra ủy quyền của người thân.
   checkRelativeAuthorization,
+  // assertRelativeHasScope: Bắt buộc người thân có scope ủy quyền cụ thể.
+  assertRelativeHasScope,
   // listPatientProblems: Liệt kê vấn đề sức khỏe của bệnh nhân.
   listPatientProblems,
   // addPatientProblem: Thêm vấn đề sức khỏe của bệnh nhân.

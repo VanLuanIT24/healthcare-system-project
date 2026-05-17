@@ -16,6 +16,8 @@ const labResultItemSchema = new Schema(
     abnormal_flag: { type: String, enum: ABNORMAL_FLAGS, default: ABNORMAL_FLAG.UNKNOWN },
     is_critical: { type: Boolean, default: false },
     critical_notified_at: { type: Date },
+    critical_acknowledged_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    critical_acknowledged_at: { type: Date },
     comment: { type: String },
     display_order: { type: Number, default: 0 },
     status: { type: String, enum: RESULT_ITEM_STATUSES, default: RESULT_ITEM_STATUS.PRELIMINARY, required: true },
@@ -28,6 +30,7 @@ labResultItemSchema.index({ lab_result_id: 1 });
 labResultItemSchema.index({ item_code: 1 });
 labResultItemSchema.index({ abnormal_flag: 1 });
 labResultItemSchema.index({ is_critical: 1 });
+labResultItemSchema.index({ critical_acknowledged_by: 1 });
 labResultItemSchema.index({ status: 1 });
 labResultItemSchema.index({ lab_result_id: 1, display_order: 1 });
 

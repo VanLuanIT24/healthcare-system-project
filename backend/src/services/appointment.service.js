@@ -25,6 +25,7 @@ const { APPOINTMENT_TRANSITIONS } = require('../constants/transitions');
 const { assertTransition } = require('../shared/utils/status-transition');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
 const { PERMISSION } = require('../constants/permissions');
+const ERROR_CODE = require('../common/errors/error-codes');
 const permissionService = require('./permission.service');
 const {
   buildPagination,
@@ -68,7 +69,7 @@ function isDoctorActor(actor = {}) {
 }
 
 function hasGlobalAppointmentScope(actor = {}) {
-  return hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.APPOINTMENTS.READ, PERMISSION.REPORTS.APPOINTMENTS_READ]);
+  return hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.REPORTS.APPOINTMENTS_READ]);
 }
 
 function canUseSensitivePatientSearchFilters(actor = {}) {
@@ -141,10 +142,10 @@ function applyAppointmentReadScope(filter, actor = {}) {
     filter.patient_id = actor.patientId;
     return filter;
   }
-  if (hasAnyPermission(actor, [PERMISSION.APPOINTMENTS.READ, PERMISSION.REPORTS.APPOINTMENTS_READ])) {
+  if (hasGlobalAppointmentScope(actor)) {
     return filter;
   }
-  if (hasPermission(actor, PERMISSION.APPOINTMENTS.READ_DEPARTMENT)) {
+  if (hasAnyPermission(actor, [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.READ_DEPARTMENT])) {
     const departmentId = actorDepartmentId(actor);
     if (!departmentId || (filter.department_id && String(filter.department_id) !== String(departmentId))) {
       filter._id = null;
@@ -159,7 +160,9 @@ function applyAppointmentReadScope(filter, actor = {}) {
       return filter;
     }
     filter.doctor_id = actor.userId;
+    return filter;
   }
+  filter._id = null;
   return filter;
 }
 
@@ -318,13 +321,13 @@ async function validateAppointmentSlot({
       throw createError('appointment_time phải khớp với start_time của schedule slot.', 409);
     }
     if (slot.status === 'blocked' || slot.status === 'cancelled') {
-      throw createError('Slot này đang bị khóa hoặc đã hủy.', 409);
+      throw createError('Slot này đang bị khóa hoặc đã hủy.', 409, null, ERROR_CODE.APPOINTMENT_SLOT_FULL);
     }
     const bookedByCurrentAppointment = excludeAppointmentId
       && slot.appointment_id
       && String(slot.appointment_id) === String(excludeAppointmentId);
     if (slot.booked_count >= slot.capacity && !bookedByCurrentAppointment) {
-      throw createError('Slot này đã hết sức chứa.', 409);
+      throw createError('Slot này đã hết sức chứa.', 409, null, ERROR_CODE.APPOINTMENT_SLOT_FULL);
     }
   }
 
@@ -335,13 +338,13 @@ async function validateAppointmentSlot({
   }
 
   if (matchedSlot.is_blocked) {
-    throw createError('Slot này đang bị khóa, không thể đặt lịch.', 409);
+    throw createError('Slot này đang bị khóa, không thể đặt lịch.', 409, null, ERROR_CODE.APPOINTMENT_SLOT_FULL);
   }
   const bookedByCurrentAppointment = excludeAppointmentId
     && matchedSlot.appointment_id
     && String(matchedSlot.appointment_id) === String(excludeAppointmentId);
   if ((matchedSlot.is_booked && !bookedByCurrentAppointment) || (matchedSlot.is_available === false && !bookedByCurrentAppointment)) {
-    throw createError('Slot này không còn khả dụng để đặt lịch.', 409);
+    throw createError('Slot này không còn khả dụng để đặt lịch.', 409, null, ERROR_CODE.APPOINTMENT_SLOT_FULL);
   }
 
   const duplicateFilter = {
@@ -356,7 +359,7 @@ async function validateAppointmentSlot({
 
   const duplicate = await Appointment.findOne(duplicateFilter).lean();
   if (duplicate) {
-    throw createError('Slot này đã được đặt.', 409);
+    throw createError('Slot này đã được đặt.', 409, null, ERROR_CODE.APPOINTMENT_SLOT_FULL);
   }
 
   return schedule;

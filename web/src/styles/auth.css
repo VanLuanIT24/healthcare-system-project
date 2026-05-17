@@ -3876,7 +3876,7 @@
 }
 
 .staff-workspace-card {
-  width: min(100%, 980px);
+  width: min(100%, 1180px);
 }
 
 .staff-unauthorized-card {
@@ -4242,17 +4242,24 @@
 
 .staff-workspace-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .staff-workspace-option {
+  --workspace-accent: #2563eb;
+  --workspace-accent-strong: #1d4ed8;
+  --workspace-accent-soft: #eff6ff;
+  --workspace-accent-chip: #eef4ff;
+  --workspace-accent-border: rgba(37, 99, 235, 0.36);
+  --workspace-accent-border-strong: rgba(37, 99, 235, 0.74);
+  --workspace-accent-ring: rgba(37, 99, 235, 0.11);
   position: relative;
   display: grid;
   align-content: start;
   gap: 14px;
-  min-height: 262px;
-  padding: 22px 20px 18px;
+  min-height: 238px;
+  padding: 20px 18px 18px;
   border: 1px solid #d8e4f0;
   border-radius: 12px;
   background: #ffffff;
@@ -4263,21 +4270,21 @@
 
 .staff-workspace-option:hover {
   transform: translateY(-1px);
-  border-color: rgba(13, 103, 229, 0.36);
+  border-color: var(--workspace-accent-border);
   box-shadow: 0 14px 30px rgba(17, 48, 92, 0.08);
 }
 
 .staff-workspace-option.is-selected {
-  border-color: rgba(13, 103, 229, 0.74);
-  box-shadow: 0 0 0 3px rgba(13, 103, 229, 0.11);
+  border-color: var(--workspace-accent-border-strong);
+  box-shadow: 0 0 0 3px var(--workspace-accent-ring);
 }
 
 .staff-workspace-option__badge {
   justify-self: end;
   padding: 6px 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #215db8;
+  background: var(--workspace-accent-chip);
+  color: var(--workspace-accent-strong);
   font-size: 0.86rem;
   font-weight: 700;
 }
@@ -4288,8 +4295,8 @@
   width: 78px;
   height: 78px;
   border-radius: 50%;
-  background: #eef5ff;
-  color: var(--staff-blue);
+  background: var(--workspace-accent-soft);
+  color: var(--workspace-accent);
 }
 
 .staff-workspace-option__content {
@@ -4299,7 +4306,7 @@
 
 .staff-workspace-option__content strong {
   color: #18396f;
-  font-size: 1.6rem;
+  font-size: 1.42rem;
   line-height: 1.12;
 }
 
@@ -4321,8 +4328,8 @@
 .staff-workspace-option__workspace {
   padding: 7px 10px;
   border-radius: 999px;
-  background: #f3f7ff;
-  color: #2457aa;
+  background: var(--workspace-accent-chip);
+  color: var(--workspace-accent-strong);
   font-size: 0.92rem;
   font-weight: 700;
 }
@@ -4331,78 +4338,101 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #2355a7;
+  color: var(--workspace-accent-strong);
   font-size: 0.95rem;
   font-weight: 800;
 }
 
-.staff-workspace-option--orange .staff-workspace-option__icon {
-  background: #fff3ea;
-  color: #ef7b1a;
+.staff-workspace-option--coral {
+  --workspace-accent: #ef6f5e;
+  --workspace-accent-strong: #c2412d;
+  --workspace-accent-soft: #fff1ee;
+  --workspace-accent-chip: #fff6f3;
+  --workspace-accent-border: rgba(239, 111, 94, 0.38);
+  --workspace-accent-border-strong: rgba(194, 65, 45, 0.74);
+  --workspace-accent-ring: rgba(239, 111, 94, 0.13);
 }
 
-.staff-workspace-option--orange .staff-workspace-option__badge,
-.staff-workspace-option--orange .staff-workspace-option__workspace {
-  background: #fff6ee;
-  color: #d66b11;
+.staff-workspace-option--blue {
+  --workspace-accent: #2563eb;
+  --workspace-accent-strong: #1d4ed8;
+  --workspace-accent-soft: #eff6ff;
+  --workspace-accent-chip: #eef4ff;
+  --workspace-accent-border: rgba(37, 99, 235, 0.36);
+  --workspace-accent-border-strong: rgba(37, 99, 235, 0.74);
+  --workspace-accent-ring: rgba(37, 99, 235, 0.11);
 }
 
-.staff-workspace-option--teal .staff-workspace-option__icon {
-  background: #eefcf9;
-  color: #0ea88c;
+.staff-workspace-option--purple,
+.staff-workspace-option--violet {
+  --workspace-accent: #8b5cf6;
+  --workspace-accent-strong: #6d28d9;
+  --workspace-accent-soft: #f5f3ff;
+  --workspace-accent-chip: #f6f2ff;
+  --workspace-accent-border: rgba(139, 92, 246, 0.36);
+  --workspace-accent-border-strong: rgba(109, 40, 217, 0.72);
+  --workspace-accent-ring: rgba(139, 92, 246, 0.13);
 }
 
-.staff-workspace-option--teal .staff-workspace-option__badge,
-.staff-workspace-option--teal .staff-workspace-option__workspace {
-  background: #effcf9;
-  color: #0b9d83;
+.staff-workspace-option--cyan-blue {
+  --workspace-accent: #0ea5e9;
+  --workspace-accent-strong: #0369a1;
+  --workspace-accent-soft: #eefaff;
+  --workspace-accent-chip: #eef8ff;
+  --workspace-accent-border: rgba(14, 165, 233, 0.38);
+  --workspace-accent-border-strong: rgba(3, 105, 161, 0.72);
+  --workspace-accent-ring: rgba(14, 165, 233, 0.13);
 }
 
-.staff-workspace-option--green .staff-workspace-option__icon {
-  background: #eefbf2;
-  color: #149d5c;
+.staff-workspace-option--teal {
+  --workspace-accent: #0d9488;
+  --workspace-accent-strong: #0f766e;
+  --workspace-accent-soft: #ecfdf9;
+  --workspace-accent-chip: #effcf9;
+  --workspace-accent-border: rgba(13, 148, 136, 0.35);
+  --workspace-accent-border-strong: rgba(15, 118, 110, 0.72);
+  --workspace-accent-ring: rgba(13, 148, 136, 0.12);
 }
 
-.staff-workspace-option--green .staff-workspace-option__badge,
-.staff-workspace-option--green .staff-workspace-option__workspace {
-  background: #effcf4;
-  color: #138b52;
+.staff-workspace-option--green {
+  --workspace-accent: #16a34a;
+  --workspace-accent-strong: #15803d;
+  --workspace-accent-soft: #eefbf2;
+  --workspace-accent-chip: #effcf4;
+  --workspace-accent-border: rgba(22, 163, 74, 0.34);
+  --workspace-accent-border-strong: rgba(21, 128, 61, 0.72);
+  --workspace-accent-ring: rgba(22, 163, 74, 0.12);
 }
 
-.staff-workspace-option--purple .staff-workspace-option__icon,
-.staff-workspace-option--violet .staff-workspace-option__icon {
-  background: #f5f1ff;
-  color: #6b46d9;
+.staff-workspace-option--indigo {
+  --workspace-accent: #6366f1;
+  --workspace-accent-strong: #4f46e5;
+  --workspace-accent-soft: #eef2ff;
+  --workspace-accent-chip: #f2f4ff;
+  --workspace-accent-border: rgba(99, 102, 241, 0.36);
+  --workspace-accent-border-strong: rgba(79, 70, 229, 0.72);
+  --workspace-accent-ring: rgba(99, 102, 241, 0.13);
 }
 
-.staff-workspace-option--purple .staff-workspace-option__badge,
-.staff-workspace-option--purple .staff-workspace-option__workspace,
-.staff-workspace-option--violet .staff-workspace-option__badge,
-.staff-workspace-option--violet .staff-workspace-option__workspace {
-  background: #f6f2ff;
-  color: #6845d3;
+.staff-workspace-option--orange,
+.staff-workspace-option--amber {
+  --workspace-accent: #f97316;
+  --workspace-accent-strong: #c2410c;
+  --workspace-accent-soft: #fff3ea;
+  --workspace-accent-chip: #fff7ed;
+  --workspace-accent-border: rgba(249, 115, 22, 0.36);
+  --workspace-accent-border-strong: rgba(194, 65, 12, 0.72);
+  --workspace-accent-ring: rgba(249, 115, 22, 0.13);
 }
 
-.staff-workspace-option--amber .staff-workspace-option__icon {
-  background: #fff6ea;
-  color: #d97706;
-}
-
-.staff-workspace-option--amber .staff-workspace-option__badge,
-.staff-workspace-option--amber .staff-workspace-option__workspace {
-  background: #fff7ed;
-  color: #d97706;
-}
-
-.staff-workspace-option--cyan .staff-workspace-option__icon {
-  background: #effcff;
-  color: #0284c7;
-}
-
-.staff-workspace-option--cyan .staff-workspace-option__badge,
-.staff-workspace-option--cyan .staff-workspace-option__workspace {
-  background: #effbff;
-  color: #0476b5;
+.staff-workspace-option--cyan {
+  --workspace-accent: #06b6d4;
+  --workspace-accent-strong: #0e7490;
+  --workspace-accent-soft: #effcff;
+  --workspace-accent-chip: #ecfeff;
+  --workspace-accent-border: rgba(6, 182, 212, 0.36);
+  --workspace-accent-border-strong: rgba(14, 116, 144, 0.72);
+  --workspace-accent-ring: rgba(6, 182, 212, 0.13);
 }
 
 .staff-workspace-remember {
@@ -4453,6 +4483,12 @@
   text-decoration: none;
 }
 
+@media (max-width: 1120px) {
+  .staff-workspace-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 980px) {
   .staff-login-page,
   .staff-workspace-page,
@@ -4464,10 +4500,6 @@
   .staff-workspace-card,
   .staff-unauthorized-card {
     padding: 26px 22px 24px;
-  }
-
-  .staff-workspace-grid {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -4497,6 +4529,10 @@
   }
 
   .staff-login-security {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-workspace-grid {
     grid-template-columns: 1fr;
   }
 

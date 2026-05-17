@@ -2,6 +2,8 @@ const { model } = require('mongoose');
 const { Schema, baseSchemaOptions, auditFields, optionalString, softDeleteFields } = require('../common/base-model');
 const { USER_STATUS, USER_STATUSES } = require('../../constants/statuses');
 
+const AUTH_PROVIDER = ['local', 'google', 'mixed'];
+
 // Bảng users: Lưu tài khoản đăng nhập, thông tin nhân viên và trạng thái bảo mật nội bộ.
 
 const userSchema = new Schema(
@@ -17,6 +19,7 @@ const userSchema = new Schema(
     last_login_at: { type: Date },
     last_login_ip: { type: String },
     must_change_password: { type: Boolean, default: false, required: true },
+    permission_version: { type: Number, default: 1, min: 1, required: true },
     password_changed_at: { type: Date },
     password_expired_at: { type: Date },
     password_history: [{
@@ -27,6 +30,10 @@ const userSchema = new Schema(
     }],
     failed_login_attempts: { type: Number, default: 0, required: true },
     locked_until: { type: Date },
+    auth_provider: { type: String, enum: AUTH_PROVIDER, default: 'local', required: true },
+    google_id: { type: String, trim: true, set: optionalString },
+    avatar_url: { type: String, trim: true, set: optionalString },
+    email_verified: { type: Boolean, default: false, required: true },
     email_verified_at: { type: Date },
     phone_verified_at: { type: Date },
     ...auditFields(),
@@ -50,8 +57,14 @@ userSchema.index(
 );
 userSchema.index({ department_id: 1 });
 userSchema.index({ status: 1 });
+userSchema.index({ permission_version: 1 });
 userSchema.index({ full_name: 1 });
 userSchema.index({ last_login_at: 1 });
 userSchema.index({ password_expired_at: 1 });
+userSchema.index(
+  { google_id: 1 },
+  { unique: true, partialFilterExpression: { is_deleted: false, google_id: { $type: 'string' } } },
+);
+userSchema.index({ auth_provider: 1 });
 
 module.exports = model('User', userSchema);

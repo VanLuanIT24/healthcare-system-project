@@ -26,6 +26,7 @@ module.exports = {
   }, req.file || null, req.auth, requestMeta(req)), 'Upload medical record attachment thành công.', 201),
   getAttachmentDetail: wrap((req) => recordsService.getAttachmentDetail(req.params.attachmentId, req.auth), 'Lấy chi tiết attachment thành công.'),
   downloadAttachment: wrap((req) => recordsService.downloadAttachment(req.params.attachmentId, req.auth, requestMeta(req)), 'Download attachment metadata thành công.'),
+  signedDownloadAttachment: wrap((req) => recordsService.signedDownloadAttachment(req.params.attachmentId, req.query.token, requestMeta(req)), 'Signed download attachment thành công.'),
   getAttachmentsByEntity: wrap((req) => recordsService.getAttachmentsByEntity(req.params.entityType, req.params.entityId, req.query, req.auth), 'Lấy attachments theo entity thành công.'),
   listPatientAttachments: wrap((req) => recordsService.listPatientAttachments(req.params.patientId, req.query, req.auth), 'Lấy attachments của patient thành công.'),
   listMedicalRecordAttachments: wrap((req) => recordsService.getAttachmentsByEntity(ATTACHMENT_ENTITY_TYPE.MEDICAL_RECORD, req.params.recordId, req.query, req.auth), 'Lấy medical record attachments thành công.'),

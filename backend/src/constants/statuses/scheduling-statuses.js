@@ -57,6 +57,7 @@ const QUEUE_STATUS = {
   SKIPPED: 'skipped',
   RECALLED: 'recalled',
   COMPLETED: 'completed',
+  NO_SHOW: 'no_show',
   CANCELLED: 'cancelled',
 };
 

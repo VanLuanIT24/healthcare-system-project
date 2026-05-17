@@ -1,8 +1,9 @@
 const ApiError = require('../../common/errors/api-error');
 const { PERMISSION, ROLE_CODE } = require('../../constants/permissions');
-const { Permission, RolePermission, UserRole } = require('../../models');
+const { Permission, Role, RolePermission, UserRole } = require('../../models');
 const { withOptionalTransaction } = require('../../shared/utils/transaction');
 const permissionHelper = require('../permission.service');
+const { bumpUsersPermissionVersion } = require('../access-control.service');
 const sessionService = require('../auth/auth-session.service');
 const { recordIamAudit } = require('./iam-audit.helper');
 const {
@@ -86,6 +87,7 @@ function assertCoreRolePermissionInvariant(role, nextPermissionCodes = []) {
 
 async function invalidateUsersByRole(roleId, requestMeta = {}, actor = {}) {
   const assignments = await UserRole.find({ role_id: roleId, is_active: true }).lean();
+  await bumpUsersPermissionVersion(assignments.map((assignment) => assignment.user_id));
   const results = [];
   for (const assignment of assignments) {
     results.push(await sessionService.invalidateAllUserSessions('staff', assignment.user_id, requestMeta, {
@@ -120,6 +122,11 @@ async function assignPermissionsToRole(roleIdOrCode, payload = {}, actor = {}, r
         { upsert: true, session },
       );
     }
+    await Role.updateOne(
+      { _id: role._id },
+      { $inc: { role_version: 1 }, $set: { updated_by: getActorId(actor) } },
+      { session },
+    );
   }, { fallbackToNoTransaction: true });
 
   const after = await getRolePermissions(role._id, { grouped: false });
@@ -183,6 +190,11 @@ async function syncRolePermissions(roleIdOrCode, payload = {}, actor = {}, reque
         { upsert: true, session },
       );
     }
+    await Role.updateOne(
+      { _id: role._id },
+      { $inc: { role_version: 1 }, $set: { updated_by: getActorId(actor) } },
+      { session },
+    );
   }, { fallbackToNoTransaction: true });
 
   const after = await getRolePermissions(role._id, { grouped: false });
@@ -221,13 +233,21 @@ async function removePermissionsFromRole(roleIdOrCode, payload = {}, actor = {},
   const nextPermissionCodes = before.permission_codes.filter((permissionCode) => !removedPermissionCodes.includes(permissionCode));
   assertCoreRolePermissionInvariant(role, nextPermissionCodes);
 
-  await RolePermission.updateMany(
-    {
-      role_id: role._id,
-      permission_id: { $in: permissions.map((permission) => permission._id) },
-    },
-    { $set: { is_active: false, updated_by: getActorId(actor) } },
-  );
+  await withOptionalTransaction(async (session) => {
+    await RolePermission.updateMany(
+      {
+        role_id: role._id,
+        permission_id: { $in: permissions.map((permission) => permission._id) },
+      },
+      { $set: { is_active: false, updated_by: getActorId(actor) } },
+      { session },
+    );
+    await Role.updateOne(
+      { _id: role._id },
+      { $inc: { role_version: 1 }, $set: { updated_by: getActorId(actor) } },
+      { session },
+    );
+  }, { fallbackToNoTransaction: true });
   const after = await getRolePermissions(role._id, { grouped: false });
   const revokedCount = await invalidateUsersByRole(role._id, requestMeta, actor);
 

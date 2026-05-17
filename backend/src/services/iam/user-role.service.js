@@ -1,6 +1,7 @@
 const ApiError = require('../../common/errors/api-error');
 const { mongoose } = require('../../config/database');
 const { PERMISSION, ROLE_CODE, ROLE_PRIORITY } = require('../../constants/permissions');
+const { REALTIME_EVENT_TYPE } = require('../../constants/statuses');
 const { Role, User, UserRole } = require('../../models');
 const { withOptionalTransaction } = require('../../shared/utils/transaction');
 const sessionService = require('../auth/auth-session.service');
@@ -13,8 +14,33 @@ const {
   isSuperAdmin,
 } = require('./iam.policy');
 const permissionService = require('../permission.service');
+const { bumpUserPermissionVersion } = require('../access-control.service');
 const accessContextService = require('./access-context.service');
 const roleService = require('./role.service');
+const eventBus = require('../../events/event-bus.service');
+
+async function publishUserRoleChanged(user, roleCodes = [], actor = {}, requestMeta = {}) {
+  return eventBus.publishDomainEvent({
+    eventType: REALTIME_EVENT_TYPE.USER_ROLE_CHANGED,
+    aggregateType: 'user',
+    aggregateId: user._id,
+    recipientScope: {
+      user_id: user._id,
+      actors: [{ actor_type: 'staff', actor_id: user._id }],
+    },
+    payload: {
+      user_id: String(user._id),
+      role_codes: roleCodes,
+      changed_by: getActorId(actor),
+      notification: {
+        title: 'Quyền truy cập đã thay đổi',
+        body: 'Vai trò của tài khoản đã được cập nhật. Vui lòng đăng nhập lại.',
+        priority: 'high',
+      },
+    },
+    idempotencyKey: `user.role_changed:${user._id}:${Date.now()}`,
+  });
+}
 
 async function validateRoleAssignable(roleCodesOrIds = [], actor = {}) {
   if (!Array.isArray(roleCodesOrIds) || roleCodesOrIds.length === 0) {
@@ -166,12 +192,16 @@ async function syncStaffRoles(userId, payload = {}, actor = {}, requestMeta = {}
     }
   }, { fallbackToNoTransaction: true });
 
+  await bumpUserPermissionVersion(user._id);
+
   const after = await accessContextService.getStaffRoles(user._id);
   const revoked = await sessionService.invalidateAllUserSessions('staff', user._id, requestMeta, {
     actorType: actor.actorType,
     actorId: getActorId(actor),
+    reason: 'role_changed',
     audit: false,
   });
+  await publishUserRoleChanged(user, nextRoleCodes, actor, requestMeta);
 
   await recordIamAudit({
     actor,
@@ -208,12 +238,16 @@ async function removeRolesFromStaff(userId, payload = {}, actor = {}, requestMet
     { $set: { is_active: false, updated_by: getActorId(actor) } },
   );
 
+  await bumpUserPermissionVersion(user._id);
+
   const after = await accessContextService.getStaffRoles(user._id);
   const revoked = await sessionService.invalidateAllUserSessions('staff', user._id, requestMeta, {
     actorType: actor.actorType,
     actorId: getActorId(actor),
+    reason: 'role_changed',
     audit: false,
   });
+  await publishUserRoleChanged(user, after.roles.map((role) => role.role_code), actor, requestMeta);
 
   await recordIamAudit({
     actor,

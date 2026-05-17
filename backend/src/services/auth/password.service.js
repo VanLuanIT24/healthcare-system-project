@@ -1,5 +1,5 @@
 const ApiError = require('../../common/errors/api-error');
-const { AUDIT_STATUS } = require('../../constants/statuses');
+const { AUDIT_STATUS, normalizeActorType } = require('../../constants/statuses');
 const { PatientAccount, User } = require('../../models');
 const auditService = require('../audit.service');
 const { comparePassword, hashPassword } = require('../../common/auth/password-hash');
@@ -32,7 +32,7 @@ function addPasswordError(errors, message) {
 
 function validatePasswordPolicy(input = {}, actorTypeArg = null) {
   const password = String(input.password || '');
-  const actorType = input.actorType || input.actor_type || actorTypeArg || ACTOR_TYPE.STAFF;
+  const actorType = normalizeActorType(input.actorType || input.actor_type || actorTypeArg || ACTOR_TYPE.STAFF);
   const identifiers = [input.username, input.email, input.phone]
     .filter(Boolean)
     .map((value) => String(value).trim().toLowerCase());
@@ -160,7 +160,10 @@ async function changePassword(auth = {}, payload = {}, requestMeta = {}) {
     throw ApiError.validation('Mật khẩu mới không được trùng với mật khẩu hiện tại.');
   }
 
-  const actorType = auth.actorType || auth.actor_type;
+  const actorType = normalizeActorType(auth.actorType || auth.actor_type);
+  if (![ACTOR_TYPE.STAFF, ACTOR_TYPE.PATIENT].includes(actorType)) {
+    throw ApiError.forbidden('Loại tài khoản này chưa hỗ trợ đổi mật khẩu.');
+  }
   const actorId = getActorId(auth);
   const account = actorType === ACTOR_TYPE.STAFF
     ? await User.findById(actorId)

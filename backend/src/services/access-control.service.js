@@ -1,10 +1,14 @@
 const { Permission, Role, RolePermission, User, UserRole } = require('../models');
+const { normalizeActorType } = require('../constants/statuses');
 const {
   PERMISSION,
   ROLE_CODE,
 } = require('../constants/permissions');
 const permissionService = require('./permission.service');
-const { PATIENT_PORTAL_PERMISSIONS } = require('./auth/auth.policy');
+const { PATIENT_PORTAL_PERMISSIONS, RELATIVE_PORTAL_PERMISSIONS } = require('./auth/auth.policy');
+
+const AUTHORIZATION_CACHE_TTL_MS = 30 * 1000;
+const authorizationCache = new Map();
 
 async function findActiveRolesByUserId(userId) {
   const userRoles = await UserRole.find({ user_id: userId, is_active: true }).lean();
@@ -61,6 +65,79 @@ async function buildUserRoleDetails(userId) {
   }));
 }
 
+function cloneAuthorizationSnapshot(snapshot = {}) {
+  return {
+    roles: [...(snapshot.roles || [])],
+    roleDetails: (snapshot.roleDetails || []).map((role) => ({ ...role })),
+    permissions: [...(snapshot.permissions || [])],
+    permissionVersion: Number(snapshot.permissionVersion || 1),
+  };
+}
+
+function cacheKeyForUser(userId, permissionVersion = 1) {
+  return `${String(userId)}:${Number(permissionVersion || 1)}`;
+}
+
+function getCachedAuthorization(userId, permissionVersion) {
+  const cached = authorizationCache.get(cacheKeyForUser(userId, permissionVersion));
+  if (!cached || cached.expiresAt <= Date.now()) return null;
+  return cloneAuthorizationSnapshot(cached.value);
+}
+
+function setCachedAuthorization(userId, permissionVersion, value) {
+  authorizationCache.set(cacheKeyForUser(userId, permissionVersion), {
+    expiresAt: Date.now() + AUTHORIZATION_CACHE_TTL_MS,
+    value: cloneAuthorizationSnapshot(value),
+  });
+}
+
+function clearUserAuthorizationCache(userId) {
+  const prefix = `${String(userId)}:`;
+  for (const key of authorizationCache.keys()) {
+    if (key.startsWith(prefix)) authorizationCache.delete(key);
+  }
+}
+
+async function buildUserAuthorizationSnapshot(userId, permissionVersion = 1) {
+  const cached = getCachedAuthorization(userId, permissionVersion);
+  if (cached) return cached;
+
+  const [roleDetails, permissionSet] = await Promise.all([
+    buildUserRoleDetails(userId),
+    buildUserPermissionMap(userId),
+  ]);
+  const snapshot = {
+    roles: roleDetails.map((role) => role.role_code),
+    roleDetails,
+    permissions: [...permissionSet],
+    permissionVersion: Number(permissionVersion || 1),
+  };
+  setCachedAuthorization(userId, permissionVersion, snapshot);
+  return cloneAuthorizationSnapshot(snapshot);
+}
+
+async function bumpUserPermissionVersion(userId) {
+  if (!userId) return null;
+  clearUserAuthorizationCache(userId);
+  const updated = await User.findByIdAndUpdate(
+    userId,
+    { $inc: { permission_version: 1 } },
+    { new: true, select: '_id permission_version' },
+  ).lean();
+  return updated ? Number(updated.permission_version || 1) : null;
+}
+
+async function bumpUsersPermissionVersion(userIds = []) {
+  const uniqueUserIds = [...new Set(userIds.map(String).filter(Boolean))];
+  if (!uniqueUserIds.length) return 0;
+  uniqueUserIds.forEach(clearUserAuthorizationCache);
+  const result = await User.updateMany(
+    { _id: { $in: uniqueUserIds } },
+    { $inc: { permission_version: 1 } },
+  );
+  return result.modifiedCount || 0;
+}
+
 function getEquivalentPermissionCodes(permissionCode) {
   return permissionService.getEquivalentPermissionCodes(permissionCode);
 }
@@ -86,7 +163,8 @@ function requireActorType(userContext, actorTypes = []) {
     return true;
   }
 
-  return actorTypes.includes(userContext.actorType);
+  const actorType = normalizeActorType(userContext.actorType || userContext.actor_type);
+  return actorTypes.map(normalizeActorType).includes(actorType);
 }
 
 async function getCurrentUserContext(auth) {
@@ -102,13 +180,25 @@ async function getCurrentUserContext(auth) {
     };
   }
 
+  if (auth.actorType === 'patient_relative') {
+    return {
+      userId: auth.relativeId,
+      username: auth.relative?.email || auth.relative?.phone || auth.relativeId,
+      actorType: 'patient_relative',
+      status: auth.relative?.status,
+      departmentId: null,
+      patientId: auth.patientId,
+      roles: [ROLE_CODE.PATIENT_RELATIVE],
+      permissions: RELATIVE_PORTAL_PERMISSIONS,
+    };
+  }
+
   const user = await User.findById(auth.userId).lean();
   if (!user || user.is_deleted) {
     return null;
   }
 
-  const roles = await buildUserRoleDetails(user._id);
-  const permissions = [...(await buildUserPermissionMap(user._id))];
+  const authorization = await buildUserAuthorizationSnapshot(user._id, user.permission_version);
 
   return {
     userId: String(user._id),
@@ -116,8 +206,9 @@ async function getCurrentUserContext(auth) {
     actorType: 'staff',
     status: user.status,
     departmentId: user.department_id ? String(user.department_id) : null,
-    roles: roles.map((role) => role.role_code),
-    permissions,
+    roles: authorization.roles,
+    permissions: authorization.permissions,
+    permissionVersion: authorization.permissionVersion,
   };
 }
 
@@ -133,6 +224,14 @@ module.exports = {
   buildUserPermissionMap,
   // buildUserRoleDetails: Tổng hợp chi tiết vai trò đang gán cho người dùng.
   buildUserRoleDetails,
+  // buildUserAuthorizationSnapshot: Lấy snapshot role/quyền có cache ngắn theo permission_version.
+  buildUserAuthorizationSnapshot,
+  // clearUserAuthorizationCache: Xóa cache quyền của một user.
+  clearUserAuthorizationCache,
+  // bumpUserPermissionVersion: Tăng version quyền của một user để vô hiệu hóa cache/token cũ.
+  bumpUserPermissionVersion,
+  // bumpUsersPermissionVersion: Tăng version quyền của nhiều user.
+  bumpUsersPermissionVersion,
   // hasPermission: Kiểm tra người dùng/actor có một quyền cụ thể hay không.
   hasPermission,
   // hasAnyPermission: Kiểm tra người dùng/actor có ít nhất một quyền trong danh sách yêu cầu hay không.

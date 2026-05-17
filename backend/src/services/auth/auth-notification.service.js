@@ -1,13 +1,14 @@
 const notificationService = require('../notification.service');
 const emailService = require('../email.service');
 const { ACTOR_TYPE } = require('./auth.policy');
+const actorContext = require('../../common/actors');
 
 const BRAND_NAME = 'MedCare Portal';
 const BRAND_TAGLINE = 'Cong thong tin va van hanh cham soc suc khoe';
 
 function internalActor() {
   return {
-    internal: true,
+    ...actorContext.buildSystemActor({ serviceName: 'auth.notifications' }),
     createdByModule: 'auth',
   };
 }

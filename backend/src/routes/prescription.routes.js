@@ -4,6 +4,7 @@ const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
 const { validateObjectIdParam } = require('../common/validators');
+const { idempotencyRequired } = require('../common/middlewares/idempotency.middleware');
 
 const router = express.Router();
 
@@ -46,7 +47,7 @@ router.get('/inventory/transactions', authorize({ anyPermissions: [PERMISSION.IN
 
 router.get('/dispenses', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), prescriptionController.listDispenses);
 router.get('/dispenses/:dispenseId', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), prescriptionController.getDispenseDetail);
-router.post('/dispenses/:dispenseId/complete', authorize({ permissions: [PERMISSION.DISPENSES.COMPLETE] }), prescriptionController.completeDispense);
+router.post('/dispenses/:dispenseId/complete', authorize({ permissions: [PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/prescriptions/dispenses/:dispenseId/complete' }), prescriptionController.completeDispense);
 router.post('/dispenses/:dispenseId/cancel', authorize({ permissions: [PERMISSION.DISPENSES.CANCEL] }), prescriptionController.cancelDispense);
 
 router.get('/', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_OWN, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ] }), prescriptionController.listPrescriptions);
@@ -55,8 +56,8 @@ router.post('/check-allergy-conflict', authorize({ anyPermissions: [PERMISSION.P
 router.post('/check-interaction-conflict', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.CREATE, PERMISSION.PRESCRIPTIONS.UPDATE_OWN] }), prescriptionController.checkDrugInteractionConflict);
 router.post('/check-duplicate-medication', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.CREATE, PERMISSION.PRESCRIPTIONS.UPDATE_OWN] }), prescriptionController.checkDuplicateMedicationInPrescription);
 router.post('/calculate-item-quantity', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.CREATE, PERMISSION.PRESCRIPTIONS.UPDATE_OWN] }), prescriptionController.calculatePrescriptionItemQuantity);
-router.post('/', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.createPrescription);
-router.post('/encounters/:encounterId/prescriptions', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), (req, res, next) => {
+router.post('/', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), idempotencyRequired({ route: '/api/prescriptions' }), prescriptionController.createPrescription);
+router.post('/encounters/:encounterId/prescriptions', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), idempotencyRequired({ route: '/api/prescriptions/encounters/:encounterId/prescriptions' }), (req, res, next) => {
   req.body.encounter_id = req.params.encounterId;
   return prescriptionController.createPrescription(req, res, next);
 });
@@ -71,7 +72,7 @@ router.post('/:prescriptionId/activate', authorize({ permissions: [PERMISSION.PR
 router.post('/:prescriptionId/verify', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.VERIFY] }), prescriptionController.verifyPrescription);
 router.post('/:prescriptionId/cancel', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.CANCEL, PERMISSION.PRESCRIPTIONS.CANCEL_OWN, PERMISSION.PRESCRIPTIONS.CANCEL_BY_POLICY] }), prescriptionController.cancelPrescription);
 router.post('/:prescriptionId/complete', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.UPDATE_OWN, PERMISSION.PRESCRIPTIONS.VERIFY] }), prescriptionController.completePrescription);
-router.post('/:prescriptionId/dispenses', authorize({ permissions: [PERMISSION.DISPENSES.CREATE] }), prescriptionController.createDispense);
+router.post('/:prescriptionId/dispenses', authorize({ permissions: [PERMISSION.DISPENSES.CREATE] }), idempotencyRequired({ route: '/api/prescriptions/:prescriptionId/dispenses' }), prescriptionController.createDispense);
 router.post('/:prescriptionId/duplicate', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.duplicatePrescription);
 router.post('/:prescriptionId/renew', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.renewPrescription);
 router.get('/:prescriptionId/items', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_OWN, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ] }), prescriptionController.listPrescriptionItems);

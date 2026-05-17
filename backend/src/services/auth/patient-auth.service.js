@@ -32,6 +32,9 @@ function sanitizePatient(patient, account) {
     gender: patientPlain.gender,
     email: accountPlain.email || patientPlain.email,
     phone: accountPlain.phone || patientPlain.phone,
+    auth_provider: accountPlain.auth_provider || 'local',
+    avatar_url: accountPlain.avatar_url,
+    email_verified: Boolean(accountPlain.email_verified || accountPlain.email_verified_at),
     status: accountPlain.status,
     roles: ['patient'],
     permissions: PATIENT_PORTAL_PERMISSIONS,
@@ -654,6 +657,11 @@ async function loginPatient(payload = {}, requestMeta = {}) {
     throw ApiError.unauthorized(AUTH_MESSAGES.INVALID_CREDENTIALS);
   }
 
+  if (!account.password_hash) {
+    await loginSecurity.recordLoginFailure(account, ACTOR_TYPE.PATIENT, 'password_login_not_available', requestMeta);
+    throw ApiError.unauthorized(AUTH_MESSAGES.INVALID_CREDENTIALS);
+  }
+
   const isValidPassword = await passwordService.comparePassword(password, account.password_hash);
   if (!isValidPassword) {
     await loginSecurity.recordLoginFailure(account, ACTOR_TYPE.PATIENT, 'invalid_password', requestMeta);
@@ -677,6 +685,8 @@ module.exports = {
   sanitizePatient,
   // findPatientAccountByIdentifier: Tìm tài khoản bệnh nhân theo email, số điện thoại hoặc tên đăng nhập.
   findPatientAccountByIdentifier,
+  // createTokenResponse: Tạo cặp access/refresh token cho tài khoản bệnh nhân.
+  createTokenResponse,
   // registerPatient: Đăng ký tài khoản bệnh nhân mới.
   registerPatient,
   // loginPatient: Đăng nhập tài khoản bệnh nhân.

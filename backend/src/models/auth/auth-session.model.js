@@ -13,10 +13,11 @@ const authSessionSchema = new Schema(
   {
     actor_type: {
       type: String,
-      enum: [ACTOR_TYPE.STAFF, ACTOR_TYPE.PATIENT, ACTOR_TYPE.RELATIVE, ACTOR_TYPE.PATIENT_RELATIVE],
+      enum: [ACTOR_TYPE.STAFF, ACTOR_TYPE.PATIENT, ACTOR_TYPE.PATIENT_RELATIVE, ACTOR_TYPE.SERVICE_ACCOUNT],
       required: true,
     },
     actor_id: { type: Schema.Types.ObjectId, required: true },
+    permission_version: { type: Number, default: 1, min: 1 },
     refresh_token_hash: { type: String, required: true, unique: true },
     refresh_token_history: [{
       token_hash: { type: String, required: true },

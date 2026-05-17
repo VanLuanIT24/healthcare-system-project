@@ -1,7 +1,14 @@
 const ApiError = require('../../common/errors/api-error');
 const { randomUUID } = require('crypto');
-const { AUDIT_STATUS, PATIENT_STATUS } = require('../../constants/statuses');
-const { AuthSession, Patient, PatientAccount, User } = require('../../models');
+const {
+  AUDIT_STATUS,
+  LEGACY_ACTOR_TYPE,
+  PATIENT_STATUS,
+  REALTIME_EVENT_TYPE,
+  RELATIVE_STATUS,
+  normalizeActorType,
+} = require('../../constants/statuses');
+const { AuthSession, Patient, PatientAccount, PatientRelative, User } = require('../../models');
 const auditService = require('../audit.service');
 const permissionService = require('../permission.service');
 const { PERMISSION } = require('../../constants/permissions');
@@ -18,6 +25,7 @@ const {
   hashRefreshToken,
 } = require('./token.service');
 const authNotificationService = require('./auth-notification.service');
+const eventBus = require('../../events/event-bus.service');
 
 function buildRefreshExpiry() {
   return new Date(Date.now() + getRefreshTokenExpiresInSeconds() * 1000);
@@ -69,11 +77,62 @@ function buildSessionMetadata(requestMeta = {}, options = {}) {
   };
 }
 
+function targetTypeForActorType(actorType) {
+  const canonical = normalizeActorType(actorType);
+  if (canonical === ACTOR_TYPE.STAFF) return 'user';
+  if (canonical === ACTOR_TYPE.PATIENT) return 'patient_account';
+  if (canonical === ACTOR_TYPE.PATIENT_RELATIVE) return 'patient_relative';
+  if (canonical === ACTOR_TYPE.SERVICE_ACCOUNT) return 'service_account';
+  return 'system';
+}
+
+function actorTypeFilter(actorType) {
+  const canonical = normalizeActorType(actorType);
+  const values = [canonical];
+  if (canonical === ACTOR_TYPE.PATIENT_RELATIVE) values.push(LEGACY_ACTOR_TYPE.RELATIVE);
+  return { $in: [...new Set(values.filter(Boolean))] };
+}
+
+function sessionRecipientScope(session = {}) {
+  const actorType = normalizeActorType(session.actor_type);
+  const actorId = session.actor_id;
+  return {
+    actors: [{ actor_type: actorType, actor_id: actorId }],
+    ...(actorType === ACTOR_TYPE.STAFF ? { user_id: actorId } : {}),
+  };
+}
+
+async function publishSessionRevokedEvent(session = {}, reason = 'session_revoked', requestMeta = {}, options = {}) {
+  if (!session?._id) return null;
+  try {
+    return await eventBus.publishDomainEvent({
+      eventType: options.forceLogout === false
+        ? REALTIME_EVENT_TYPE.AUTH_SESSION_REVOKED
+        : REALTIME_EVENT_TYPE.AUTH_FORCE_LOGOUT,
+      aggregateType: 'auth_session',
+      aggregateId: session._id,
+      recipientScope: sessionRecipientScope(session),
+      payload: {
+        session_id: String(session._id),
+        actor_type: normalizeActorType(session.actor_type),
+        actor_id: String(session.actor_id),
+        reason,
+        request_id: requestMeta.requestId || requestMeta.request_id,
+      },
+      idempotencyKey: `auth.session_revoked:${session._id}:${reason}`,
+    });
+  } catch (error) {
+    return null;
+  }
+}
+
 async function createAuthSession(actorType, actorId, refreshToken, requestMeta = {}, options = {}) {
+  const canonicalActorType = normalizeActorType(actorType);
   const session = await AuthSession.create(
     [{
-      actor_type: actorType,
+      actor_type: canonicalActorType,
       actor_id: actorId,
+      permission_version: options.permissionVersion || options.permission_version || 1,
       refresh_token_hash: hashRefreshToken(refreshToken),
       refresh_token_history: [],
       token_family_id: options.tokenFamilyId || options.token_family_id || randomUUID(),
@@ -107,12 +166,18 @@ async function detectRefreshTokenReuse(refreshToken) {
 }
 
 async function getAccountForSession(session) {
-  if (session.actor_type === ACTOR_TYPE.STAFF) {
+  const sessionActorType = normalizeActorType(session.actor_type);
+
+  if (sessionActorType === ACTOR_TYPE.STAFF) {
     return User.findById(session.actor_id);
   }
 
-  if (session.actor_type === ACTOR_TYPE.PATIENT) {
+  if (sessionActorType === ACTOR_TYPE.PATIENT) {
     return PatientAccount.findById(session.actor_id);
+  }
+
+  if (sessionActorType === ACTOR_TYPE.PATIENT_RELATIVE) {
+    return PatientRelative.findById(session.actor_id);
   }
 
   return null;
@@ -128,7 +193,27 @@ async function validateRefreshSession(session) {
     throw ApiError.unauthorized('Account is not allowed to refresh session.');
   }
 
-  if (session.actor_type === ACTOR_TYPE.PATIENT) {
+  const sessionActorType = normalizeActorType(session.actor_type);
+
+  if (sessionActorType === ACTOR_TYPE.STAFF) {
+    const permissionVersion = Number(account.permission_version || 1);
+    if (Number(session.permission_version || 1) !== permissionVersion) {
+      session.permission_version = permissionVersion;
+      await session.save();
+    }
+  }
+
+  if (sessionActorType === ACTOR_TYPE.PATIENT) {
+    const patient = await Patient.findById(account.patient_id).lean();
+    if (!patient || patient.is_deleted || patient.status !== PATIENT_STATUS.ACTIVE) {
+      throw ApiError.unauthorized('Account is not allowed to refresh session.');
+    }
+  }
+
+  if (sessionActorType === ACTOR_TYPE.PATIENT_RELATIVE) {
+    if (account.status !== RELATIVE_STATUS.ACTIVE) {
+      throw ApiError.unauthorized('Account is not allowed to refresh session.');
+    }
     const patient = await Patient.findById(account.patient_id).lean();
     if (!patient || patient.is_deleted || patient.status !== PATIENT_STATUS.ACTIVE) {
       throw ApiError.unauthorized('Account is not allowed to refresh session.');
@@ -221,11 +306,13 @@ async function revokeSessionFamily(session, requestMeta = {}, options = {}) {
     return { success: true, revoked_count: 0 };
   }
 
+  const filter = {
+    token_family_id: session.token_family_id,
+    revoked_at: null,
+  };
+  const sessions = await AuthSession.find(filter).select('_id actor_type actor_id').lean();
   const result = await AuthSession.updateMany(
-    {
-      token_family_id: session.token_family_id,
-      revoked_at: null,
-    },
+    filter,
     {
       $set: {
         revoked_at: new Date(),
@@ -235,6 +322,12 @@ async function revokeSessionFamily(session, requestMeta = {}, options = {}) {
       },
     },
   );
+
+  await Promise.all(sessions.map((item) => publishSessionRevokedEvent(
+    item,
+    options.reason || 'refresh_token_reuse',
+    requestMeta,
+  )));
 
   await auditService.recordAuditLog({
     actorType: ACTOR_TYPE.SYSTEM,
@@ -291,16 +384,17 @@ async function refreshAccessToken(refreshToken, requestMeta = {}) {
   }
 
   const accessToken = generateAccessToken({
-    actorType: rotated.session.actor_type,
+    actorType: normalizeActorType(rotated.session.actor_type),
     actorId: rotated.session.actor_id,
     sessionId: rotated.session._id,
+    permissionVersion: rotated.session.permission_version,
   });
 
   await auditService.recordAuditLog({
-    actorType: rotated.session.actor_type,
+    actorType: normalizeActorType(rotated.session.actor_type),
     actorId: rotated.session.actor_id,
     action: 'auth.refresh_token',
-    targetType: rotated.session.actor_type === ACTOR_TYPE.STAFF ? 'user' : 'patient_account',
+    targetType: targetTypeForActorType(rotated.session.actor_type),
     targetId: account._id,
     status: AUDIT_STATUS.SUCCESS,
     message: 'Refresh token rotated successfully.',
@@ -333,6 +427,7 @@ async function revokeRefreshToken(refreshToken, auth = null, requestMeta = {}) {
     session.revoked_by = getActorId(auth);
     session.last_used_at = new Date();
     await session.save();
+    await publishSessionRevokedEvent(session, session.revoked_reason, requestMeta, { forceLogout: false });
   }
 
   await auditService.recordAuditLog({
@@ -388,6 +483,7 @@ async function revokeSessionById(sessionId, auth = {}, requestMeta = {}) {
     session.revoked_by = getActorId(auth);
     session.last_used_at = new Date();
     await session.save();
+    await publishSessionRevokedEvent(session, session.revoked_reason, requestMeta);
   }
 
   await auditService.recordAuditLog({
@@ -406,7 +502,7 @@ async function revokeSessionById(sessionId, auth = {}, requestMeta = {}) {
 
 async function invalidateAllUserSessions(actorType, actorId, requestMeta = {}, options = {}) {
   const filter = {
-    actor_type: actorType,
+    actor_type: actorTypeFilter(actorType),
     actor_id: actorId,
     revoked_at: null,
     expires_at: { $gt: new Date() },
@@ -416,6 +512,7 @@ async function invalidateAllUserSessions(actorType, actorId, requestMeta = {}, o
     filter._id = { $ne: options.excludeSessionId };
   }
 
+  const sessions = await AuthSession.find(filter).select('_id actor_type actor_id').lean();
   const result = await AuthSession.updateMany(filter, {
     $set: {
       revoked_at: new Date(),
@@ -425,12 +522,18 @@ async function invalidateAllUserSessions(actorType, actorId, requestMeta = {}, o
     },
   });
 
+  await Promise.all(sessions.map((sessionDoc) => publishSessionRevokedEvent(
+    sessionDoc,
+    options.reason || 'invalidate_all',
+    requestMeta,
+  )));
+
   if (options.audit !== false) {
     await auditService.recordAuditLog({
       actorType: options.actorType || ACTOR_TYPE.SYSTEM,
       actorId: options.actorId,
       action: 'auth.sessions.invalidate_all',
-      targetType: actorType === ACTOR_TYPE.STAFF ? 'user' : 'patient_account',
+      targetType: targetTypeForActorType(actorType),
       targetId: actorId,
       status: AUDIT_STATUS.SUCCESS,
       message: 'All active sessions invalidated.',
@@ -464,7 +567,7 @@ async function getCurrentSession(context = {}) {
 async function getMySessions(auth = {}) {
   const actorId = getActorId(auth);
   const sessions = await AuthSession.find({
-    actor_type: auth.actorType || auth.actor_type,
+    actor_type: actorTypeFilter(auth.actorType || auth.actor_type),
     actor_id: actorId,
     expires_at: { $gt: new Date() },
   })
@@ -483,6 +586,7 @@ function serializeSession(session, currentSessionId = null) {
     session_id: String(session._id),
     actor_type: session.actor_type,
     actor_id: session.actor_id ? String(session.actor_id) : null,
+    permission_version: session.permission_version || 1,
     ip_address: session.ip_address,
     user_agent: session.user_agent,
     device_id: session.device_id,
@@ -602,6 +706,8 @@ module.exports = {
   getSessionByRefreshToken,
   // detectRefreshTokenReuse: Phát hiện refresh token bị tái sử dụng.
   detectRefreshTokenReuse,
+  // detectRefreshTokenReplay: Alias rõ nghĩa cho phát hiện replay refresh token.
+  detectRefreshTokenReplay: detectRefreshTokenReuse,
   // validateRefreshSession: Kiểm tra tính hợp lệ của phiên refresh token.
   validateRefreshSession,
   // rotateRefreshToken: Xoay vòng refresh token.
@@ -612,6 +718,8 @@ module.exports = {
   revokeRefreshToken,
   // revokeSessionFamily: Thu hồi nhóm phiên liên quan.
   revokeSessionFamily,
+  // revokeTokenFamily: Alias rõ nghĩa cho thu hồi cả token family.
+  revokeTokenFamily: revokeSessionFamily,
   // revokeAllSessionsOnTokenReuse: Thu hồi toàn bộ phiên liên quan khi phát hiện refresh token bị tái sử dụng.
   revokeAllSessionsOnTokenReuse,
   // auditTokenReplayAttempt: Ghi audit cho lần nghi ngờ replay token.
@@ -620,6 +728,8 @@ module.exports = {
   revokeSessionById,
   // invalidateAllUserSessions: Vô hiệu hóa toàn bộ phiên đăng nhập của người dùng.
   invalidateAllUserSessions,
+  // revokeUserSessions: Alias rõ nghĩa cho thu hồi toàn bộ phiên của actor.
+  revokeUserSessions: invalidateAllUserSessions,
   // getCurrentSession: Lấy phiên đăng nhập hiện tại.
   getCurrentSession,
   // getCurrentSessionDetail: Lấy chi tiết phiên đăng nhập hiện tại.

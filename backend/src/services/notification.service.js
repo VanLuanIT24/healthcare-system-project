@@ -29,6 +29,8 @@ const {
   recordAuditLog,
 } = require('./core.service');
 const permissionService = require('./permission.service');
+const actorContext = require('../common/actors');
+const realtimeService = require('../realtime/realtime.service');
 const { PERMISSION, ROLE_CODE } = require('../constants/permissions');
 const {
   INVOICE_STATUS,
@@ -45,6 +47,7 @@ const {
   NOTIFICATION_TYPES,
   PATIENT_ACCOUNT_STATUS,
   PATIENT_STATUS,
+  REALTIME_EVENT_TYPE,
   RELATIVE_STATUS,
   ROLE_STATUS,
   USER_STATUS,
@@ -70,14 +73,17 @@ const SENSITIVE_NOTIFICATION_FIELDS = new Set([
 ]);
 
 const READABLE_STATUSES = [
+  NOTIFICATION_STATUS.UNREAD,
   NOTIFICATION_STATUS.QUEUED,
   NOTIFICATION_STATUS.SENT,
   NOTIFICATION_STATUS.DELIVERED,
   NOTIFICATION_STATUS.READ,
+  NOTIFICATION_STATUS.ARCHIVED,
   NOTIFICATION_STATUS.FAILED,
 ];
 
 const UNREAD_STATUSES = [
+  NOTIFICATION_STATUS.UNREAD,
   NOTIFICATION_STATUS.QUEUED,
   NOTIFICATION_STATUS.SENT,
   NOTIFICATION_STATUS.DELIVERED,
@@ -99,7 +105,7 @@ function sameId(left, right) {
 }
 
 function actorType(actor = {}) {
-  return actor.actorType || actor.actor_type;
+  return actorContext.getActorType(actor);
 }
 
 function actorDepartmentId(actor = {}) {
@@ -115,11 +121,11 @@ function hasAnyPermission(actor = {}, permissions = []) {
 }
 
 function isInternalActor(actor = {}) {
-  return actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS);
+  return actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS);
 }
 
 function isRelativeActor(actor = {}) {
-  return [ 'relative', 'patient_relative' ].includes(actorType(actor));
+  return actorContext.isPatientRelative(actor);
 }
 
 function isDuplicateKeyError(error) {
@@ -200,9 +206,9 @@ function assertStaffAnyPermission(actor = {}, permissions = [], message = 'Bạn
 }
 
 function internalActor(actor = {}, createdByModule = 'notifications') {
+  const serviceName = actor.serviceName || actor.service_name || createdByModule;
   return {
-    ...actor,
-    internal: true,
+    ...actorContext.buildSystemActor({ serviceName }),
     createdByModule: actor.createdByModule || actor.created_by_module || createdByModule,
   };
 }
@@ -254,6 +260,43 @@ function getActorRecipientFilter(actor = {}) {
   }
 
   throw createError('Loại tài khoản không hỗ trợ notification.', 403);
+}
+
+function notificationRecipientScope(notification = {}) {
+  return {
+    recipients: [{
+      recipient_type: notification.recipient_type,
+      recipient_id: notification.recipient_id,
+      actor_type: notification.recipient_actor_type,
+      actor_id: notification.recipient_actor_id,
+      recipient_user_id: notification.recipient_user_id,
+      patient_account_id: notification.patient_account_id,
+      patient_id: notification.patient_id,
+      relative_id: notification.relative_id,
+    }],
+    user_id: notification.recipient_user_id,
+    patient_id: notification.patient_id,
+  };
+}
+
+function emitNotificationRead(notification, requestMeta = {}) {
+  return realtimeService.emitToScope(REALTIME_EVENT_TYPE.NOTIFICATION_READ, {
+    notification_id: String(notification._id || notification.id),
+    status: notification.status,
+    read_at: notification.read_at,
+  }, notificationRecipientScope(notification), {
+    request_id: requestMeta?.requestId || requestMeta?.request_id,
+  });
+}
+
+function emitNotificationUpdated(notification, requestMeta = {}) {
+  return realtimeService.emitToScope(REALTIME_EVENT_TYPE.NOTIFICATION_UPDATED, {
+    notification_id: String(notification._id || notification.id),
+    status: notification.status,
+    updated_at: notification.updated_at,
+  }, notificationRecipientScope(notification), {
+    request_id: requestMeta?.requestId || requestMeta?.request_id,
+  });
 }
 
 async function notificationBelongsToActor(notification, actor = {}, session = null) {
@@ -796,6 +839,9 @@ async function markNotificationRead(notificationId, actor = {}, requestMeta = {}
   if ([NOTIFICATION_STATUS.FAILED, NOTIFICATION_STATUS.CANCELLED].includes(notification.status)) {
     throw createError('Không mark read notification failed/cancelled.', 409);
   }
+  if (notification.status === NOTIFICATION_STATUS.ARCHIVED) {
+    throw createError('Không mark read notification archived.', 409);
+  }
   if (notification.status !== NOTIFICATION_STATUS.READ || !notification.read_at) {
     notification.status = NOTIFICATION_STATUS.READ;
     notification.read_at = new Date();
@@ -810,6 +856,7 @@ async function markNotificationRead(notificationId, actor = {}, requestMeta = {}
       message: 'Notification đã được đánh dấu read.',
       requestMeta,
     });
+    emitNotificationRead(notification, requestMeta);
   }
   return notification.toObject ? notification.toObject() : notification;
 }
@@ -846,6 +893,21 @@ async function markAllNotificationsRead(actor = {}, query = {}, requestMeta = {}
     message: 'Mark all notifications read thành công.',
     requestMeta,
     metadata: { modified_count: result.modifiedCount || 0 },
+  });
+  const context = actorContext.buildActorContext(actor, { requireActorId: false });
+  realtimeService.emitToScope(REALTIME_EVENT_TYPE.NOTIFICATION_READ, {
+    bulk: true,
+    modified_count: result.modifiedCount || 0,
+    read_at: now,
+  }, {
+    actors: [{
+      actor_type: context.actor_type,
+      actor_id: context.actor_id,
+    }],
+    user_id: context.user_id,
+    patient_id: context.patient_id,
+  }, {
+    request_id: requestMeta?.requestId || requestMeta?.request_id,
   });
   return { modified_count: result.modifiedCount || 0 };
 }
@@ -887,6 +949,7 @@ async function cancelNotification(notificationId, payload = {}, actor = {}, requ
     requestMeta,
     metadata: { reason: notification.failure_reason },
   });
+  emitNotificationUpdated(notification, requestMeta);
   return notification.toObject ? notification.toObject() : notification;
 }
 

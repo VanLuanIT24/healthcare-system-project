@@ -18,7 +18,7 @@ export function isStaffSession(auth = readStoredAuth()) {
 }
 
 export function isPatientSession(auth = readStoredAuth()) {
-  return auth?.actorType === 'patient' && !!getAccessToken(auth);
+  return ['patient', 'patient_relative'].includes(auth?.actorType) && !!getAccessToken(auth);
 }
 
 export function isSuperAdminSession(auth = readStoredAuth()) {
@@ -27,7 +27,7 @@ export function isSuperAdminSession(auth = readStoredAuth()) {
 
 export function getDefaultRouteForAuth(auth = readStoredAuth()) {
   if (isStaffSession(auth)) return resolveStaffLandingPath(auth);
-  if (isPatientSession(auth)) return '/patient/dashboard';
+  if (isPatientSession(auth)) return '/portal/dashboard';
   return '/login';
 }
 
@@ -40,7 +40,7 @@ export function resolvePostLoginRedirect(target, auth = readStoredAuth()) {
   if (!isSafeInternalPath(target)) return fallback;
 
   if (isPatientSession(auth)) {
-    return target.startsWith('/patient') ? target : fallback;
+    return target.startsWith('/portal') || target.startsWith('/patient') ? target : fallback;
   }
 
   if (isStaffSession(auth)) {
@@ -54,7 +54,7 @@ export function resolvePostLoginRedirect(target, auth = readStoredAuth()) {
 }
 
 export function createLoginRedirectPath(location, actorType = 'patient') {
-  const target = `${location?.pathname || ''}${location?.search || ''}${location?.hash || ''}` || '/patient/dashboard';
+  const target = `${location?.pathname || ''}${location?.search || ''}${location?.hash || ''}` || '/portal/dashboard';
   const loginPath = actorType === 'staff' ? '/staff/login' : '/login';
   return `${loginPath}?redirect=${encodeURIComponent(target)}`;
 }

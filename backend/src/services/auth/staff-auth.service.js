@@ -4,13 +4,13 @@ const { normalizeLowercase, normalizePhone, normalizeString } = require('../../c
 const { normalizePagination, buildPaginationMeta } = require('../../common/helpers/pagination.helper');
 const { buildRegexSearch } = require('../../common/helpers/query.helper');
 const { ROLE_CODE } = require('../../constants/permissions');
-const { AUDIT_STATUS } = require('../../constants/statuses');
+const { AUDIT_STATUS, REALTIME_EVENT_TYPE } = require('../../constants/statuses');
 const { STAFF_TRANSITIONS } = require('../../constants/transitions');
-const { Permission, Role, RolePermission, User, UserRole } = require('../../models');
+const { PatientAccount, Permission, Role, RolePermission, User, UserRole } = require('../../models');
 const { assertTransition } = require('../../shared/utils/status-transition');
 const { withOptionalTransaction } = require('../../shared/utils/transaction');
 const auditService = require('../audit.service');
-const { buildUserPermissionMap, buildUserRoleDetails } = require('../access-control.service');
+const { buildUserPermissionMap, buildUserRoleDetails, bumpUserPermissionVersion } = require('../access-control.service');
 const permissionService = require('../permission.service');
 const sessionService = require('./auth-session.service');
 const {
@@ -24,6 +24,7 @@ const loginSecurity = require('./login-security.service');
 const passwordService = require('./password.service');
 const rateLimitService = require('./rate-limit.service');
 const tokenService = require('./token.service');
+const eventBus = require('../../events/event-bus.service');
 
 function buildStaffIdentifierFilter(identifier) {
   const raw = normalizeString(identifier);
@@ -129,11 +130,15 @@ async function ensureCanManageTargetUser(targetUserId, actor, actionLabel) {
 async function createTokenResponse(user, requestMeta = {}, options = {}) {
   const authorization = await getStaffAuthorization(user._id);
   const refreshToken = tokenService.generateRefreshToken();
-  const session = await sessionService.createAuthSession(ACTOR_TYPE.STAFF, user._id, refreshToken, requestMeta);
+  const permissionVersion = Number(user.permission_version || 1);
+  const session = await sessionService.createAuthSession(ACTOR_TYPE.STAFF, user._id, refreshToken, requestMeta, {
+    permissionVersion,
+  });
   const accessToken = tokenService.generateAccessToken({
     actorType: ACTOR_TYPE.STAFF,
     actorId: user._id,
     sessionId: session._id,
+    permissionVersion,
   });
   const staff = sanitizeStaff(user, authorization);
 
@@ -146,6 +151,7 @@ async function createTokenResponse(user, requestMeta = {}, options = {}) {
     user: staff,
     roles: authorization.roleCodes,
     permissions: authorization.permissionCodes,
+    permission_version: permissionVersion,
     must_change_password: Boolean(user.must_change_password),
     must_change_password_reason: options.mustChangePasswordReason || (user.must_change_password ? 'required' : null),
     tokens: {
@@ -235,6 +241,18 @@ async function createStaffAccount(payload = {}, actor = {}, requestMeta = {}) {
   const existed = await User.findOne(duplicateFilter).lean();
   if (existed) {
     throw ApiError.conflict('Tên đăng nhập, email, số điện thoại hoặc mã nhân viên đã tồn tại.');
+  }
+  if (email || phone) {
+    const patientAccount = await PatientAccount.findOne({
+      is_deleted: false,
+      $or: [
+        ...(email ? [{ email }] : []),
+        ...(phone ? [{ phone }] : []),
+      ],
+    }).lean();
+    if (patientAccount) {
+      throw ApiError.conflict('Email hoặc số điện thoại đã được sử dụng bởi tài khoản bệnh nhân.');
+    }
   }
 
   const roles = await Role.find({
@@ -343,9 +361,32 @@ async function assignRolesToStaff({ user_id: userId, role_codes: roleCodes = [] 
     }
   }, { fallbackToNoTransaction: env.nodeEnv !== 'production' });
 
+  await bumpUserPermissionVersion(user._id);
+
   await sessionService.invalidateAllUserSessions(ACTOR_TYPE.STAFF, user._id, requestMeta, {
     actorType: actor.actorType,
     actorId: getActorId(actor),
+    reason: 'role_changed',
+  });
+
+  await eventBus.publishDomainEvent({
+    eventType: REALTIME_EVENT_TYPE.USER_ROLE_CHANGED,
+    aggregateType: 'user',
+    aggregateId: user._id,
+    recipientScope: {
+      user_id: user._id,
+      actors: [{ actor_type: ACTOR_TYPE.STAFF, actor_id: user._id }],
+    },
+    payload: {
+      user_id: String(user._id),
+      role_codes: roleCodes,
+      notification: {
+        title: 'Quyền truy cập đã thay đổi',
+        body: 'Vai trò của tài khoản đã được cập nhật. Vui lòng đăng nhập lại.',
+        priority: 'high',
+      },
+    },
+    idempotencyKey: `user.role_changed:${user._id}:${Date.now()}`,
   });
 
   const authorization = await getStaffAuthorization(user._id);
@@ -434,6 +475,26 @@ async function updateStaffAccountStatus({ user_id: userId, status } = {}, actor 
     await sessionService.invalidateAllUserSessions(ACTOR_TYPE.STAFF, user._id, requestMeta, {
       actorType: actor.actorType,
       actorId: getActorId(actor),
+      reason: `user_${status}`,
+    });
+    await eventBus.publishDomainEvent({
+      eventType: REALTIME_EVENT_TYPE.USER_DISABLED,
+      aggregateType: 'user',
+      aggregateId: user._id,
+      recipientScope: {
+        user_id: user._id,
+        actors: [{ actor_type: ACTOR_TYPE.STAFF, actor_id: user._id }],
+      },
+      payload: {
+        user_id: String(user._id),
+        status,
+        notification: {
+          title: 'Tài khoản đã bị vô hiệu hóa',
+          body: 'Phiên đăng nhập của bạn đã bị thu hồi.',
+          priority: 'critical',
+        },
+      },
+      idempotencyKey: `user.disabled:${user._id}:${status}:${Date.now()}`,
     });
   }
 

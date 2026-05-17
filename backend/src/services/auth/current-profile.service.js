@@ -1,12 +1,13 @@
 const ApiError = require('../../common/errors/api-error');
 const { normalizeLowercase, normalizePhone, normalizeString } = require('../../common/helpers/string.helper');
 const { AUDIT_STATUS } = require('../../constants/statuses');
-const { Department, DoctorProfile, Patient, PatientAccount, User } = require('../../models');
+const { Department, DoctorProfile, Patient, PatientAccount, PatientRelative, User } = require('../../models');
 const auditService = require('../audit.service');
 const { buildUserPermissionMap, buildUserRoleDetails } = require('../access-control.service');
 const {
   ACTOR_TYPE,
   PATIENT_PORTAL_PERMISSIONS,
+  RELATIVE_PORTAL_PERMISSIONS,
   getActorId,
 } = require('./auth.policy');
 const { sanitizeStaff, getStaffAuthorization } = require('./staff-auth.service');
@@ -32,6 +33,34 @@ async function getCurrentProfile(auth = {}) {
       doctor_profile: doctorProfile,
       roles: authorization.roles,
       permissions: authorization.permissionCodes,
+    };
+  }
+
+  if (auth.actorType === ACTOR_TYPE.PATIENT_RELATIVE) {
+    const [relative, patient] = await Promise.all([
+      PatientRelative.findById(auth.relativeId).lean(),
+      Patient.findById(auth.patientId).lean(),
+    ]);
+
+    if (!relative || !patient || relative.is_deleted || patient.is_deleted) {
+      throw ApiError.notFound('Không tìm thấy tài khoản người nhà.');
+    }
+
+    return {
+      actor_type: ACTOR_TYPE.PATIENT_RELATIVE,
+      patient_relative: {
+        id: String(relative._id),
+        relative_id: String(relative._id),
+        patient_id: relative.patient_id ? String(relative.patient_id) : null,
+        full_name: relative.full_name,
+        relationship: relative.relationship,
+        phone: relative.phone,
+        email: relative.email,
+        status: relative.status,
+      },
+      patient,
+      roles: ['patient_relative'],
+      permissions: RELATIVE_PORTAL_PERMISSIONS,
     };
   }
 
@@ -67,6 +96,13 @@ async function getMyRoles(auth = {}) {
     };
   }
 
+  if (auth.actorType === ACTOR_TYPE.PATIENT_RELATIVE) {
+    return {
+      actor_type: ACTOR_TYPE.PATIENT_RELATIVE,
+      roles: [{ role_code: 'patient_relative', role_name: 'Patient Relative', description: 'Người nhà bệnh nhân' }],
+    };
+  }
+
   const roles = await buildUserRoleDetails(auth.userId);
   return {
     actor_type: ACTOR_TYPE.STAFF,
@@ -81,6 +117,16 @@ async function getMyPermissions(auth = {}) {
       user_id: auth.patientAccountId,
       roles: ['patient'],
       permissions: PATIENT_PORTAL_PERMISSIONS,
+    };
+  }
+
+  if (auth.actorType === ACTOR_TYPE.PATIENT_RELATIVE) {
+    return {
+      actor_type: ACTOR_TYPE.PATIENT_RELATIVE,
+      user_id: auth.relativeId,
+      patient_id: auth.patientId,
+      roles: ['patient_relative'],
+      permissions: RELATIVE_PORTAL_PERMISSIONS,
     };
   }
 
@@ -192,6 +238,10 @@ async function updatePatientProfile(auth, payload = {}, requestMeta = {}) {
 async function updateMyProfile(auth = {}, payload = {}, requestMeta = {}) {
   if (auth.actorType === ACTOR_TYPE.STAFF) {
     return updateStaffProfile(auth, payload, requestMeta);
+  }
+
+  if (auth.actorType === ACTOR_TYPE.PATIENT_RELATIVE) {
+    throw ApiError.forbidden('Tài khoản người nhà chưa hỗ trợ cập nhật hồ sơ qua endpoint này.');
   }
 
   return updatePatientProfile(auth, payload, requestMeta);

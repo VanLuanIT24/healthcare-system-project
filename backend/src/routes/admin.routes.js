@@ -1,5 +1,6 @@
 const express = require('express');
 const adminController = require('../controllers/admin.controller');
+const paymentIntentController = require('../controllers/payment-intent.controller');
 const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
@@ -10,6 +11,7 @@ const router = express.Router();
 router.param('userId', validateObjectIdParam);
 router.param('departmentId', validateObjectIdParam);
 router.param('profileId', validateObjectIdParam);
+router.param('paymentId', validateObjectIdParam);
 
 router.get('/settings/public', adminController.getPublicSettings);
 router.get('/doctors', adminController.getDoctorsList);
@@ -31,6 +33,32 @@ router.get(
   '/activities/recent',
   authorize({ anyPermissions: [PERMISSION.REPORTS.ADMIN_DASHBOARD_READ, PERMISSION.AUDIT_LOGS.READ] }),
   adminController.getRecentAdminActivities,
+);
+router.get(
+  '/worker-health',
+  authorize({ anyPermissions: [PERMISSION.AUDIT_LOGS.READ, PERMISSION.SETTINGS.READ, PERMISSION.SYSTEM.FULL_ACCESS] }),
+  adminController.getWorkerHealth,
+);
+
+router.get(
+  '/payments',
+  authorize({ anyPermissions: [PERMISSION.PAYMENTS.READ, PERMISSION.PAYMENT_INTENTS.READ, PERMISSION.PAYMENT_RECONCILIATION.READ] }),
+  paymentIntentController.listManualPayments,
+);
+router.patch(
+  '/payments/:paymentId/confirm',
+  authorize({ anyPermissions: [PERMISSION.PAYMENTS.CREATE, PERMISSION.PAYMENT_RECONCILIATION.READ] }),
+  paymentIntentController.confirmManualPayment,
+);
+router.patch(
+  '/payments/:paymentId/reject',
+  authorize({ anyPermissions: [PERMISSION.PAYMENTS.CREATE, PERMISSION.PAYMENT_INTENTS.CANCEL, PERMISSION.PAYMENT_RECONCILIATION.READ] }),
+  paymentIntentController.rejectManualPayment,
+);
+router.patch(
+  '/payments/:paymentId/refund-manual',
+  authorize({ anyPermissions: [PERMISSION.PAYMENTS.REFUND, PERMISSION.PAYMENT_RECONCILIATION.READ] }),
+  paymentIntentController.refundManualPayment,
 );
 
 router.get('/staff', authorize({ anyPermissions: [PERMISSION.USERS.READ, PERMISSION.USERS.READ_DEPARTMENT] }), adminController.listStaffAccounts);

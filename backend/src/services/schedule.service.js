@@ -76,7 +76,7 @@ function isDoctorActor(actor = {}) {
 }
 
 function hasGlobalScheduleScope(actor = {}) {
-  return hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.SCHEDULES.READ, PERMISSION.APPOINTMENTS.READ]);
+  return hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.SCHEDULES.READ]);
 }
 
 function hasAppointmentSlotSensitiveRead(actor = {}) {
@@ -145,7 +145,7 @@ function hasAnyPermission(actor = {}, permissionCodes = []) {
 
 function applyScheduleReadScope(filter, actor = {}) {
   if (!actor?.actorType && !actor?.actor_type) return filter;
-  if (hasAnyPermission(actor, [PERMISSION.SCHEDULES.READ, PERMISSION.APPOINTMENTS.READ])) {
+  if (hasGlobalScheduleScope(actor)) {
     return filter;
   }
 
@@ -158,7 +158,7 @@ function applyScheduleReadScope(filter, actor = {}) {
     return filter;
   }
 
-  if (hasPermission(actor, PERMISSION.SCHEDULES.READ_DEPARTMENT) || actorDepartmentId(actor)) {
+  if (hasAnyPermission(actor, [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.READ_DEPARTMENT]) || actorDepartmentId(actor)) {
     const departmentId = actorDepartmentId(actor);
     if (!departmentId) {
       filter._id = null;
@@ -172,6 +172,7 @@ function applyScheduleReadScope(filter, actor = {}) {
     return filter;
   }
 
+  filter._id = null;
   return filter;
 }
 

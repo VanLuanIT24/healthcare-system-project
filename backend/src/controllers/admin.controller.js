@@ -1,4 +1,5 @@
 const adminService = require('../services/admin.service');
+const workerHealthService = require('../services/worker-health.service');
 const { controllerHandler: wrap, markLegacyControllerError, requestMeta, sendSuccess } = require('../common/controllers');
 
 function pickRoleCodes(body = {}) {
@@ -22,6 +23,8 @@ async function getStaffSummary(req, res, next) {
     return next(markLegacyControllerError(error));
   }
 }
+
+const getWorkerHealth = wrap(() => workerHealthService.getWorkerHealth(), 'Lấy worker health thành công.');
 
 async function getRecentAdminActivities(req, res, next) {
   try {
@@ -418,6 +421,7 @@ async function updateSystemSetting(req, res, next) {
 module.exports = {
   getAdminOverview,
   getStaffSummary,
+  getWorkerHealth,
   getRecentAdminActivities,
   createStaffAccount,
   listStaffAccounts,

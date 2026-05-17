@@ -68,6 +68,7 @@ const CORE_ROLES = [
   { role_code: ROLE_CODE.BILLING_STAFF, role_name: 'Billing Staff' },
   { role_code: ROLE_CODE.INSURANCE_STAFF, role_name: 'Insurance Staff' },
   { role_code: ROLE_CODE.MEDICAL_RECORD_STAFF, role_name: 'Medical Record Staff' },
+  { role_code: ROLE_CODE.PATIENT, role_name: 'Patient' },
   { role_code: ROLE_CODE.PATIENT_RELATIVE, role_name: 'Patient Relative' },
 ].map((role) => ({
   ...role,

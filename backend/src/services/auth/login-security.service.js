@@ -58,6 +58,10 @@ async function checkAccountStatusBeforeLogin(account, actorType) {
   return true;
 }
 
+async function assertUserCanLogin(user) {
+  return checkAccountStatusBeforeLogin(user, ACTOR_TYPE.STAFF);
+}
+
 async function recordLoginSuccess(account, actorType, requestMeta = {}) {
   account.failed_login_attempts = 0;
   account.locked_until = undefined;
@@ -144,6 +148,8 @@ module.exports = {
   calculateLockUntil,
   // checkAccountStatusBeforeLogin: Kiểm tra trạng thái tài khoản trước khi cho phép đăng nhập.
   checkAccountStatusBeforeLogin,
+  // assertUserCanLogin: Bảo đảm user staff được phép login.
+  assertUserCanLogin,
   // recordLoginSuccess: Ghi nhận lần đăng nhập thành công và reset bộ đếm thất bại.
   recordLoginSuccess,
   // recordLoginFailure: Ghi nhận lần đăng nhập thất bại để phục vụ khóa tài khoản/cảnh báo.

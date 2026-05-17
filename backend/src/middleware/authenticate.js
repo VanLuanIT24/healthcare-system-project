@@ -1,8 +1,8 @@
 const { decodeAndValidateJwt, extractBearerToken } = require('../common/auth');
 const { AuthSession, Patient, PatientAccount, PatientRelative, User } = require('../models');
 const { ROLE_CODE } = require('../constants/permissions');
-const { ACTOR_TYPE, PATIENT_STATUS, RELATIVE_STATUS } = require('../constants/statuses');
-const { buildUserPermissionMap, buildUserRoleDetails } = require('../services/access-control.service');
+const { ACTOR_TYPE, LEGACY_ACTOR_TYPE, PATIENT_STATUS, RELATIVE_STATUS, normalizeActorType } = require('../constants/statuses');
+const { buildUserAuthorizationSnapshot } = require('../services/access-control.service');
 const { ApiError } = require('../common');
 const actorContext = require('../common/actors');
 const { PATIENT_PORTAL_PERMISSIONS, RELATIVE_PORTAL_PERMISSIONS } = require('../services/auth/auth.policy');
@@ -23,23 +23,27 @@ function ensureActiveAccount(account, label) {
   return null;
 }
 
-async function resolveStaffAuthorization(userId) {
-  const [roles, permissions] = await Promise.all([
-    buildUserRoleDetails(userId),
-    buildUserPermissionMap(userId),
-  ]);
-
+async function resolveStaffAuthorization(user) {
+  const permissionVersion = Number(user.permission_version || 1);
+  const authorization = await buildUserAuthorizationSnapshot(user._id, permissionVersion);
   return {
-    roles: roles.map((role) => role.role_code),
-    roleDetails: roles,
-    permissions: [...permissions],
+    ...authorization,
+    permissionVersion,
   };
 }
 
 async function resolveActiveSession(payload) {
+  const actorTypes = [payload.actor_type];
+  if (payload.actor_type_raw && payload.actor_type_raw !== payload.actor_type) {
+    actorTypes.push(payload.actor_type_raw);
+  }
+  if (payload.actor_type === ACTOR_TYPE.PATIENT_RELATIVE) {
+    actorTypes.push(LEGACY_ACTOR_TYPE.RELATIVE);
+  }
+
   return AuthSession.findOne({
     _id: payload.session_id,
-    actor_type: payload.actor_type,
+    actor_type: { $in: [...new Set(actorTypes.filter(Boolean))] },
     actor_id: payload.sub,
     revoked_at: null,
     expires_at: { $gt: new Date() },
@@ -55,8 +59,10 @@ function attachAuthContext(req, auth) {
   req.context.session_id = auth.sessionId || null;
   req.context.actor_type = auth.actorType;
   req.context.actor_id = actor.actor_id;
+  req.context.subject_id = actor.subject_id;
   req.context.roles = auth.roles || [];
   req.context.permissions = auth.permissions || [];
+  req.context.scopes = auth.scopes || [];
   req.context.actor = actor;
   req.context.session = {
     session_id: auth.sessionId || null,
@@ -75,9 +81,10 @@ function attachAuthContext(req, auth) {
     return;
   }
 
-  if ([ACTOR_TYPE.RELATIVE, ACTOR_TYPE.PATIENT_RELATIVE].includes(auth.actorType)) {
+  if (auth.actorType === ACTOR_TYPE.PATIENT_RELATIVE) {
     req.context.relative = auth.relative;
     req.context.patient_id = auth.patientId;
+    req.context.relative_id = auth.relativeId;
   }
 }
 
@@ -107,7 +114,9 @@ async function authenticate(req, res, next) {
       return next(ApiError.unauthorized('Phiên đăng nhập không hợp lệ hoặc đã hết hạn.'));
     }
 
-    if (payload.actor_type === 'staff') {
+    const actorType = normalizeActorType(payload.actor_type);
+
+    if (actorType === ACTOR_TYPE.STAFF) {
       const user = await User.findById(payload.sub).lean();
       if (!user) {
         return next(ApiError.unauthorized('Không tìm thấy tài khoản nhân sự.'));
@@ -118,7 +127,7 @@ async function authenticate(req, res, next) {
         return next(ApiError.unauthorized(accountStateError));
       }
 
-      const authorization = await resolveStaffAuthorization(user._id);
+      const authorization = await resolveStaffAuthorization(user);
 
       if (user.must_change_password && !isAllowedWhilePasswordChangeRequired(req)) {
         return next(ApiError.forbidden('Bạn cần đổi mật khẩu trước khi sử dụng chức năng này.', {
@@ -135,13 +144,14 @@ async function authenticate(req, res, next) {
         roles: authorization.roles,
         roleDetails: authorization.roleDetails,
         permissions: authorization.permissions,
+        permissionVersion: authorization.permissionVersion,
         user,
         session,
       });
       return next();
     }
 
-    if (payload.actor_type === 'patient') {
+    if (actorType === ACTOR_TYPE.PATIENT) {
       const account = await PatientAccount.findById(payload.sub).lean();
       if (!account) {
         return next(ApiError.unauthorized('Không tìm thấy tài khoản bệnh nhân.'));
@@ -172,7 +182,7 @@ async function authenticate(req, res, next) {
       return next();
     }
 
-    if ([ACTOR_TYPE.RELATIVE, ACTOR_TYPE.PATIENT_RELATIVE].includes(payload.actor_type)) {
+    if (actorType === ACTOR_TYPE.PATIENT_RELATIVE) {
       const relative = await PatientRelative.findById(payload.sub).lean();
       if (!relative || relative.is_deleted || relative.status !== RELATIVE_STATUS.ACTIVE) {
         return next(ApiError.unauthorized('Không tìm thấy tài khoản người nhà hợp lệ.'));
@@ -184,7 +194,7 @@ async function authenticate(req, res, next) {
       }
 
       attachAuthContext(req, {
-        actorType: payload.actor_type,
+        actorType,
         relativeId: String(relative._id),
         patientId: String(patient._id),
         sessionId: String(session._id),

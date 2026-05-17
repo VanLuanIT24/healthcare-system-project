@@ -1,6 +1,6 @@
 const env = require('../../config/env');
 const ApiError = require('../../common/errors/api-error');
-const { AUDIT_STATUS } = require('../../constants/statuses');
+const { AUDIT_STATUS, normalizeActorType } = require('../../constants/statuses');
 const {
   PasswordResetToken,
   PatientAccount,
@@ -67,7 +67,7 @@ function getResetIdentifier(input = {}) {
 }
 
 async function buildResetLookupFilter(input = {}, actorTypeArg = null) {
-  const actorType = input.actor_type || input.actorType || actorTypeArg || ACTOR_TYPE.STAFF;
+  const actorType = normalizeActorType(input.actor_type || input.actorType || actorTypeArg || ACTOR_TYPE.STAFF);
   const token = input.token || input.reset_token;
   const code = input.code || input.reset_code;
 
@@ -101,7 +101,7 @@ async function buildResetLookupFilter(input = {}, actorTypeArg = null) {
 }
 
 async function requestPasswordReset(payload = {}, requestMeta = {}) {
-  const actorType = payload.actor_type || payload.actorType || ACTOR_TYPE.STAFF;
+  const actorType = normalizeActorType(payload.actor_type || payload.actorType || ACTOR_TYPE.STAFF);
   const identifier = payload.login || payload.identifier || payload.email || payload.phone || payload.username;
 
   if (!identifier) {
@@ -174,7 +174,7 @@ async function requestPasswordReset(payload = {}, requestMeta = {}) {
 }
 
 async function verifyPasswordResetToken(input = {}, actorTypeArg = null) {
-  const actorType = input.actor_type || input.actorType || actorTypeArg || ACTOR_TYPE.STAFF;
+  const actorType = normalizeActorType(input.actor_type || input.actorType || actorTypeArg || ACTOR_TYPE.STAFF);
   const filter = await buildResetLookupFilter(input, actorType);
 
   const resetRecord = await PasswordResetToken.findOne(filter);

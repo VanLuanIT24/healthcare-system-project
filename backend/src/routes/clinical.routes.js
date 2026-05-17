@@ -4,6 +4,7 @@ const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
 const { validateObjectIdParam } = require('../common/validators');
+const { idempotencyRequired } = require('../common/middlewares/idempotency.middleware');
 
 const router = express.Router();
 
@@ -21,12 +22,12 @@ router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));
 
 router.get('/consultations', authorize({ anyPermissions: [PERMISSION.CONSULTATIONS.READ, PERMISSION.CONSULTATIONS.READ_OWN, PERMISSION.CONSULTATIONS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ] }), clinicalController.listConsultations);
-router.post('/consultations', authorize({ permissions: [PERMISSION.CONSULTATIONS.CREATE] }), clinicalController.createConsultation);
+router.post('/consultations', authorize({ permissions: [PERMISSION.CONSULTATIONS.CREATE] }), idempotencyRequired({ route: '/api/clinical/consultations' }), clinicalController.createConsultation);
 router.get('/encounters/:encounterId/consultations', authorize({ anyPermissions: [PERMISSION.CONSULTATIONS.READ, PERMISSION.CONSULTATIONS.READ_OWN, PERMISSION.CONSULTATIONS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ] }), (req, res, next) => {
   req.query.encounter_id = req.params.encounterId;
   return clinicalController.listConsultations(req, res, next);
 });
-router.post('/encounters/:encounterId/consultations', authorize({ permissions: [PERMISSION.CONSULTATIONS.CREATE] }), (req, res, next) => {
+router.post('/encounters/:encounterId/consultations', authorize({ permissions: [PERMISSION.CONSULTATIONS.CREATE] }), idempotencyRequired({ route: '/api/clinical/encounters/:encounterId/consultations' }), (req, res, next) => {
   req.body.encounter_id = req.params.encounterId;
   return clinicalController.createConsultation(req, res, next);
 });
@@ -64,12 +65,12 @@ router.post('/vital-signs/:vitalSignId/entered-in-error', authorize({ permission
 router.post('/vital-signs/:vitalSignId/remove', authorize({ permissions: [PERMISSION.VITAL_SIGNS.ENTERED_IN_ERROR] }), clinicalController.deleteVitalSignsRecord);
 
 router.get('/notes', authorize({ anyPermissions: [PERMISSION.CLINICAL_NOTES.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.ENCOUNTERS.READ_OWN] }), clinicalController.listClinicalNotes);
-router.post('/notes', authorize({ anyPermissions: [PERMISSION.CLINICAL_NOTES.CREATE, PERMISSION.CLINICAL_NOTES.CREATE_NURSING] }), clinicalController.createClinicalNote);
+router.post('/notes', authorize({ anyPermissions: [PERMISSION.CLINICAL_NOTES.CREATE, PERMISSION.CLINICAL_NOTES.CREATE_NURSING] }), idempotencyRequired({ route: '/api/clinical/notes' }), clinicalController.createClinicalNote);
 router.get('/encounters/:encounterId/notes', authorize({ anyPermissions: [PERMISSION.CLINICAL_NOTES.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.ENCOUNTERS.READ_OWN] }), (req, res, next) => {
   req.query.encounter_id = req.params.encounterId;
   return clinicalController.listClinicalNotes(req, res, next);
 });
-router.post('/encounters/:encounterId/notes', authorize({ anyPermissions: [PERMISSION.CLINICAL_NOTES.CREATE, PERMISSION.CLINICAL_NOTES.CREATE_NURSING] }), (req, res, next) => {
+router.post('/encounters/:encounterId/notes', authorize({ anyPermissions: [PERMISSION.CLINICAL_NOTES.CREATE, PERMISSION.CLINICAL_NOTES.CREATE_NURSING] }), idempotencyRequired({ route: '/api/clinical/encounters/:encounterId/notes' }), (req, res, next) => {
   req.body.encounter_id = req.params.encounterId;
   return clinicalController.createClinicalNote(req, res, next);
 });

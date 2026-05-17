@@ -46,6 +46,7 @@ const {
   calculateLineTotal,
   toMoney,
 } = require('../common/helpers/money.helper');
+const actorContext = require('../common/actors');
 
 const ACTIVE_CHARGE_STATUSES = [
   CHARGE_STATUS.PENDING,
@@ -114,7 +115,7 @@ function hasAnyPermission(actor = {}, permissions = []) {
 }
 
 function assertStaffPermission(actor = {}, permissions = [], message = 'Tài khoản hiện tại không có quyền thực hiện thao tác này.') {
-  if (actor.internal === true || actor.system === true) return true;
+  if (actorContext.isSystem(actor)) return true;
   if (actor.actorType !== 'staff') throw createError(message, 403);
   if (!hasAnyPermission(actor, permissions)) throw createError(message, 403);
   return true;
@@ -248,8 +249,7 @@ async function assertServiceBillable(serviceId, chargedAt = new Date(), session 
 }
 
 function hasGlobalBillingScope(actor = {}) {
-  return actor.internal === true
-    || actor.system === true
+  return actorContext.isSystem(actor)
     || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)
     || !actorDepartmentId(actor);
 }
@@ -675,7 +675,7 @@ async function listCharges(query = {}, actor = {}) {
 }
 
 async function getChargeDetail(chargeId, actor = {}, session = null) {
-  if (actor.internal === true || actor.system === true) {
+  if (actorContext.isSystem(actor)) {
     // Internal callers already completed their business validation.
   } else if (actor.actorType === 'patient') {
     const charge = await withSession(Charge.findById(chargeId).lean(), session);
@@ -1012,11 +1012,36 @@ async function createPayment(invoiceId, payload = {}, actor = {}, requestMeta = 
   const amount = normalizeMoneyAmount(payload.amount, 'amount');
   const method = payload.payment_method || PAYMENT_METHOD.CASH;
   if (!PAYMENT_METHODS.includes(method)) throw createError('payment_method không hợp lệ.', 400);
-  if (![PAYMENT_METHOD.CASH, PAYMENT_METHOD.OTHER].includes(method) && !normalizeString(payload.transaction_ref)) {
+  const paymentIntentId = payload.payment_intent_id || payload.paymentIntentId;
+  const paymentProvider = normalizeString(payload.payment_provider || payload.provider);
+  const providerTransactionId = normalizeString(payload.provider_transaction_id || payload.providerTransactionId);
+  const idempotencyKey = normalizeString(payload.idempotency_key || payload.idempotencyKey);
+  const transactionRef = normalizeString(payload.transaction_ref) || providerTransactionId;
+  const confirmedAt = normalizeDate(payload.confirmed_at, 'confirmed_at');
+  const confirmedBy = payload.confirmed_by || payload.confirmedBy || actor.userId;
+  if (![PAYMENT_METHOD.CASH, PAYMENT_METHOD.OTHER].includes(method) && !transactionRef) {
     throw createError('transaction_ref là bắt buộc với phương thức thanh toán không phải cash.', 400);
   }
   let paymentId;
+  let idempotentPayment = false;
   await withOptionalTransaction(async (session) => {
+    const duplicateFilter = [];
+    if (paymentIntentId) duplicateFilter.push({ payment_intent_id: paymentIntentId });
+    if (paymentProvider && providerTransactionId) {
+      duplicateFilter.push({ payment_provider: paymentProvider, provider_transaction_id: providerTransactionId });
+    }
+    if (idempotencyKey) duplicateFilter.push({ idempotency_key: idempotencyKey });
+    if (duplicateFilter.length > 0) {
+      const existingPayment = await withSession(Payment.findOne({
+        $or: duplicateFilter,
+        status: { $ne: PAYMENT_STATUS.VOIDED },
+      }), session);
+      if (existingPayment) {
+        paymentId = existingPayment._id;
+        idempotentPayment = true;
+        return;
+      }
+    }
     const invoice = await withSession(Invoice.findById(invoiceId), session);
     if (!invoice) throw createError('Không tìm thấy invoice.', 404);
     if (!INVOICE_PAYABLE_STATUSES.includes(invoice.status)) {
@@ -1034,13 +1059,19 @@ async function createPayment(invoiceId, payload = {}, actor = {}, requestMeta = 
     const [payment] = await Payment.create([{
       invoice_id: invoice._id,
       patient_id: invoice.patient_id,
+      payment_intent_id: paymentIntentId ? toObjectId(paymentIntentId) : undefined,
+      payment_provider: paymentProvider,
+      provider_transaction_id: providerTransactionId,
+      idempotency_key: idempotencyKey,
       payment_no: paymentNo,
       amount,
       currency: invoice.currency,
       payment_method: method,
-      transaction_ref: normalizeString(payload.transaction_ref),
+      transaction_ref: transactionRef,
       paid_at: normalizeDate(payload.paid_at, 'paid_at') || new Date(),
       received_by: actor.userId,
+      confirmed_by: confirmedBy ? toObjectId(confirmedBy) : undefined,
+      confirmed_at: confirmedAt,
       status: paymentStatus,
       note: normalizeString(payload.note),
       created_by: actor.userId,
@@ -1048,15 +1079,18 @@ async function createPayment(invoiceId, payload = {}, actor = {}, requestMeta = 
     }], sessionOptions(session));
     paymentId = payment._id;
   }, { fallbackToNoTransaction: false });
-  await recordAuditLog({
-    actor,
-    action: 'payments.create',
-    targetType: 'payment',
-    targetId: paymentId,
-    status: 'success',
-    message: 'Tạo payment thành công.',
-    requestMeta,
-  });
+  if (!idempotentPayment) {
+    await recordAuditLog({
+      actor,
+      action: 'payments.create',
+      targetType: 'payment',
+      targetId: paymentId,
+      status: 'success',
+      message: 'Tạo payment thành công.',
+      requestMeta,
+      metadata: { payment_intent_id: paymentIntentId ? String(paymentIntentId) : undefined, idempotency_key: idempotencyKey },
+    });
+  }
   return getPaymentDetail(paymentId, actor);
 }
 

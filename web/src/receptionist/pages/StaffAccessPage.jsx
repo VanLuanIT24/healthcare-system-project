@@ -4,17 +4,21 @@ import {
   ArrowRight,
   BriefcaseMedical,
   Check,
+  CalendarDays,
   ClipboardPlus,
   FlaskConical,
   HeartPulse,
   Info,
   LogOut,
   Pill,
+  ReceiptText,
+  ScanLine,
+  Settings,
   ShieldCheck,
   Stethoscope,
   WalletCards,
   BarChart3,
-  CalendarRange,
+  UserPlus,
 } from 'lucide-react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
@@ -29,19 +33,24 @@ import {
 } from '../workspaceAccess';
 
 const WORKSPACE_ICON_MAP = {
-  admin: ShieldCheck,
-  scheduling: CalendarRange,
-  reception: ClipboardPlus,
-  doctor: Stethoscope,
-  nurse: HeartPulse,
-  pharmacy: Pill,
-  lab: FlaskConical,
-  billing: WalletCards,
-  reports: BarChart3,
+  shield: ShieldCheck,
+  settings: Settings,
+  calendar: CalendarDays,
+  clipboard: ClipboardPlus,
+  'user-plus': UserPlus,
+  stethoscope: Stethoscope,
+  heart: HeartPulse,
+  'heart-pulse': HeartPulse,
+  pill: Pill,
+  flask: FlaskConical,
+  scan: ScanLine,
+  wallet: WalletCards,
+  receipt: ReceiptText,
+  chart: BarChart3,
 };
 
-function getWorkspaceIcon(key) {
-  return WORKSPACE_ICON_MAP[key] || BriefcaseMedical;
+function getWorkspaceIcon(icon) {
+  return WORKSPACE_ICON_MAP[icon] || BriefcaseMedical;
 }
 
 function getWorkspaceCountLabel(count) {
@@ -138,14 +147,14 @@ export function StaffAccessPage() {
 
         <div className="staff-workspace-grid">
           {availableWorkspaces.map((workspace) => {
-            const Icon = getWorkspaceIcon(workspace.key);
+            const Icon = getWorkspaceIcon(workspace.icon);
             const isSelected = workspace.key === selectedKey;
 
             return (
               <button
                 key={workspace.key}
                 type="button"
-                className={`staff-workspace-option staff-workspace-option--${workspace.tone} ${isSelected ? 'is-selected' : ''}`}
+                className={`staff-workspace-option staff-workspace-option--${workspace.tone || 'blue'} ${isSelected ? 'is-selected' : ''}`}
                 onClick={() => setSelectedKey(workspace.key)}
               >
                 <span className="staff-workspace-option__badge">{workspace.badge}</span>

@@ -11,6 +11,9 @@ const permissionSchema = new Schema(
     action_key: { type: String, trim: true, lowercase: true },
     description: { type: String },
     is_system: { type: Boolean, default: false, required: true },
+    is_mutable: { type: Boolean, default: true, required: true },
+    permission_version: { type: Number, default: 1, min: 1, required: true },
+    deprecated_at: { type: Date },
     ...auditFields(),
     ...softDeleteFields(),
   },
@@ -20,5 +23,7 @@ const permissionSchema = new Schema(
 permissionSchema.index({ permission_code: 1 }, { unique: true, partialFilterExpression: { is_deleted: false } });
 permissionSchema.index({ module_key: 1 });
 permissionSchema.index({ module_key: 1, action_key: 1 });
+permissionSchema.index({ deprecated_at: 1 });
+permissionSchema.index({ permission_version: 1 });
 
 module.exports = model('Permission', permissionSchema);

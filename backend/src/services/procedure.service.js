@@ -38,6 +38,7 @@ const {
 } = require('../constants/transitions');
 const { PERMISSION } = require('../constants/permissions');
 const { assertTransition, canTransition } = require('../shared/utils/status-transition');
+const actorContext = require('../common/actors');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
 
 const PROCEDURE_TERMINAL_STATUSES = [
@@ -1278,7 +1279,10 @@ async function notifyDoctorProcedureLifecycle(procedureOrderId, actor = {}, opti
       action: 'view_procedure_order',
     },
     created_by_module: 'procedures',
-  }, { ...actor, internal: true, createdByModule: 'procedures' });
+  }, {
+    ...actorContext.buildSystemActor({ serviceName: 'procedures.notifications' }),
+    createdByModule: 'procedures',
+  });
 }
 
 module.exports = {

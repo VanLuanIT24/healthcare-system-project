@@ -1,5 +1,6 @@
 const { buildPaginationMeta, normalizePagination } = require('../../common/helpers/pagination.helper');
 const { buildDateRangeFilter } = require('../../common/helpers/query.helper');
+const { normalizeActorType } = require('../../constants/statuses');
 const { AuditLog } = require('../../models');
 const { getActorId } = require('./auth.policy');
 
@@ -54,7 +55,7 @@ async function getAuditLogs(query = {}) {
     ...buildDateRangeFilter('created_at', query.from, query.to),
   };
 
-  if (query.actor_type) filter.actor_type = query.actor_type;
+  if (query.actor_type) filter.actor_type = normalizeActorType(query.actor_type);
   if (query.actor_id) filter.actor_id = query.actor_id;
   if (query.action) filter.action = query.action;
   if (query.target_type) filter.target_type = query.target_type;

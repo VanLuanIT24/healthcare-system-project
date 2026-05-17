@@ -1,5 +1,6 @@
 const { authRepository } = require('../repositories');
-const { AUDIT_SEVERITY, AUDIT_SEVERITIES, AUDIT_STATUS, AUDIT_STATUSES } = require('../constants/statuses');
+const { ACTOR_TYPE, AUDIT_SEVERITY, AUDIT_SEVERITIES, AUDIT_STATUS, AUDIT_STATUSES } = require('../constants/statuses');
+const actorContext = require('../common/actors');
 
 const SENSITIVE_FIELD_NAMES = new Set([
   'password',
@@ -59,10 +60,10 @@ function inferModuleKey({ moduleKey, module_key, action, targetType, target_type
 }
 
 function resolveActor(actor = {}, actorType = 'system', actorId = null) {
-  const resolvedActorType = actor.actorType || actor.actor_type || actorType || 'system';
+  const resolvedActorType = actorContext.normalizeActorType(actor.actorType || actor.actor_type || actorType) || ACTOR_TYPE.SYSTEM;
   return {
     actor_type: resolvedActorType,
-    actor_id: actor.userId || actor.patientAccountId || actor.actor_id || actor.actorId || actorId,
+    actor_id: actorContext.getActorId({ ...actor, actorType: resolvedActorType }) || actorId,
   };
 }
 

@@ -15,6 +15,8 @@ const patientSchema = new Schema(
     address: { type: String },
     national_id: { type: String, trim: true, set: optionalString },
     insurance_number: { type: String, trim: true, set: optionalString },
+    identity_verified_at: { type: Date },
+    identity_verified_by: { type: Schema.Types.ObjectId, ref: 'User' },
     emergency_contact_name: { type: String, trim: true },
     emergency_contact_phone: { type: String, trim: true },
     status: { type: String, enum: PATIENT_STATUSES, default: PATIENT_STATUS.ACTIVE, required: true },

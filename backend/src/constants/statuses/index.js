@@ -10,4 +10,6 @@ module.exports = {
   ...require('./billing-statuses'),
   ...require('./record-statuses'),
   ...require('./auth-statuses'),
+  ...require('./messaging-statuses'),
+  ...require('./platform-statuses'),
 };

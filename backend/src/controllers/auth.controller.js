@@ -1,5 +1,40 @@
 const authService = require('../services/auth.service');
+const env = require('../config/env');
 const { controllerHandler: wrap, markLegacyControllerError, requestMeta, sendSuccess } = require('../common/controllers');
+
+const GOOGLE_STATE_COOKIE = 'google_oauth_state';
+
+function parseCookies(header = '') {
+  return String(header || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((cookies, part) => {
+      const index = part.indexOf('=');
+      if (index === -1) return cookies;
+      cookies[decodeURIComponent(part.slice(0, index))] = decodeURIComponent(part.slice(index + 1));
+      return cookies;
+    }, {});
+}
+
+function redirectWithError(res, reason = 'google_auth_failed') {
+  const url = new URL(env.frontendAuthFailureUrl);
+  url.searchParams.set('error', reason);
+  return res.redirect(url.toString());
+}
+
+function redirectWithTokens(res, result = {}) {
+  const url = new URL(env.frontendAuthSuccessUrl);
+  const params = new URLSearchParams({
+    access_token: result.access_token,
+    refresh_token: result.refresh_token,
+    token_type: result.token_type || 'Bearer',
+    expires_in: String(result.expires_in || ''),
+    actor_type: result.actor_type || 'patient',
+  });
+  url.hash = params.toString();
+  return res.redirect(url.toString());
+}
 
 async function staffLogin(req, res, next) {
   try {
@@ -47,6 +82,38 @@ async function refreshToken(req, res, next) {
     });
   } catch (error) {
     return next(markLegacyControllerError(error));
+  }
+}
+
+async function googleLogin(req, res) {
+  try {
+    const state = authService.createGoogleOAuthState();
+    res.cookie(GOOGLE_STATE_COOKIE, state, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.nodeEnv === 'production',
+      maxAge: 10 * 60 * 1000,
+      path: '/api/auth/google',
+    });
+    return res.redirect(authService.buildGoogleAuthorizationUrl(state));
+  } catch (error) {
+    return redirectWithError(res, error.code || 'google_auth_disabled');
+  }
+}
+
+async function googleCallback(req, res) {
+  try {
+    const cookies = parseCookies(req.headers.cookie);
+    const result = await authService.completeGoogleLogin({
+      code: req.query.code,
+      state: req.query.state,
+      expectedState: cookies[GOOGLE_STATE_COOKIE],
+    }, requestMeta(req));
+    res.clearCookie(GOOGLE_STATE_COOKIE, { path: '/api/auth/google' });
+    return redirectWithTokens(res, result);
+  } catch (error) {
+    res.clearCookie(GOOGLE_STATE_COOKIE, { path: '/api/auth/google' });
+    return redirectWithError(res, error.code || 'google_auth_failed');
   }
 }
 
@@ -434,6 +501,8 @@ module.exports = {
   unlockPatientAccount,
   registerPatient,
   patientLogin,
+  googleLogin,
+  googleCallback,
   validatePasswordPolicy,
   forgotPassword,
   verifyResetToken,

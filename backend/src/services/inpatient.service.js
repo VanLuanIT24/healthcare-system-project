@@ -11,6 +11,7 @@ const {
   User,
 } = require('../models');
 const { PERMISSION } = require('../constants/permissions');
+const ERROR_CODE = require('../common/errors/error-codes');
 const {
   ADMISSION_STATUS,
   BED_ASSIGNMENT_STATUS,
@@ -41,6 +42,7 @@ const { CODE_TYPE, generateBusinessCode } = require('./code-generator.service');
 const permissionService = require('./permission.service');
 const { assertTransition } = require('../shared/utils/status-transition');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
+const actorContext = require('../common/actors');
 
 const ACTIVE_ADMISSION_STATUSES = [
   ADMISSION_STATUS.PLANNED,
@@ -83,7 +85,7 @@ function sameId(left, right) {
 }
 
 function actorType(actor = {}) {
-  return actor.actorType || actor.actor_type;
+  return actorContext.getActorType(actor);
 }
 
 function actorDepartmentId(actor = {}) {
@@ -99,7 +101,7 @@ function hasAnyPermission(actor = {}, permissions = []) {
 }
 
 function assertStaffPermission(actor = {}, permissions = [], message = 'Bạn không có quyền thao tác Inpatient Module.') {
-  if (actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
+  if (actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
   if (actorType(actor) !== 'staff') throw createError(message, 403);
   if (!hasAnyPermission(actor, Array.isArray(permissions) ? permissions : [permissions])) {
     throw createError(message, 403);
@@ -147,7 +149,7 @@ function isTransactionConflictError(error = {}) {
 }
 
 function assertDepartmentScope(actor = {}, departmentId, { globalPermissions = [], message = 'Bạn không có quyền thao tác trên department này.' } = {}) {
-  if (actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
+  if (actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
   if (hasAnyPermission(actor, globalPermissions)) return true;
   const actorDept = actorDepartmentId(actor);
   if (!actorDept) throw createError('Thiếu department scope của staff.', 403);
@@ -742,7 +744,7 @@ function assertAdmissionReadAccess(admission, actor = {}) {
 }
 
 function assertAdmissionWriteScope(admission, actor = {}, { allowOwnDoctor = false, message = 'Bạn không có quyền thao tác trên admission này.' } = {}) {
-  if (actor.internal || actor.system || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
+  if (actorContext.isSystem(actor) || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)) return true;
   if (allowOwnDoctor && sameId(admission.attending_doctor_id, actor.userId)) return true;
   if (isWithinActorDepartment(actor, admission.department_id)) return true;
   throw createError(message, 403);
@@ -941,7 +943,7 @@ async function validateBedAssignment(admissionId, bedId, payload = {}, actor = {
     withSession(BedAssignment.exists({ bed_id: bed._id, status: BED_ASSIGNMENT_STATUS.ACTIVE }), session),
     withSession(BedAssignment.exists({ admission_id: admission._id, status: BED_ASSIGNMENT_STATUS.ACTIVE }), session),
   ]);
-  if (activeBedAssignment) throw createError('Bed đã có active assignment.', 409);
+  if (activeBedAssignment) throw createError('Bed đã có active assignment.', 409, null, ERROR_CODE.BED_ALREADY_OCCUPIED);
   if (activeAdmissionAssignment) throw createError('Admission đã có active bed assignment.', 409);
   return { admission, bed, room };
 }

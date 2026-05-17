@@ -23,4 +23,8 @@ module.exports = {
   ),
   checkInPatientToQueue: wrap((req) => queueService.checkInPatientToQueue(req.body, req.auth, requestMeta(req)), 'Check-in bệnh nhân vào hàng chờ thành công.'),
   getQueueTimeline: wrap((req) => queueService.getQueueTimeline(req.params.ticketId, req.query, req.auth), 'Lấy timeline queue ticket thành công.'),
+  getMyCurrentQueue: wrap((req) => queueService.getMyCurrentQueue(req.auth), 'Lấy queue hiện tại thành công.'),
+  getPublicQueueBoard: wrap((req) => queueService.getPublicQueueBoard(req.query), 'Lấy public queue board thành công.'),
+  generateQueueTicketQr: wrap((req) => queueService.generateQueueTicketQr(req.params.ticketId, req.body, req.auth, requestMeta(req)), 'Tạo QR queue ticket thành công.', 201),
+  markQueueTicketNoShow: wrap((req) => queueService.markQueueTicketNoShow(req.params.ticketId, req.body, req.auth, requestMeta(req)), 'Mark queue no-show thành công.'),
 };

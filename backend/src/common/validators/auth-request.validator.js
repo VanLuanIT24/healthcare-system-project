@@ -1,6 +1,11 @@
 const ApiError = require('../errors/api-error');
+const { ACTOR_TYPE, normalizeActorType } = require('../../constants/statuses');
 
-const ACTOR_TYPES = new Set(['staff', 'patient']);
+const AUTH_REQUEST_ACTOR_TYPES = new Set([
+  ACTOR_TYPE.STAFF,
+  ACTOR_TYPE.PATIENT,
+  ACTOR_TYPE.PATIENT_RELATIVE,
+]);
 
 const AUTH_META_FIELDS = [
   'device_id',
@@ -32,8 +37,8 @@ function hasAny(body, fields) {
 
 function validateActorType(body, errors) {
   const actorType = body.actor_type || body.actorType;
-  if (!isBlank(actorType) && !ACTOR_TYPES.has(String(actorType))) {
-    errors.push(detail('actor_type', 'actor_type must be staff or patient.'));
+  if (!isBlank(actorType) && !AUTH_REQUEST_ACTOR_TYPES.has(normalizeActorType(actorType))) {
+    errors.push(detail('actor_type', 'actor_type must be staff, patient or patient_relative.'));
   }
 }
 

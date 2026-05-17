@@ -15,6 +15,9 @@ const patientRelativeSchema = new Schema(
     address: { type: String },
     is_emergency_contact: { type: Boolean, default: false, required: true },
     is_primary_contact: { type: Boolean, default: false, required: true },
+    relationship_verified: { type: Boolean, default: false, required: true },
+    verified_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    verified_at: { type: Date },
     status: { type: String, enum: RELATIVE_STATUSES, default: RELATIVE_STATUS.ACTIVE, required: true },
     ...auditFields(),
     ...softDeleteFields(),
@@ -27,5 +30,6 @@ patientRelativeSchema.index({ full_name: 1 });
 patientRelativeSchema.index({ phone: 1 });
 patientRelativeSchema.index({ patient_id: 1, relationship: 1 });
 patientRelativeSchema.index({ patient_id: 1, is_emergency_contact: 1 });
+patientRelativeSchema.index({ patient_id: 1, relationship_verified: 1 });
 
 module.exports = model('PatientRelative', patientRelativeSchema);

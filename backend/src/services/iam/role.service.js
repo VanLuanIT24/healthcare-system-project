@@ -8,6 +8,7 @@ const { Permission, Role, RolePermission, User, UserRole } = require('../../mode
 const { getEffectivePermissionsForRoles } = require('./access-context.service');
 const { recordIamAudit } = require('./iam-audit.helper');
 const sessionService = require('../auth/auth-session.service');
+const { bumpUsersPermissionVersion } = require('../access-control.service');
 const {
   PROTECTED_ROLE_CODES,
   assertCanManageRole,
@@ -28,6 +29,8 @@ function serializeRole(role, extra = {}) {
     description: plain.description,
     status: plain.status,
     is_system: Boolean(plain.is_system),
+    is_mutable: plain.is_mutable !== false,
+    role_version: Number(plain.role_version || 1),
     priority_level: plain.priority_level || 0,
     ...extra,
   };
@@ -188,7 +191,7 @@ async function updateRole(roleId, payload = {}, actor = {}, requestMeta = {}) {
   const before = role.toObject();
 
   if (payload.role_code && payload.role_code !== role.role_code) {
-    if (role.is_system || PROTECTED_ROLE_CODES.has(role.role_code)) {
+    if (role.is_mutable === false || role.is_system || PROTECTED_ROLE_CODES.has(role.role_code)) {
       throw ApiError.forbidden('Không được đổi role_code của role hệ thống.');
     }
     const nextRoleCode = normalizeRoleCode(payload.role_code);
@@ -204,6 +207,10 @@ async function updateRole(roleId, payload = {}, actor = {}, requestMeta = {}) {
     role.role_name = roleName;
   }
   if (payload.description !== undefined) role.description = payload.description;
+  if (payload.is_mutable !== undefined) {
+    if (!isSuperAdmin(actor)) throw ApiError.forbidden('Chỉ super_admin mới được đổi is_mutable của role.');
+    role.is_mutable = payload.is_mutable !== false;
+  }
   if (payload.priority_level !== undefined) {
     const nextPriority = Number(payload.priority_level);
     if (!Number.isInteger(nextPriority) || nextPriority < 0 || nextPriority > 100) {
@@ -214,6 +221,7 @@ async function updateRole(roleId, payload = {}, actor = {}, requestMeta = {}) {
     }
     role.priority_level = nextPriority;
   }
+  role.role_version = Number(role.role_version || 1) + 1;
   role.updated_by = getActorId(actor);
   await role.save();
 
@@ -259,6 +267,7 @@ async function ensureAtLeastOneActiveSuperAdminRemains(excludingRoleId = null) {
 async function invalidateUsersByRole(roleId, actor = {}, requestMeta = {}) {
   const assignments = await UserRole.find({ role_id: roleId, is_active: true }).lean();
   let revokedSessions = 0;
+  await bumpUsersPermissionVersion(assignments.map((assignment) => assignment.user_id));
 
   for (const assignment of assignments) {
     const result = await sessionService.invalidateAllUserSessions('staff', assignment.user_id, requestMeta, {
@@ -289,6 +298,7 @@ async function updateRoleStatus(roleId, payload = {}, actor = {}, requestMeta = 
 
   const before = role.toObject();
   role.status = status;
+  role.role_version = Number(role.role_version || 1) + 1;
   role.updated_by = getActorId(actor);
   await role.save();
   const revokedSessions = status === 'inactive'
@@ -335,6 +345,7 @@ async function deleteRoleSoft(roleId, actor = {}, requestMeta = {}) {
   role.deleted_at = new Date();
   role.deleted_by = getActorId(actor);
   role.status = 'inactive';
+  role.role_version = Number(role.role_version || 1) + 1;
   role.updated_by = getActorId(actor);
   await role.save();
 

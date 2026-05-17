@@ -17,12 +17,19 @@ const queueTicketSchema = new Schema(
     status: { type: String, enum: QUEUE_STATUSES, default: QUEUE_STATUS.WAITING, required: true },
     checkin_time: { type: Date },
     called_time: { type: Date },
+    estimated_called_at: { type: Date },
     service_start_time: { type: Date },
     completed_time: { type: Date },
+    no_show_at: { type: Date },
+    no_show_reason: { type: String },
     skipped_at: { type: Date },
     skip_reason: { type: String },
     cancelled_at: { type: Date },
     cancel_reason: { type: String },
+    qr_token_id: { type: Schema.Types.ObjectId, ref: 'QrToken' },
+    counter_id: { type: String, trim: true },
+    priority_reason: { type: String },
+    display_number: { type: String, trim: true },
     ...auditFields(),
   },
   { ...baseSchemaOptions, collection: 'queue_tickets' },
@@ -45,6 +52,10 @@ queueTicketSchema.index({ department_id: 1 });
 queueTicketSchema.index({ queue_date: 1 });
 queueTicketSchema.index({ status: 1 });
 queueTicketSchema.index({ checkin_time: 1 });
+queueTicketSchema.index({ estimated_called_at: 1 });
+queueTicketSchema.index({ qr_token_id: 1 });
+queueTicketSchema.index({ counter_id: 1 });
+queueTicketSchema.index({ display_number: 1 });
 queueTicketSchema.index({ department_id: 1, queue_date: 1, queue_number: 1 }, { unique: true });
 queueTicketSchema.index({ doctor_id: 1, queue_date: 1, queue_number: 1 }, { unique: true });
 queueTicketSchema.index({ department_id: 1, created_at: 1 });
