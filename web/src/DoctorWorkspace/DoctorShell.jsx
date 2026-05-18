@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom'
 import BubbleBackground from './BubbleBackground'
 import { doctorApi, getDoctorCapabilities } from './doctorApi'
 import { doctorNavItems, getInitials, statusToneMap } from './doctorData'
-import { notificationAPI, unwrapData } from '../utils/api'
+import { authAPI, notificationAPI, unwrapData } from '../utils/api'
 
 const sidebarNavItems = doctorNavItems.filter((item) => item.id !== 'profile')
 
@@ -594,6 +594,12 @@ function getUserIdentity(user) {
   }
 }
 
+function getAvatarUrlFromProfilePayload(payload) {
+  const profile = payload?.profile || payload || {}
+  const account = profile.user || profile.staff || profile.profile || profile
+  return account?.avatar_url || account?.avatarUrl || account?.avatar || profile?.doctor_profile?.avatar_url || ''
+}
+
 function DoctorDashboardSidebar({ onNavigateHome, onLogout, user }) {
   const location = useLocation()
   const identity = getUserIdentity(user)
@@ -863,6 +869,7 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [backendAvatar, setBackendAvatar] = useState('')
   const [searchState, setSearchState] = useState({ loading: false, error: '', groups: [] })
   const [notificationState, setNotificationState] = useState({
     loading: false,
@@ -903,13 +910,44 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
 
   const headerMeta = useMemo(() => getUserIdentity(user), [user])
   const capabilities = useMemo(() => getDoctorCapabilities(user), [user])
-  const headerAvatar =
+  const headerAvatar = backendAvatar ||
     user?.avatar_url ||
     user?.avatarUrl ||
     user?.avatar ||
     user?.profile?.avatar_url ||
+    user?.profile?.user?.avatar_url ||
     user?.profile?.avatar ||
     ''
+  const [headerAvatarFailed, setHeaderAvatarFailed] = useState(false)
+  const visibleHeaderAvatar = Boolean(headerAvatar && !headerAvatarFailed)
+
+  useEffect(() => {
+    setHeaderAvatarFailed(false)
+  }, [headerAvatar])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadBackendAvatar() {
+      try {
+        const payload = unwrapData(await authAPI.getMe())
+        const avatarUrl = getAvatarUrlFromProfilePayload(payload)
+        if (isActive) {
+          setBackendAvatar(avatarUrl || '')
+        }
+      } catch (error) {
+        if (isActive) {
+          setBackendAvatar('')
+        }
+      }
+    }
+
+    loadBackendAvatar()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   const todayLabel = useMemo(
     () =>
@@ -1413,7 +1451,7 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
                 onClick={() => setMenuOpen((current) => !current)}
               >
                 <span className="doctor-user-avatar">
-                  {headerAvatar ? <img src={headerAvatar} alt="" /> : getInitials(headerMeta.displayName) || 'DR'}
+                  {visibleHeaderAvatar ? <img src={headerAvatar} alt="" onError={() => setHeaderAvatarFailed(true)} /> : getInitials(headerMeta.displayName) || 'DR'}
                 </span>
                 <span className="doctor-user-copy">
                   <strong>{headerMeta.displayName}</strong>
@@ -1428,7 +1466,7 @@ function DoctorTopbar({ title, subtitle, searchPlaceholder, user, onLogout, onNa
                 <div className="doctor-user-dropdown">
                   <div className="doctor-user-dropdown-head">
                     <span className="doctor-user-avatar doctor-user-avatar-large">
-                      {headerAvatar ? <img src={headerAvatar} alt="" /> : getInitials(headerMeta.displayName) || 'DR'}
+                      {visibleHeaderAvatar ? <img src={headerAvatar} alt="" onError={() => setHeaderAvatarFailed(true)} /> : getInitials(headerMeta.displayName) || 'DR'}
                     </span>
                     <div className="doctor-user-dropdown-copy">
                       <strong>{headerMeta.displayName}</strong>

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { doctorApi, getDoctorId } from './doctorApi'
 import { safeArray } from './doctorData'
 import { DoctorIcon } from './DoctorShell'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
+
+const PAGE_SIZE = 5
 
 const HISTORY_COLORS = {
   completed: '#25bd71',
@@ -247,6 +249,7 @@ function Donut({ total, completed, skipped, transferred, cancelled }) {
 export function DoctorQueueHistoryScreen({ user }) {
   const toast = useToast()
   const [state, setState] = useState({ loading: true, error: '', data: { tickets: [], summary: null, events: [] } })
+  const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const [room, setRoom] = useState('all')
@@ -313,7 +316,11 @@ export function DoctorQueueHistoryScreen({ user }) {
     })
   }, [dashboard.tickets, query, status, room, doctor, user])
 
-  const firstPage = filteredTickets.slice(0, 10)
+  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const firstPage = filteredTickets.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const pageStart = filteredTickets.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0
+  const pageEnd = Math.min(currentPage * PAGE_SIZE, filteredTickets.length)
 
   async function viewDetail(ticket) {
     const ticketId = ticketIdOf(ticket)
@@ -406,9 +413,15 @@ export function DoctorQueueHistoryScreen({ user }) {
             </div>
 
             <footer className="doctor-history-footer">
-              <span>Hiển thị <b>{firstPage.length}</b> dòng</span>
-              <div><button type="button">‹</button><button type="button" className="is-active">1</button><button type="button">2</button><button type="button">3</button><button type="button">4</button><button type="button">5</button><button type="button">›</button></div>
-              <span>Hiển thị 1 đến {firstPage.length} của {filteredTickets.length} lượt</span>
+              <span>Hiển thị <b>{PAGE_SIZE}</b> dòng</span>
+              <div>
+                <button type="button" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>‹</button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, index) => index + 1).map((pageNumber) => (
+                  <button type="button" className={pageNumber === currentPage ? 'is-active' : ''} key={pageNumber} onClick={() => setPage(pageNumber)}>{pageNumber}</button>
+                ))}
+                <button type="button" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>›</button>
+              </div>
+              <span>Hiển thị {filteredTickets.length ? `${pageStart} đến ${pageEnd}` : '0'} của {filteredTickets.length} lượt</span>
             </footer>
           </article>
         </main>

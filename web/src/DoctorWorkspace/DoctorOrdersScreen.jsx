@@ -31,10 +31,10 @@ import {
 import { doctorApi, getDoctorId } from './doctorApi'
 import { getInitials, safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 5
 
 const PROCESSING_STATUSES = new Set([
   'pending',
@@ -924,7 +924,7 @@ export function DoctorOrdersScreen({ user }) {
                 )}
               </div>
               <footer className="doctor-order-list-footer">
-                <button type="button">Hiển thị <strong>{PAGE_SIZE}</strong> dòng <ChevronDown size={14} /></button>
+                <button type="button" disabled>Hiển thị <strong>{PAGE_SIZE}</strong> dòng</button>
                 <div>
                   <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft size={15} /></button>
                   {Array.from({ length: Math.min(7, pendingTotalPages) }, (_, index) => index + 1).map((pageNumber) => (
@@ -1131,7 +1131,7 @@ export function DoctorOrdersScreen({ user }) {
                 )}
               </div>
               <footer className="doctor-order-list-footer">
-                <button type="button">Hiển thị <strong>{PAGE_SIZE}</strong> dòng <ChevronDown size={14} /></button>
+                <button type="button" disabled>Hiển thị <strong>{PAGE_SIZE}</strong> dòng</button>
                 <div>
                   <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft size={15} /></button>
                   {Array.from({ length: Math.min(5, encounterTotalPages) }, (_, index) => index + 1).map((pageNumber) => (
@@ -1399,7 +1399,7 @@ export function DoctorOrdersScreen({ user }) {
           </div>
 
           <footer className="doctor-order-list-footer">
-            <button type="button">Hiển thị <strong>{PAGE_SIZE}</strong> dòng <ChevronDown size={14} /></button>
+            <button type="button" disabled>Hiển thị <strong>{PAGE_SIZE}</strong> dòng</button>
             <div>
               <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft size={15} /></button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, index) => index + 1).map((pageNumber) => (

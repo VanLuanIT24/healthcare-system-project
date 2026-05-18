@@ -206,6 +206,7 @@ export const notificationAPI = {
   getMyNotifications: (params) => request('/notifications', { params }),
   getUnreadCount: () => request('/notifications/unread-count'),
   unreadCount: () => request('/notifications/unread-count'),
+  getCounters: () => request('/notifications/counters'),
   detail: (notificationId) => request(`/notifications/${encodeURIComponent(notificationId)}`),
   markAllRead: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
   markRead: (notificationId) =>
@@ -213,6 +214,23 @@ export const notificationAPI = {
   listMine: (params) => request('/notifications', { params }),
   markAllReadWithParams: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
   clearAll: (params) => request('/notifications/read-all', { method: 'POST', body: {}, params }),
+}
+
+export const preferenceAPI = {
+  getMe: () => request('/preferences/me'),
+  updateMe: (body) => request('/preferences/me', { method: 'PATCH', body }),
+}
+
+export const adminDoctorProfileAPI = {
+  list: (params) => request('/admin/doctor-profiles', { params }),
+  detail: (profileId) => request(`/admin/doctor-profiles/${encodeURIComponent(profileId)}`),
+  update: (profileId, body) =>
+    request(`/admin/doctor-profiles/${encodeURIComponent(profileId)}`, { method: 'PATCH', body }),
+}
+
+export const doctorProfileAPI = {
+  getMe: () => request('/doctor-profiles/me'),
+  updateMe: (body) => request('/doctor-profiles/me', { method: 'PATCH', body }),
 }
 
 export const appointmentAPI = {
@@ -257,6 +275,7 @@ export const departmentAPI = {
 
 export const scheduleAPI = {
   list: (params) => request('/schedules', { params }),
+  dateRange: (params) => request('/schedules/date-range', { params }),
   getByDateRange: (params) => request('/schedules/public/date-range', { params, auth: false }),
   listByDoctor: (doctorId, params) => request(`/schedules/doctor/${encodeURIComponent(doctorId)}`, { params }),
   calendarByDoctor: (doctorId, params) => request(`/schedules/calendar/doctor/${encodeURIComponent(doctorId)}`, { params }),

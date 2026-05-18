@@ -24,7 +24,7 @@ import { DoctorProcedureScreen } from './DoctorProcedureScreen'
 import { DoctorPerformanceReportScreen } from './DoctorPerformanceReportScreen'
 import { DoctorQueueReportScreen } from './DoctorQueueReportScreen'
 import { DoctorDoctorReportScreen } from './DoctorDoctorReportScreen'
-import { ToastProvider } from './toast/ToastProvider'
+import { ToastProvider } from './ToastProvider'
 import './doctor.css'
 import './doctor-font.css'
 
@@ -272,7 +272,7 @@ export default function DoctorWorkspace() {
           searchPlaceholder="Tìm kiếm bệnh nhân, lịch hẹn, encounter..."
           user={user}
           onLogout={handleLogout}
-          onNavigateHome={() => navigate('/doctor/dashboard')}
+          onNavigateHome={() => navigate('/home')}
           compactTopbar
           shellVariant="dashboard"
         >

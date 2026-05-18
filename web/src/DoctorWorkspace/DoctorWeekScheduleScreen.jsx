@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { doctorApi, getDoctorId } from './doctorApi'
+import { useNavigate } from 'react-router-dom'
+import { doctorApi } from './doctorApi'
 import { formatTime, safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
 import { DoctorIcon } from './DoctorShell'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
 const VI_WEEKDAYS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
@@ -51,8 +53,8 @@ function weekdayName(value) {
 }
 
 function weekRangeText(monday) {
-  const saturday = addDays(monday, 5)
-  return `${displayDate(monday)} - ${displayDate(saturday)}/${saturday.getFullYear()}`
+  const sunday = addDays(monday, 6)
+  return `${displayDate(monday)} - ${displayDate(sunday)}/${sunday.getFullYear()}`
 }
 
 function numberFrom(source, keys, fallback = 0) {
@@ -112,6 +114,7 @@ function slotListFromSummary(summary = {}, allSlots = [], bookedSlots = [], avai
 }
 
 function normalizeBundle(schedule, detail) {
+  const summary = detail.summary || schedule.slots_summary || schedule.summary || {}
   const allSlots = safeArray(detail.allSlots)
   const bookedSlots = safeArray(detail.bookedSlots).length
     ? safeArray(detail.bookedSlots)
@@ -119,9 +122,9 @@ function normalizeBundle(schedule, detail) {
   const availableSlots = safeArray(detail.availableSlots).length
     ? safeArray(detail.availableSlots)
     : allSlots.filter((slot) => slot.is_available || String(slot.status || '').toLowerCase() === 'available')
-  const counts = slotListFromSummary(detail.summary || {}, allSlots, bookedSlots, availableSlots)
+  const counts = slotListFromSummary(summary, allSlots, bookedSlots, availableSlots)
   const fallbackRate = counts.totalSlots ? (counts.bookedCount / counts.totalSlots) * 100 : 0
-  const utilization = Math.round(numberFrom(detail.utilization || {}, ['utilization_rate', 'utilization', 'rate', 'percentage'], fallbackRate))
+  const utilization = Math.round(numberFrom(detail.utilization || schedule, ['utilization_rate', 'utilization', 'rate', 'percentage'], fallbackRate))
 
   return {
     schedule,
@@ -144,34 +147,27 @@ async function settledValue(promise, fallback) {
   }
 }
 
-async function loadWeekSchedule(user) {
+async function loadWeekSchedule(weekOffset = 0) {
   const today = getTodayDate()
-  const monday = startOfWeek(new Date())
+  const monday = addDays(startOfWeek(new Date()), weekOffset * 7)
   const date_from = toDateKey(monday)
   const date_to = toDateKey(addDays(monday, 6))
-  const doctorId = getDoctorId(user)
-
   const weekSchedules = await settledValue(doctorApi.schedules.myWeek({ date_from, date_to, limit: 120 }), [])
-  const calendarSchedules = doctorId
-    ? await settledValue(doctorApi.schedules.getCalendar(doctorId, { date_from, date_to, limit: 120 }), [])
-    : []
-  const baseSchedules = safeArray(weekSchedules).length ? safeArray(weekSchedules) : safeArray(calendarSchedules)
+  const baseSchedules = safeArray(weekSchedules)
 
   const schedules = await Promise.all(
     baseSchedules.map(async (schedule) => {
       const scheduleId = scheduleIdOf(schedule)
-      const [summary, utilization, allSlots, availableSlots, bookedSlots, bookedAlias] = await Promise.all([
-        scheduleId ? settledValue(doctorApi.schedules.getSummary(scheduleId), null) : Promise.resolve(null),
-        scheduleId ? settledValue(doctorApi.schedules.getUtilization(scheduleId), null) : Promise.resolve(null),
-        scheduleId ? settledValue(doctorApi.schedules.getSlots(scheduleId), []) : Promise.resolve([]),
-        scheduleId ? settledValue(doctorApi.schedules.getAvailableSlots(scheduleId), []) : Promise.resolve([]),
-        scheduleId ? settledValue(doctorApi.schedules.getBookedSlots(scheduleId), []) : Promise.resolve([]),
-        scheduleId ? settledValue(doctorApi.schedules.getBookedSlotsAlias(scheduleId), []) : Promise.resolve([]),
-      ])
+      const [allSlots, availableSlots, bookedSlots, bookedAlias] = scheduleId && !schedule.slots_summary
+        ? await Promise.all([
+            settledValue(doctorApi.schedules.getSlots(scheduleId), []),
+            settledValue(doctorApi.schedules.getAvailableSlots(scheduleId), []),
+            settledValue(doctorApi.schedules.getBookedSlotsAlias(scheduleId), []),
+            settledValue(doctorApi.schedules.getBookedSlots(scheduleId), []),
+          ])
+        : [[], [], [], []]
 
       return normalizeBundle(schedule, {
-        summary,
-        utilization,
         allSlots,
         availableSlots,
         bookedSlots: safeArray(bookedSlots).length ? bookedSlots : bookedAlias,
@@ -219,7 +215,7 @@ function WeekSummaryRing({ percent }) {
   )
 }
 
-function ScheduleCell({ bundle }) {
+function ScheduleCell({ bundle, onOpen }) {
   if (!bundle) {
     return (
       <div className="doctor-week-cell is-empty">
@@ -230,7 +226,9 @@ function ScheduleCell({ bundle }) {
   }
 
   return (
-    <div className={`doctor-week-cell is-${bundle.state.tone}`}>
+    <div className={`doctor-week-cell is-${bundle.state.tone}`} role="button" tabIndex={0} onClick={() => onOpen?.(scheduleIdOf(bundle.schedule))} onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') onOpen?.(scheduleIdOf(bundle.schedule))
+    }}>
       <strong>{roomName(bundle.schedule)}</strong>
       <span>{bundle.bookedCount}/{bundle.totalSlots || 0} slot</span>
       <i><b style={{ width: `${bundle.utilization}%` }} /></i>
@@ -277,12 +275,26 @@ function HighlightLevel({ percent }) {
   return { label: 'Thấp', tone: 'green' }
 }
 
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 export function DoctorWeekScheduleScreen({ user }) {
+  const navigate = useNavigate()
+  const toast = useToast()
+  const [weekOffset, setWeekOffset] = useState(0)
   const [state, setState] = useState({ loading: true, error: '', data: { today: getTodayDate(), monday: startOfWeek(new Date()), schedules: [] } })
 
   function reload() {
     setState((current) => ({ ...current, loading: true, error: '' }))
-    loadWeekSchedule(user)
+    loadWeekSchedule(weekOffset)
       .then((data) => setState({ loading: false, error: '', data }))
       .catch((error) => {
         setState({
@@ -297,7 +309,7 @@ export function DoctorWeekScheduleScreen({ user }) {
     let active = true
     setState((current) => ({ ...current, loading: true, error: '' }))
 
-    loadWeekSchedule(user)
+    loadWeekSchedule(weekOffset)
       .then((data) => {
         if (active) setState({ loading: false, error: '', data })
       })
@@ -314,7 +326,7 @@ export function DoctorWeekScheduleScreen({ user }) {
     return () => {
       active = false
     }
-  }, [user])
+  }, [weekOffset])
 
   const week = useMemo(() => {
     const days = weekDays(state.data.monday)
@@ -389,9 +401,97 @@ export function DoctorWeekScheduleScreen({ user }) {
     }
   }, [state.data])
 
+  function openScheduleDetail(scheduleId) {
+    if (!scheduleId) {
+      toast.info('Backend chưa trả scheduleId thật nên chưa thể mở chi tiết ca làm.')
+      return
+    }
+    navigate(`/doctor/schedules/${encodeURIComponent(scheduleId)}`)
+  }
+
+  function showNeedsData(message = 'Không có dữ liệu lịch tuần thật từ backend nên thao tác này chưa hoạt động.') {
+    toast.info(message)
+  }
+
+  function goWeek(offset) {
+    setWeekOffset((current) => current + offset)
+  }
+
+  function goCurrentWeek() {
+    if (weekOffset === 0) {
+      refreshWeek()
+      return
+    }
+    setWeekOffset(0)
+  }
+
+  function exportWeekSchedule() {
+    if (state.loading) {
+      toast.info('Dữ liệu lịch tuần đang tải, chưa thể xuất lịch.')
+      return
+    }
+    if (!week.schedules.length) {
+      toast.info('Không có dữ liệu lịch tuần thật từ backend nên chưa thể xuất lịch.')
+      return
+    }
+    downloadCsv(`lich-lam-viec-tuan-${toDateKey(state.data.monday)}.csv`, [
+      ['Ngay', 'Ca kham', 'Thoi gian', 'Phong kham', 'Trang thai', 'Tong slot', 'Slot da dat', 'Slot con trong', 'Hieu suat'],
+      ...week.schedules.map((item) => [
+        displayDate(new Date(item.schedule.shift_start || item.schedule.start_time || item.dateKey)),
+        item.shiftName,
+        `${formatTime(item.schedule.shift_start || item.schedule.start_time)} - ${formatTime(item.schedule.shift_end || item.schedule.end_time)}`,
+        roomName(item.schedule),
+        item.state.label,
+        item.totalSlots,
+        item.bookedCount,
+        item.availableCount,
+        `${item.utilization}%`,
+      ]),
+    ])
+    toast.success('Đã xuất lịch tuần từ dữ liệu hiện tại.')
+  }
+
+  function refreshWeek() {
+    if (state.loading) {
+      toast.info('Dữ liệu lịch tuần đang tải, vui lòng chờ trong giây lát.')
+      return
+    }
+    reload()
+  }
+
+  function openFirstSchedule(message = 'Không có dữ liệu lịch tuần thật từ backend để mở chi tiết.') {
+    if (state.loading) {
+      toast.info('Dữ liệu lịch tuần đang tải, vui lòng chờ trong giây lát.')
+      return
+    }
+    const first = week.upcoming[0] || week.schedules[0]
+    if (!first) {
+      toast.info(message)
+      return
+    }
+    openScheduleDetail(scheduleIdOf(first.schedule))
+  }
+
+  function showWeekList() {
+    if (state.loading) {
+      toast.info('Dữ liệu lịch tuần đang tải, vui lòng chờ trong giây lát.')
+      return
+    }
+    if (!week.schedules.length) {
+      toast.info('Không có dữ liệu lịch tuần thật từ backend để hiển thị.')
+      return
+    }
+    toast.info('Danh sách ca làm trong tuần đang hiển thị ở bảng lịch phía dưới.')
+  }
+
   return (
     <div className="doctor-week-schedule">
-      {state.error ? <div className="doctor-today-error">{state.error}</div> : null}
+      {state.error ? (
+        <div className="doctor-today-error">
+          <span>{state.error}</span>
+          <button type="button" onClick={reload}>Thử lại</button>
+        </div>
+      ) : null}
 
       <section className="doctor-week-kpis" aria-label="Tổng quan lịch tuần này">
         <WeekKpiCard icon="calendar" tone="blue" label="Ca trực trong tuần" value={week.schedules.length} hint={`${week.workDays} ngày làm việc`} />
@@ -410,8 +510,8 @@ export function DoctorWeekScheduleScreen({ user }) {
             <div className="doctor-week-ref-table">
               <div className="doctor-week-ref-head">
                 <span>Ngày</span>
-                <span>Buổi sáng (07:30 - 11:30)</span>
-                <span>Buổi chiều (13:30 - 17:30)</span>
+                <span>Buổi sáng</span>
+                <span>Buổi chiều</span>
                 <span>Tổng quan</span>
               </div>
               {state.loading ? (
@@ -437,7 +537,7 @@ export function DoctorWeekScheduleScreen({ user }) {
             </div>
 
             <div className="doctor-week-ref-footer">
-              <button className="doctor-week-ref-link" type="button" onClick={reload} disabled={state.loading}>
+              <button className="doctor-week-ref-link" type="button" onClick={showWeekList}>
                 Xem lịch trong tuần <DoctorIcon name="chevron_right" />
               </button>
             </div>
@@ -447,11 +547,13 @@ export function DoctorWeekScheduleScreen({ user }) {
             <article className="doctor-week-panel doctor-week-upcoming">
               <header>
                 <h2>Lịch sắp tới trong tuần</h2>
-                <button className="doctor-week-ref-link" type="button">Xem tất cả</button>
+                <button className="doctor-week-ref-link" type="button" onClick={showWeekList}>Xem tất cả</button>
               </header>
               <div className="doctor-week-ref-upcoming-list">
                 {(week.upcoming.length ? week.upcoming : week.schedules.slice(0, 4)).map((item) => (
-                  <div className="doctor-week-ref-upcoming-row" key={scheduleIdOf(item.schedule) || `${item.dateKey}-${item.shiftName}`}>
+                  <div className="doctor-week-ref-upcoming-row" role="button" tabIndex={0} onClick={() => openScheduleDetail(scheduleIdOf(item.schedule))} onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') openScheduleDetail(scheduleIdOf(item.schedule))
+                  }} key={scheduleIdOf(item.schedule) || `${item.dateKey}-${item.shiftName}`}>
                     <span><strong>{weekdayName(item.schedule.shift_start || item.schedule.start_time)}</strong><small>{displayDate(new Date(item.schedule.shift_start || item.schedule.start_time))}</small></span>
                     <span><small>{formatTime(item.schedule.shift_start || item.schedule.start_time)} - {formatTime(item.schedule.shift_end || item.schedule.end_time)}</small></span>
                     <span><strong>{roomName(item.schedule)}</strong><small>{item.bookedCount}/{item.totalSlots || 0} slot đã đặt</small></span>
@@ -460,13 +562,13 @@ export function DoctorWeekScheduleScreen({ user }) {
                 ))}
                 {!week.schedules.length && !state.loading ? <div className="doctor-week-empty">Chưa có lịch sắp tới.</div> : null}
               </div>
-              <button className="doctor-week-link-button" type="button">Xem lịch đầy đủ <DoctorIcon name="chevron_right" /></button>
+              <button className="doctor-week-link-button" type="button" onClick={showWeekList}>Xem lịch đầy đủ <DoctorIcon name="chevron_right" /></button>
             </article>
 
             <article className="doctor-week-panel doctor-week-highlight">
               <header>
                 <h2>Khung giờ nổi bật</h2>
-                <button className="doctor-week-ref-link" type="button">Xem chi tiết</button>
+                <button className="doctor-week-ref-link" type="button" onClick={() => openFirstSchedule('Không có ca làm thật từ backend để xem chi tiết.')}>Xem chi tiết</button>
               </header>
               <div className="doctor-week-ref-highlight-list">
                 {(week.highlighted.length ? week.highlighted.slice(0, 3) : [{ time: '--', percent: 0, day: '--', level: HighlightLevel({ percent: 0 }) }]).map((item, index) => (
@@ -480,7 +582,7 @@ export function DoctorWeekScheduleScreen({ user }) {
                   </div>
                 ))}
               </div>
-              <button className="doctor-week-link-button" type="button">Xem phân tích chi tiết <DoctorIcon name="chevron_right" /></button>
+              <button className="doctor-week-link-button" type="button" onClick={() => showNeedsData('Phân tích chi tiết đang dùng dữ liệu tuần hiện tại; chưa có endpoint riêng để mở báo cáo sâu hơn.')}>Xem phân tích chi tiết <DoctorIcon name="chevron_right" /></button>
             </article>
 
           </div>
@@ -510,22 +612,22 @@ export function DoctorWeekScheduleScreen({ user }) {
 
           <article className="doctor-week-panel doctor-week-ref-actions">
             <h2>Thao tác nhanh</h2>
-            <button type="button">
+            <button type="button" onClick={() => week.availableCount ? showWeekList() : showNeedsData('Không có dữ liệu slot trống thật từ backend trong tuần này.')}>
               <span className="is-blue"><DoctorIcon name="calendar" /></span>
               <div><strong>Xem lịch trống trong tuần</strong><small>Tìm khung giờ còn trống để đặt thêm</small></div>
               <DoctorIcon name="chevron_right" />
             </button>
-            <button type="button">
+            <button type="button" onClick={() => showNeedsData('Tạo ca làm việc mới cần endpoint ghi lịch và quyền phù hợp; trang bác sĩ hiện chỉ đọc lịch cá nhân.')}>
               <span className="is-green"><DoctorIcon name="plus" /></span>
               <div><strong>Tạo ca làm việc mới</strong><small>Thêm ca trực hoặc khung giờ làm việc</small></div>
               <DoctorIcon name="chevron_right" />
             </button>
-            <button type="button">
+            <button type="button" onClick={exportWeekSchedule}>
               <span className="is-purple"><DoctorIcon name="note" /></span>
               <div><strong>Xuất báo cáo tuần</strong><small>Tải báo cáo hiệu suất làm việc tuần</small></div>
               <DoctorIcon name="chevron_right" />
             </button>
-            <button type="button" onClick={reload} disabled={state.loading}>
+            <button type="button" onClick={refreshWeek}>
               <span className="is-green"><DoctorIcon name="refresh" /></span>
               <div><strong>Đồng bộ lịch cá nhân</strong><small>Kết nối với Google Calendar / Outlook</small></div>
               <DoctorIcon name="chevron_right" />
@@ -539,11 +641,11 @@ export function DoctorWeekScheduleScreen({ user }) {
           <header>
             <h2>Lịch làm việc theo tuần</h2>
             <div className="doctor-week-range">
-              <button type="button" aria-label="Tuần trước"><DoctorIcon name="chevron_right" /></button>
+              <button type="button" aria-label="Tuần trước" onClick={() => goWeek(-1)}><DoctorIcon name="chevron_right" /></button>
               <strong>{weekRangeText(state.data.monday)}</strong>
-              <button type="button" aria-label="Tuần sau"><DoctorIcon name="chevron_right" /></button>
+              <button type="button" aria-label="Tuần sau" onClick={() => goWeek(1)}><DoctorIcon name="chevron_right" /></button>
             </div>
-            <button className="doctor-week-today-button" type="button" onClick={reload} disabled={state.loading}>
+            <button className="doctor-week-today-button" type="button" onClick={goCurrentWeek}>
               Tuần này <DoctorIcon name="calendar" />
             </button>
           </header>
@@ -574,6 +676,7 @@ export function DoctorWeekScheduleScreen({ user }) {
                   <ScheduleCell
                     key={`${toDateKey(day)}:${row.key}`}
                     bundle={week.byDay.get(`${toDateKey(day)}:${row.key}`)}
+                    onOpen={openScheduleDetail}
                   />
                 ))}
               </div>
@@ -606,7 +709,7 @@ export function DoctorWeekScheduleScreen({ user }) {
         <aside className="doctor-week-panel doctor-week-summary">
           <header>
             <h2>Tóm tắt tuần</h2>
-            <button type="button">Tuần này <DoctorIcon name="chevron_down" /></button>
+            <button type="button" onClick={goCurrentWeek}>Tuần này <DoctorIcon name="chevron_down" /></button>
           </header>
           <div className="doctor-week-summary__body">
             <WeekDonut percent={week.utilization} />
@@ -622,7 +725,7 @@ export function DoctorWeekScheduleScreen({ user }) {
             <div><span>Phòng khám chính</span><strong>{week.primaryRoom ? roomName(week.primaryRoom) : '--'}</strong></div>
             <div><span>Hiệu suất trung bình/ngày</span><strong>{week.utilization}%</strong></div>
           </div>
-          <button className="doctor-week-detail-button" type="button">Xem chi tiết hiệu suất <DoctorIcon name="chevron_right" /></button>
+          <button className="doctor-week-detail-button" type="button" onClick={() => showNeedsData('Chi tiết hiệu suất đang được tính từ dữ liệu tuần hiện tại; chưa có endpoint báo cáo sâu hơn.')}>Xem chi tiết hiệu suất <DoctorIcon name="chevron_right" /></button>
         </aside>
       </section>
 
@@ -640,7 +743,9 @@ export function DoctorWeekScheduleScreen({ user }) {
               <span>Đã đặt / Tổng slot</span>
             </div>
             {(week.upcoming.length ? week.upcoming : week.schedules.slice(0, 5)).map((item) => (
-              <div className="doctor-week-table__row" key={scheduleIdOf(item.schedule) || `${item.dateKey}-${item.shiftName}`}>
+              <div className="doctor-week-table__row" role="button" tabIndex={0} onClick={() => openScheduleDetail(scheduleIdOf(item.schedule))} onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') openScheduleDetail(scheduleIdOf(item.schedule))
+              }} key={scheduleIdOf(item.schedule) || `${item.dateKey}-${item.shiftName}`}>
                 <span><strong>{weekdayName(item.schedule.shift_start || item.schedule.start_time)}, {displayDate(new Date(item.schedule.shift_start || item.schedule.start_time))}</strong><small>{formatTime(item.schedule.shift_start || item.schedule.start_time)} - {formatTime(item.schedule.shift_end || item.schedule.end_time)}</small></span>
                 <span>{item.shiftName}</span>
                 <span>{roomName(item.schedule)}</span>
@@ -650,7 +755,7 @@ export function DoctorWeekScheduleScreen({ user }) {
             ))}
             {!week.schedules.length && !state.loading ? <div className="doctor-week-empty">Chưa có lịch sắp tới.</div> : null}
           </div>
-          <button className="doctor-week-link-button" type="button">Xem toàn bộ lịch tuần <DoctorIcon name="chevron_right" /></button>
+          <button className="doctor-week-link-button" type="button" onClick={showWeekList}>Xem toàn bộ lịch tuần <DoctorIcon name="chevron_right" /></button>
         </article>
 
         <article className="doctor-week-panel doctor-week-highlight">
@@ -667,24 +772,24 @@ export function DoctorWeekScheduleScreen({ user }) {
               </div>
             ))}
           </div>
-          <button className="doctor-week-link-button" type="button">Xem chi tiết khung giờ <DoctorIcon name="chevron_right" /></button>
+          <button className="doctor-week-link-button" type="button" onClick={() => showNeedsData('Chi tiết khung giờ đang dùng dữ liệu tuần hiện tại; chưa có endpoint riêng để mở thêm.')}>Xem chi tiết khung giờ <DoctorIcon name="chevron_right" /></button>
         </article>
 
         <aside className="doctor-week-panel doctor-week-actions">
           <h2>Thao tác nhanh</h2>
-          <button type="button">
+          <button type="button" onClick={showWeekList}>
             <span><DoctorIcon name="calendar" /></span>
             <b>Xem lịch chi tiết</b>
             <small>Xem toàn bộ lịch theo ngày</small>
             <DoctorIcon name="chevron_right" />
           </button>
-          <button type="button" onClick={reload} disabled={state.loading}>
+          <button type="button" onClick={refreshWeek}>
             <span><DoctorIcon name="refresh" /></span>
             <b>Làm mới</b>
             <small>Cập nhật lịch và trạng thái slot</small>
             <DoctorIcon name="chevron_right" />
           </button>
-          <button type="button">
+          <button type="button" onClick={exportWeekSchedule}>
             <span><DoctorIcon name="note" /></span>
             <b>Xuất lịch tuần</b>
             <small>Xuất lịch tuần (PDF/Excel)</small>

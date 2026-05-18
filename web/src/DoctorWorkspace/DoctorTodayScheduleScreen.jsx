@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { doctorApi, getDoctorId } from './doctorApi'
+import { doctorApi } from './doctorApi'
 import { getInitials, safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
 import { DoctorIcon } from './DoctorShell'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
 function scheduleIdOf(schedule = {}) {
@@ -16,10 +17,6 @@ function slotIdOf(slot = {}) {
 
 function appointmentIdOf(appointment = {}) {
   return appointment.appointment_id || appointment.id || appointment._id || appointment.appointment?.appointment_id || appointment.appointment?.id || ''
-}
-
-function appointmentScheduleIdOf(appointment = {}) {
-  return appointment.doctor_schedule_id || appointment.schedule_id || appointment.schedule?.doctor_schedule_id || appointment.schedule?.id || ''
 }
 
 function toDateKey(value) {
@@ -335,58 +332,25 @@ async function settledValue(promise, fallback) {
   }
 }
 
-async function loadTodaySchedule(user) {
+async function loadTodaySchedule() {
   const today = getTodayDate()
-  const doctorId = getDoctorId(user)
-  const now = new Date()
-  const monday = new Date(now)
-  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-
-  const appointmentsPromise = doctorApi.appointments.listToday({
-    date: today,
-    limit: 200,
-    ...(doctorId ? { doctor_id: doctorId } : {}),
-  })
   const todaySchedules = await doctorApi.schedules.myToday({ date: today })
-  const weekPromise = doctorApi.schedules.myWeek({ date_from: toDateKey(monday), date_to: toDateKey(sunday), limit: 100 })
-  const calendarPromise = doctorId
-    ? doctorApi.schedules.getCalendar(doctorId, { date_from: today, date_to: today, limit: 100 })
-    : Promise.resolve([])
-
-  const calendarSchedules = await settledValue(calendarPromise, [])
-  const appointmentsToday = await settledValue(appointmentsPromise, [])
-  const baseSchedules = safeArray(todaySchedules).length
-    ? safeArray(todaySchedules)
-    : safeArray(calendarSchedules).filter((schedule) => toDateKey(schedule.shift_start || schedule.start_time || schedule.date) === today)
+  const baseSchedules = safeArray(todaySchedules)
 
   const schedules = await Promise.all(
     baseSchedules.map(async (schedule) => {
       const scheduleId = scheduleIdOf(schedule)
-      const [scheduleDetail, summary, utilization, activity, allSlots, availableSlots, bookedSlots, bookedAlias] = await Promise.all([
-        scheduleId ? settledValue(doctorApi.schedules.getDetail(scheduleId), null) : Promise.resolve(null),
-        scheduleId ? settledValue(doctorApi.schedules.getSummary(scheduleId), null) : Promise.resolve(null),
-        scheduleId ? settledValue(doctorApi.schedules.getUtilization(scheduleId), null) : Promise.resolve(null),
-        scheduleId ? settledValue(doctorApi.schedules.getActivity(scheduleId), []) : Promise.resolve([]),
+      const [allSlots, availableSlots, bookedSlots, bookedSlotsFallback] = await Promise.all([
         scheduleId ? settledValue(doctorApi.schedules.getSlots(scheduleId), []) : Promise.resolve([]),
         scheduleId ? settledValue(doctorApi.schedules.getAvailableSlots(scheduleId), []) : Promise.resolve([]),
-        scheduleId ? settledValue(doctorApi.schedules.getBookedSlots(scheduleId), []) : Promise.resolve([]),
         scheduleId ? settledValue(doctorApi.schedules.getBookedSlotsAlias(scheduleId), []) : Promise.resolve([]),
+        scheduleId ? settledValue(doctorApi.schedules.getBookedSlots(scheduleId), []) : Promise.resolve([]),
       ])
 
       return normalizeBundle(schedule, {
-        detail: scheduleDetail,
-        summary,
-        utilization,
-        activity,
         allSlots,
         availableSlots,
-        bookedSlots: safeArray(bookedSlots).length ? bookedSlots : bookedAlias,
-        appointmentsToday: safeArray(appointmentsToday).filter((appointment) => {
-          const appointmentScheduleId = appointmentScheduleIdOf(appointment)
-          return !appointmentScheduleId || String(appointmentScheduleId) === String(scheduleId)
-        }),
+        bookedSlots: safeArray(bookedSlots).length ? bookedSlots : bookedSlotsFallback,
       })
     }),
   )
@@ -394,7 +358,7 @@ async function loadTodaySchedule(user) {
   return {
     today,
     schedules,
-    weekSchedules: await settledValue(weekPromise, []),
+    weekSchedules: [],
   }
 }
 
@@ -427,6 +391,109 @@ function Donut({ percent }) {
 function SlotBadge({ slot }) {
   const status = slotStatus(slot)
   return <span className={`doctor-today-badge is-${status.tone}`}>{status.label}</span>
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function ScheduleSkeletonRows() {
+  return (
+    <>
+      {[0, 1, 2].map((index) => (
+        <div className="doctor-today-row is-skeleton" key={`schedule-skeleton-${index}`}>
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+      ))}
+    </>
+  )
+}
+
+function SlotRowsModal({ type, slots, schedules, onClose, onOpenSchedule }) {
+  if (!type) return null
+  const isSchedulePicker = type === 'schedules'
+  const isBooked = type === 'booked'
+  const title = isSchedulePicker ? 'Chọn ca làm việc' : isBooked ? 'Tất cả slot đã đặt' : 'Tất cả slot còn trống'
+  const emptyText = isBooked ? 'Chưa có slot đã đặt.' : 'Không còn slot trống.'
+
+  return (
+    <div className="doctor-today-modal-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="doctor-today-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <h2>{title}</h2>
+            <p>Dữ liệu lấy từ lịch làm việc hôm nay và API slot theo từng ca.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Đóng">×</button>
+        </header>
+
+        {isSchedulePicker ? (
+          <div className="doctor-today-modal-schedules">
+            {schedules.map((item) => {
+              const scheduleId = scheduleIdOf(item.schedule)
+              return (
+                <button type="button" key={scheduleId || shiftLabel(item.schedule)} onClick={() => onOpenSchedule(scheduleId)}>
+                  <b>{shiftLabel(item.schedule)}</b>
+                  <span>{formatClock(item.schedule.shift_start || item.schedule.start_time)} - {formatClock(item.schedule.shift_end || item.schedule.end_time)}</span>
+                  <small>{roomName(item.schedule)}</small>
+                </button>
+              )
+            })}
+            {!schedules.length ? (
+              <div className="doctor-today-empty is-small">
+                <strong>Chưa có lịch làm việc trong hôm nay.</strong>
+                <span>Không có ca nào để mở chi tiết.</span>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className={`doctor-today-modal-table ${isBooked ? '' : 'is-available'}`}>
+            <div className="doctor-today-modal-head">
+              <span>Thời gian</span>
+              {isBooked ? <span>Bệnh nhân</span> : <span>Phòng khám</span>}
+              <span>{isBooked ? 'Lý do khám' : 'Thời lượng'}</span>
+              <span>Trạng thái</span>
+            </div>
+            <div className="doctor-today-modal-list">
+              {slots.map((slot, index) => (
+                <div className="doctor-today-modal-row" key={`${slotTime(slot)}-${slotIdOf(slot)}-${index}`}>
+                  <strong>{formatClock(slotTime(slot))}</strong>
+                  {isBooked ? (
+                    <span className="doctor-today-patient-cell">
+                      <i>{getInitials(slotPatient(slot)) || 'BN'}</i>
+                      <span><b>{slotPatient(slot)}</b><small>{slotPatientMeta(slot)}</small></span>
+                    </span>
+                  ) : (
+                    <span>{roomName(slot.schedule, slot)}</span>
+                  )}
+                  <small>{isBooked ? slotReason(slot) : slotDuration(slot)}</small>
+                  <SlotBadge slot={slot} />
+                </div>
+              ))}
+              {!slots.length ? <div className="doctor-today-empty is-small">{emptyText}</div> : null}
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  )
 }
 
 function minuteToClock(minutes) {
@@ -547,11 +614,13 @@ function buildScheduleRows(schedules) {
 
 export function DoctorTodayScheduleScreen({ user }) {
   const navigate = useNavigate()
+  const toast = useToast()
   const [state, setState] = useState({ loading: true, error: '', data: { schedules: [], weekSchedules: [] } })
+  const [slotModal, setSlotModal] = useState('')
 
   function reload() {
     setState((current) => ({ ...current, loading: true, error: '' }))
-    loadTodaySchedule(user)
+    loadTodaySchedule()
       .then((data) => setState({ loading: false, error: '', data }))
       .catch((error) => {
         setState({
@@ -566,7 +635,7 @@ export function DoctorTodayScheduleScreen({ user }) {
     let active = true
     setState((current) => ({ ...current, loading: true, error: '' }))
 
-    loadTodaySchedule(user)
+    loadTodaySchedule()
       .then((data) => {
         if (active) setState({ loading: false, error: '', data })
       })
@@ -637,19 +706,89 @@ export function DoctorTodayScheduleScreen({ user }) {
   const primaryScheduleId = scheduleIdOf(dashboard.first || {})
 
   function openScheduleDetail(scheduleId = primaryScheduleId) {
-    if (!scheduleId) return
+    if (!scheduleId) {
+      toast.info('Không có dữ liệu lịch làm việc thật từ backend nên chưa thể mở chi tiết.')
+      return
+    }
     navigate(`/doctor/schedules/${encodeURIComponent(scheduleId)}`)
+  }
+
+  function openScheduleOverview() {
+    if (state.loading) {
+      toast.info('Dữ liệu lịch làm việc đang tải, vui lòng chờ trong giây lát.')
+      return
+    }
+    if (!dashboard.schedules.length) {
+      toast.info('Không có dữ liệu lịch làm việc thật từ backend nên thao tác này chưa hoạt động.')
+      return
+    }
+    if (!primaryScheduleId || dashboard.schedules.length > 1) {
+      if (!primaryScheduleId && dashboard.schedules.every((item) => !scheduleIdOf(item.schedule))) {
+        toast.info('Backend chưa trả scheduleId thật nên chưa thể mở trang chi tiết lịch.')
+        return
+      }
+      setSlotModal('schedules')
+      return
+    }
+    openScheduleDetail()
+  }
+
+  function exportTodaySchedule() {
+    if (state.loading) {
+      toast.info('Dữ liệu lịch làm việc đang tải, chưa thể xuất lịch.')
+      return
+    }
+    if (!dashboard.schedules.length) {
+      toast.info('Không có dữ liệu lịch làm việc thật từ backend nên chưa thể xuất lịch.')
+      return
+    }
+
+    downloadCsv(`lich-lam-viec-hom-nay-${state.data.today || getTodayDate()}.csv`, [
+      ['Ca kham', 'Thoi gian', 'Phong kham', 'Khoa/phong ban', 'Trang thai', 'Tong slot', 'Slot da dat', 'Slot con trong', 'Hieu suat'],
+      ...dashboard.schedules.map((item) => [
+        shiftLabel(item.schedule),
+        `${formatClock(item.schedule.shift_start || item.schedule.start_time)} - ${formatClock(item.schedule.shift_end || item.schedule.end_time)}`,
+        roomName(item.schedule),
+        departmentName(item.schedule),
+        item.state.label,
+        item.totalSlots,
+        item.bookedCount,
+        item.availableCount,
+        `${item.utilization}%`,
+      ]),
+    ])
+    toast.success('Đã xuất lịch làm việc hôm nay từ dữ liệu hiện tại.')
+  }
+
+  function openSlotModal(type) {
+    if (state.loading) {
+      toast.info('Dữ liệu slot đang tải, vui lòng chờ trong giây lát.')
+      return
+    }
+    const count = type === 'booked' ? dashboard.bookedSlots.length : dashboard.availableSlots.length
+    if (!count) {
+      toast.info(type === 'booked'
+        ? 'Không có dữ liệu slot đã đặt thật từ backend nên danh sách chưa hoạt động.'
+        : 'Không có dữ liệu slot còn trống thật từ backend nên danh sách chưa hoạt động.')
+      return
+    }
+    setSlotModal(type)
   }
 
   return (
     <div className="doctor-today-schedule">
-      {state.error ? <div className="doctor-today-error">{state.error}</div> : null}
+      {state.error ? (
+        <div className="doctor-today-error">
+          <span>{state.error}</span>
+          <button type="button" onClick={reload}>Thử lại</button>
+        </div>
+      ) : null}
 
       <section className="doctor-today-kpis" aria-label="Tổng quan lịch hôm nay">
-        <KpiCard icon="calendar" tone="blue" label="Ca trực hôm nay" value={dashboard.schedules.length} hint={dashboard.timeRange} />
-        <KpiCard icon="patients" tone="green" label="Slot đã đặt" value={dashboard.bookedCount} hint={`${dashboard.totalSlots} tổng slot`} accent />
-        <KpiCard icon="doctor" tone="orange" label="Slot còn trống" value={dashboard.availableCount} hint={dashboard.totalSlots ? `${Math.max(0, 100 - dashboard.utilization)}% tổng số slot` : '--'} />
-        <KpiCard icon="clock" tone="purple" label="Hiệu suất lịch" value={`${dashboard.utilization}%`} hint="Theo dữ liệu slot hiện tại" accent />
+        <KpiCard icon="calendar" tone="blue" label="Ca trực hôm nay" value={state.loading ? '--' : dashboard.schedules.length} hint={state.loading ? 'Đang tải dữ liệu...' : dashboard.timeRange} />
+        <KpiCard icon="patients" tone="green" label="Slot đã đặt" value={state.loading ? '--' : dashboard.bookedCount} hint={state.loading ? 'Đang tải dữ liệu...' : `${dashboard.totalSlots} tổng slot`} accent />
+        <KpiCard icon="doctor" tone="orange" label="Slot còn trống" value={state.loading ? '--' : dashboard.availableCount} hint={state.loading ? 'Đang tải dữ liệu...' : dashboard.totalSlots ? `${Math.max(0, 100 - dashboard.utilization)}% tổng số slot` : '--'} />
+        <KpiCard icon="clock" tone="purple" label="Hiệu suất lịch" value={state.loading ? '--' : `${dashboard.utilization}%`} hint={state.loading ? 'Đang tải dữ liệu...' : 'Theo dữ liệu slot hiện tại'} accent />
       </section>
 
       <section className="doctor-today-main">
@@ -669,7 +808,7 @@ export function DoctorTodayScheduleScreen({ user }) {
 
             <div className="doctor-today-rows">
               {state.loading ? (
-                <div className="doctor-today-empty">Đang tải lịch hôm nay...</div>
+                <ScheduleSkeletonRows />
               ) : dashboard.rows.length ? (
                 dashboard.rows.map((row) => {
                   if (row.type === 'break') {
@@ -696,7 +835,6 @@ export function DoctorTodayScheduleScreen({ user }) {
                           type="button"
                           aria-label="Xem chi tiết lịch"
                           onClick={() => openScheduleDetail(row.scheduleId)}
-                          disabled={!row.scheduleId}
                         >
                           ›
                         </button>
@@ -705,7 +843,10 @@ export function DoctorTodayScheduleScreen({ user }) {
                   )
                 })
               ) : (
-                <div className="doctor-today-empty">Chưa có lịch làm việc trong hôm nay.</div>
+                <div className="doctor-today-empty">
+                  <strong>Chưa có lịch làm việc trong hôm nay.</strong>
+                  <span>Khi có ca trực hoặc lịch khám, thông tin sẽ hiển thị tại đây.</span>
+                </div>
               )}
             </div>
           </div>
@@ -713,8 +854,7 @@ export function DoctorTodayScheduleScreen({ user }) {
           <button
             className="doctor-today-link-button"
             type="button"
-            onClick={() => openScheduleDetail()}
-            disabled={!primaryScheduleId}
+            onClick={openScheduleOverview}
           >
             Xem chi tiết lịch trong ngày
             <DoctorIcon name="chevron_right" />
@@ -751,7 +891,7 @@ export function DoctorTodayScheduleScreen({ user }) {
         <article className="doctor-today-panel doctor-today-slots">
           <header>
             <h2>Slot đã đặt ({dashboard.bookedCount})</h2>
-            <button type="button">Xem tất cả</button>
+            <button type="button" onClick={() => openSlotModal('booked')}>Xem tất cả</button>
           </header>
           <div className="doctor-today-slot-head">
             <span>Thời gian</span>
@@ -770,20 +910,25 @@ export function DoctorTodayScheduleScreen({ user }) {
                 </span>
                 <small>{slotReason(slot)}</small>
                 <SlotBadge slot={slot} />
-                <button className="doctor-today-more-button" type="button" aria-label="Tùy chọn slot">
+                <button
+                  className="doctor-today-more-button"
+                  type="button"
+                  aria-label="Xem ca của slot"
+                  onClick={() => openScheduleDetail(scheduleIdOf(slot.schedule))}
+                >
                   <DoctorIcon name="more" />
                 </button>
               </div>
             ))}
             {!dashboard.bookedSlots.length ? <div className="doctor-today-empty is-small">Chưa có slot đã đặt.</div> : null}
           </div>
-          <button className="doctor-today-link-button" type="button">Xem tất cả slot đã đặt <DoctorIcon name="chevron_right" /></button>
+          <button className="doctor-today-link-button" type="button" onClick={() => openSlotModal('booked')}>Xem tất cả slot đã đặt <DoctorIcon name="chevron_right" /></button>
         </article>
 
         <article className="doctor-today-panel doctor-today-slots">
           <header>
             <h2>Slot còn trống ({dashboard.availableCount})</h2>
-            <button type="button">Xem tất cả</button>
+            <button type="button" onClick={() => openSlotModal('available')}>Xem tất cả</button>
           </header>
           <div className="doctor-today-slot-head is-available">
             <span>Thời gian</span>
@@ -797,29 +942,29 @@ export function DoctorTodayScheduleScreen({ user }) {
                 <strong>{formatClock(slotTime(slot))}</strong>
                 <span>{roomName(slot.schedule, slot)}</span>
                 <small>{slotDuration(slot)}</small>
-                <button type="button">Đặt lịch</button>
+                <button type="button" onClick={() => openScheduleDetail(scheduleIdOf(slot.schedule))}>Xem ca</button>
               </div>
             ))}
             {!dashboard.availableSlots.length ? <div className="doctor-today-empty is-small">Không còn slot trống.</div> : null}
           </div>
-          <button className="doctor-today-link-button" type="button">Xem tất cả slot còn trống <DoctorIcon name="chevron_right" /></button>
+          <button className="doctor-today-link-button" type="button" onClick={() => openSlotModal('available')}>Xem tất cả slot còn trống <DoctorIcon name="chevron_right" /></button>
         </article>
 
         <aside className="doctor-today-panel doctor-today-actions">
           <h2>Thao tác nhanh</h2>
-          <button type="button" onClick={() => openScheduleDetail()} disabled={!primaryScheduleId}>
+          <button type="button" onClick={openScheduleOverview}>
             <span className="is-blue"><DoctorIcon name="calendar" /></span>
             <b>Xem chi tiết lịch</b>
             <small>Xem chi tiết từng ca và slot</small>
             <DoctorIcon name="chevron_right" />
           </button>
-          <button type="button" onClick={reload} disabled={state.loading}>
+          <button type="button" onClick={reload}>
             <span className="is-green"><DoctorIcon name="refresh" /></span>
             <b>Làm mới dữ liệu</b>
             <small>Cập nhật trạng thái mới nhất</small>
             <DoctorIcon name="chevron_right" />
           </button>
-          <button type="button">
+          <button type="button" onClick={exportTodaySchedule}>
             <span className="is-purple"><DoctorIcon name="note" /></span>
             <b>Xuất lịch</b>
             <small>Xuất lịch làm việc hôm nay</small>
@@ -827,6 +972,14 @@ export function DoctorTodayScheduleScreen({ user }) {
           </button>
         </aside>
       </section>
+
+      <SlotRowsModal
+        type={slotModal === 'schedules' ? 'schedules' : slotModal}
+        slots={slotModal === 'booked' ? dashboard.bookedSlots : slotModal === 'available' ? dashboard.availableSlots : []}
+        schedules={slotModal === 'schedules' ? dashboard.schedules : []}
+        onClose={() => setSlotModal('')}
+        onOpenSchedule={openScheduleDetail}
+      />
     </div>
   )
 }

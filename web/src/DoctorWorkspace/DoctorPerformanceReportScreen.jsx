@@ -18,7 +18,7 @@ import {
 import { doctorApi, getDoctorId } from './doctorApi'
 import { safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
 const DAY_MS = 86400000

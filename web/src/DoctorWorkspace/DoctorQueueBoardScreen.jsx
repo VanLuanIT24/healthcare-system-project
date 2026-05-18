@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { doctorApi, getDoctorId } from './doctorApi'
 import { formatTime, safeArray } from './doctorData'
 import { DoctorIcon } from './DoctorShell'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
+
+const PAGE_SIZE = 5
 
 function ticketIdOf(ticket = {}) {
   return ticket.queue_ticket_id || ticket.ticket_id || ticket.id || ticket._id || ''
@@ -162,6 +164,7 @@ export function DoctorQueueBoardScreen({ user }) {
   const toast = useToast()
   const [state, setState] = useState({ loading: true, error: '', data: { board: {}, tickets: [], summary: null } })
   const [actingId, setActingId] = useState('')
+  const [page, setPage] = useState(1)
 
   function reload() {
     setState((current) => ({ ...current, loading: true, error: '' }))
@@ -225,6 +228,12 @@ export function DoctorQueueBoardScreen({ user }) {
     }
   }, [state.data])
 
+  const totalPages = Math.max(1, Math.ceil(dashboard.tickets.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pageRows = dashboard.tickets.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const pageStart = dashboard.tickets.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0
+  const pageEnd = Math.min(currentPage * PAGE_SIZE, dashboard.tickets.length)
+
   async function runAction(type, ticket = null) {
     const doctorId = getDoctorId(user)
     const ticketId = ticket ? ticketIdOf(ticket) : ''
@@ -282,7 +291,7 @@ export function DoctorQueueBoardScreen({ user }) {
           <div className="doctor-queue-body">
             {state.loading ? (
               <div className="doctor-appointment-empty">Đang tải bảng hàng đợi...</div>
-            ) : dashboard.tickets.length ? dashboard.tickets.slice(0, 10).map((ticket, index) => {
+              ) : pageRows.length ? pageRows.map((ticket, index) => {
               const id = ticketIdOf(ticket) || `queue-${index}`
               const status = statusInfo(ticket)
               const isDone = ['completed', 'cancelled', 'skipped'].includes(status.key)
@@ -326,17 +335,17 @@ export function DoctorQueueBoardScreen({ user }) {
           </div>
 
           <footer className="doctor-queue-footer">
-            <button type="button">Hiển thị 10 dòng <DoctorIcon name="chevron_down" /></button>
+            <button type="button" disabled>Hiển thị {PAGE_SIZE} dòng</button>
             <div>
-              <button type="button" disabled><DoctorIcon name="chevron_right" /></button>
-              <button type="button" className="is-active">1</button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <button type="button">4</button>
-              <button type="button">5</button>
-              <button type="button"><DoctorIcon name="chevron_right" /></button>
+              <button type="button" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><DoctorIcon name="chevron_right" /></button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, index) => index + 1).map((pageNumber) => (
+                <button type="button" className={pageNumber === currentPage ? 'is-active' : ''} key={pageNumber} onClick={() => setPage(pageNumber)}>
+                  {pageNumber}
+                </button>
+              ))}
+              <button type="button" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}><DoctorIcon name="chevron_right" /></button>
             </div>
-            <span>Hiển thị {dashboard.tickets.length ? `1 đến ${Math.min(10, dashboard.tickets.length)}` : '0'} của {dashboard.total} bệnh nhân</span>
+            <span>Hiển thị {dashboard.tickets.length ? `${pageStart} đến ${pageEnd}` : '0'} của {dashboard.total} bệnh nhân</span>
           </footer>
         </article>
 

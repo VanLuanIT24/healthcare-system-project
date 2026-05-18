@@ -21,10 +21,10 @@ import {
 import { doctorApi, getDoctorId } from './doctorApi'
 import { getInitials, safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
-const PAGE_SIZE = 8
+const PAGE_SIZE = 5
 
 function settledValue(promise, fallback) {
   return promise.then((value) => value).catch(() => fallback)
@@ -487,7 +487,7 @@ export function DoctorRecentPatientsScreen({ user }) {
             )}
           </div>
           <footer className="doctor-recent-patient-footer">
-            <button type="button">Hiển thị <strong>{PAGE_SIZE}</strong> dòng <ChevronDown size={14} /></button>
+            <button type="button" disabled>Hiển thị <strong>{PAGE_SIZE}</strong> dòng</button>
             <div>
               <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft size={15} /></button>
               {Array.from({ length: Math.min(3, totalPages) }, (_, index) => index + 1).map((pageNumber) => (

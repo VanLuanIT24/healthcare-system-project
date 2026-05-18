@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useToast } from './toast/ToastProvider'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useToast } from './ToastProvider'
 import { doctorApi, getDoctorCapabilities, getDoctorId } from './doctorApi'
 import { formatDate, formatTime, getInitials, safeArray } from './doctorData'
 import { useAsyncResource, getTodayDate, usePollingReload } from './DoctorHooks'
 import { guardDoctorAction } from './doctorFeedback'
 import { DoctorIcon, EmptyState, ErrorState, LoadingState, StatusBadge } from './DoctorShell'
+import { DoctorProfilePanel } from './DoctorProfilePanel'
+import { authAPI, unwrapData } from '../utils/api'
 
 const ACTIVE_ORDER_STATUS_QUERY = 'draft,confirmed,in_progress,result_ready'
 const WEEK_FILTER_OPTIONS = [
@@ -30,6 +32,12 @@ function formatRoleLabel(roleCode = '') {
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function getAvatarUrlFromProfilePayload(payload) {
+  const profile = payload?.profile || payload || {}
+  const account = profile.user || profile.staff || profile.profile || profile
+  return account?.avatar_url || account?.avatarUrl || account?.avatar || profile?.doctor_profile?.avatar_url || ''
 }
 
 function getWeekRangeLabel(payload) {
@@ -415,7 +423,11 @@ function CompactEmpty({ title, description }) {
 export function DoctorDashboardScreen({ user }) {
   const toast = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
   const [weekOffset, setWeekOffset] = useState(0)
+  const [backendAvatar, setBackendAvatar] = useState('')
+  const [dashboardAvatarFailed, setDashboardAvatarFailed] = useState(false)
+  const activePanel = new URLSearchParams(location.search).get('panel')
   const doctorId = getDoctorId(user)
   const capabilities = getDoctorCapabilities(user)
   const canReadOrders = capabilities.encountersRead || capabilities.canEncounterActions
@@ -443,6 +455,30 @@ export function DoctorDashboardScreen({ user }) {
 
   usePollingReload(reloadDashboard, Boolean(doctorId), 60000)
 
+  useEffect(() => {
+    let isActive = true
+
+    async function loadBackendAvatar() {
+      try {
+        const payload = unwrapData(await authAPI.getMe())
+        const avatarUrl = getAvatarUrlFromProfilePayload(payload)
+        if (isActive) {
+          setBackendAvatar(avatarUrl || '')
+        }
+      } catch (error) {
+        if (isActive) {
+          setBackendAvatar('')
+        }
+      }
+    }
+
+    loadBackendAvatar()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
   const dashboard = dashboardState.data || {}
   const doctor = dashboard.doctor || null
   const shift = dashboard.today_shift || null
@@ -465,12 +501,21 @@ export function DoctorDashboardScreen({ user }) {
   const doctorDepartment = shift?.department_name || user?.department_name || user?.departmentName || 'Chưa có phòng khám'
   const doctorSpecialization = user?.specialization || user?.specialty || user?.title || primaryRole
   const scheduleWindowText = shift ? `${formatTime(shift.shift_start)} - ${formatTime(shift.shift_end)}` : 'Chưa có ca làm'
-  const doctorAvatar = doctor?.avatar_url || doctor?.avatar || user?.avatar_url || user?.avatar || ''
+  const doctorAvatar = backendAvatar || user?.avatar_url || user?.avatar || user?.profile?.user?.avatar_url || doctor?.avatar_url || doctor?.avatar || ''
+  const showDoctorAvatar = Boolean(doctorAvatar && !dashboardAvatarFailed)
   const checkedInCount = appointments.filter((item) => ['checked_in', 'in_consultation'].includes(item.status)).length
   const averageWaitMinutes = waitingQueue.length
     ? Math.round(waitingQueue.reduce((total, item) => total + (getMinutesDiff(item.checkin_time) || 0), 0) / waitingQueue.length)
     : 0
   const activeWeekSchedules = weekSchedules.filter((schedule) => ['published', 'active', 'confirmed', 'available'].includes(schedule.status) || !schedule.status)
+
+  useEffect(() => {
+    setDashboardAvatarFailed(false)
+  }, [doctorAvatar])
+
+  if (activePanel === 'profile') {
+    return <DoctorProfilePanel user={user} />
+  }
 
   function openAppointments(state = {}) {
     navigate('/doctor/appointments', { state })
@@ -560,8 +605,7 @@ export function DoctorDashboardScreen({ user }) {
       <section className="doctor-dashboard-hero-card">
         <div className="doctor-dashboard-hero-profile">
           <div className="doctor-dashboard-hero-avatar">
-            {doctorAvatar ? <img src={doctorAvatar} alt="" onError={(event) => { event.currentTarget.style.display = 'none' }} /> : null}
-            <span>{getInitials(doctorName) || 'BS'}</span>
+            {showDoctorAvatar ? <img src={doctorAvatar} alt="" onError={() => setDashboardAvatarFailed(true)} /> : <span>{getInitials(doctorName) || 'BS'}</span>}
             <i className={`doctor-dashboard-hero-avatar-dot is-${accountState.tone}`} title={accountState.label} aria-label={accountState.label} />
           </div>
           <div className="doctor-dashboard-hero-identity">

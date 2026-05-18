@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { doctorApi, getDoctorId } from './doctorApi'
 import { safeArray } from './doctorData'
 import { DoctorIcon } from './DoctorShell'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
 const ROOM_COLORS = ['#1264f2', '#35c875', '#ff9f1a', '#7c4dff']

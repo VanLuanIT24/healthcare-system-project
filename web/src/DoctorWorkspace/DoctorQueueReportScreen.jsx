@@ -16,7 +16,7 @@ import {
 import { doctorApi, getDoctorId } from './doctorApi'
 import { safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
 const REPORT_DAYS = 7

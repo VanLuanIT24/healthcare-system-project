@@ -8321,7 +8321,7 @@
 }
 
 .doctor-dashboard-quick-card.is-locked::after {
-  content: 'Quyền hạn';
+  content: 'Quyá»n háº¡n';
   position: absolute;
   top: 14px;
   right: 16px;
@@ -15976,7 +15976,7 @@
 }
 
 .doctor-performance-actions button::after {
-  content: 'â€º';
+  content: 'Ã¢â‚¬Âº';
   color: #071762;
   font-size: 24px;
   font-weight: 400;
@@ -16090,11 +16090,11 @@
 .doctor-shell.is-dashboard-variant:has(.doctor-lab-page) .doctor-shell-inner {
   width: 100%;
   max-width: none;
-  padding: 20px 26px 24px;
+  padding: 20px 20px 24px;
 }
 
 .doctor-lab-page {
-  min-width: 1480px;
+  min-width: 0;
   color: #061a70;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -16275,8 +16275,8 @@
 
 .doctor-lab-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(5, minmax(170px, 1fr));
+  gap: 10px;
   margin-bottom: 16px;
 }
 
@@ -16290,56 +16290,61 @@
 
 .doctor-lab-kpi {
   position: relative;
-  min-height: 102px;
+  min-width: 0;
+  min-height: 76px;
   display: grid;
-  grid-template-columns: 62px minmax(0, 1fr) auto;
-  gap: 16px;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
-  padding: 18px 18px;
+  padding: 12px 13px;
 }
 
 .doctor-lab-kpi__icon {
-  width: 60px;
-  height: 60px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
-  border-radius: 18px;
+  border-radius: 16px;
 }
 
 .doctor-lab-kpi__icon.is-blue { color: #1d6df2; background: #eaf3ff; }
 .doctor-lab-kpi__icon.is-orange { color: #ff9418; background: #fff0df; }
 .doctor-lab-kpi__icon.is-green { color: #16a260; background: #dcf7e8; }
+.doctor-lab-kpi__icon.is-purple { color: #8b4df6; background: #f1e8ff; }
 .doctor-lab-kpi__icon.is-red { color: #ff3543; background: #ffe9ea; }
 
 .doctor-lab-kpi p {
   color: #061a70;
-  font-size: 12px;
+  font-size: 9px;
+  line-height: 1.2;
   font-weight: 950;
+  white-space: nowrap;
 }
 
 .doctor-lab-kpi strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 4px;
   color: #061a70;
-  font-size: 25px;
+  font-size: 21px;
   line-height: 1;
   font-weight: 950;
 }
 
 .doctor-lab-kpi small {
   display: block;
-  margin-top: 9px;
+  margin-top: 5px;
   color: #50618f;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 760;
 }
 
 .doctor-lab-kpi em {
   align-self: end;
   color: #16a260;
-  font-size: 11px;
+  font-size: 9px;
   font-style: normal;
   font-weight: 950;
+  white-space: nowrap;
 }
 
 .doctor-lab-kpi:nth-child(2) em,
@@ -16348,20 +16353,30 @@
 }
 
 .doctor-lab-layout {
-  display: grid;
-  grid-template-columns: minmax(980px, 1fr) 312px;
-  gap: 16px;
-  align-items: start;
+  display: block;
+  width: 100%;
+  max-width: 1220px;
+  margin: 0;
 }
 
-.doctor-lab-main,
-.doctor-lab-side {
-  display: grid;
-  gap: 14px;
+.doctor-lab-main {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.doctor-lab-side,
+.doctor-lab-bottom {
+  display: none;
 }
 
 .doctor-lab-panel {
   padding: 15px;
+}
+
+.doctor-lab-table-card {
+  padding: 0;
+  overflow: hidden;
 }
 
 .doctor-lab-panel h2 {
@@ -16373,42 +16388,45 @@
 
 .doctor-lab-filters {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 190px 260px 210px;
-  gap: 12px;
+  grid-template-columns: minmax(300px, 1fr) 170px 210px 160px 116px;
+  gap: 10px;
   align-items: center;
-  margin-bottom: 13px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid #edf2fa;
+  margin-bottom: 0;
 }
 
 .doctor-lab-filters label,
 .doctor-lab-filters button {
-  min-height: 39px;
+  min-height: 36px;
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 0 12px;
+  gap: 8px;
+  padding: 0 11px;
   border: 1px solid #dbe6f5;
-  border-radius: 8px;
+  border-radius: 6px;
   color: #061a70;
   background: #fff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
 }
 
 .doctor-lab-filters label:nth-child(5),
 .doctor-lab-filters label:nth-child(6) {
-  width: 235px;
+  width: auto;
 }
 
 .doctor-lab-filters button {
   justify-content: center;
-  width: 106px;
+  width: 100%;
   color: #0b66f0;
   font-weight: 900;
 }
 
 .doctor-lab-filters button:last-child {
-  justify-self: end;
-  width: 118px;
+  color: #fff;
+  background: #0b66f0;
+  border-color: #0b66f0;
 }
 
 .doctor-lab-filters span {
@@ -16424,7 +16442,7 @@
   outline: 0;
   color: #061a70;
   background: transparent;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
 }
 
@@ -16432,39 +16450,84 @@
   grid-column: span 1;
 }
 
+.doctor-lab-filters label:nth-child(6) {
+  grid-column: 2 / span 2;
+}
+
+.doctor-lab-tabs {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-bottom: 1px solid #edf2fa;
+  background: #fff;
+}
+
+.doctor-lab-tabs button {
+  position: relative;
+  height: 44px;
+  border: 0;
+  padding: 0;
+  color: #52638e;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.doctor-lab-tabs button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.doctor-lab-tabs button.is-active {
+  color: #0b66f0;
+}
+
+.doctor-lab-tabs button.is-active::after {
+  background: #0b66f0;
+}
+
 .doctor-lab-table-head,
 .doctor-lab-row {
   display: grid;
-  grid-template-columns: 24px 122px minmax(128px, 1fr) 132px 148px 120px 112px 112px 120px 72px;
-  gap: 10px;
+  grid-template-columns: 24px minmax(100px, 0.9fr) minmax(145px, 1.25fr) minmax(120px, 1fr) minmax(135px, 1.08fr) minmax(100px, 0.85fr) minmax(112px, 0.9fr) minmax(126px, 1fr) minmax(105px, 0.9fr) 64px;
+  gap: 8px;
   align-items: center;
 }
 
 .doctor-lab-table-head {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 1px solid #e4ebf6;
-  border-radius: 8px 8px 0 0;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-bottom: 1px solid #e4ebf6;
+  border-radius: 0;
   color: #061a70;
   background: #f8fbff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 950;
 }
 
 .doctor-lab-table {
-  border-inline: 1px solid #e4ebf6;
-  border-bottom: 1px solid #e4ebf6;
-  border-radius: 0 0 8px 8px;
-  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
 }
 
 .doctor-lab-row {
-  min-height: 48px;
-  padding: 0 12px;
+  min-height: 58px;
+  padding: 0 18px;
   border-bottom: 1px solid #e9eef7;
   color: #061a70;
   background: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
 }
 
@@ -16489,7 +16552,7 @@
   color: #0b66f0;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 950;
 }
 
@@ -16499,6 +16562,14 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.doctor-lab-table-head > span,
+.doctor-lab-row > strong,
+.doctor-lab-row > span,
+.doctor-lab-row time,
+.doctor-lab-row em {
+  white-space: nowrap;
 }
 
 .doctor-lab-person {
@@ -16519,26 +16590,26 @@
 
 .doctor-lab-person b {
   color: #061a70;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 950;
 }
 
 .doctor-lab-person small,
 .doctor-lab-row time small {
   color: #50618f;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 760;
 }
 
 .doctor-lab-status {
   width: fit-content;
-  min-height: 24px;
+  min-height: 22px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0 9px;
-  border-radius: 7px;
-  font-size: 10px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 9px;
   font-weight: 950;
   white-space: nowrap;
 }
@@ -16577,7 +16648,7 @@
 }
 
 .doctor-lab-actions button {
-  min-height: 30px;
+  min-height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -16585,7 +16656,7 @@
   border-radius: 7px;
   color: #0b66f0;
   background: #fff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
 }
 
@@ -16594,7 +16665,7 @@
 }
 
 .doctor-lab-actions button:last-child {
-  width: 32px;
+  width: 28px;
 }
 
 .doctor-lab-actions button:disabled,
@@ -26170,8 +26241,15 @@
 
 .doctor-all-appointment-list {
   min-width: 0;
+  overflow: visible;
+}
+
+.doctor-all-appointment-table-scroll {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-gutter: stable;
 }
 
 .doctor-all-appointment-panel > header {
@@ -26267,6 +26345,7 @@
   grid-template-columns: 58px 64px minmax(190px, 1.12fr) minmax(210px, 1.18fr) 110px 70px 72px 64px 82px 108px;
   align-items: center;
   gap: 10px;
+  width: max-content;
   min-width: 1180px;
 }
 
@@ -30974,6 +31053,19 @@ img.doctor-calling-avatar {
   padding: 18px;
 }
 
+.doctor-upcoming-list {
+  min-width: 0;
+  overflow: visible;
+}
+
+.doctor-upcoming-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+}
+
 .doctor-upcoming-panel > header {
   display: flex;
   align-items: center;
@@ -30993,13 +31085,16 @@ img.doctor-calling-avatar {
 
 .doctor-upcoming-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.35fr) 210px 185px 185px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .9fr) minmax(0, .95fr) minmax(0, .95fr);
+  gap: 10px;
   margin-bottom: 14px;
+  min-width: 0;
 }
 
 .doctor-upcoming-filters label,
 .doctor-upcoming-filters button {
+  min-width: 0;
+  max-width: 100%;
   min-height: 38px;
   border: 1px solid #d6e3f5;
   border-radius: 8px;
@@ -31009,6 +31104,7 @@ img.doctor-calling-avatar {
   padding: 0 12px;
   background: #fff;
   color: #122653;
+  overflow: hidden;
 }
 
 .doctor-upcoming-filters input {
@@ -31033,9 +31129,13 @@ img.doctor-calling-avatar {
   font-size: .82rem;
   font-weight: 850;
   cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .doctor-upcoming-filters svg {
+  flex: 0 0 auto;
   width: 15px;
   height: 15px;
   color: #1264f2;
@@ -31047,11 +31147,13 @@ img.doctor-calling-avatar {
   grid-template-columns: 74px 66px minmax(170px, 1.2fr) minmax(170px, 1.18fr) 106px 74px 72px 166px;
   align-items: center;
   gap: 12px;
+  width: max-content;
+  min-width: 920px;
 }
 
 .doctor-upcoming-table-head {
   min-height: 44px;
-  padding: 0 14px;
+  padding: 0 12px;
   border: 1px solid #e2e9f4;
   border-radius: 9px 9px 0 0;
   background: #f8fbff;
@@ -31069,7 +31171,7 @@ img.doctor-calling-avatar {
 
 .doctor-upcoming-row {
   min-height: 58px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-bottom: 1px solid #edf2f8;
 }
 
@@ -31080,6 +31182,7 @@ img.doctor-calling-avatar {
 .doctor-upcoming-row > strong,
 .doctor-upcoming-row > span {
   min-width: 0;
+  overflow: hidden;
   color: #0d2453;
   font-size: .78rem;
   font-weight: 900;
@@ -31137,13 +31240,17 @@ img.doctor-calling-avatar {
 
 .doctor-upcoming-row i {
   min-height: 24px;
-  padding: 0 10px;
+  max-width: 100%;
+  padding: 0 8px;
   border-radius: 7px;
   display: inline-flex;
   align-items: center;
   font-style: normal;
   font-size: .68rem;
   font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .doctor-upcoming-row i.is-green { color: #00875f; background: #dff8eb; }
@@ -31160,11 +31267,13 @@ img.doctor-calling-avatar {
 
 .doctor-upcoming-actions {
   display: grid;
-  grid-template-columns: 74px 84px;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
 }
 
 .doctor-upcoming-actions button {
+  min-width: 0;
   min-height: 28px;
   border: 1px solid #9fc5ff;
   border-radius: 7px;
@@ -31178,6 +31287,9 @@ img.doctor-calling-avatar {
   font-size: .68rem;
   font-weight: 950;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .doctor-upcoming-actions button svg {
@@ -31200,7 +31312,7 @@ img.doctor-calling-avatar {
 
 .doctor-upcoming-footer {
   display: grid;
-  grid-template-columns: 150px 1fr 220px;
+  grid-template-columns: 140px minmax(0, 1fr) 210px;
   align-items: center;
   gap: 14px;
   min-height: 54px;
@@ -31686,8 +31798,497 @@ img.doctor-calling-avatar {
   }
 }
 
+@keyframes doctorTopbarWaveFlow {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 180px 0;
+  }
+}
+
+@keyframes doctorTopbarWaveMirrorFlow {
+  from {
+    background-position: 180px 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
 @media (max-width: 720px) {
   .doctor-encounter-ref-page.is-today .doctor-encounter-ref-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Patient list final fit: header comes from DoctorShell; table scrolls inside its card. */
+.doctor-patient-list-page {
+  padding: 18px 24px 28px;
+}
+
+.doctor-patient-list-page > .doctor-patient-list-header {
+  display: none;
+}
+
+.doctor-patient-list-kpis {
+  margin-bottom: 18px;
+}
+
+.doctor-patient-list-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 18px;
+  min-width: 0;
+}
+
+.doctor-patient-list-table-card {
+  padding: 10px 12px 12px;
+  overflow: visible;
+}
+
+.doctor-patient-list-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 140px 140px 92px 34px;
+  width: 100%;
+  max-width: none;
+  justify-content: stretch;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 0 0 10px;
+  padding: 0 0 9px;
+  background: #fff;
+  border-bottom: 1px solid #edf2fa;
+}
+
+.doctor-patient-list-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+.doctor-patient-list-search,
+.doctor-patient-list-toolbar select,
+.doctor-patient-list-toolbar button {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.doctor-patient-list-search input {
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.doctor-patient-list-search,
+.doctor-patient-list-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+}
+
+.doctor-patient-list-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0 9px 0 28px;
+}
+
+.doctor-patient-list-toolbar button {
+  justify-content: center;
+}
+
+.doctor-patient-list-search input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-self: center;
+  line-height: 26px;
+}
+
+.doctor-patient-list-search svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.doctor-patient-list-search svg,
+.doctor-patient-list-toolbar button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.doctor-patient-list-toolbar select {
+  padding: 0 22px 0 10px;
+  font-weight: 850;
+}
+
+.doctor-patient-list-toolbar button:last-child {
+  padding: 0;
+}
+
+.doctor-patient-list-select-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.doctor-patient-list-select-menu > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 13px;
+  align-items: center;
+  width: 100%;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 9px 0 10px;
+  border: 1px solid #d6e3f5;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--patient-ink);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.doctor-patient-list-select-menu > button span {
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doctor-patient-list-select-menu > button svg {
+  justify-self: center;
+}
+
+.doctor-patient-list-select-menu > button.is-open {
+  border-color: #6aa2ff;
+  box-shadow: 0 0 0 3px rgba(11, 102, 240, 0.12);
+}
+
+.doctor-patient-list-select-dropdown {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 22;
+  width: max-content;
+  min-width: 100%;
+  max-width: 260px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid #dbe7f7;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(21, 43, 85, 0.14);
+}
+
+.doctor-patient-list-toolbar .doctor-patient-list-select-dropdown > button,
+.doctor-patient-list-toolbar .doctor-patient-list-filter-dropdown > button {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 30px;
+  min-height: 30px;
+  justify-content: stretch;
+  justify-items: start;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--patient-ink);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.doctor-patient-list-toolbar .doctor-patient-list-select-dropdown > button svg,
+.doctor-patient-list-toolbar .doctor-patient-list-filter-dropdown > button svg {
+  color: #12a66a;
+  opacity: 0;
+}
+
+.doctor-patient-list-toolbar .doctor-patient-list-select-dropdown > button.is-active svg,
+.doctor-patient-list-toolbar .doctor-patient-list-filter-dropdown > button.is-active svg {
+  opacity: 1;
+}
+
+.doctor-patient-list-toolbar .doctor-patient-list-select-dropdown > button span,
+.doctor-patient-list-toolbar .doctor-patient-list-filter-dropdown > button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doctor-patient-list-toolbar .doctor-patient-list-select-dropdown > button:hover,
+.doctor-patient-list-toolbar .doctor-patient-list-select-dropdown > button.is-active,
+.doctor-patient-list-toolbar .doctor-patient-list-filter-dropdown > button:hover,
+.doctor-patient-list-toolbar .doctor-patient-list-filter-dropdown > button.is-active {
+  color: #0b66f0;
+  background: #eef5ff;
+}
+
+.doctor-patient-list-filter-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.doctor-patient-list-filter-menu > button {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 12px;
+  align-items: center;
+  width: 100%;
+  height: 28px;
+  min-height: 28px;
+  gap: 4px;
+  padding: 0 10px;
+  color: #0b66f0;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.doctor-patient-list-filter-menu > button svg {
+  justify-self: center;
+}
+
+.doctor-patient-list-filter-menu > button span {
+  justify-self: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doctor-patient-list-filter-menu > button.is-open {
+  border-color: #6aa2ff;
+  box-shadow: 0 0 0 3px rgba(11, 102, 240, 0.12);
+}
+
+.doctor-patient-list-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 150px;
+  padding: 5px;
+  border: 1px solid #dbe7f7;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(21, 43, 85, 0.14);
+}
+
+.doctor-patient-list-table-head,
+.doctor-patient-list-row {
+  grid-template-columns: 120px 190px 130px 120px 148px 172px 172px 166px 122px 122px;
+  gap: 14px;
+  min-width: 1522px;
+}
+
+.doctor-patient-list-table-head {
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 11.5px;
+}
+
+.doctor-patient-list-table {
+  min-width: 1522px;
+}
+
+.doctor-patient-list-row {
+  min-height: 68px;
+  padding: 10px 14px;
+}
+
+.doctor-patient-list-row > strong,
+.doctor-patient-list-phone,
+.doctor-patient-list-age b,
+.doctor-patient-list-visit b {
+  font-size: 12px;
+}
+
+.doctor-patient-list-phone {
+  color: var(--patient-ink);
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.doctor-patient-list-avatar {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+  font-size: 11.5px;
+}
+
+.doctor-patient-list-person b {
+  font-size: 12.5px;
+}
+
+.doctor-patient-list-person small,
+.doctor-patient-list-age small,
+.doctor-patient-list-visit small {
+  font-size: 10px;
+}
+
+.doctor-patient-list-tag,
+.doctor-patient-list-status {
+  min-height: 24px;
+  padding: 0 9px;
+  font-size: 10px;
+}
+
+.doctor-patient-list-actions button {
+  height: 30px;
+  font-size: 10px;
+}
+
+.doctor-patient-list-actions button:first-child {
+  min-width: 92px;
+}
+
+.doctor-patient-list-actions button:last-child {
+  width: 30px;
+}
+
+.doctor-patient-list-footer {
+  min-width: 0;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.doctor-patient-list-footer button {
+  min-height: 34px;
+  font-size: 11px;
+}
+
+.doctor-patient-list-footer > div:not(.doctor-patient-list-page-size) button {
+  width: 34px;
+}
+
+.doctor-patient-list-page-size {
+  position: relative;
+  display: inline-flex;
+  justify-content: flex-start;
+  width: max-content;
+}
+
+.doctor-patient-list-page-size > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  padding: 0 12px;
+}
+
+.doctor-patient-list-page-size > button.is-open {
+  border-color: #6aa2ff;
+  box-shadow: 0 0 0 3px rgba(11, 102, 240, 0.12);
+}
+
+.doctor-patient-list-page-size-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  min-width: 160px;
+  padding: 5px;
+  border: 1px solid #dbe7f7;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(21, 43, 85, 0.14);
+}
+
+.doctor-patient-list-footer .doctor-patient-list-page-size-menu > button {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 30px;
+  min-height: 30px;
+  justify-content: stretch;
+  justify-items: start;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--patient-ink);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.doctor-patient-list-footer .doctor-patient-list-page-size-menu > button svg {
+  color: #12a66a;
+  opacity: 0;
+}
+
+.doctor-patient-list-footer .doctor-patient-list-page-size-menu > button.is-active svg {
+  opacity: 1;
+}
+
+.doctor-patient-list-footer .doctor-patient-list-page-size-menu > button:hover,
+.doctor-patient-list-footer .doctor-patient-list-page-size-menu > button.is-active {
+  color: #0b66f0;
+  background: #eef5ff;
+}
+
+.doctor-patient-list-page-size-menu label {
+  display: grid;
+  gap: 6px;
+  padding: 8px 8px 6px;
+  color: var(--patient-ink);
+  font-size: 10.5px;
+  font-weight: 850;
+}
+
+.doctor-patient-list-page-size-menu input {
+  width: 100%;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid #d6e3f5;
+  border-radius: 6px;
+  color: var(--patient-ink);
+  font-size: 11px;
+  font-weight: 800;
+  outline: none;
+}
+
+.doctor-patient-list-page-size-menu input:focus {
+  border-color: #6aa2ff;
+  box-shadow: 0 0 0 3px rgba(11, 102, 240, 0.1);
+}
+
+.doctor-patient-list-footer > span {
+  font-size: 11px;
+}
+
+@media (max-width: 1180px) {
+  .doctor-patient-list-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -38337,6 +38938,513 @@ img.doctor-calling-avatar {
     linear-gradient(145deg, rgba(255, 255, 255, 0.7), rgba(239, 247, 255, 0.44)) !important;
 }
 
+/* Keep the shared doctor dashboard header from becoming its own scroll container. */
+.doctor-shell.is-dashboard-variant .doctor-topbar {
+  overflow: visible !important;
+  z-index: 1200;
+  border-bottom: 0 !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-topbar::after {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: -3px;
+  height: 22px;
+  pointer-events: none;
+  background:
+    radial-gradient(18px 9px at 9px 10px, transparent 7.4px, rgba(31, 182, 205, 0.42) 7.9px, rgba(31, 182, 205, 0.42) 9px, transparent 9.6px) 0 0 / 60px 11px repeat-x,
+    radial-gradient(18px 9px at 39px 1px, transparent 7.4px, rgba(37, 99, 235, 0.38) 7.9px, rgba(37, 99, 235, 0.38) 9px, transparent 9.6px) 0 0 / 60px 11px repeat-x,
+    radial-gradient(18px 9px at 9px 12px, transparent 7.4px, rgba(37, 99, 235, 0.22) 7.9px, rgba(37, 99, 235, 0.22) 9px, transparent 9.6px) 30px 11px / 60px 11px repeat-x,
+    radial-gradient(18px 9px at 39px 21px, transparent 7.4px, rgba(31, 182, 205, 0.2) 7.9px, rgba(31, 182, 205, 0.2) 9px, transparent 9.6px) 30px 11px / 60px 11px repeat-x;
+  filter: drop-shadow(0 4px 10px rgba(11, 102, 240, 0.14));
+  opacity: 0.95;
+  animation: doctorTopbarWaveFlow 5.5s linear infinite;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-topbar::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: -3px;
+  height: 22px;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent 47%, rgba(144, 191, 255, 0.22) 49%, rgba(144, 191, 255, 0.22) 51%, transparent 53%),
+    radial-gradient(18px 9px at 9px 12px, transparent 7.4px, rgba(31, 182, 205, 0.2) 7.9px, rgba(31, 182, 205, 0.2) 9px, transparent 9.6px) 0 11px / 60px 11px repeat-x,
+    radial-gradient(18px 9px at 39px 21px, transparent 7.4px, rgba(37, 99, 235, 0.18) 7.9px, rgba(37, 99, 235, 0.18) 9px, transparent 9.6px) 0 11px / 60px 11px repeat-x;
+  opacity: 0.75;
+  animation: doctorTopbarWaveMirrorFlow 7s linear infinite;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-topbar-inner {
+  position: relative;
+  border-bottom: 0 !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-topbar-inner,
+.doctor-shell.is-dashboard-variant .doctor-topbar-actions,
+.doctor-shell.is-dashboard-variant .doctor-topbar-tools,
+.doctor-shell.is-dashboard-variant .doctor-search-shell,
+.doctor-shell.is-dashboard-variant .doctor-notification-menu,
+.doctor-shell.is-dashboard-variant .doctor-user-menu {
+  overflow: visible !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-search-shell,
+.doctor-shell.is-dashboard-variant .doctor-notification-menu,
+.doctor-shell.is-dashboard-variant .doctor-user-menu {
+  position: relative;
+  z-index: 1210;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-search-results,
+.doctor-shell.is-dashboard-variant .doctor-notification-dropdown,
+.doctor-shell.is-dashboard-variant .doctor-user-dropdown {
+  z-index: 1220 !important;
+}
+
+/* Doctor workspace interaction layer: visual effects only, no layout or data changes. */
+.doctor-shell {
+  --doctor-interaction-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --doctor-interaction-lift: translateY(-2px);
+  --doctor-interaction-ring: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.doctor-shell a,
+.doctor-shell button,
+.doctor-shell [role="button"],
+.doctor-shell input,
+.doctor-shell select,
+.doctor-shell textarea,
+.doctor-shell summary {
+  transition:
+    color 180ms var(--doctor-interaction-ease),
+    background-color 180ms var(--doctor-interaction-ease),
+    border-color 180ms var(--doctor-interaction-ease),
+    box-shadow 220ms var(--doctor-interaction-ease),
+    opacity 180ms var(--doctor-interaction-ease),
+    transform 220ms var(--doctor-interaction-ease),
+    filter 220ms var(--doctor-interaction-ease);
+}
+
+.doctor-shell button:not(:disabled):active,
+.doctor-shell [role="button"]:not(:disabled):active,
+.doctor-shell .doctor-sidebar-link:active,
+.doctor-shell .doctor-user-dropdown-item:active,
+.doctor-shell .doctor-notification-item:active,
+.doctor-shell .doctor-search-result-item:active {
+  transform: translateY(0) scale(0.985);
+}
+
+.doctor-shell button:focus-visible,
+.doctor-shell a:focus-visible,
+.doctor-shell input:focus-visible,
+.doctor-shell select:focus-visible,
+.doctor-shell textarea:focus-visible,
+.doctor-shell summary:focus-visible,
+.doctor-shell [tabindex]:focus-visible {
+  outline: 0;
+  box-shadow: var(--doctor-interaction-ring), 0 10px 24px rgba(37, 99, 235, 0.1);
+}
+
+.doctor-shell .doctor-primary-button,
+.doctor-shell .doctor-secondary-button,
+.doctor-shell .doctor-link-button,
+.doctor-shell .doctor-icon-button,
+.doctor-shell .doctor-user-trigger,
+.doctor-shell .doctor-sidebar-link,
+.doctor-shell .doctor-sidebar-group-toggle,
+.doctor-shell .doctor-sidebar-subitem,
+.doctor-shell .doctor-sidebar-utility,
+.doctor-shell .doctor-user-dropdown-item,
+.doctor-shell .doctor-notification-item,
+.doctor-shell .doctor-search-result-item,
+.doctor-shell .doctor-patient-list-actions button,
+.doctor-shell .doctor-patient-list-footer button,
+.doctor-shell .doctor-patient-list-toolbar button,
+.doctor-shell .doctor-patient-list-select-menu > button,
+.doctor-shell .doctor-patient-list-page-size > button,
+.doctor-shell .doctor-encounter-ref-row,
+.doctor-shell .doctor-encounter-ref-action,
+.doctor-shell .doctor-appointment-card,
+.doctor-shell .doctor-dashboard-quick-card,
+.doctor-shell .doctor-dashboard-list-row,
+.doctor-shell .doctor-dashboard-appointment-row,
+.doctor-shell .doctor-dashboard-shift-card,
+.doctor-shell .doctor-dashboard-week-filter button {
+  will-change: transform, box-shadow;
+}
+
+.doctor-shell .doctor-primary-button:hover:not(:disabled),
+.doctor-shell .doctor-secondary-button:hover:not(:disabled),
+.doctor-shell .doctor-icon-button:hover:not(:disabled),
+.doctor-shell .doctor-user-trigger:hover,
+.doctor-shell .doctor-sidebar-link:hover,
+.doctor-shell .doctor-sidebar-group-toggle:hover,
+.doctor-shell .doctor-sidebar-subitem:hover,
+.doctor-shell .doctor-sidebar-utility:hover,
+.doctor-shell .doctor-user-dropdown-item:hover,
+.doctor-shell .doctor-notification-item:hover,
+.doctor-shell .doctor-search-result-item:hover,
+.doctor-shell .doctor-patient-list-actions button:hover:not(:disabled),
+.doctor-shell .doctor-patient-list-footer button:hover:not(:disabled),
+.doctor-shell .doctor-patient-list-toolbar button:hover:not(:disabled),
+.doctor-shell .doctor-patient-list-select-menu > button:hover,
+.doctor-shell .doctor-patient-list-page-size > button:hover {
+  transform: var(--doctor-interaction-lift);
+  filter: saturate(1.04);
+}
+
+.doctor-shell .doctor-dashboard-kpi-card,
+.doctor-shell .doctor-dashboard-panel,
+.doctor-shell .doctor-dashboard-quick-actions,
+.doctor-shell .doctor-dashboard-quick-card,
+.doctor-shell .doctor-dashboard-list-row,
+.doctor-shell .doctor-dashboard-appointment-row,
+.doctor-shell .doctor-dashboard-shift-card,
+.doctor-shell .doctor-dashboard-hero-card,
+.doctor-shell .doctor-stat-card,
+.doctor-shell .doctor-kpi-tile,
+.doctor-shell .doctor-section-card,
+.doctor-shell .doctor-patient-list-panel,
+.doctor-shell .doctor-encounter-ref-list,
+.doctor-shell .doctor-encounter-ref-processing,
+.doctor-shell .doctor-week-ref-card,
+.doctor-shell .doctor-schedule-panel,
+.doctor-shell .doctor-appointment-panel {
+  transition:
+    transform 260ms var(--doctor-interaction-ease),
+    box-shadow 260ms var(--doctor-interaction-ease),
+    border-color 220ms var(--doctor-interaction-ease),
+    background-color 220ms var(--doctor-interaction-ease);
+}
+
+.doctor-shell .doctor-dashboard-kpi-card:hover,
+.doctor-shell .doctor-dashboard-panel:hover,
+.doctor-shell .doctor-dashboard-quick-actions:hover,
+.doctor-shell .doctor-dashboard-quick-card:hover,
+.doctor-shell .doctor-dashboard-list-row:hover,
+.doctor-shell .doctor-dashboard-appointment-row:hover,
+.doctor-shell .doctor-dashboard-shift-card:hover,
+.doctor-shell .doctor-stat-card:hover,
+.doctor-shell .doctor-kpi-tile:hover,
+.doctor-shell .doctor-section-card:hover,
+.doctor-shell .doctor-patient-list-panel:hover,
+.doctor-shell .doctor-week-ref-card:hover,
+.doctor-shell .doctor-schedule-panel:hover,
+.doctor-shell .doctor-appointment-panel:hover {
+  transform: translateY(-3px);
+  border-color: rgba(81, 142, 245, 0.38);
+  box-shadow: 0 18px 44px rgba(32, 72, 142, 0.12);
+}
+
+.doctor-shell .doctor-dashboard-hero-card:hover,
+.doctor-shell .doctor-encounter-ref-list:hover,
+.doctor-shell .doctor-encounter-ref-processing:hover {
+  border-color: rgba(81, 142, 245, 0.32);
+  box-shadow: 0 22px 54px rgba(32, 72, 142, 0.13);
+}
+
+.doctor-shell .doctor-table tbody tr,
+.doctor-shell .doctor-patient-list-row,
+.doctor-shell .doctor-encounter-ref-row,
+.doctor-shell .doctor-schedule-row,
+.doctor-shell .doctor-week-ref-row,
+.doctor-shell .doctor-today-row,
+.doctor-shell .doctor-appointment-list-row,
+.doctor-shell .doctor-upcoming-row,
+.doctor-shell .doctor-lab-row,
+.doctor-shell .doctor-order-row {
+  transition:
+    background-color 180ms var(--doctor-interaction-ease),
+    box-shadow 220ms var(--doctor-interaction-ease),
+    transform 220ms var(--doctor-interaction-ease),
+    border-color 180ms var(--doctor-interaction-ease);
+}
+
+.doctor-shell .doctor-table tbody tr:hover,
+.doctor-shell .doctor-patient-list-row:hover,
+.doctor-shell .doctor-encounter-ref-row:hover,
+.doctor-shell .doctor-schedule-row:hover,
+.doctor-shell .doctor-week-ref-row:hover,
+.doctor-shell .doctor-today-row:hover,
+.doctor-shell .doctor-appointment-list-row:hover,
+.doctor-shell .doctor-upcoming-row:hover,
+.doctor-shell .doctor-lab-row:hover,
+.doctor-shell .doctor-order-row:hover {
+  background-color: rgba(239, 246, 255, 0.78);
+  transform: translateY(-1px);
+  box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.44);
+}
+
+.doctor-shell .doctor-searchbox,
+.doctor-shell .doctor-patient-list-search,
+.doctor-shell .doctor-patient-list-select-menu > button,
+.doctor-shell .doctor-patient-list-filter-menu > button,
+.doctor-shell .doctor-patient-list-page-size > button,
+.doctor-shell input,
+.doctor-shell select,
+.doctor-shell textarea {
+  transition:
+    border-color 180ms var(--doctor-interaction-ease),
+    box-shadow 220ms var(--doctor-interaction-ease),
+    background-color 180ms var(--doctor-interaction-ease),
+    transform 220ms var(--doctor-interaction-ease);
+}
+
+.doctor-shell .doctor-searchbox:focus-within,
+.doctor-shell .doctor-patient-list-search:focus-within,
+.doctor-shell .doctor-patient-list-select-menu > button.is-open,
+.doctor-shell .doctor-patient-list-filter-menu > button.is-open,
+.doctor-shell .doctor-patient-list-page-size > button.is-open,
+.doctor-shell input:focus,
+.doctor-shell select:focus,
+.doctor-shell textarea:focus {
+  border-color: rgba(37, 99, 235, 0.52);
+  box-shadow: var(--doctor-interaction-ring), 0 12px 30px rgba(37, 99, 235, 0.08);
+}
+
+.doctor-shell .doctor-search-results,
+.doctor-shell .doctor-notification-dropdown,
+.doctor-shell .doctor-user-dropdown,
+.doctor-shell .doctor-patient-list-select-dropdown,
+.doctor-shell .doctor-patient-list-filter-dropdown,
+.doctor-shell .doctor-patient-list-page-size-menu {
+  transform-origin: top center;
+  animation: doctorInteractionMenuIn 180ms var(--doctor-interaction-ease);
+}
+
+@keyframes doctorInteractionMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.doctor-shell .doctor-icon-button svg,
+.doctor-shell .doctor-user-chevron svg,
+.doctor-shell .doctor-sidebar-icon svg,
+.doctor-shell .doctor-patient-list-toolbar svg,
+.doctor-shell .doctor-patient-list-footer svg {
+  transition: transform 220ms var(--doctor-interaction-ease), color 180ms var(--doctor-interaction-ease);
+}
+
+.doctor-shell .doctor-icon-button:hover svg,
+.doctor-shell .doctor-sidebar-link:hover .doctor-sidebar-icon svg,
+.doctor-shell .doctor-sidebar-group-toggle:hover .doctor-sidebar-icon svg,
+.doctor-shell .doctor-patient-list-toolbar button:hover svg,
+.doctor-shell .doctor-patient-list-footer button:hover svg {
+  transform: scale(1.08);
+}
+
+.doctor-shell .doctor-user-trigger[aria-expanded="true"] .doctor-user-chevron svg,
+.doctor-shell .doctor-patient-list-select-menu > button.is-open svg:last-child,
+.doctor-shell .doctor-patient-list-filter-menu > button.is-open svg:last-child,
+.doctor-shell .doctor-patient-list-page-size > button.is-open svg {
+  transform: rotate(180deg);
+}
+
+.doctor-shell .doctor-primary-button,
+.doctor-shell .doctor-dashboard-quick-card,
+.doctor-shell .doctor-dashboard-hero-card,
+.doctor-shell .doctor-patient-list-actions button:first-child {
+  position: relative;
+  overflow: hidden;
+}
+
+.doctor-shell .doctor-primary-button::after,
+.doctor-shell .doctor-dashboard-quick-card::after,
+.doctor-shell .doctor-dashboard-hero-card::after,
+.doctor-shell .doctor-patient-list-actions button:first-child::after {
+  content: '';
+  position: absolute;
+  inset: -40% auto -40% -70%;
+  width: 45%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  transform: skewX(-18deg);
+  transition: left 520ms var(--doctor-interaction-ease);
+}
+
+.doctor-shell .doctor-primary-button:hover::after,
+.doctor-shell .doctor-dashboard-quick-card:hover::after,
+.doctor-shell .doctor-dashboard-hero-card:hover::after,
+.doctor-shell .doctor-patient-list-actions button:first-child:hover::after {
+  left: 125%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doctor-shell *,
+  .doctor-shell *::before,
+  .doctor-shell *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Stronger doctor interaction feedback requested: obvious hover/click states. */
+.doctor-shell {
+  --doctor-action-glow: 0 0 0 3px rgba(13, 110, 253, 0.18), 0 14px 34px rgba(13, 71, 161, 0.18);
+  --doctor-action-glow-soft: 0 0 0 3px rgba(13, 110, 253, 0.12), 0 10px 24px rgba(13, 71, 161, 0.13);
+  --doctor-action-active: 0 0 0 5px rgba(20, 184, 166, 0.18), inset 0 2px 8px rgba(13, 42, 92, 0.14);
+}
+
+.doctor-shell a[href],
+.doctor-shell button,
+.doctor-shell [role="button"],
+.doctor-shell summary,
+.doctor-shell .doctor-patient-list-row,
+.doctor-shell .doctor-encounter-ref-row,
+.doctor-shell .doctor-dashboard-list-row,
+.doctor-shell .doctor-dashboard-appointment-row,
+.doctor-shell .doctor-notification-item,
+.doctor-shell .doctor-search-result-item {
+  cursor: pointer;
+}
+
+.doctor-shell button:not(:disabled):hover,
+.doctor-shell a[href]:hover,
+.doctor-shell [role="button"]:hover,
+.doctor-shell summary:hover,
+.doctor-shell .doctor-sidebar-link:hover,
+.doctor-shell .doctor-sidebar-group-toggle:hover,
+.doctor-shell .doctor-sidebar-subitem:hover,
+.doctor-shell .doctor-sidebar-utility:hover,
+.doctor-shell .doctor-user-trigger:hover,
+.doctor-shell .doctor-icon-button:hover,
+.doctor-shell .doctor-user-dropdown-item:hover,
+.doctor-shell .doctor-notification-item:hover,
+.doctor-shell .doctor-search-result-item:hover,
+.doctor-shell .doctor-patient-list-select-menu > button:hover,
+.doctor-shell .doctor-patient-list-filter-menu > button:hover,
+.doctor-shell .doctor-patient-list-page-size > button:hover,
+.doctor-shell .doctor-patient-list-actions button:hover,
+.doctor-shell .doctor-patient-list-footer button:hover,
+.doctor-shell .doctor-dashboard-quick-card:hover,
+.doctor-shell .doctor-dashboard-kpi-card:hover,
+.doctor-shell .doctor-dashboard-panel:hover,
+.doctor-shell .doctor-dashboard-shift-card:hover,
+.doctor-shell .doctor-stat-card:hover,
+.doctor-shell .doctor-kpi-tile:hover {
+  border-color: rgba(13, 110, 253, 0.58) !important;
+  background-color: rgba(239, 246, 255, 0.96) !important;
+  box-shadow: var(--doctor-action-glow-soft) !important;
+  transform: translateY(-4px) scale(1.012) !important;
+  filter: saturate(1.1) brightness(1.02);
+}
+
+.doctor-shell button:not(:disabled):active,
+.doctor-shell a[href]:active,
+.doctor-shell [role="button"]:active,
+.doctor-shell summary:active,
+.doctor-shell .doctor-sidebar-link:active,
+.doctor-shell .doctor-sidebar-group-toggle:active,
+.doctor-shell .doctor-sidebar-subitem:active,
+.doctor-shell .doctor-user-trigger:active,
+.doctor-shell .doctor-icon-button:active,
+.doctor-shell .doctor-user-dropdown-item:active,
+.doctor-shell .doctor-notification-item:active,
+.doctor-shell .doctor-search-result-item:active,
+.doctor-shell .doctor-patient-list-select-menu > button:active,
+.doctor-shell .doctor-patient-list-filter-menu > button:active,
+.doctor-shell .doctor-patient-list-page-size > button:active,
+.doctor-shell .doctor-patient-list-actions button:active,
+.doctor-shell .doctor-patient-list-footer button:active {
+  border-color: rgba(20, 184, 166, 0.72) !important;
+  background-color: rgba(220, 252, 245, 0.96) !important;
+  box-shadow: var(--doctor-action-active) !important;
+  transform: translateY(1px) scale(0.965) !important;
+  filter: saturate(1.18);
+}
+
+.doctor-shell button:not(:disabled):focus,
+.doctor-shell a[href]:focus,
+.doctor-shell [role="button"]:focus,
+.doctor-shell summary:focus,
+.doctor-shell input:focus,
+.doctor-shell select:focus,
+.doctor-shell textarea:focus {
+  outline: 0 !important;
+  border-color: rgba(13, 110, 253, 0.68) !important;
+  box-shadow: var(--doctor-action-glow) !important;
+}
+
+.doctor-shell .doctor-table tbody tr:hover,
+.doctor-shell .doctor-patient-list-row:hover,
+.doctor-shell .doctor-encounter-ref-row:hover,
+.doctor-shell .doctor-schedule-row:hover,
+.doctor-shell .doctor-week-ref-row:hover,
+.doctor-shell .doctor-today-row:hover,
+.doctor-shell .doctor-appointment-list-row:hover,
+.doctor-shell .doctor-upcoming-row:hover,
+.doctor-shell .doctor-dashboard-list-row:hover,
+.doctor-shell .doctor-dashboard-appointment-row:hover {
+  background: linear-gradient(90deg, rgba(219, 234, 254, 0.96), rgba(248, 251, 255, 0.98)) !important;
+  box-shadow: inset 5px 0 0 #0b66f0, 0 8px 22px rgba(13, 71, 161, 0.12) !important;
+  transform: translateX(4px) !important;
+}
+
+.doctor-shell .doctor-dashboard-kpi-card:hover,
+.doctor-shell .doctor-dashboard-panel:hover,
+.doctor-shell .doctor-dashboard-quick-actions:hover,
+.doctor-shell .doctor-dashboard-hero-card:hover,
+.doctor-shell .doctor-patient-list-panel:hover,
+.doctor-shell .doctor-encounter-ref-list:hover,
+.doctor-shell .doctor-encounter-ref-processing:hover {
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18), 0 24px 58px rgba(13, 71, 161, 0.18) !important;
+  transform: translateY(-5px) scale(1.006) !important;
+}
+
+.doctor-shell .doctor-icon-button:hover svg,
+.doctor-shell button:hover svg,
+.doctor-shell a[href]:hover svg,
+.doctor-shell .doctor-sidebar-link:hover svg,
+.doctor-shell .doctor-sidebar-group-toggle:hover svg {
+  color: #0b66f0 !important;
+  transform: scale(1.18) rotate(-3deg) !important;
+}
+
+.doctor-shell .doctor-icon-button:active svg,
+.doctor-shell button:active svg,
+.doctor-shell a[href]:active svg {
+  transform: scale(0.9) rotate(3deg) !important;
+}
+
+.doctor-shell .doctor-user-trigger[aria-expanded="true"],
+.doctor-shell .doctor-notification-trigger.is-active,
+.doctor-shell .doctor-patient-list-select-menu > button.is-open,
+.doctor-shell .doctor-patient-list-filter-menu > button.is-open,
+.doctor-shell .doctor-patient-list-page-size > button.is-open {
+  border-color: rgba(13, 110, 253, 0.72) !important;
+  background-color: rgba(219, 234, 254, 0.98) !important;
+  box-shadow: var(--doctor-action-glow) !important;
+  transform: translateY(-2px) !important;
+}
+
+@keyframes doctorClickPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.34), var(--doctor-action-active);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(20, 184, 166, 0), var(--doctor-action-active);
+  }
+}
+
+.doctor-shell button:not(:disabled):active,
+.doctor-shell a[href]:active,
+.doctor-shell [role="button"]:active {
+  animation: doctorClickPulse 260ms ease-out;
+}
+
 .doctor-dashboard-quick-card.is-blue {
   background:
     linear-gradient(135deg, rgba(54, 124, 255, 0.88), rgba(0, 92, 255, 0.72)) !important;
@@ -38374,3 +39482,3700 @@ img.doctor-calling-avatar {
   opacity: 0.72;
 }
 
+/* High-visibility interaction layer: keep doctor workspace actions obvious. */
+.doctor-shell {
+  --doctor-visible-hover-ring: 0 0 0 3px rgba(11, 102, 240, 0.24), 0 18px 42px rgba(11, 102, 240, 0.2);
+  --doctor-visible-click-ring: 0 0 0 4px rgba(16, 185, 129, 0.28), 0 12px 28px rgba(16, 185, 129, 0.18);
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  a[href],
+  [role="button"],
+  summary,
+  input,
+  select,
+  textarea,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger,
+  .doctor-search-result-item,
+  .doctor-notification-item,
+  .doctor-user-dropdown-item,
+  .doctor-patient-list-row,
+  .doctor-encounter-ref-row,
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-kpi-card,
+  .doctor-dashboard-panel,
+  .doctor-dashboard-quick-card,
+  .doctor-stat-card,
+  .doctor-kpi-tile,
+  .doctor-section-card
+) {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    border-color 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    background-color 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    color 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    outline-color 180ms cubic-bezier(0.2, 0.9, 0.2, 1) !important;
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  a[href],
+  [role="button"],
+  summary,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger,
+  .doctor-search-result-item,
+  .doctor-notification-item,
+  .doctor-user-dropdown-item,
+  .doctor-patient-list-row,
+  .doctor-encounter-ref-row,
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-kpi-card,
+  .doctor-dashboard-panel,
+  .doctor-dashboard-quick-card,
+  .doctor-stat-card,
+  .doctor-kpi-tile,
+  .doctor-section-card
+):hover {
+  outline: 2px solid rgba(11, 102, 240, 0.56) !important;
+  outline-offset: 3px !important;
+  border-color: rgba(11, 102, 240, 0.62) !important;
+  background-color: rgba(232, 241, 255, 0.98) !important;
+  box-shadow: var(--doctor-visible-hover-ring) !important;
+  color: #063a9b !important;
+  transform: translateY(-5px) scale(1.018) !important;
+}
+
+.doctor-shell :where(input, select, textarea):hover {
+  outline: 2px solid rgba(11, 102, 240, 0.38) !important;
+  outline-offset: 2px !important;
+  border-color: rgba(11, 102, 240, 0.58) !important;
+  background-color: rgba(248, 251, 255, 0.98) !important;
+  box-shadow: 0 0 0 3px rgba(11, 102, 240, 0.12) !important;
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  a[href],
+  [role="button"],
+  summary,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger,
+  .doctor-search-result-item,
+  .doctor-notification-item,
+  .doctor-user-dropdown-item
+):active {
+  outline: 3px solid rgba(16, 185, 129, 0.72) !important;
+  outline-offset: 2px !important;
+  border-color: rgba(16, 185, 129, 0.78) !important;
+  background-color: rgba(220, 252, 231, 0.98) !important;
+  box-shadow: var(--doctor-visible-click-ring) !important;
+  color: #065f46 !important;
+  transform: translateY(1px) scale(0.94) !important;
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  a[href],
+  [role="button"],
+  summary,
+  input,
+  select,
+  textarea,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger
+):focus {
+  outline: 3px solid rgba(11, 102, 240, 0.72) !important;
+  outline-offset: 3px !important;
+  border-color: rgba(11, 102, 240, 0.72) !important;
+  box-shadow: var(--doctor-visible-hover-ring) !important;
+}
+
+.doctor-shell :where(.doctor-table tbody tr, .doctor-patient-list-row, .doctor-encounter-ref-row):hover {
+  background: linear-gradient(90deg, rgba(219, 234, 254, 1), rgba(255, 255, 255, 0.98)) !important;
+  box-shadow: inset 7px 0 0 #0b66f0, 0 14px 30px rgba(11, 102, 240, 0.16) !important;
+  transform: translateX(6px) !important;
+}
+
+.doctor-shell :where(button, a[href], [role="button"], .doctor-icon-button) svg {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    color 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    stroke 180ms cubic-bezier(0.2, 0.9, 0.2, 1) !important;
+}
+
+.doctor-shell :where(button:not(:disabled), a[href], [role="button"], .doctor-icon-button):hover svg {
+  color: #0057d9 !important;
+  stroke: #0057d9 !important;
+  transform: scale(1.24) rotate(-5deg) !important;
+}
+
+.doctor-shell :where(button:not(:disabled), a[href], [role="button"], .doctor-icon-button):active svg {
+  color: #059669 !important;
+  stroke: #059669 !important;
+  transform: scale(0.86) rotate(5deg) !important;
+}
+
+/* Final doctor interaction polish: calmer mint feedback, no rough square outlines. */
+.doctor-shell {
+  --doctor-mint-hover: rgba(16, 185, 129, 0.12);
+  --doctor-mint-hover-strong: rgba(16, 185, 129, 0.2);
+  --doctor-mint-border: rgba(16, 185, 129, 0.34);
+  --doctor-mint-text: #047857;
+  --doctor-mint-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12), 0 10px 24px rgba(15, 118, 110, 0.1);
+  --doctor-mint-shadow-soft: 0 0 0 2px rgba(16, 185, 129, 0.1), 0 6px 16px rgba(15, 118, 110, 0.08);
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  a[href],
+  [role="button"],
+  summary,
+  input,
+  select,
+  textarea,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger,
+  .doctor-search-result-item,
+  .doctor-notification-item,
+  .doctor-user-dropdown-item,
+  .doctor-patient-list-row,
+  .doctor-encounter-ref-row,
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-kpi-card,
+  .doctor-dashboard-panel,
+  .doctor-dashboard-quick-card,
+  .doctor-stat-card,
+  .doctor-kpi-tile,
+  .doctor-section-card
+) {
+  outline: 0 !important;
+  outline-offset: 0 !important;
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger,
+  .doctor-search-result-item,
+  .doctor-notification-item,
+  .doctor-user-dropdown-item,
+  .doctor-patient-list-select-menu > button,
+  .doctor-patient-list-filter-menu > button,
+  .doctor-patient-list-page-size > button,
+  .doctor-patient-list-actions button,
+  .doctor-patient-list-footer button
+):hover {
+  border-color: var(--doctor-mint-border) !important;
+  background-color: rgba(240, 253, 250, 0.96) !important;
+  box-shadow: var(--doctor-mint-shadow-soft) !important;
+  color: var(--doctor-mint-text) !important;
+  transform: translateY(-2px) scale(1.004) !important;
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger,
+  .doctor-search-result-item,
+  .doctor-notification-item,
+  .doctor-user-dropdown-item
+):active {
+  border-color: rgba(5, 150, 105, 0.46) !important;
+  background-color: rgba(220, 252, 231, 0.9) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.16), inset 0 1px 5px rgba(15, 118, 110, 0.1) !important;
+  color: #065f46 !important;
+  transform: translateY(0) scale(0.982) !important;
+}
+
+.doctor-shell :where(input, select, textarea):hover,
+.doctor-shell :where(input, select, textarea):focus {
+  border-color: var(--doctor-mint-border) !important;
+  background-color: #ffffff !important;
+  box-shadow: var(--doctor-mint-shadow-soft) !important;
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  input,
+  select,
+  textarea,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger
+):focus-visible {
+  border-color: rgba(5, 150, 105, 0.46) !important;
+  box-shadow: var(--doctor-mint-shadow) !important;
+}
+
+.doctor-shell :where(a[href]):hover,
+.doctor-shell :where(a[href]):focus,
+.doctor-shell :where(a[href]):focus-visible {
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--doctor-mint-text) !important;
+  transform: none !important;
+}
+
+.doctor-shell :where(
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-dashboard-panel-link,
+  .doctor-patient-activity-link,
+  .doctor-week-ref-link
+) {
+  width: fit-content !important;
+  max-width: 100%;
+  border-radius: 999px !important;
+}
+
+.doctor-shell :where(
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-dashboard-panel-link,
+  .doctor-patient-activity-link,
+  .doctor-week-ref-link
+):hover,
+.doctor-shell :where(
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-dashboard-panel-link,
+  .doctor-patient-activity-link,
+  .doctor-week-ref-link
+):focus-visible {
+  background-color: rgba(220, 252, 231, 0.58) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.14) !important;
+  color: var(--doctor-mint-text) !important;
+  text-decoration-color: rgba(5, 150, 105, 0.72) !important;
+  transform: translateY(-1px) !important;
+}
+
+.doctor-shell :where(
+  .doctor-dashboard-kpi-card,
+  .doctor-dashboard-panel,
+  .doctor-dashboard-quick-card,
+  .doctor-stat-card,
+  .doctor-kpi-tile,
+  .doctor-section-card,
+  .doctor-patient-list-panel,
+  .doctor-encounter-ref-list,
+  .doctor-encounter-ref-processing,
+  .doctor-encounter-ref-overview,
+  .doctor-encounter-ref-quick,
+  .doctor-overview-panel
+):hover {
+  border-color: rgba(16, 185, 129, 0.24) !important;
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.08), 0 14px 36px rgba(15, 118, 110, 0.1) !important;
+  transform: translateY(-3px) scale(1.002) !important;
+}
+
+.doctor-shell :where(.doctor-table tbody tr, .doctor-patient-list-row, .doctor-encounter-ref-row):hover {
+  background: linear-gradient(90deg, rgba(236, 253, 245, 0.92), rgba(255, 255, 255, 0.98)) !important;
+  box-shadow: inset 4px 0 0 rgba(16, 185, 129, 0.72) !important;
+  transform: translateX(2px) !important;
+}
+
+.doctor-shell :where(button:not(:disabled), [role="button"], .doctor-icon-button):hover svg,
+.doctor-shell :where(.doctor-link-button, .doctor-calling-link, .doctor-week-link-button, .doctor-today-link-button):hover svg {
+  color: var(--doctor-mint-text) !important;
+  stroke: var(--doctor-mint-text) !important;
+  transform: scale(1.1) !important;
+}
+
+.doctor-shell :where(button:not(:disabled), [role="button"], .doctor-icon-button):active svg {
+  color: #047857 !important;
+  stroke: #047857 !important;
+  transform: scale(0.94) !important;
+}
+
+.doctor-shell :where(
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  input,
+  select,
+  textarea,
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-icon-button,
+  .doctor-user-trigger
+):focus {
+  outline: 0 !important;
+  border-color: rgba(5, 150, 105, 0.36) !important;
+  box-shadow: var(--doctor-mint-shadow-soft) !important;
+}
+
+.doctor-shell :where(a[href]):active {
+  outline: 0 !important;
+  background: rgba(220, 252, 231, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12) !important;
+  color: #065f46 !important;
+  transform: scale(0.99) !important;
+}
+
+.doctor-shell .doctor-user-trigger[aria-expanded="true"],
+.doctor-shell .doctor-notification-trigger.is-active,
+.doctor-shell .doctor-patient-list-select-menu > button.is-open,
+.doctor-shell .doctor-patient-list-filter-menu > button.is-open,
+.doctor-shell .doctor-patient-list-page-size > button.is-open {
+  border-color: rgba(5, 150, 105, 0.42) !important;
+  background-color: rgba(236, 253, 245, 0.96) !important;
+  box-shadow: var(--doctor-mint-shadow-soft) !important;
+  color: var(--doctor-mint-text) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Text-style actions should get a tight pill around the label, not a large box. */
+.doctor-shell :where(
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-reference-bottom .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-dashboard-panel-link,
+  .doctor-patient-activity-link,
+  .doctor-week-ref-link
+) {
+  width: max-content !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 3px 7px !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  line-height: 1.2 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.doctor-shell :where(.doctor-calling-link) {
+  margin-top: 10px !important;
+  border-top: 0 !important;
+}
+
+.doctor-shell :where(
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-reference-bottom .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-dashboard-panel-link,
+  .doctor-patient-activity-link,
+  .doctor-week-ref-link
+):hover,
+.doctor-shell :where(
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-reference-bottom .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-dashboard-panel-link,
+  .doctor-patient-activity-link,
+  .doctor-week-ref-link
+):focus,
+.doctor-shell :where(
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-reference-bottom .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-dashboard-panel-link,
+  .doctor-patient-activity-link,
+  .doctor-week-ref-link
+):focus-visible {
+  border-color: rgba(16, 185, 129, 0.18) !important;
+  background: rgba(220, 252, 231, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.08) !important;
+  color: var(--doctor-mint-text) !important;
+  outline: 0 !important;
+  text-decoration: none !important;
+  transform: translateY(-1px) !important;
+}
+
+.doctor-shell :where(
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-reference-bottom .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-dashboard-panel-link,
+  .doctor-patient-activity-link,
+  .doctor-week-ref-link
+):active {
+  border-color: rgba(16, 185, 129, 0.28) !important;
+  background: rgba(187, 247, 208, 0.52) !important;
+  box-shadow: inset 0 1px 4px rgba(15, 118, 110, 0.1) !important;
+  transform: scale(0.985) !important;
+}
+
+/* Menu/navigation text highlights: visual pill hugs the words, click area stays usable. */
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):hover,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):focus,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):focus-visible,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+).is-active {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  transform: none !important;
+}
+
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+) > span:last-child {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  line-height: 1.25;
+  transition:
+    background-color 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    border-color 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    box-shadow 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    color 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    transform 160ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):hover > span:last-child,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):focus > span:last-child,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):focus-visible > span:last-child,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+).is-active > span:last-child {
+  background-color: rgba(220, 252, 231, 0.72) !important;
+  border-color: rgba(16, 185, 129, 0.16) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.08) !important;
+  color: #047857 !important;
+  transform: translateY(-1px);
+}
+
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):active > span:last-child {
+  background-color: rgba(187, 247, 208, 0.72) !important;
+  border-color: rgba(16, 185, 129, 0.24) !important;
+  box-shadow: inset 0 1px 4px rgba(15, 118, 110, 0.1) !important;
+  transform: scale(0.985);
+}
+
+/* Remove every outer row line for compact text menu effects. */
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+),
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):hover,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):focus,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):focus-visible,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+):active,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+).is-active {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  text-decoration: none !important;
+}
+
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+)::before,
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link,
+  .doctor-user-dropdown-item,
+  .doctor-notification-action-menu button,
+  .doctor-patient-list-select-dropdown button,
+  .doctor-patient-list-filter-dropdown button,
+  .doctor-patient-list-page-size-menu > button
+)::after {
+  display: none !important;
+  content: none !important;
+}
+
+.doctor-shell :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+) > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  min-height: 0;
+}
+
+/* Hard stop for outer hover/focus bars on sidebar submenu items. */
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+),
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+):hover,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+):focus,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+):focus-visible,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+):active,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+).is-active {
+  border: 0 !important;
+  border-top: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  text-decoration: none !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+) *,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+) *::before,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+) *::after {
+  outline: 0 !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+) > span:not(:last-child) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+):hover > span:last-child,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+):focus > span:last-child,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+):focus-visible > span:last-child,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-subitem,
+  .doctor-reference-sidebar__submenu-link
+).is-active > span:last-child {
+  display: inline-flex !important;
+  width: fit-content !important;
+  max-width: calc(100% - 2px) !important;
+  padding: 2px 8px !important;
+  border: 1px solid rgba(16, 185, 129, 0.14) !important;
+  border-radius: 999px !important;
+  background: rgba(220, 252, 231, 0.72) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.07) !important;
+  color: #047857 !important;
+}
+
+/* Sidebar-only interaction: no hover boxes, only the text label gets a tight pill. */
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+),
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):hover,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):focus,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):focus-visible,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):active,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+).is-active {
+  border-color: transparent !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+)::before,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+)::after {
+  display: none !important;
+  content: none !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link > span:last-child,
+  .doctor-sidebar-group-toggle > span:nth-child(2),
+  .doctor-sidebar-subitem > span:last-child,
+  .doctor-sidebar-utility > span:last-child,
+  .doctor-reference-sidebar__link > span:last-child,
+  .doctor-reference-sidebar__group-button > span:nth-child(2),
+  .doctor-reference-sidebar__submenu-link > span:last-child
+) {
+  display: inline-flex !important;
+  align-items: center;
+  width: fit-content !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  padding: 2px 8px !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  line-height: 1.2 !important;
+  transition:
+    background-color 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    border-color 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    box-shadow 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    color 160ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-group-toggle,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):hover :where(span:last-child),
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__submenu-link
+):focus :where(span:last-child),
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__submenu-link
+):focus-visible :where(span:last-child),
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-link,
+  .doctor-sidebar-subitem,
+  .doctor-sidebar-utility,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__submenu-link
+).is-active :where(span:last-child) {
+  border-color: rgba(16, 185, 129, 0.16) !important;
+  background: rgba(220, 252, 231, 0.74) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.07) !important;
+  color: #047857 !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-sidebar-group-toggle:hover > span:nth-child(2),
+  .doctor-sidebar-group-toggle:focus > span:nth-child(2),
+  .doctor-sidebar-group-toggle:focus-visible > span:nth-child(2),
+  .doctor-sidebar-group-toggle.is-active > span:nth-child(2),
+  .doctor-reference-sidebar__group-button:hover > span:nth-child(2),
+  .doctor-reference-sidebar__group-button:focus > span:nth-child(2),
+  .doctor-reference-sidebar__group-button:focus-visible > span:nth-child(2),
+  .doctor-reference-sidebar__group-button.is-active > span:nth-child(2)
+) {
+  border-color: rgba(16, 185, 129, 0.16) !important;
+  background: rgba(220, 252, 231, 0.74) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.07) !important;
+  color: #047857 !important;
+}
+
+/* Exact dashboard reference sidebar: remove all outer item effects, keep text-only pill. */
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+),
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):hover,
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):focus,
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):focus-visible,
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):active,
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+).is-active,
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+).is-open {
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  text-decoration: none !important;
+}
+
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+)::before,
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+)::after {
+  display: none !important;
+  content: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+) > :not(.doctor-reference-sidebar__label):not(:last-child) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__submenu-link > span:last-child,
+  .doctor-reference-sidebar__link > span:last-child
+) {
+  display: inline-flex !important;
+  align-items: center !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 2px 8px !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  line-height: 1.18 !important;
+}
+
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):hover :where(
+  .doctor-reference-sidebar__label,
+  span:last-child
+),
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):focus :where(
+  .doctor-reference-sidebar__label,
+  span:last-child
+),
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):focus-visible :where(
+  .doctor-reference-sidebar__label,
+  span:last-child
+),
+.doctor-reference-sidebar :where(
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+).is-active :where(
+  .doctor-reference-sidebar__label,
+  span:last-child
+) {
+  border-color: rgba(16, 185, 129, 0.14) !important;
+  background: rgba(220, 252, 231, 0.76) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.06) !important;
+  color: #047857 !important;
+}
+
+/* Doctor dashboard: no hover boxes; keep only click/selected text-pill feedback. */
+.doctor-shell.is-dashboard-variant :where(
+  a,
+  button,
+  [role="button"],
+  .doctor-dashboard-kpi-card,
+  .doctor-dashboard-panel,
+  .doctor-dashboard-quick-card,
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-shift-card,
+  .doctor-stat-card,
+  .doctor-kpi-tile,
+  .doctor-section-card,
+  .doctor-reference-sidebar__group,
+  .doctor-reference-sidebar__submenu,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):hover {
+  outline: 0 !important;
+  border-color: inherit !important;
+  background: inherit !important;
+  background-color: inherit !important;
+  background-image: inherit !important;
+  box-shadow: inherit !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group:hover,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group.is-active,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu:hover,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu.is-open,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:hover,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:focus,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link.is-active,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:hover,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:focus,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button[aria-expanded='true'],
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:hover,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:focus,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link.is-active {
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  text-decoration: none !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:hover :where(.doctor-reference-sidebar__label, span:last-child),
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:hover .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:hover span:last-child,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:focus :where(.doctor-reference-sidebar__label, span:last-child),
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:focus .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:focus span:last-child {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:active :where(.doctor-reference-sidebar__label, span:last-child),
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:active .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:active span:last-child,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link.is-active :where(.doctor-reference-sidebar__label, span:last-child),
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group.is-active > .doctor-reference-sidebar__group-button .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link.is-active span:last-child {
+  display: inline-flex !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 2px 8px !important;
+  border: 1px solid rgba(16, 185, 129, 0.14) !important;
+  border-radius: 999px !important;
+  background: rgba(220, 252, 231, 0.76) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.06) !important;
+  color: #047857 !important;
+}
+
+/* Doctor dashboard final interaction rule: no rough hover/focus boxes anywhere. */
+.doctor-shell.is-dashboard-variant :where(a, button, [role="button"]):hover,
+.doctor-shell.is-dashboard-variant :where(a, button, [role="button"]):focus,
+.doctor-shell.is-dashboard-variant :where(a, button, [role="button"]):focus-visible {
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-week-ref-link
+) {
+  width: fit-content !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 2px 7px !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  line-height: 1.2 !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-week-ref-link
+):hover,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-week-ref-link
+):focus,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-week-ref-link
+):focus-visible {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  color: inherit !important;
+  transform: none !important;
+  text-decoration: none !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-today-link-button,
+  .doctor-week-ref-link
+):active {
+  border-color: rgba(16, 185, 129, 0.14) !important;
+  background: rgba(220, 252, 231, 0.76) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.06) !important;
+  color: #047857 !important;
+  transform: scale(0.99) !important;
+}
+
+/* Doctor dashboard requested behavior: hover shows only a tight text pill, never a large box. */
+.doctor-shell.is-dashboard-variant :where(
+  a,
+  button,
+  [role="button"],
+  summary,
+  .doctor-dashboard-quick-card,
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):not(.doctor-dashboard-list-row):not(.doctor-dashboard-appointment-row):hover,
+.doctor-shell.is-dashboard-variant :where(
+  a,
+  button,
+  [role="button"],
+  summary,
+  .doctor-dashboard-quick-card,
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):not(.doctor-dashboard-list-row):not(.doctor-dashboard-appointment-row):focus,
+.doctor-shell.is-dashboard-variant :where(
+  a,
+  button,
+  [role="button"],
+  summary,
+  .doctor-dashboard-quick-card,
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-reference-sidebar__link,
+  .doctor-reference-sidebar__group-button,
+  .doctor-reference-sidebar__submenu-link
+):not(.doctor-dashboard-list-row):not(.doctor-dashboard-appointment-row):focus-visible {
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__submenu-link > span:last-child,
+  .doctor-reference-sidebar__link > span:last-child,
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer button,
+  .doctor-dashboard-quick-card b,
+  .doctor-dashboard-quick-card strong,
+  .doctor-dashboard-panel-head button,
+  .doctor-dashboard-week-filter select,
+  .doctor-dashboard-quick-actions button b,
+  .doctor-dashboard-quick-actions button strong,
+  .doctor-encounter-ref-quick button b,
+  .doctor-encounter-ref-quick button strong,
+  .doctor-today-actions button b,
+  .doctor-today-actions button strong,
+  .doctor-week-ref-actions button b,
+  .doctor-week-ref-actions button strong,
+  .doctor-all-appointment-actions button b,
+  .doctor-upcoming-actions button b
+) {
+  border-radius: 999px !important;
+  transition:
+    background-color 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    border-color 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    box-shadow 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    color 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    transform 160ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-reference-sidebar__link:hover .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__group-button:hover .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__submenu-link:hover > span:last-child,
+  .doctor-reference-sidebar__link:focus .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__group-button:focus .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__submenu-link:focus > span:last-child,
+  .doctor-reference-sidebar__link:focus-visible .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__group-button:focus-visible .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__submenu-link:focus-visible > span:last-child,
+  .doctor-dashboard-panel-link:hover,
+  .doctor-dashboard-panel-link:focus,
+  .doctor-dashboard-panel-link:focus-visible,
+  .doctor-dashboard-panel-footer button:hover,
+  .doctor-dashboard-panel-footer button:focus,
+  .doctor-dashboard-panel-footer button:focus-visible,
+  .doctor-dashboard-quick-card:hover b,
+  .doctor-dashboard-quick-card:hover strong,
+  .doctor-dashboard-quick-card:focus b,
+  .doctor-dashboard-quick-card:focus strong,
+  .doctor-dashboard-quick-card:focus-visible b,
+  .doctor-dashboard-quick-card:focus-visible strong,
+  .doctor-dashboard-quick-actions button:hover b,
+  .doctor-dashboard-quick-actions button:hover strong,
+  .doctor-dashboard-quick-actions button:focus b,
+  .doctor-dashboard-quick-actions button:focus strong,
+  .doctor-encounter-ref-quick button:hover b,
+  .doctor-encounter-ref-quick button:hover strong,
+  .doctor-today-actions button:hover b,
+  .doctor-today-actions button:hover strong,
+  .doctor-week-ref-actions button:hover b,
+  .doctor-week-ref-actions button:hover strong,
+  .doctor-all-appointment-actions button:hover b,
+  .doctor-upcoming-actions button:hover b
+) {
+  display: inline-flex !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 2px 8px !important;
+  border: 1px solid rgba(16, 185, 129, 0.14) !important;
+  border-radius: 999px !important;
+  background: rgba(220, 252, 231, 0.76) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.06) !important;
+  color: #047857 !important;
+  text-decoration: none !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-list-row *,
+  .doctor-dashboard-appointment-row *
+):hover,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-list-row *,
+  .doctor-dashboard-appointment-row *
+):focus,
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-list-row *,
+  .doctor-dashboard-appointment-row *
+):focus-visible {
+  outline: 0 !important;
+  background: inherit !important;
+  box-shadow: inherit !important;
+  color: inherit !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant :where(
+  .doctor-reference-sidebar__link:active .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__group-button:active .doctor-reference-sidebar__label,
+  .doctor-reference-sidebar__submenu-link:active > span:last-child,
+  .doctor-dashboard-panel-link:active,
+  .doctor-dashboard-panel-footer button:active,
+  .doctor-dashboard-quick-card:active b,
+  .doctor-dashboard-quick-card:active strong,
+  .doctor-dashboard-quick-actions button:active b,
+  .doctor-dashboard-quick-actions button:active strong
+) {
+  background: rgba(187, 247, 208, 0.82) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
+  box-shadow: inset 0 1px 4px rgba(15, 118, 110, 0.1) !important;
+  transform: scale(0.985) !important;
+}
+
+/* Definitive dashboard text-pill interactions. Keep this last. */
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button {
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:hover,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:hover,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:hover,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:focus,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:focus,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:focus,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button:hover,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button:hover,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button:focus,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button:focus,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:hover,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:focus,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:hover,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:focus,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:focus-visible {
+  outline: 0 !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link > span:last-child,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card strong,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button strong {
+  border-radius: 999px !important;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    transform 150ms ease !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:hover .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:focus .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:focus-visible .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:hover .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:focus .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:focus-visible .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:hover > span:last-child,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:focus > span:last-child,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:focus-visible > span:last-child,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button:hover,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button:focus,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button:hover,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button:focus,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:hover b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:hover strong,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:focus b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:focus strong,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:focus-visible b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:focus-visible strong,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:hover b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:hover strong,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:focus b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:focus strong,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:focus-visible b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:focus-visible strong {
+  display: inline-flex !important;
+  align-items: center !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 2px 8px !important;
+  border: 1px solid rgba(16, 185, 129, 0.22) !important;
+  border-radius: 999px !important;
+  background: rgba(220, 252, 231, 0.9) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1) !important;
+  color: #047857 !important;
+  text-decoration: none !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__link:active .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__group-button:active .doctor-reference-sidebar__label,
+.doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link:active > span:last-child,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-head > button:active,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-panel-footer > button:active,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:active b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-card:active strong,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:active b,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-quick-actions button:active strong {
+  background: rgba(187, 247, 208, 0.95) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  box-shadow: inset 0 1px 4px rgba(15, 118, 110, 0.12) !important;
+  transform: scale(0.985) !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-dashboard-list-row:hover,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-appointment-row:hover,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-list-row:focus,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-appointment-row:focus,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-list-row:focus-visible,
+.doctor-shell.is-dashboard-variant .doctor-dashboard-appointment-row:focus-visible {
+  outline: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Content-only doctor dashboard text interactions. Sidebar is intentionally untouched. */
+.doctor-shell.is-dashboard-variant .doctor-shell-content :where(
+  .doctor-dashboard-panel-head > button,
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer > button,
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-week-ref-link,
+  .doctor-today-link-button,
+  .doctor-order-encounter-link,
+  .doctor-lab-link,
+  .doctor-procedure-link,
+  .doctor-recent-patient-alerts > a,
+  .doctor-history-panel > button,
+  .doctor-encounter-ref-panel > header > button,
+  .doctor-encounter-ref-card > header > button,
+  .doctor-today-panel > header > button,
+  .doctor-imaging-panel > header > button,
+  .doctor-lab-panel > header > button,
+  .doctor-order-side-panel > header > button,
+  .doctor-order-encounter-card > header > button,
+  .doctor-procedure-panel > header > button,
+  .doctor-recent-patient-panel > header > button
+) {
+  width: fit-content !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 2px 8px !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  color: inherit;
+  line-height: 1.25 !important;
+  text-decoration: none !important;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    transform 150ms ease !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-shell-content :where(
+  .doctor-dashboard-panel-head > button,
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer > button,
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-week-ref-link,
+  .doctor-today-link-button,
+  .doctor-order-encounter-link,
+  .doctor-lab-link,
+  .doctor-procedure-link,
+  .doctor-recent-patient-alerts > a,
+  .doctor-history-panel > button,
+  .doctor-encounter-ref-panel > header > button,
+  .doctor-encounter-ref-card > header > button,
+  .doctor-today-panel > header > button,
+  .doctor-imaging-panel > header > button,
+  .doctor-lab-panel > header > button,
+  .doctor-order-side-panel > header > button,
+  .doctor-order-encounter-card > header > button,
+  .doctor-procedure-panel > header > button,
+  .doctor-recent-patient-panel > header > button
+):where(:hover, :focus, :focus-visible) {
+  border-color: rgba(16, 185, 129, 0.22) !important;
+  background: rgba(220, 252, 231, 0.86) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.08) !important;
+  color: #047857 !important;
+  text-decoration: none !important;
+  transform: none !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-shell-content :where(
+  .doctor-dashboard-panel-head > button,
+  .doctor-dashboard-panel-link,
+  .doctor-dashboard-panel-footer > button,
+  .doctor-link-button,
+  .doctor-calling-link,
+  .doctor-week-link-button,
+  .doctor-week-ref-link,
+  .doctor-today-link-button,
+  .doctor-order-encounter-link,
+  .doctor-lab-link,
+  .doctor-procedure-link,
+  .doctor-recent-patient-alerts > a,
+  .doctor-history-panel > button,
+  .doctor-encounter-ref-panel > header > button,
+  .doctor-encounter-ref-card > header > button,
+  .doctor-today-panel > header > button,
+  .doctor-imaging-panel > header > button,
+  .doctor-lab-panel > header > button,
+  .doctor-order-side-panel > header > button,
+  .doctor-order-encounter-card > header > button,
+  .doctor-procedure-panel > header > button,
+  .doctor-recent-patient-panel > header > button
+):active {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  background: rgba(187, 247, 208, 0.95) !important;
+  box-shadow: inset 0 1px 4px rgba(15, 118, 110, 0.12) !important;
+  color: #047857 !important;
+  transform: scale(0.985) !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-shell-content :where(
+  .doctor-dashboard-quick-card,
+  .doctor-dashboard-quick-actions button,
+  .doctor-encounter-ref-quick button,
+  .doctor-today-actions button,
+  .doctor-week-ref-actions button,
+  .doctor-all-appointment-actions button,
+  .doctor-upcoming-actions button,
+  .doctor-order-quick button,
+  .doctor-order-quick-actions button,
+  .doctor-lab-quick button,
+  .doctor-imaging-quick button,
+  .doctor-procedure-quick button,
+  .doctor-history-quick button,
+  .doctor-recent-patient-alerts button
+) :where(b, strong) {
+  border-radius: 999px !important;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    transform 150ms ease !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-shell-content :where(
+  .doctor-dashboard-quick-card,
+  .doctor-dashboard-quick-actions button,
+  .doctor-encounter-ref-quick button,
+  .doctor-today-actions button,
+  .doctor-week-ref-actions button,
+  .doctor-all-appointment-actions button,
+  .doctor-upcoming-actions button,
+  .doctor-order-quick button,
+  .doctor-order-quick-actions button,
+  .doctor-lab-quick button,
+  .doctor-imaging-quick button,
+  .doctor-procedure-quick button,
+  .doctor-history-quick button,
+  .doctor-recent-patient-alerts button
+):where(:hover, :focus, :focus-visible) :where(b, strong) {
+  display: inline-flex !important;
+  align-items: center !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 2px 8px !important;
+  border: 1px solid rgba(16, 185, 129, 0.22) !important;
+  border-radius: 999px !important;
+  background: rgba(220, 252, 231, 0.86) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.08) !important;
+  color: #047857 !important;
+}
+
+.doctor-shell.is-dashboard-variant .doctor-shell-content :where(
+  .doctor-dashboard-quick-card,
+  .doctor-dashboard-quick-actions button,
+  .doctor-encounter-ref-quick button,
+  .doctor-today-actions button,
+  .doctor-week-ref-actions button,
+  .doctor-all-appointment-actions button,
+  .doctor-upcoming-actions button,
+  .doctor-order-quick button,
+  .doctor-order-quick-actions button,
+  .doctor-lab-quick button,
+  .doctor-imaging-quick button,
+  .doctor-procedure-quick button,
+  .doctor-history-quick button,
+  .doctor-recent-patient-alerts button
+):active :where(b, strong) {
+  background: rgba(187, 247, 208, 0.95) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  box-shadow: inset 0 1px 4px rgba(15, 118, 110, 0.12) !important;
+  transform: scale(0.985) !important;
+}
+
+/* Account dropdown: keep it simple, no text-pill hover inside this menu. */
+.doctor-shell .doctor-user-dropdown .doctor-user-dropdown-item,
+.doctor-shell .doctor-user-dropdown .doctor-user-dropdown-item > span:last-child {
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  transform: none !important;
+}
+
+.doctor-shell .doctor-user-dropdown .doctor-user-dropdown-item:where(:hover, :focus, :focus-visible),
+.doctor-shell .doctor-user-dropdown .doctor-user-dropdown-item:where(:hover, :focus, :focus-visible) > span:last-child {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  transform: none !important;
+}
+
+.doctor-shell .doctor-user-dropdown .doctor-user-dropdown-item:active {
+  background: rgba(220, 252, 231, 0.86) !important;
+  color: #047857 !important;
+  transform: scale(0.985) !important;
+}
+
+.doctor-shell .doctor-user-dropdown .doctor-user-dropdown-item:active > span:last-child {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  transform: none !important;
+}
+
+/* Final lab workspace fit: match the compact reference layout. */
+.doctor-shell.is-dashboard-variant:has(.doctor-lab-page) .doctor-shell-inner {
+  padding: 16px 16px 24px !important;
+}
+
+.doctor-lab-page {
+  width: 100% !important;
+  max-width: 1120px !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+.doctor-lab-kpis {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  margin: 0 0 18px !important;
+}
+
+.doctor-lab-kpi {
+  min-height: 92px !important;
+  grid-template-columns: 54px minmax(0, 1fr) auto !important;
+  gap: 12px !important;
+  padding: 14px 16px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 12px 28px rgba(31, 56, 112, 0.035) !important;
+}
+
+.doctor-lab-kpi__icon {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 14px !important;
+}
+
+.doctor-lab-kpi p {
+  font-size: 10px !important;
+  line-height: 1.15 !important;
+}
+
+.doctor-lab-kpi strong {
+  margin-top: 7px !important;
+  font-size: 25px !important;
+}
+
+.doctor-lab-kpi small {
+  margin-top: 8px !important;
+  font-size: 9px !important;
+}
+
+.doctor-lab-kpi em {
+  align-self: end !important;
+  font-size: 9px !important;
+}
+
+.doctor-lab-layout {
+  width: 100% !important;
+  max-width: 1120px !important;
+}
+
+.doctor-lab-table-card {
+  border-radius: 8px !important;
+}
+
+.doctor-lab-filters {
+  grid-template-columns: minmax(0, 330px) 170px 210px 150px 125px !important;
+  gap: 10px !important;
+  padding: 14px 16px 12px !important;
+  align-items: center !important;
+}
+
+.doctor-lab-filters label,
+.doctor-lab-filters button {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 9px !important;
+  border-radius: 6px !important;
+  font-size: 9px !important;
+}
+
+.doctor-lab-filters label:nth-child(6) {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  width: 300px !important;
+  max-width: 100% !important;
+}
+
+.doctor-lab-filters label:nth-child(7) {
+  grid-column: 2 / span 2 !important;
+  grid-row: 2 !important;
+  width: 270px !important;
+  max-width: 100% !important;
+}
+
+.doctor-lab-filters button:nth-child(8) {
+  grid-column: 4 !important;
+  grid-row: 2 !important;
+  color: #0b66f0 !important;
+  background: #fff !important;
+  border-color: #dbe6f5 !important;
+}
+
+.doctor-lab-filters button:nth-child(9) {
+  grid-column: 5 !important;
+  grid-row: 2 !important;
+  color: #fff !important;
+  background: #0b66f0 !important;
+  border-color: #0b66f0 !important;
+}
+
+.doctor-lab-filters select,
+.doctor-lab-filters input,
+.doctor-lab-filters span {
+  font-size: 9px !important;
+}
+
+.doctor-lab-tabs {
+  min-height: 44px !important;
+  gap: 26px !important;
+  padding: 0 16px !important;
+}
+
+.doctor-lab-tabs button {
+  height: 44px !important;
+  font-size: 10px !important;
+}
+
+.doctor-lab-table-head,
+.doctor-lab-row {
+  grid-template-columns: 22px 100px 142px 116px 142px 92px 104px 126px 94px 52px !important;
+  gap: 8px !important;
+}
+
+.doctor-lab-table-head {
+  min-height: 38px !important;
+  padding: 0 16px !important;
+  font-size: 8.5px !important;
+}
+
+.doctor-lab-row {
+  min-height: 54px !important;
+  padding: 0 16px !important;
+  font-size: 9px !important;
+}
+
+.doctor-lab-row > strong,
+.doctor-lab-person b {
+  font-size: 9px !important;
+}
+
+.doctor-lab-person small,
+.doctor-lab-row time small {
+  font-size: 8.5px !important;
+}
+
+.doctor-lab-status {
+  min-height: 20px !important;
+  padding: 0 7px !important;
+  font-size: 8.5px !important;
+}
+
+.doctor-lab-row em {
+  font-size: 8.5px !important;
+}
+
+.doctor-lab-actions {
+  gap: 4px !important;
+}
+
+.doctor-lab-actions button {
+  min-height: 24px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.doctor-lab-actions button:last-child {
+  width: 24px !important;
+}
+
+.doctor-lab-empty {
+  min-height: 330px !important;
+}
+
+.doctor-lab-footer {
+  grid-template-columns: 170px 1fr auto !important;
+  min-height: 58px !important;
+  padding: 0 16px !important;
+  border-top: 1px solid #edf2fa !important;
+  font-size: 10px !important;
+}
+
+.doctor-lab-footer > div {
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.doctor-lab-footer button {
+  min-height: 28px !important;
+  border-radius: 5px !important;
+  font-size: 10px !important;
+}
+
+.doctor-lab-footer > div button {
+  width: 28px !important;
+}
+
+/* Lab list should stop around the processing KPI, matching the reference crop. */
+.doctor-lab-layout,
+.doctor-lab-page .doctor-lab-table-card {
+  max-width: 1040px !important;
+}
+
+.doctor-lab-page {
+  margin-left: -28px !important;
+}
+
+.doctor-lab-layout {
+  margin-left: -42px !important;
+}
+
+/* Lab final composition: compact list on the left, result detail panel on the right. */
+.doctor-lab-page {
+  max-width: 1420px !important;
+  margin-left: 0 !important;
+}
+
+.doctor-lab-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1000px) 400px !important;
+  gap: 14px !important;
+  width: 100% !important;
+  max-width: 1384px !important;
+  margin-left: 0 !important;
+  align-items: start !important;
+}
+
+.doctor-lab-page .doctor-lab-table-card {
+  max-width: none !important;
+  width: 100% !important;
+}
+
+.doctor-lab-side {
+  display: block !important;
+  min-width: 0 !important;
+}
+
+.doctor-lab-side > article:not(.doctor-lab-result-detail) {
+  display: none !important;
+}
+
+.doctor-lab-table-head,
+.doctor-lab-row {
+  grid-template-columns: 22px 116px 158px 126px 172px 108px 155px 118px 92px 70px !important;
+  gap: 7px !important;
+  min-width: 1190px !important;
+}
+
+.doctor-lab-table-head {
+  min-width: 1190px !important;
+}
+
+.doctor-lab-result-detail {
+  overflow: hidden;
+  border: 1px solid #dbe6f5;
+  border-radius: 0;
+  background: #fff;
+  color: #061a70;
+  box-shadow: 0 16px 36px rgba(31, 56, 112, 0.045);
+}
+
+.doctor-lab-result-detail header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.doctor-lab-result-detail h2,
+.doctor-lab-result-detail h3,
+.doctor-lab-result-detail dl {
+  margin: 0;
+}
+
+.doctor-lab-result-detail h2 {
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.doctor-lab-result-detail header button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  color: #8aa0c8;
+  background: transparent;
+}
+
+.doctor-lab-result-detail nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid #edf2fa;
+}
+
+.doctor-lab-result-detail nav button {
+  position: relative;
+  border: 0;
+  color: #617096;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.doctor-lab-result-detail nav button.is-active {
+  color: #0b66f0;
+}
+
+.doctor-lab-result-detail nav button.is-active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  background: #0b66f0;
+  border-radius: 999px;
+}
+
+.doctor-lab-detail-summary,
+.doctor-lab-detail-results,
+.doctor-lab-detail-info {
+  padding: 14px 16px 0;
+}
+
+.doctor-lab-detail-results {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.doctor-lab-result-detail h3 {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.doctor-lab-detail-summary > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.doctor-lab-detail-summary span {
+  min-height: 58px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid #dbe6f5;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.doctor-lab-detail-summary span.is-green { background: #f2fff8; border-color: #d9f7e7; }
+.doctor-lab-detail-summary span.is-red { background: #fff2f3; border-color: #ffd9dd; }
+.doctor-lab-detail-summary span.is-orange { background: #fff8ec; border-color: #ffe5bd; }
+
+.doctor-lab-detail-summary small {
+  color: #617096;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.doctor-lab-detail-summary strong {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.doctor-lab-detail-head,
+.doctor-lab-detail-row {
+  display: grid;
+  grid-template-columns: 82px 64px 96px 58px 86px;
+  align-items: center;
+  gap: 6px;
+  min-width: 410px;
+}
+
+.doctor-lab-detail-head {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid #edf2fa;
+  background: #f8fbff;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.doctor-lab-detail-row {
+  min-height: 36px;
+  padding: 0 8px;
+  border-inline: 1px solid #edf2fa;
+  border-bottom: 1px solid #edf2fa;
+  font-size: 10.5px;
+  font-weight: 850;
+}
+
+.doctor-lab-detail-row strong {
+  font-weight: 950;
+}
+
+.doctor-lab-detail-row .is-red { color: #ef3340; }
+.doctor-lab-detail-row .is-green { color: #0a9f5a; }
+
+.doctor-lab-detail-row em {
+  width: fit-content;
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.doctor-lab-detail-row em.is-red { background: #ffe9ea; }
+.doctor-lab-detail-row em.is-green { background: #dcf8e8; }
+
+.doctor-lab-detail-link {
+  width: 100%;
+  height: 32px;
+  border: 0;
+  color: #0b66f0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.doctor-lab-detail-info {
+  padding-top: 10px;
+  border-top: 1px solid #edf2fa;
+}
+
+.doctor-lab-detail-info dl {
+  display: grid;
+  gap: 10px;
+}
+
+.doctor-lab-detail-info div {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr);
+  gap: 8px;
+  font-size: 11px;
+}
+
+.doctor-lab-detail-info dt {
+  color: #617096;
+  font-weight: 850;
+}
+
+.doctor-lab-detail-info dd {
+  margin: 0;
+  font-weight: 950;
+}
+
+.doctor-lab-result-detail footer {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 18px 16px 14px;
+}
+
+.doctor-lab-result-detail footer button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #dbe6f5;
+  border-radius: 6px;
+  color: #0b66f0;
+  background: #fff;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+.doctor-lab-result-detail footer button:last-child {
+  color: #fff;
+  background: #0b66f0;
+  border-color: #0b66f0;
+}
+
+/* Explicit lab filter geometry. Avoid overlap when controls grow with API text. */
+.doctor-lab-filters {
+  grid-template-columns: 330px 170px 210px 150px 125px !important;
+  grid-template-areas:
+    "search status dates type filter"
+    "room room doctor doctor refresh" !important;
+}
+
+.doctor-lab-filters .doctor-lab-search {
+  grid-area: search !important;
+}
+
+.doctor-lab-filters > label:nth-child(2) {
+  grid-area: status !important;
+}
+
+.doctor-lab-filters > label:nth-child(3) {
+  grid-area: dates !important;
+}
+
+.doctor-lab-filters > label:nth-child(4) {
+  grid-area: type !important;
+}
+
+.doctor-lab-filters > button:nth-child(5) {
+  grid-area: filter !important;
+}
+
+.doctor-lab-filters .doctor-lab-room-filter {
+  grid-area: room !important;
+  width: 330px !important;
+  min-width: 330px !important;
+  max-width: 330px !important;
+  justify-self: start !important;
+}
+
+.doctor-lab-filters .doctor-lab-doctor-filter {
+  grid-area: doctor !important;
+  width: 310px !important;
+  min-width: 310px !important;
+  max-width: 310px !important;
+  justify-self: start !important;
+}
+
+.doctor-lab-filters > button:nth-child(8) {
+  grid-area: refresh !important;
+}
+
+.doctor-lab-filters > button:nth-child(9) {
+  grid-column: 5 !important;
+  grid-row: 2 !important;
+  transform: translateY(0) !important;
+}
+
+/* Keep long lab/doctor filter labels readable when backed by API data. */
+.doctor-lab-filters .doctor-lab-room-filter {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  width: 330px !important;
+  min-width: 330px !important;
+  max-width: 330px !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) 16px !important;
+  align-items: center !important;
+}
+
+.doctor-lab-filters .doctor-lab-doctor-filter {
+  grid-column: 2 / span 2 !important;
+  grid-row: 2 !important;
+  width: 270px !important;
+  min-width: 270px !important;
+  max-width: 270px !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) 16px !important;
+  align-items: center !important;
+}
+
+.doctor-lab-filters .doctor-lab-room-filter select,
+.doctor-lab-filters .doctor-lab-doctor-filter select {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Final override for lab filter placement. Keep controls separated. */
+.doctor-lab-filters {
+  grid-template-columns: 220px 120px 160px 110px 112px !important;
+  grid-template-areas:
+    "search status dates type filter"
+    "room doctor doctor refresh create" !important;
+}
+
+.doctor-lab-filters .doctor-lab-room-filter {
+  grid-area: room !important;
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+  justify-self: start !important;
+}
+
+.doctor-lab-filters .doctor-lab-doctor-filter {
+  grid-area: doctor !important;
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+  justify-self: start !important;
+}
+
+.doctor-lab-filters > button:nth-child(8) {
+  grid-area: refresh !important;
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+
+.doctor-lab-filters > button:nth-child(9) {
+  grid-area: create !important;
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+}
+
+/* Final lab filter readability lock. */
+.doctor-lab-table-card > .doctor-lab-filters {
+  position: relative !important;
+  z-index: 2 !important;
+  background: #fff !important;
+  border-bottom: 1px solid #e4ebf6 !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters label,
+.doctor-lab-table-card > .doctor-lab-filters button,
+.doctor-lab-table-card > .doctor-lab-filters select,
+.doctor-lab-table-card > .doctor-lab-filters input,
+.doctor-lab-table-card > .doctor-lab-filters span {
+  font-size: 10.5px !important;
+  line-height: 1.2 !important;
+}
+
+/* Absolute final lock for lab filters; keep this isolated from table/panel sizing. */
+.doctor-lab-table-card > .doctor-lab-filters {
+  width: 720px !important;
+  max-width: 720px !important;
+  min-width: 720px !important;
+  grid-template-columns: 220px 150px 190px 120px !important;
+  grid-template-areas:
+    "search status dates dates"
+    "room doctor doctor type"
+    ". filter refresh create" !important;
+  gap: 10px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters .doctor-lab-search {
+  grid-area: search !important;
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > label:nth-child(2) {
+  grid-area: status !important;
+  width: 150px !important;
+  min-width: 150px !important;
+  max-width: 150px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > label:nth-child(3) {
+  grid-area: dates !important;
+  width: 310px !important;
+  min-width: 310px !important;
+  max-width: 310px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > label:nth-child(4) {
+  grid-area: type !important;
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > button:nth-child(5) {
+  grid-area: filter !important;
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters .doctor-lab-room-filter {
+  grid-area: room !important;
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters .doctor-lab-doctor-filter {
+  grid-area: doctor !important;
+  width: 310px !important;
+  min-width: 310px !important;
+  max-width: 310px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > button:nth-child(8) {
+  grid-area: refresh !important;
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > button:nth-child(9) {
+  grid-area: create !important;
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+}
+
+/* Final target layout for lab filters: two compact rows like the reference. */
+.doctor-lab-table-card > .doctor-lab-filters {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  grid-template-columns: 170px 155px 150px 105px 90px !important;
+  grid-template-areas:
+    "search status dates type filter"
+    "room doctor doctor refresh create" !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters .doctor-lab-search {
+  grid-area: search !important;
+  width: 170px !important;
+  min-width: 170px !important;
+  max-width: 170px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > label:nth-child(2) {
+  grid-area: status !important;
+  width: 155px !important;
+  min-width: 155px !important;
+  max-width: 155px !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) 16px !important;
+  column-gap: 8px !important;
+  align-items: center !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > label:nth-child(3) {
+  grid-area: dates !important;
+  width: 150px !important;
+  min-width: 150px !important;
+  max-width: 150px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > label:nth-child(4) {
+  grid-area: type !important;
+  width: 105px !important;
+  min-width: 105px !important;
+  max-width: 105px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > button:nth-child(5) {
+  grid-area: filter !important;
+  width: 90px !important;
+  min-width: 90px !important;
+  max-width: 90px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters .doctor-lab-room-filter {
+  grid-area: room !important;
+  width: 160px !important;
+  min-width: 160px !important;
+  max-width: 160px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters .doctor-lab-doctor-filter {
+  grid-area: doctor !important;
+  width: 190px !important;
+  min-width: 190px !important;
+  max-width: 190px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > button:nth-child(8) {
+  grid-area: refresh !important;
+  width: 95px !important;
+  min-width: 95px !important;
+  max-width: 95px !important;
+}
+
+.doctor-lab-table-card > .doctor-lab-filters > button:nth-child(9) {
+  grid-area: create !important;
+  width: 100px !important;
+  min-width: 100px !important;
+  max-width: 100px !important;
+}
+
+/* Final lab table readability lock. */
+.doctor-lab-table-card .doctor-lab-table-head {
+  min-height: 44px !important;
+  font-size: 11px !important;
+}
+
+.doctor-lab-table-card .doctor-lab-row {
+  min-height: 66px !important;
+  font-size: 11.5px !important;
+}
+
+.doctor-lab-table-card .doctor-lab-row > strong,
+.doctor-lab-table-card .doctor-lab-person b {
+  font-size: 11.5px !important;
+}
+
+.doctor-lab-table-card .doctor-lab-person small,
+.doctor-lab-table-card .doctor-lab-row time,
+.doctor-lab-table-card .doctor-lab-row time small {
+  font-size: 10.5px !important;
+}
+
+.doctor-lab-table-card .doctor-lab-status {
+  min-height: 25px !important;
+  padding: 0 10px !important;
+  font-size: 10.5px !important;
+}
+
+.doctor-lab-table-card .doctor-lab-row em {
+  font-size: 11px !important;
+}
+
+.doctor-lab-table-card .doctor-lab-row > em {
+  max-width: 150px !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.doctor-lab-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.doctor-lab-table-scroll .doctor-lab-table-head,
+.doctor-lab-table-scroll .doctor-lab-row,
+.doctor-lab-table-scroll .doctor-lab-empty {
+  min-width: 1190px !important;
+}
+
+.doctor-lab-table-card .doctor-lab-actions {
+  justify-content: center !important;
+  gap: 6px !important;
+  overflow: visible !important;
+}
+
+.doctor-lab-table-card .doctor-lab-actions button {
+  width: 24px !important;
+  min-width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  color: #0b66f0 !important;
+  background: transparent !important;
+}
+
+/* Doctor profile panel: /doctor/dashboard?panel=profile */
+.doctor-profile-new-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #172033;
+}
+
+.doctor-profile-new-hero,
+.doctor-profile-new-card,
+.doctor-profile-new-support {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(214, 224, 240, 0.9);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+}
+
+.doctor-profile-new-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  min-height: 156px;
+  padding: 24px 28px;
+  border-radius: 18px;
+}
+
+.doctor-profile-new-avatar {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #f5f8ff, #eaf2ff);
+  border: 4px solid #edf4ff;
+  box-shadow: inset 0 0 0 3px #d8e7ff;
+  overflow: visible;
+}
+
+.doctor-profile-new-avatar img {
+  position: absolute;
+  inset: 9px;
+  width: calc(100% - 18px);
+  height: calc(100% - 18px);
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.doctor-profile-new-avatar span {
+  position: relative;
+  z-index: 1;
+  color: #0b63f6;
+  font-size: 34px;
+  font-weight: 900;
+}
+
+.doctor-profile-new-avatar i {
+  position: absolute;
+  right: 9px;
+  bottom: 10px;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: #18c66a;
+  border: 3px solid #ffffff;
+}
+
+.doctor-profile-new-identity {
+  min-width: 0;
+}
+
+.doctor-profile-new-identity > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.doctor-profile-new-identity h2 {
+  margin: 0;
+  color: #14213a;
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 850;
+}
+
+.doctor-profile-new-identity b {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #0b63f6;
+  background: #eaf2ff;
+  font-size: 12px;
+}
+
+.doctor-profile-new-identity b svg {
+  width: 15px;
+  height: 15px;
+}
+
+.doctor-profile-new-identity p {
+  margin: 8px 0 15px;
+  color: #43617f;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.doctor-profile-new-meta {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: #42536d;
+  font-size: 13px;
+}
+
+.doctor-profile-new-meta span {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+}
+
+.doctor-profile-new-meta svg {
+  width: 17px;
+  height: 17px;
+  color: #64748b;
+  flex: 0 0 auto;
+}
+
+.doctor-profile-new-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 210px;
+}
+
+.doctor-profile-new-actions button,
+.doctor-profile-new-card-head button,
+.doctor-profile-new-completion-card button,
+.doctor-profile-new-link,
+.doctor-profile-new-cancel {
+  border: 0;
+  border-radius: 10px;
+  min-height: 44px;
+  padding: 0 16px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.doctor-profile-new-actions button:first-child,
+.doctor-profile-new-completion-card button,
+.doctor-profile-new-card-head button {
+  color: #0b63f6;
+  background: #ffffff;
+  border: 1px solid rgba(11, 99, 246, 0.55);
+}
+
+.doctor-profile-new-actions button:last-child {
+  color: #213047;
+  background: #ffffff;
+  border: 1px solid #dfe7f3;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.doctor-profile-new-actions svg,
+.doctor-profile-new-card-head svg,
+.doctor-profile-new-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.doctor-profile-new-grid,
+.doctor-profile-new-lower-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.doctor-profile-new-grid {
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(280px, 0.92fr);
+}
+
+.doctor-profile-new-lower-grid {
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(0, 1fr);
+}
+
+.doctor-profile-new-card {
+  min-width: 0;
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.doctor-profile-new-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.doctor-profile-new-card-head h3 {
+  margin: 0;
+  color: #16233a;
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.doctor-profile-new-card-head button {
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: #f7fbff;
+}
+
+.doctor-profile-new-card-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.doctor-profile-new-card-actions button {
+  min-width: 56px;
+}
+
+.doctor-profile-new-card-actions button.is-muted {
+  color: #64748b;
+  border-color: #d9e3f0;
+  background: #f4f7fb;
+}
+
+.doctor-profile-new-info-list,
+.doctor-profile-new-edit-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.doctor-profile-new-info-line {
+  display: grid;
+  grid-template-columns: minmax(112px, 0.9fr) minmax(0, 1.3fr);
+  gap: 12px;
+  align-items: baseline;
+  min-height: 20px;
+}
+
+.doctor-profile-new-info-line span,
+.doctor-profile-new-edit-field span,
+.doctor-profile-new-muted {
+  color: #637089;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.doctor-profile-new-info-line strong {
+  color: #172033;
+  font-size: 12px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.doctor-profile-new-edit-field {
+  display: grid;
+  gap: 6px;
+}
+
+.doctor-profile-new-edit-field input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #dbe6f4;
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #172033;
+  background: #fbfdff;
+  font-weight: 750;
+  outline: none;
+}
+
+.doctor-profile-new-edit-field input:focus {
+  border-color: #0b63f6;
+  box-shadow: 0 0 0 3px rgba(11, 99, 246, 0.12);
+}
+
+.doctor-profile-new-edit-field input:disabled {
+  color: #6b7890;
+  background: #f3f6fa;
+  cursor: not-allowed;
+}
+
+.doctor-profile-new-cancel {
+  color: #64748b;
+  background: #f4f7fb;
+}
+
+.doctor-profile-new-completion-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.doctor-profile-new-completion-card .doctor-profile-new-card-head {
+  margin-bottom: 0;
+}
+
+.doctor-profile-new-completion-main {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.doctor-profile-new-progress {
+  --profile-progress: 0%;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, #ffffff 57%, transparent 58%),
+    conic-gradient(#0b63f6 var(--profile-progress), #e7edf7 0);
+}
+
+.doctor-profile-new-progress span {
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.doctor-profile-new-progress strong {
+  color: #14213a;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.doctor-profile-new-progress small {
+  color: #66738b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.doctor-profile-new-completion-card p {
+  margin: 0;
+  color: #5f6f88;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.doctor-profile-new-completion-card .doctor-profile-new-completion-button {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 0;
+  border-radius: 9px;
+  color: #ffffff;
+  background: #0b63f6;
+  border-color: #0b63f6;
+  box-shadow: 0 10px 24px rgba(11, 99, 246, 0.2);
+  font-size: 13px;
+}
+
+.doctor-profile-new-completion-card .doctor-profile-new-completion-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  stroke-width: 2.2;
+}
+
+.doctor-profile-new-schedule-list {
+  display: grid;
+  gap: 10px;
+}
+
+.doctor-profile-new-schedule-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(80px, auto) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 60px;
+  padding: 9px 10px;
+  border: 1px solid #e6eef8;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.doctor-profile-new-schedule-row > span,
+.doctor-profile-new-stat > span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #eaf7f0;
+  color: #12a866;
+}
+
+.doctor-profile-new-schedule-row svg,
+.doctor-profile-new-stat svg {
+  width: 19px;
+  height: 19px;
+}
+
+.doctor-profile-new-schedule-row strong,
+.doctor-profile-new-schedule-row small {
+  display: block;
+}
+
+.doctor-profile-new-schedule-row strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.doctor-profile-new-schedule-row small,
+.doctor-profile-new-schedule-row em {
+  color: #65748d;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.doctor-profile-new-schedule-row b {
+  min-width: 84px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 11px;
+  color: #334155;
+  background: #eef3f8;
+}
+
+.doctor-profile-new-schedule-row b.is-green {
+  color: #087846;
+  background: #dcfce7;
+}
+
+.doctor-profile-new-schedule-row b.is-blue {
+  color: #0b63f6;
+  background: #eaf2ff;
+}
+
+.doctor-profile-new-schedule-row b.is-red {
+  color: #b42318;
+  background: #fee4e2;
+}
+
+.doctor-profile-new-link {
+  margin-top: 12px;
+  width: 100%;
+  color: #0b63f6;
+  background: transparent;
+}
+
+.doctor-profile-new-stat-grid,
+.doctor-profile-new-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.doctor-profile-new-sync-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.doctor-profile-new-stat {
+  min-height: 112px;
+  padding: 14px 8px;
+  border: 1px solid #e5edf7;
+  border-radius: 13px;
+  background: #fbfdff;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.doctor-profile-new-stat strong {
+  color: #172033;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.doctor-profile-new-stat small {
+  color: #52627a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.doctor-profile-new-stat.is-blue > span {
+  color: #0b63f6;
+  background: #eaf2ff;
+}
+
+.doctor-profile-new-stat.is-orange > span {
+  color: #f97316;
+  background: #fff3e8;
+}
+
+.doctor-profile-new-stat.is-purple > span {
+  color: #8b5cf6;
+  background: #f2eafe;
+}
+
+.doctor-profile-new-stat.is-green > span {
+  color: #12a866;
+  background: #e8f8ef;
+}
+
+.doctor-profile-new-support {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  min-height: 80px;
+  padding: 16px 22px;
+  border-radius: 16px;
+}
+
+.doctor-profile-new-support strong {
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  color: #172033;
+  font-size: 15px;
+}
+
+.doctor-profile-new-support strong svg {
+  width: 23px;
+  height: 23px;
+  color: #0fb66d;
+}
+
+.doctor-profile-new-support > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid #dfe7f1;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.doctor-profile-new-support span {
+  min-height: 46px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 8px 18px;
+  color: #66738b;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.doctor-profile-new-support span + span {
+  border-left: 1px solid #e5edf6;
+}
+
+.doctor-profile-new-support b {
+  color: #172033;
+  font-size: 13px;
+}
+
+@media (max-width: 1180px) {
+  .doctor-profile-new-hero,
+  .doctor-profile-new-grid,
+  .doctor-profile-new-lower-grid,
+  .doctor-profile-new-support {
+    grid-template-columns: 1fr;
+  }
+
+  .doctor-profile-new-actions {
+    width: 100%;
+    flex-direction: row;
+  }
+}
+
+.doctor-today-error {
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.doctor-today-error button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid #f6b7b7;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #b42318;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.doctor-today-row.is-skeleton {
+  pointer-events: none;
+}
+
+.doctor-today-row.is-skeleton span {
+  display: block;
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #eef4fb 0%, #f8fbff 48%, #eef4fb 100%);
+  background-size: 220% 100%;
+  animation: doctor-today-shimmer 1.15s ease-in-out infinite;
+}
+
+.doctor-today-empty strong,
+.doctor-today-empty span {
+  display: block;
+  text-align: center;
+}
+
+.doctor-today-empty span {
+  margin-top: 8px;
+  color: #6b7b9b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.doctor-today-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(11, 24, 55, 0.34);
+  backdrop-filter: blur(5px);
+}
+
+.doctor-today-modal {
+  width: min(920px, 100%);
+  max-height: min(760px, 92vh);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid #dce6f3;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(15, 37, 72, 0.24);
+}
+
+.doctor-today-modal > header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e5edf7;
+}
+
+.doctor-today-modal h2,
+.doctor-today-modal p {
+  margin: 0;
+}
+
+.doctor-today-modal h2 {
+  color: #10245a;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.doctor-today-modal p {
+  margin-top: 5px;
+  color: #5d6e92;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.doctor-today-modal > header > button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d8e4f2;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #173164;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.doctor-today-modal-table {
+  min-height: 0;
+  overflow: auto;
+}
+
+.doctor-today-modal-head,
+.doctor-today-modal-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1.3fr) minmax(0, 1fr) 140px;
+  align-items: center;
+  gap: 14px;
+  padding: 0 22px;
+}
+
+.doctor-today-modal-head {
+  min-height: 42px;
+  border-bottom: 1px solid #e5edf7;
+  color: #637397;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.doctor-today-modal-row {
+  min-height: 58px;
+  border-bottom: 1px solid #eef3f9;
+  color: #10245a;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.doctor-today-modal-row strong {
+  font-weight: 900;
+}
+
+.doctor-today-modal-schedules {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  overflow: auto;
+}
+
+.doctor-today-modal-schedules button,
+.doctor-today-modal-info {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px 160px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border: 1px solid #dfe8f5;
+  border-radius: 12px;
+  background: #fbfdff;
+  color: #10245a;
+  text-align: left;
+  font: inherit;
+}
+
+.doctor-today-modal-schedules button {
+  cursor: pointer;
+}
+
+.doctor-today-modal-schedules button:hover {
+  border-color: #7fb0ff;
+  background: #f3f8ff;
+}
+
+@keyframes doctor-today-shimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+
+@media (max-width: 760px) {
+  .doctor-profile-new-hero {
+    padding: 18px;
+    text-align: left;
+  }
+
+  .doctor-profile-new-avatar {
+    width: 88px;
+    height: 88px;
+  }
+
+  .doctor-profile-new-identity h2 {
+    font-size: 22px;
+  }
+
+  .doctor-profile-new-actions,
+  .doctor-profile-new-support > div {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .doctor-profile-new-stat-grid,
+  .doctor-profile-new-sync-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .doctor-profile-new-schedule-row {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .doctor-profile-new-schedule-row em,
+  .doctor-profile-new-schedule-row b {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .doctor-profile-new-info-line {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .doctor-profile-new-completion-main {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .doctor-profile-new-progress {
+    width: 96px;
+    height: 96px;
+  }
+
+  .doctor-profile-new-progress span {
+    width: 68px;
+    height: 68px;
+  }
+
+  .doctor-profile-new-progress strong {
+    font-size: 21px;
+  }
+
+  .doctor-profile-new-support span + span {
+    border-left: 0;
+    border-top: 1px solid #e5edf6;
+  }
+}
+
+/* Doctor workspace data surfaces: rows/cards/tables are read-only unless a real
+   button inside them performs an action. Keep filters and pagination fixed while
+   only the table/list data strip scrolls horizontally. */
+.doctor-shell :where(
+  .doctor-table-wrap,
+  .doctor-all-appointment-table-scroll,
+  .doctor-empty-table-body,
+  .doctor-patient-list-table-scroll,
+  .doctor-queue-body,
+  .doctor-history-table,
+  .doctor-history-body,
+  .doctor-upcoming-table-scroll,
+  .doctor-appointment-list-body,
+  .doctor-today-table,
+  .doctor-today-rows,
+  .doctor-week-table,
+  .doctor-week-ref-table,
+  .doctor-encounter-ref-table,
+  .doctor-encounter-completed-table,
+  .doctor-lab-table-scroll,
+  .doctor-imaging-table,
+  .doctor-procedure-table,
+  .doctor-order-pending-table,
+  .doctor-order-list-table,
+  .doctor-order-encounter-table,
+  .doctor-prescription-active-table,
+  .doctor-prescription-table,
+  .doctor-prescription-encounter-table,
+  .doctor-recent-patient-table
+) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.doctor-shell :where(
+  .doctor-section-card,
+  .doctor-stat-card:not(.is-actionable),
+  .doctor-kpi-tile,
+  .doctor-panel,
+  .doctor-dashboard-panel,
+  .doctor-patient-list-panel,
+  .doctor-encounter-ref-list,
+  .doctor-encounter-ref-processing,
+  .doctor-week-ref-card,
+  .doctor-schedule-panel,
+  .doctor-appointment-panel,
+  .doctor-overview-panel,
+  .doctor-profile-stat,
+  .doctor-patient-overview-card,
+  .doctor-table tbody tr,
+  .doctor-list-row,
+  .doctor-queue-row,
+  .doctor-queue-completed-card,
+  .doctor-slot-row,
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-schedule-row,
+  .doctor-dashboard-queue-card,
+  .doctor-dashboard-upcoming-item,
+  .doctor-empty-row,
+  .doctor-all-appointment-row,
+  .doctor-appointment-list-row,
+  .doctor-upcoming-row,
+  .doctor-today-row,
+  .doctor-today-break-row,
+  .doctor-today-slot-row,
+  .doctor-week-ref-row,
+  .doctor-week-ref-upcoming-row,
+  .doctor-week-ref-highlight-row,
+  .doctor-week-table__row,
+  .doctor-week-highlight__row,
+  .doctor-appointment-card,
+  .doctor-patient-result-card,
+  .doctor-patient-row-card,
+  .doctor-patient-list-row,
+  .doctor-recent-patient-row,
+  .doctor-encounters-row,
+  .doctor-encounter-ref-row,
+  .doctor-encounter-completed-row,
+  .doctor-lab-row,
+  .doctor-imaging-row,
+  .doctor-procedure-row,
+  .doctor-order-pending-row,
+  .doctor-order-list-row,
+  .doctor-order-encounter-row,
+  .doctor-prescription-row,
+  .doctor-prescription-active-row,
+  .doctor-prescription-encounter-row
+),
+.doctor-shell :where(
+  .doctor-section-card,
+  .doctor-stat-card:not(.is-actionable),
+  .doctor-kpi-tile,
+  .doctor-panel,
+  .doctor-dashboard-panel,
+  .doctor-patient-list-panel,
+  .doctor-encounter-ref-list,
+  .doctor-encounter-ref-processing,
+  .doctor-week-ref-card,
+  .doctor-schedule-panel,
+  .doctor-appointment-panel,
+  .doctor-overview-panel,
+  .doctor-profile-stat,
+  .doctor-patient-overview-card,
+  .doctor-table tbody tr,
+  .doctor-list-row,
+  .doctor-queue-row,
+  .doctor-queue-completed-card,
+  .doctor-slot-row,
+  .doctor-dashboard-list-row,
+  .doctor-dashboard-appointment-row,
+  .doctor-dashboard-schedule-row,
+  .doctor-dashboard-queue-card,
+  .doctor-dashboard-upcoming-item,
+  .doctor-empty-row,
+  .doctor-all-appointment-row,
+  .doctor-appointment-list-row,
+  .doctor-upcoming-row,
+  .doctor-today-row,
+  .doctor-today-break-row,
+  .doctor-today-slot-row,
+  .doctor-week-ref-row,
+  .doctor-week-ref-upcoming-row,
+  .doctor-week-ref-highlight-row,
+  .doctor-week-table__row,
+  .doctor-week-highlight__row,
+  .doctor-appointment-card,
+  .doctor-patient-result-card,
+  .doctor-patient-row-card,
+  .doctor-patient-list-row,
+  .doctor-recent-patient-row,
+  .doctor-encounters-row,
+  .doctor-encounter-ref-row,
+  .doctor-encounter-completed-row,
+  .doctor-lab-row,
+  .doctor-imaging-row,
+  .doctor-procedure-row,
+  .doctor-order-pending-row,
+  .doctor-order-list-row,
+  .doctor-order-encounter-row,
+  .doctor-prescription-row,
+  .doctor-prescription-active-row,
+  .doctor-prescription-encounter-row
+):where(:hover, :focus, :focus-visible, :active),
+.doctor-shell :where(
+  .doctor-appointment-card.is-selected,
+  .doctor-patient-result-card.is-selected,
+  .doctor-patient-list-row.is-selected,
+  .doctor-recent-patient-row.is-selected,
+  .doctor-encounters-row.is-selected,
+  .doctor-encounter-ref-row.is-selected,
+  .doctor-encounter-completed-row.is-selected,
+  .doctor-lab-row.is-selected,
+  .doctor-imaging-row.is-selected,
+  .doctor-procedure-row.is-selected,
+  .doctor-order-pending-row.is-selected,
+  .doctor-order-list-row.is-selected,
+  .doctor-order-encounter-row.is-selected,
+  .doctor-prescription-row.is-selected,
+  .doctor-prescription-active-row.is-selected,
+  .doctor-prescription-encounter-row.is-selected
+) {
+  cursor: default !important;
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  border-color: rgba(224, 233, 247, 0.92) !important;
+  background-color: inherit !important;
+  background-image: inherit !important;
+  box-shadow: inherit !important;
+  color: inherit !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+.doctor-shell :where(.doctor-table tbody tr:hover td) {
+  background: inherit !important;
+}
+
+.doctor-shell :where(
+  .doctor-all-appointment-row,
+  .doctor-patient-list-row,
+  .doctor-recent-patient-row,
+  .doctor-encounter-ref-row,
+  .doctor-encounter-completed-row,
+  .doctor-lab-row,
+  .doctor-imaging-row,
+  .doctor-procedure-row,
+  .doctor-order-list-row,
+  .doctor-order-encounter-row,
+  .doctor-prescription-row,
+  .doctor-prescription-active-row,
+  .doctor-prescription-encounter-row
+) :where(button, a[href], summary) {
+  cursor: pointer !important;
+}
+
+.doctor-shell :where(.doctor-fixed-page-size) {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(219, 228, 240, 0.9);
+  border-radius: 8px;
+  background: rgba(248, 251, 255, 0.88);
+  color: var(--doctor-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: default;
+}

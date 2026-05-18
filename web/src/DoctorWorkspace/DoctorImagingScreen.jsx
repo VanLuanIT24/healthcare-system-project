@@ -22,10 +22,10 @@ import {
 import { doctorApi, getDoctorId } from './doctorApi'
 import { getInitials, safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
-const PAGE_SIZE = 7
+const PAGE_SIZE = 5
 
 function formatDate(value) {
   if (!value) return '-'
@@ -446,7 +446,7 @@ export function DoctorImagingScreen({ user }) {
                 {totalPages > 5 ? <button type="button" onClick={() => setPage(totalPages)}>{totalPages}</button> : null}
                 <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}><ChevronRight size={15} /></button>
               </div>
-              <button type="button">10 / trang <ChevronDown size={14} /></button>
+              <span className="doctor-fixed-page-size">Hiển thị <strong>{PAGE_SIZE}</strong> dòng</span>
             </footer>
           </article>
 

@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { doctorApi, getDoctorId } from './doctorApi'
+import { useNavigate } from 'react-router-dom'
+import { doctorApi } from './doctorApi'
 import { formatTime, safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
 import { DoctorIcon } from './DoctorShell'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
+const PAGE_SIZE = 5
+
 function appointmentIdOf(appointment = {}) {
-  return appointment.appointment_id || appointment.id || appointment._id || ''
+  return appointment.appointment_id || appointment.appointmentId || appointment.id || appointment._id || ''
 }
 
 function toDateKey(value) {
@@ -30,12 +33,12 @@ function numberFrom(source, keys, fallback = 0) {
 }
 
 function appointmentTime(appointment = {}) {
-  return appointment.appointment_time || appointment.scheduled_at || appointment.start_time || appointment.date_time || ''
+  return appointment.appointment_time || appointment.scheduled_time || appointment.scheduled_at || appointment.start_time || appointment.time || appointment.date_time || appointment.appointmentDate || appointment.appointment_date || ''
 }
 
 function patientName(appointment = {}) {
   const patient = appointment.patient || {}
-  return appointment.patient_name || patient.full_name || patient.name || appointment.full_name || 'Bệnh nhân'
+  return appointment.patient_name || appointment.patientName || patient.fullName || patient.full_name || patient.name || appointment.full_name || 'Chưa có tên bệnh nhân'
 }
 
 function patientCode(appointment = {}) {
@@ -66,9 +69,10 @@ function departmentName(appointment = {}) {
     appointment.department_name ||
     appointment.specialty ||
     appointment.specialty_name ||
+    appointment.departmentName ||
     appointment.department?.department_name ||
     appointment.doctor?.specialty ||
-    'Khoa khám bệnh'
+    '--'
   )
 }
 
@@ -89,7 +93,7 @@ function doctorName(appointment = {}, user = {}) {
 }
 
 function visitReason(appointment = {}) {
-  return appointment.reason || appointment.note || appointment.notes || appointment.chief_complaint || appointment.appointment_type || 'Khám định kỳ'
+  return appointment.reason || appointment.visit_reason || appointment.note || appointment.notes || appointment.chief_complaint || appointment.appointment_type || '--'
 }
 
 function queueNumber(appointment = {}) {
@@ -97,20 +101,20 @@ function queueNumber(appointment = {}) {
 }
 
 function encounterRoom(appointment = {}) {
-  return appointment.encounter_code || appointment.encounter?.encounter_code || appointment.encounter_id || roomName(appointment)
+  return appointment.encounter_code || appointment.encounter?.encounter_code || appointment.encounter_id || appointment.encounter?.encounter_id || roomName(appointment)
 }
 
 function checkedInAt(appointment = {}) {
-  return appointment.checked_in_at || appointment.check_in_time || appointment.arrived_at || ''
+  return appointment.checkedInAt || appointment.checked_in_at || appointment.check_in_time || appointment.arrived_at || ''
 }
 
 function statusInfo(appointment = {}) {
   const raw = String(appointment.status || '').toLowerCase()
-  if (['checked_in', 'arrived'].includes(raw)) return { key: 'checked_in', label: 'Đã check-in', tone: 'green' }
-  if (['waiting', 'queued'].includes(raw)) return { key: 'waiting', label: 'Đang chờ', tone: 'orange' }
+  if (['checked_in', 'checked-in', 'arrived'].includes(raw)) return { key: 'checked_in', label: 'Đã check-in', tone: 'green' }
+  if (['waiting', 'queued', 'pending', 'scheduled', 'confirmed'].includes(raw)) return { key: 'waiting', label: 'Đang chờ', tone: 'orange' }
   if (['completed', 'done', 'finished'].includes(raw)) return { key: 'completed', label: 'Đã hoàn tất', tone: 'green' }
-  if (['no_show'].includes(raw)) return { key: 'no_show', label: 'No-show', tone: 'slate' }
-  if (['confirmed', 'scheduled', 'booked', 'pending'].includes(raw)) return { key: 'upcoming', label: raw === 'pending' ? 'Đang chờ' : 'Sắp tới', tone: raw === 'pending' ? 'orange' : 'blue' }
+  if (['no_show', 'no-show', 'missed'].includes(raw)) return { key: 'no_show', label: 'No-show', tone: 'slate' }
+  if (['booked'].includes(raw)) return { key: 'upcoming', label: 'Sắp tới', tone: 'blue' }
   if (['cancelled', 'canceled'].includes(raw)) return { key: 'cancelled', label: 'Đã hủy', tone: 'red' }
   if (['in_progress', 'serving', 'examining'].includes(raw)) return { key: 'in_progress', label: 'Đang khám', tone: 'blue' }
   return { key: 'upcoming', label: raw ? raw.replace(/_/g, ' ') : 'Sắp tới', tone: 'blue' }
@@ -152,16 +156,12 @@ function settledValue(promise, fallback) {
 
 async function loadTodayAppointments(user) {
   const today = getTodayDate()
-  const doctorId = getDoctorId(user)
-  const [todayAppointments, doctorAppointments, byDateAppointments, upcomingAppointments, summary] = await Promise.all([
-    settledValue(doctorApi.appointments.listToday({ date: today, limit: 200 }), []),
-    doctorId ? settledValue(doctorApi.appointments.listByDoctor(doctorId, { date: today, limit: 200 }), []) : Promise.resolve([]),
-    settledValue(doctorApi.appointments.listByDate({ date: today, limit: 200 }), []),
-    settledValue(doctorApi.appointments.listUpcoming({ doctor_id: doctorId, limit: 200 }), []),
-    settledValue(doctorApi.appointments.getSummary({ date: today, doctor_id: doctorId }), null),
+  const [todayAppointments, summary] = await Promise.all([
+    doctorApi.appointments.listToday({ date: today, limit: 200 }),
+    settledValue(doctorApi.appointments.getSummary({ date: today }), null),
   ])
 
-  const combined = [...safeArray(todayAppointments), ...safeArray(doctorAppointments), ...safeArray(byDateAppointments)]
+  const combined = safeArray(todayAppointments)
   const deduped = new Map()
   combined.forEach((appointment) => {
     const id = appointmentIdOf(appointment) || `${appointment.patient_id || patientName(appointment)}-${appointmentTime(appointment)}`
@@ -175,22 +175,23 @@ async function loadTodayAppointments(user) {
     })
     .sort((a, b) => new Date(appointmentTime(a)) - new Date(appointmentTime(b)))
 
-  const readinessEntries = await Promise.all(
-    appointments.slice(0, 20).map(async (appointment) => {
-      const id = appointmentIdOf(appointment)
-      if (!id) return null
-      const readiness = await settledValue(doctorApi.appointments.getReadChecks(id), null)
-      return [id, readiness]
-    }),
-  )
-
   return {
     today,
     appointments,
-    upcomingAppointments: safeArray(upcomingAppointments),
     summary,
-    readiness: Object.fromEntries(readinessEntries.filter(Boolean)),
+    readiness: {},
   }
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function AppointmentKpi({ icon, tone, label, value, hint }) {
@@ -208,9 +209,20 @@ function AppointmentKpi({ icon, tone, label, value, hint }) {
   )
 }
 
-function AppointmentDonut({ total }) {
+function AppointmentDonut({ total, dashboard }) {
+  const checked = total ? Math.round((dashboard.checkedIn / total) * 100) : 0
+  const waiting = total ? Math.round((dashboard.waiting / total) * 100) : 0
+  const completed = total ? Math.round((dashboard.completed / total) * 100) : 0
+  const first = checked
+  const second = checked + waiting
+  const third = checked + waiting + completed
   return (
-    <div className="doctor-appointment-status-donut">
+    <div
+      className="doctor-appointment-status-donut"
+      style={{
+        background: `conic-gradient(#2f86ff 0 ${first}%, #ff9f1a ${first}% ${second}%, #16a34a ${second}% ${third}%, #94a3b8 ${third}% 100%)`,
+      }}
+    >
       <div>
         <strong>{total}</strong>
         <span>Tổng lịch hẹn</span>
@@ -221,8 +233,11 @@ function AppointmentDonut({ total }) {
 
 export function DoctorTodayAppointmentsScreen({ user }) {
   const toast = useToast()
-  const [state, setState] = useState({ loading: true, error: '', data: { today: getTodayDate(), appointments: [], upcomingAppointments: [], summary: null, readiness: {} } })
+  const navigate = useNavigate()
+  const [state, setState] = useState({ loading: true, error: '', data: { today: getTodayDate(), appointments: [], summary: null, readiness: {} } })
   const [actingId, setActingId] = useState('')
+  const [page, setPage] = useState(1)
+  const [detailState, setDetailState] = useState({ loading: false, error: '', appointment: null, timeline: [] })
 
   function reload() {
     setState((current) => ({ ...current, loading: true, error: '' }))
@@ -231,7 +246,7 @@ export function DoctorTodayAppointmentsScreen({ user }) {
       .catch((error) => setState({
         loading: false,
         error: getApiErrorMessage(error, 'Không thể tải lịch hẹn hôm nay.'),
-        data: { today: getTodayDate(), appointments: [], upcomingAppointments: [], summary: null, readiness: {} },
+        data: { today: getTodayDate(), appointments: [], summary: null, readiness: {} },
       }))
   }
 
@@ -247,7 +262,7 @@ export function DoctorTodayAppointmentsScreen({ user }) {
           setState({
             loading: false,
             error: getApiErrorMessage(error, 'Không thể tải lịch hẹn hôm nay.'),
-            data: { today: getTodayDate(), appointments: [], upcomingAppointments: [], summary: null, readiness: {} },
+            data: { today: getTodayDate(), appointments: [], summary: null, readiness: {} },
           })
         }
       })
@@ -265,7 +280,7 @@ export function DoctorTodayAppointmentsScreen({ user }) {
     const completed = numberFrom(summary, ['completed_count', 'completed'], appointments.filter(isCompleted).length)
     const waiting = numberFrom(summary, ['waiting_count', 'waiting', 'pending_count'], appointments.filter((item) => ['waiting', 'upcoming'].includes(statusInfo(item).key)).length)
     const noShow = numberFrom(summary, ['no_show_count', 'noShow', 'no_show'], appointments.filter((item) => statusInfo(item).key === 'no_show').length)
-    const upcoming = appointments.filter((item) => statusInfo(item).key === 'upcoming').length || safeArray(state.data.upcomingAppointments).length
+    const upcoming = appointments.filter((item) => statusInfo(item).key === 'upcoming').length
     const checkedRate = total ? Math.round((checkedIn / total) * 1000) / 10 : 0
     const waitingRate = total ? Math.round((waiting / total) * 1000) / 10 : 0
     const completedRate = total ? Math.round((completed / total) * 1000) / 10 : 0
@@ -289,6 +304,18 @@ export function DoctorTodayAppointmentsScreen({ user }) {
     }
   }, [state.data])
 
+  const totalPages = Math.max(1, Math.ceil(dashboard.appointments.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedAppointments = dashboard.appointments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const pageStart = dashboard.appointments.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0
+  const pageEnd = Math.min(currentPage * PAGE_SIZE, dashboard.appointments.length)
+  const firstPageButton = Math.max(1, Math.min(currentPage - 1, Math.max(1, totalPages - 2)))
+  const pageButtons = Array.from({ length: Math.min(3, totalPages) }, (_, index) => firstPageButton + index)
+
+  useEffect(() => {
+    setPage(1)
+  }, [state.data.today, dashboard.appointments.length])
+
   async function runAction(appointment, type) {
     const appointmentId = appointmentIdOf(appointment)
     if (!appointmentId) {
@@ -296,11 +323,6 @@ export function DoctorTodayAppointmentsScreen({ user }) {
       return
     }
 
-    const readiness = state.data.readiness[appointmentId]
-    if (type === 'checkIn' && readiness?.canCheckIn && readiness.canCheckIn.can_check_in === false) {
-      toast.warning('Backend chưa cho phép check-in lịch hẹn này.')
-      return
-    }
     if (type === 'queue' && !isCheckedIn(appointment)) {
       toast.warning('Chỉ tạo hàng đợi sau khi bệnh nhân đã check-in.')
       return
@@ -312,11 +334,22 @@ export function DoctorTodayAppointmentsScreen({ user }) {
 
     setActingId(`${type}:${appointmentId}`)
     try {
-      if (type === 'checkIn') await doctorApi.appointments.checkIn(appointmentId)
+      if (type === 'checkIn') {
+        const readiness = await doctorApi.appointments.canCheckIn(appointmentId)
+        if (readiness && readiness.can_check_in === false) {
+          toast.warning(readiness.reason || readiness.message || 'Backend chưa cho phép check-in lịch hẹn này.')
+          return
+        }
+        await doctorApi.appointments.checkIn(appointmentId)
+      }
       if (type === 'confirm') await doctorApi.appointments.confirm(appointmentId)
       if (type === 'complete') await doctorApi.appointments.complete(appointmentId)
       if (type === 'queue') await doctorApi.appointments.createQueueTicket(appointmentId)
-      if (type === 'encounter') await doctorApi.appointments.createEncounter(appointmentId)
+      if (type === 'encounter') {
+        const encounter = await doctorApi.appointments.createEncounter(appointmentId)
+        const encounterId = encounter?.encounter_id || encounter?.id || encounter?.encounter?.encounter_id || ''
+        if (encounterId) navigate(`/doctor/encounters/${encodeURIComponent(encounterId)}`)
+      }
       if (type === 'noShow') await doctorApi.appointments.noShow(appointmentId)
       toast.success('Đã cập nhật lịch hẹn.')
       reload()
@@ -327,9 +360,65 @@ export function DoctorTodayAppointmentsScreen({ user }) {
     }
   }
 
+  async function openAppointmentDetail(appointment) {
+    const appointmentId = appointmentIdOf(appointment)
+    if (!appointmentId) {
+      setDetailState({ loading: false, error: 'Backend chưa trả mã lịch hẹn thật.', appointment, timeline: [] })
+      return
+    }
+
+    setDetailState({ loading: true, error: '', appointment, timeline: [] })
+    try {
+      const [detail, timeline] = await Promise.all([
+        doctorApi.appointments.getDetail(appointmentId),
+        settledValue(doctorApi.appointments.getTimeline(appointmentId), []),
+      ])
+      setDetailState({ loading: false, error: '', appointment: detail || appointment, timeline: safeArray(timeline) })
+    } catch (error) {
+      setDetailState({
+        loading: false,
+        error: getApiErrorMessage(error, 'Không thể tải chi tiết lịch hẹn.'),
+        appointment,
+        timeline: [],
+      })
+    }
+  }
+
+  function exportTodayAppointments() {
+    downloadCsv(`lich-hen-hom-nay-${state.data.today || getTodayDate()}.csv`, [
+      ['Gio hen', 'Benh nhan', 'Ma benh nhan', 'Chuyen khoa', 'Ly do kham', 'Trang thai', 'Check-in', 'Hang doi', 'Phien kham'],
+      ...dashboard.appointments.map((appointment) => {
+        const status = statusInfo(appointment)
+        return [
+          formatTime(appointmentTime(appointment)),
+          patientName(appointment),
+          patientCode(appointment),
+          departmentName(appointment),
+          visitReason(appointment),
+          status.label,
+          checkedInAt(appointment) ? formatTime(checkedInAt(appointment)) : isCheckedIn(appointment) ? 'Da check-in' : '',
+          queueNumber(appointment),
+          appointment.encounter_id || appointment.encounter?.encounter_id || '',
+        ]
+      }),
+    ])
+  }
+
+  function primaryActionFor(appointment) {
+    if (!isCheckedIn(appointment)) return { type: 'checkIn', label: 'Check-in', icon: 'check_circle', disabled: false }
+    if (!queueNumber(appointment)) return { type: 'queue', label: 'Tạo hàng đợi', icon: 'message', disabled: false }
+    if (!appointment.encounter_id && !isCompleted(appointment)) return { type: 'encounter', label: 'Bắt đầu khám', icon: 'pulse', disabled: false }
+    return { type: 'detail', label: 'Chi tiết', icon: 'note', disabled: false }
+  }
+
   return (
     <div className="doctor-appointment-today is-appointment-list">
-      {state.error ? <div className="doctor-today-error">{state.error}</div> : null}
+      {state.error ? (
+        <div className="doctor-today-error">
+          <span>{state.error}</span>
+          <button type="button" onClick={reload}>Thử lại</button>
+        </div>
+      ) : null}
 
       <section className="doctor-appointment-kpis" aria-label="Tổng quan lịch hẹn hôm nay">
         <AppointmentKpi icon="calendar" tone="blue" label="Tổng lịch hẹn" value={dashboard.total} hint="100% tổng số lịch hẹn" />
@@ -358,11 +447,11 @@ export function DoctorTodayAppointmentsScreen({ user }) {
           <div className="doctor-appointment-list-body">
             {state.loading ? (
               <div className="doctor-appointment-empty">Đang tải lịch hẹn hôm nay...</div>
-            ) : dashboard.appointments.length ? dashboard.appointments.slice(0, 10).map((appointment, index) => {
+            ) : pagedAppointments.length ? pagedAppointments.map((appointment, index) => {
               const id = appointmentIdOf(appointment) || `appointment-${index}`
               const status = statusInfo(appointment)
-              const canCheckIn = state.data.readiness[id]?.canCheckIn?.can_check_in !== false && !isCheckedIn(appointment)
-              const canStart = isCheckedIn(appointment) && !isCompleted(appointment)
+              const action = primaryActionFor(appointment)
+              const actionKey = `${action.type}:${id}`
               return (
                 <div className="doctor-appointment-list-row" key={id}>
                   <strong>{formatTime(appointmentTime(appointment))}</strong>
@@ -380,12 +469,13 @@ export function DoctorTodayAppointmentsScreen({ user }) {
                   <span>{queueNumber(appointment) || '-'}</span>
                   <span>{appointment.encounter_id ? encounterRoom(appointment) : '-'}</span>
                   <span className="doctor-appointment-row-actions">
-                    <button type="button" onClick={() => runAction(appointment, canCheckIn ? 'checkIn' : 'queue')} disabled={Boolean(actingId) || (!canCheckIn && !isCheckedIn(appointment))}>
-                      <DoctorIcon name={canCheckIn ? 'check_circle' : 'message'} />
-                      {canCheckIn ? 'Check-in' : 'Gọi'}
-                    </button>
-                    <button type="button" className="is-primary" onClick={() => runAction(appointment, canStart ? 'encounter' : isCompleted(appointment) ? 'complete' : 'confirm')} disabled={Boolean(actingId) || (!canStart && !isCompleted(appointment))}>
-                      {isCompleted(appointment) ? 'Hoàn tất' : 'Bắt đầu khám'}
+                    <button
+                      type="button"
+                      onClick={() => (action.type === 'detail' ? openAppointmentDetail(appointment) : runAction(appointment, action.type))}
+                      disabled={Boolean(actingId) && actingId !== actionKey}
+                    >
+                      <DoctorIcon name={action.icon} />
+                      {actingId === actionKey ? 'Đang xử lý' : action.label}
                     </button>
                   </span>
                 </div>
@@ -396,15 +486,17 @@ export function DoctorTodayAppointmentsScreen({ user }) {
           </div>
 
           <footer className="doctor-appointment-list-footer">
-            <button type="button">Hiển thị 10 dòng <DoctorIcon name="chevron_down" /></button>
+            <button type="button" disabled>Hiển thị {PAGE_SIZE} dòng</button>
             <div>
-              <button type="button" disabled><DoctorIcon name="chevron_right" /></button>
-              <button type="button" className="is-active">1</button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <button type="button"><DoctorIcon name="chevron_right" /></button>
+              <button type="button" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><DoctorIcon name="chevron_right" /></button>
+              {pageButtons.map((pageNumber) => (
+                <button type="button" className={pageNumber === currentPage ? 'is-active' : ''} key={pageNumber} onClick={() => setPage(pageNumber)}>
+                  {pageNumber}
+                </button>
+              ))}
+              <button type="button" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}><DoctorIcon name="chevron_right" /></button>
             </div>
-            <span>Hiển thị {dashboard.appointments.length ? `1 đến ${Math.min(10, dashboard.appointments.length)}` : '0'} của {dashboard.total} lịch hẹn</span>
+            <span>Hiển thị {dashboard.appointments.length ? `${pageStart} đến ${pageEnd}` : '0'} của {dashboard.total} lịch hẹn</span>
           </footer>
         </article>
 
@@ -414,7 +506,7 @@ export function DoctorTodayAppointmentsScreen({ user }) {
               <h2>Tổng quan hôm nay</h2>
             </header>
             <div className="doctor-appointment-overview__top">
-              <AppointmentDonut total={dashboard.total} />
+              <AppointmentDonut total={dashboard.total} dashboard={dashboard} />
               <dl>
                 <div><dt><i className="is-blue" /> Đã check-in</dt><dd>{dashboard.checkedIn} ({dashboard.checkedRate}%)</dd></div>
                 <div><dt><i className="is-orange" /> Đang chờ</dt><dd>{dashboard.waiting} ({dashboard.waitingRate}%)</dd></div>
@@ -433,7 +525,7 @@ export function DoctorTodayAppointmentsScreen({ user }) {
 
           <article className="doctor-appointment-panel doctor-appointment-actions is-list-mode">
             <h2>Thao tác nhanh</h2>
-            <button type="button">
+            <button type="button" onClick={() => navigate('/doctor/appointments')}>
               <span><DoctorIcon name="calendar" /></span>
               <b>Tạo lịch hẹn</b>
               <small>Tạo lịch hẹn mới cho bệnh nhân</small>
@@ -445,7 +537,7 @@ export function DoctorTodayAppointmentsScreen({ user }) {
               <small>Cập nhật danh sách lịch hẹn</small>
               <DoctorIcon name="chevron_right" />
             </button>
-            <button type="button">
+            <button type="button" onClick={exportTodayAppointments}>
               <span><DoctorIcon name="note" /></span>
               <b>Xuất lịch hẹn hôm nay</b>
               <small>Xuất file Excel danh sách lịch hẹn</small>
@@ -454,6 +546,53 @@ export function DoctorTodayAppointmentsScreen({ user }) {
           </article>
         </aside>
       </section>
+
+      {detailState.loading || detailState.error || detailState.appointment ? (
+        <div className="doctor-today-modal-backdrop" role="presentation" onClick={() => setDetailState({ loading: false, error: '', appointment: null, timeline: [] })}>
+          <section
+            className="doctor-today-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Chi tiết lịch hẹn"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <h2>Chi tiết lịch hẹn</h2>
+                <p>Dữ liệu lấy từ API chi tiết lịch hẹn và timeline khi có appointmentId.</p>
+              </div>
+              <button type="button" onClick={() => setDetailState({ loading: false, error: '', appointment: null, timeline: [] })} aria-label="Đóng">×</button>
+            </header>
+            <div className="doctor-today-modal-schedules">
+              {detailState.loading ? (
+                <div className="doctor-appointment-empty">Đang tải chi tiết lịch hẹn...</div>
+              ) : detailState.error ? (
+                <div className="doctor-appointment-empty">{detailState.error}</div>
+              ) : (
+                <>
+                  <button type="button">
+                    <b>{patientName(detailState.appointment)}</b>
+                    <span>{formatTime(appointmentTime(detailState.appointment))}</span>
+                    <small>{statusInfo(detailState.appointment).label}</small>
+                  </button>
+                  <button type="button">
+                    <b>{departmentName(detailState.appointment)}</b>
+                    <span>{visitReason(detailState.appointment)}</span>
+                    <small>{roomName(detailState.appointment)}</small>
+                  </button>
+                  {detailState.timeline.length ? detailState.timeline.slice(0, 5).map((item, index) => (
+                    <button type="button" key={item.id || item.timeline_id || index}>
+                      <b>{item.title || item.action || item.event_type || 'Timeline'}</b>
+                      <span>{formatTime(item.created_at || item.time || item.timestamp)}</span>
+                      <small>{item.description || item.note || item.status || '--'}</small>
+                    </button>
+                  )) : null}
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }

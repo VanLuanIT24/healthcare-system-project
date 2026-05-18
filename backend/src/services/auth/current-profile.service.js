@@ -143,8 +143,13 @@ async function getMyPermissions(auth = {}) {
 
 async function updateStaffProfile(auth, payload = {}, requestMeta = {}) {
   const allowed = {
+    full_name: payload.full_name,
     email: payload.email,
     phone: payload.phone,
+    avatar_url: payload.avatar_url,
+    date_of_birth: payload.date_of_birth,
+    gender: payload.gender,
+    address: payload.address,
   };
 
   const user = await User.findById(auth.userId);
@@ -154,6 +159,21 @@ async function updateStaffProfile(auth, payload = {}, requestMeta = {}) {
 
   const email = allowed.email !== undefined ? normalizeLowercase(allowed.email) : user.email;
   const phone = allowed.phone !== undefined ? normalizePhone(allowed.phone) : user.phone;
+  const fullName = allowed.full_name !== undefined ? normalizeString(allowed.full_name) : user.full_name;
+  const avatarUrl = allowed.avatar_url !== undefined ? normalizeString(allowed.avatar_url) : user.avatar_url;
+  const dateOfBirth = allowed.date_of_birth !== undefined
+    ? (allowed.date_of_birth ? new Date(allowed.date_of_birth) : undefined)
+    : user.date_of_birth;
+  const gender = allowed.gender !== undefined ? normalizeString(allowed.gender) : user.gender;
+  const address = allowed.address !== undefined ? normalizeString(allowed.address) : user.address;
+
+  if (!fullName) {
+    throw ApiError.validation('Họ tên là bắt buộc.');
+  }
+
+  if (dateOfBirth && Number.isNaN(dateOfBirth.getTime())) {
+    throw ApiError.validation('Ngày sinh không hợp lệ.');
+  }
 
   if (email && email !== user.email) {
     const existed = await User.findOne({ _id: { $ne: user._id }, email, is_deleted: false }).lean();
@@ -165,8 +185,13 @@ async function updateStaffProfile(auth, payload = {}, requestMeta = {}) {
     if (existed) throw ApiError.conflict('Số điện thoại đã được sử dụng bởi tài khoản khác.');
   }
 
+  user.full_name = fullName;
   user.email = email;
   user.phone = phone;
+  user.avatar_url = avatarUrl;
+  user.date_of_birth = dateOfBirth;
+  user.gender = gender;
+  user.address = address;
   user.updated_by = getActorId(auth);
   await user.save();
 

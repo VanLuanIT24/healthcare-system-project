@@ -36,10 +36,10 @@ import {
 import { doctorApi, getDoctorId } from './doctorApi'
 import { formatTime, getInitials, safeArray, toLocalDateKey } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 5
 
 const statusMeta = {
   planned: { label: 'Chờ bắt đầu', tone: 'blue', group: 'waiting' },
@@ -798,8 +798,8 @@ export function DoctorTodayEncountersScreen({ user, view = 'today' }) {
             </div>
 
             <footer className="doctor-encounter-ref-footer">
-              <button type="button">
-                Hiển thị <strong>{PAGE_SIZE}</strong> dòng <ChevronDown size={14} />
+              <button type="button" disabled>
+                Hiển thị <strong>{PAGE_SIZE}</strong> dòng
               </button>
               <div>
                 <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
@@ -1060,8 +1060,8 @@ export function DoctorTodayEncountersScreen({ user, view = 'today' }) {
           </div>
 
           <footer className="doctor-encounter-ref-footer">
-            <button type="button">
-              Hiển thị <strong>{PAGE_SIZE}</strong> dòng <ChevronDown size={14} />
+            <button type="button" disabled>
+              Hiển thị <strong>{PAGE_SIZE}</strong> dòng
             </button>
             <div>
               <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>

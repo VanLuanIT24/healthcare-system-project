@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { doctorApi, getDoctorId } from './doctorApi'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { doctorApi } from './doctorApi'
 import { formatTime, safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
 import { DoctorIcon } from './DoctorShell'
@@ -13,6 +14,14 @@ const HEATMAP_SHIFTS = [
   { label: 'Ca chiều 1', time: '13:30 - 15:30', from: 12, to: 15 },
   { label: 'Ca chiều 2', time: '15:30 - 17:30', from: 15, to: 18 },
 ]
+
+const DEFAULT_FILTERS = {
+  shift: 'all',
+  room: 'all',
+  status: 'all',
+}
+const PAGE_SIZE = 5
+const RANGE_OFFSETS = [-1, 0, 1]
 
 function scheduleIdOf(schedule = {}) {
   return schedule.doctor_schedule_id || schedule.schedule_id || schedule.id || schedule._id || ''
@@ -135,17 +144,30 @@ function slotTimeText(slot = {}, schedule = {}) {
 }
 
 function statusLabel(slot = {}) {
-  const raw = String(slot.status || '').toLowerCase()
-  if (raw.includes('block')) return 'Đã chặn'
-  if (raw.includes('hold')) return 'Giữ tạm'
+  const raw = String(slot.status || slot.slotStatus || slot.slot_status || '').toLowerCase()
+  if (['available', 'open', 'free', 'empty'].some((value) => raw.includes(value))) return 'Còn trống'
+  if (['booked', 'reserved', 'confirmed'].some((value) => raw.includes(value))) return 'Đã đặt'
+  if (['held', 'holding', 'pending', 'hold'].some((value) => raw.includes(value))) return 'Giữ tạm'
+  if (['full', 'unavailable', 'closed', 'block'].some((value) => raw.includes(value))) return 'Hết slot'
+  if (['cancelled', 'canceled'].some((value) => raw.includes(value))) return 'Đã hủy'
   return 'Còn trống'
 }
 
 function statusTone(slot = {}) {
   const label = statusLabel(slot)
   if (label === 'Còn trống') return 'green'
+  if (label === 'Đã đặt') return 'blue'
   if (label === 'Giữ tạm') return 'amber'
+  if (label === 'Hết slot' || label === 'Đã hủy') return 'red'
   return 'slate'
+}
+
+function isAvailableSlot(slot = {}) {
+  return statusLabel(slot) === 'Còn trống' || slot.is_available === true
+}
+
+function isBookedSlot(slot = {}) {
+  return statusLabel(slot) === 'Đã đặt' || slot.is_booked === true || Boolean(slot.patient || slot.patient_name)
 }
 
 function compactDate(value) {
@@ -162,7 +184,7 @@ function tableShiftLabel(row = {}) {
 }
 
 function rowActionLabel(slot = {}) {
-  return statusTone(slot) === 'green' ? 'Đặt nhanh' : 'Tạo lịch hẹn'
+  return 'Xem chi tiết'
 }
 
 function slotDuration(slot = {}, schedule = {}, totalSlots = 0) {
@@ -176,20 +198,44 @@ function slotDuration(slot = {}, schedule = {}, totalSlots = 0) {
 }
 
 function countsFrom(summary = {}, allSlots = [], bookedSlots = [], availableSlots = []) {
-  const totalSlots = numberFrom(summary, ['total_slots', 'totalSlots', 'slots_count', 'slot_count'], allSlots.length || bookedSlots.length + availableSlots.length)
-  const bookedCount = numberFrom(summary, ['booked_slots', 'bookedSlots', 'booked_count'], bookedSlots.length)
-  const availableCount = numberFrom(summary, ['available_slots', 'availableSlots', 'empty_slots', 'available_count'], Math.max(totalSlots - bookedCount, availableSlots.length))
+  const totalSlots = numberFrom(summary, ['total_slots', 'totalSlots', 'slots_count', 'slot_count', 'slotCount', 'slot_count'], allSlots.length || bookedSlots.length + availableSlots.length)
+  const bookedCount = numberFrom(summary, ['booked_slots', 'bookedSlots', 'booked_count', 'bookedSlotCount', 'booked_slot_count'], bookedSlots.length)
+  const availableCount = numberFrom(summary, ['available_slots', 'availableSlots', 'empty_slots', 'available_count', 'availableSlotCount', 'available_slot_count'], Math.max(totalSlots - bookedCount, availableSlots.length))
   return { totalSlots, bookedCount, availableCount }
+}
+
+function embeddedSlots(schedule = {}) {
+  return [
+    ...safeArray(schedule.slots),
+    ...safeArray(schedule.schedule_slots),
+    ...safeArray(schedule.slot_list),
+  ]
+}
+
+function embeddedAvailableSlots(schedule = {}) {
+  return [
+    ...safeArray(schedule.availableSlots),
+    ...safeArray(schedule.available_slots),
+    ...safeArray(schedule.emptySlots),
+    ...safeArray(schedule.empty_slots),
+  ]
+}
+
+function embeddedBookedSlots(schedule = {}) {
+  return [
+    ...safeArray(schedule.bookedSlots),
+    ...safeArray(schedule.booked_slots),
+  ]
 }
 
 function normalizeBundle(schedule, detail) {
   const allSlots = safeArray(detail.allSlots)
   const bookedSlots = safeArray(detail.bookedSlots).length
     ? safeArray(detail.bookedSlots)
-    : allSlots.filter((slot) => slot.is_booked || slot.patient || slot.patient_name)
+    : allSlots.filter(isBookedSlot)
   const availableSlots = safeArray(detail.availableSlots).length
     ? safeArray(detail.availableSlots)
-    : allSlots.filter((slot) => slot.is_available || String(slot.status || '').toLowerCase() === 'available')
+    : allSlots.filter(isAvailableSlot)
   const counts = countsFrom(detail.summary || {}, allSlots, bookedSlots, availableSlots)
   const fallbackRate = counts.totalSlots ? (counts.bookedCount / counts.totalSlots) * 100 : 0
   const utilization = Math.round(numberFrom(detail.utilization || {}, ['utilization_rate', 'utilization', 'rate', 'percentage'], fallbackRate))
@@ -213,35 +259,42 @@ async function settledValue(promise, fallback) {
   }
 }
 
-async function loadEmptySchedule(user) {
+async function loadEmptySchedule(user, rangeOffset = 0) {
   const today = getTodayDate()
-  const monday = startOfWeek(new Date())
+  const monday = addDays(startOfWeek(new Date()), rangeOffset * 7)
   const date_from = toDateKey(monday)
   const date_to = toDateKey(addDays(monday, 6))
-  const doctorId = getDoctorId(user)
 
-  const weekSchedules = await settledValue(doctorApi.schedules.myWeek({ date_from, date_to, limit: 140 }), [])
-  const calendarSchedules = doctorId
-    ? await settledValue(doctorApi.schedules.getCalendar(doctorId, { date_from, date_to, limit: 140 }), [])
-    : []
-  const baseSchedules = safeArray(weekSchedules).length ? safeArray(weekSchedules) : safeArray(calendarSchedules)
+  const weekSchedules = await (
+    rangeOffset === 0
+      ? doctorApi.schedules.myWeek({ date_from, date_to, limit: 140 })
+      : doctorApi.schedules.dateRange({ date_from, date_to, limit: 140 })
+  )
+  const baseSchedules = safeArray(weekSchedules)
 
   const schedules = await Promise.all(
     baseSchedules.map(async (schedule) => {
       const scheduleId = scheduleIdOf(schedule)
+      const embeddedAll = embeddedSlots(schedule)
+      const embeddedAvailable = embeddedAvailableSlots(schedule)
+      const embeddedBooked = embeddedBookedSlots(schedule)
+      const hasEmbeddedSlots = embeddedAll.length || embeddedAvailable.length || embeddedBooked.length
+      const hasSummaryCounts = ['total_slots', 'totalSlots', 'slots_count', 'slot_count', 'available_slots', 'availableSlots', 'availableSlotCount', 'available_slot_count'].some((key) => schedule[key] !== undefined)
+      const hasUtilization = ['utilization_rate', 'utilization', 'rate', 'percentage'].some((key) => schedule[key] !== undefined)
+
       const [summary, utilization, allSlots, availableSlots, bookedSlots, bookedAlias] = await Promise.all([
-        scheduleId ? settledValue(doctorApi.schedules.getSummary(scheduleId), null) : Promise.resolve(null),
-        scheduleId ? settledValue(doctorApi.schedules.getUtilization(scheduleId), null) : Promise.resolve(null),
-        scheduleId ? settledValue(doctorApi.schedules.getSlots(scheduleId), []) : Promise.resolve([]),
-        scheduleId ? settledValue(doctorApi.schedules.getAvailableSlots(scheduleId), []) : Promise.resolve([]),
-        scheduleId ? settledValue(doctorApi.schedules.getBookedSlots(scheduleId), []) : Promise.resolve([]),
-        scheduleId ? settledValue(doctorApi.schedules.getBookedSlotsAlias(scheduleId), []) : Promise.resolve([]),
+        scheduleId && !hasSummaryCounts ? settledValue(doctorApi.schedules.getSummary(scheduleId), null) : Promise.resolve(schedule),
+        scheduleId && !hasUtilization ? settledValue(doctorApi.schedules.getUtilization(scheduleId), null) : Promise.resolve(schedule),
+        scheduleId && !hasEmbeddedSlots && !hasSummaryCounts ? settledValue(doctorApi.schedules.getSlots(scheduleId), []) : Promise.resolve(embeddedAll),
+        scheduleId && !embeddedAvailable.length ? settledValue(doctorApi.schedules.getAvailableSlots(scheduleId), []) : Promise.resolve(embeddedAvailable),
+        scheduleId && !embeddedBooked.length ? settledValue(doctorApi.schedules.getBookedSlots(scheduleId), []) : Promise.resolve(embeddedBooked),
+        scheduleId && !embeddedBooked.length ? settledValue(doctorApi.schedules.getBookedSlotsAlias(scheduleId), []) : Promise.resolve([]),
       ])
 
       return normalizeBundle(schedule, {
         summary,
         utilization,
-        allSlots,
+        allSlots: safeArray(allSlots).length ? allSlots : embeddedAll,
         availableSlots,
         bookedSlots: safeArray(bookedSlots).length ? bookedSlots : bookedAlias,
       })
@@ -249,6 +302,32 @@ async function loadEmptySchedule(user) {
   )
 
   return { today, monday, schedules }
+}
+
+function cycleFilterValue(current, values = []) {
+  const options = ['all', ...values.filter(Boolean)]
+  const index = options.indexOf(current)
+  return options[(index + 1) % options.length] || 'all'
+}
+
+function nextRangeOffset(current) {
+  const index = RANGE_OFFSETS.indexOf(current)
+  return RANGE_OFFSETS[(index + 1) % RANGE_OFFSETS.length] ?? 0
+}
+
+function filterLabel(value, fallback = 'Tất cả') {
+  return value === 'all' || !value ? fallback : value
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function EmptyKpiCard({ icon, tone, label, value, hint }) {
@@ -285,17 +364,26 @@ function heatTone(value, max) {
 }
 
 export function DoctorEmptyScheduleScreen({ user }) {
+  const navigate = useNavigate()
+  const heatmapRef = useRef(null)
   const [state, setState] = useState({ loading: true, error: '', data: { today: getTodayDate(), monday: startOfWeek(new Date()), schedules: [] } })
+  const [filters, setFilters] = useState(DEFAULT_FILTERS)
+  const [pendingFilters, setPendingFilters] = useState(DEFAULT_FILTERS)
+  const [rangeOffset, setRangeOffset] = useState(0)
+  const [pendingRangeOffset, setPendingRangeOffset] = useState(0)
+  const [page, setPage] = useState(1)
+  const [detailState, setDetailState] = useState({ loading: false, error: '', schedule: null })
+  const [actionNotice, setActionNotice] = useState('')
 
-  function reload() {
+  function reload(nextRangeOffsetValue = rangeOffset) {
     setState((current) => ({ ...current, loading: true, error: '' }))
-    loadEmptySchedule(user)
+    loadEmptySchedule(user, nextRangeOffsetValue)
       .then((data) => setState({ loading: false, error: '', data }))
       .catch((error) => {
         setState({
           loading: false,
           error: getApiErrorMessage(error, 'Không thể tải lịch trống.'),
-          data: { today: getTodayDate(), monday: startOfWeek(new Date()), schedules: [] },
+          data: { today: getTodayDate(), monday: addDays(startOfWeek(new Date()), nextRangeOffsetValue * 7), schedules: [] },
         })
       })
   }
@@ -304,7 +392,7 @@ export function DoctorEmptyScheduleScreen({ user }) {
     let active = true
     setState((current) => ({ ...current, loading: true, error: '' }))
 
-    loadEmptySchedule(user)
+    loadEmptySchedule(user, rangeOffset)
       .then((data) => {
         if (active) setState({ loading: false, error: '', data })
       })
@@ -313,7 +401,7 @@ export function DoctorEmptyScheduleScreen({ user }) {
           setState({
             loading: false,
             error: getApiErrorMessage(error, 'Không thể tải lịch trống.'),
-            data: { today: getTodayDate(), monday: startOfWeek(new Date()), schedules: [] },
+            data: { today: getTodayDate(), monday: addDays(startOfWeek(new Date()), rangeOffset * 7), schedules: [] },
           })
         }
       })
@@ -321,11 +409,52 @@ export function DoctorEmptyScheduleScreen({ user }) {
     return () => {
       active = false
     }
-  }, [user])
+  }, [user, rangeOffset])
 
   const empty = useMemo(() => {
     const days = weekDays(state.data.monday)
-    const schedules = safeArray(state.data.schedules).sort((a, b) => new Date(a.schedule.shift_start || a.schedule.start_time) - new Date(b.schedule.shift_start || b.schedule.start_time))
+    const allSchedules = safeArray(state.data.schedules).sort((a, b) => new Date(a.schedule.shift_start || a.schedule.start_time) - new Date(b.schedule.shift_start || b.schedule.start_time))
+    const allRows = allSchedules.flatMap((item) => {
+      if (item.availableSlots.length) {
+        return item.availableSlots.map((slot) => ({
+          slot,
+          schedule: item.schedule,
+          dateKey: toDateKey(slotStart(slot, item.schedule)) || item.dateKey,
+          timeValue: slotStart(slot, item.schedule),
+          timeText: slotTimeText(slot, item.schedule),
+          shift: shiftLabel(item.schedule, slot),
+          room: roomName(item.schedule, slot),
+          department: departmentName(item.schedule),
+          duration: slotDuration(slot, item.schedule, item.totalSlots),
+        }))
+      }
+      if (item.availableCount > 0) {
+        return Array.from({ length: item.availableCount }, (_, index) => ({
+          slot: { status: 'available' },
+          schedule: item.schedule,
+          dateKey: item.dateKey,
+          timeValue: item.schedule.shift_start || item.schedule.start_time,
+          timeText: `${formatTime(item.schedule.shift_start || item.schedule.start_time)} - ${formatTime(item.schedule.shift_end || item.schedule.end_time)}`,
+          shift: shiftLabel(item.schedule),
+          room: roomName(item.schedule),
+          department: departmentName(item.schedule),
+          duration: slotDuration({}, item.schedule, item.totalSlots),
+          virtualIndex: index,
+        }))
+      }
+      return []
+    })
+    const filterOptions = {
+      shifts: Array.from(new Set(allRows.map((row) => row.shift).filter(Boolean))).sort(),
+      rooms: Array.from(new Set(allRows.map((row) => row.room).filter(Boolean))).sort(),
+      statuses: Array.from(new Set(allRows.map((row) => statusLabel(row.slot)).filter(Boolean))).sort(),
+    }
+    const schedules = allSchedules.filter((item) => {
+      const itemRows = allRows.filter((row) => row.schedule === item.schedule)
+      const shiftMatched = filters.shift === 'all' || itemRows.some((row) => row.shift === filters.shift) || shiftLabel(item.schedule) === filters.shift
+      const roomMatched = filters.room === 'all' || itemRows.some((row) => row.room === filters.room) || roomName(item.schedule) === filters.room
+      return shiftMatched && roomMatched
+    })
     const totalSlots = schedules.reduce((sum, item) => sum + item.totalSlots, 0)
     const bookedCount = schedules.reduce((sum, item) => sum + item.bookedCount, 0)
     const availableCount = schedules.reduce((sum, item) => sum + item.availableCount, 0)
@@ -362,8 +491,14 @@ export function DoctorEmptyScheduleScreen({ user }) {
         }))
       }
       return []
-    }).sort((a, b) => new Date(a.timeValue).getTime() - new Date(b.timeValue).getTime())
+    })
+      .filter((row) => filters.status === 'all' || statusLabel(row.slot) === filters.status)
+      .sort((a, b) => new Date(a.timeValue).getTime() - new Date(b.timeValue).getTime())
 
+    const visibleAvailableCount = filters.status === 'all' ? availableCount : rows.length
+    const visibleBookedCount = filters.status === 'all' ? bookedCount : rows.filter((row) => statusLabel(row.slot) === 'Đã đặt').length
+    const visibleTotalSlots = filters.status === 'all' ? totalSlots : rows.length
+    const visibleEmptyRate = visibleTotalSlots ? Math.round((visibleAvailableCount / visibleTotalSlots) * 100) : 0
     const availableMinutes = rows.reduce((sum, row) => sum + row.duration, 0)
     const byShift = SHIFT_ORDER.map((shift) => ({
       label: shift,
@@ -402,10 +537,10 @@ export function DoctorEmptyScheduleScreen({ user }) {
       days,
       schedules,
       rows,
-      totalSlots,
-      bookedCount,
-      availableCount,
-      emptyRate,
+      totalSlots: visibleTotalSlots,
+      bookedCount: visibleBookedCount,
+      availableCount: visibleAvailableCount,
+      emptyRate: visibleEmptyRate,
       rooms,
       availableRooms,
       availableMinutes,
@@ -416,46 +551,155 @@ export function DoctorEmptyScheduleScreen({ user }) {
       mostDay,
       leastDay,
       heatmap,
+      filterOptions,
     }
-  }, [state.data])
+  }, [state.data, filters])
+
+  const totalPages = Math.max(1, Math.ceil(empty.rows.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedRows = empty.rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const pageStart = empty.rows.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0
+  const pageEnd = Math.min(currentPage * PAGE_SIZE, empty.rows.length)
+  const firstPageButton = Math.max(1, Math.min(currentPage - 1, Math.max(1, totalPages - 2)))
+  const pageButtons = Array.from(
+    { length: Math.min(3, totalPages) },
+    (_, index) => firstPageButton + index,
+  )
+
+  useEffect(() => {
+    setPage(1)
+  }, [filters, state.data.monday])
+
+  function applyFilters() {
+    setFilters(pendingFilters)
+    if (pendingRangeOffset !== rangeOffset) {
+      setRangeOffset(pendingRangeOffset)
+    }
+  }
+
+  function resetFilters() {
+    setPendingFilters(DEFAULT_FILTERS)
+    setFilters(DEFAULT_FILTERS)
+    setPendingRangeOffset(0)
+    if (rangeOffset !== 0) {
+      setRangeOffset(0)
+    }
+  }
+
+  async function openScheduleDetail(schedule = empty.schedules[0]?.schedule) {
+    const scheduleId = scheduleIdOf(schedule)
+    if (!scheduleId) {
+      setDetailState({ loading: false, error: 'Backend chưa trả scheduleId thật để mở chi tiết.', schedule: schedule || null })
+      return
+    }
+
+    setDetailState({ loading: true, error: '', schedule })
+    try {
+      const detail = await doctorApi.schedules.getDetail(scheduleId)
+      setDetailState({ loading: false, error: '', schedule: detail || schedule })
+    } catch (error) {
+      setDetailState({
+        loading: false,
+        error: getApiErrorMessage(error, 'Không thể tải chi tiết lịch.'),
+        schedule,
+      })
+    }
+  }
+
+  function scrollToHeatmap() {
+    heatmapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function openAppointmentFlow() {
+    navigate('/doctor/appointments')
+  }
+
+  function showInviteTodo() {
+    setActionNotice('TODO: Chưa có endpoint/flow gửi lời mời khám rõ ràng trong doctor workspace, nên chưa thực hiện gửi thật.')
+  }
+
+  function exportEmptySlots() {
+    downloadCsv(`lich-trong-${toDateKey(state.data.monday)}.csv`, [
+      ['Thoi gian', 'Ngay', 'Ca kham', 'Phong kham', 'Trang thai', 'Tong slot', 'Slot trong', 'Slot da dat', 'Khoa/phong ban'],
+      ...empty.rows.map((row) => [
+        row.timeText,
+        compactDate(row.timeValue || row.dateKey),
+        tableShiftLabel(row),
+        row.room,
+        statusLabel(row.slot),
+        empty.schedules.find((item) => item.schedule === row.schedule)?.totalSlots || '',
+        empty.schedules.find((item) => item.schedule === row.schedule)?.availableCount || '',
+        empty.schedules.find((item) => item.schedule === row.schedule)?.bookedCount || '',
+        row.department,
+      ]),
+    ])
+  }
 
   return (
     <div className="doctor-empty-schedule">
-      {state.error ? <div className="doctor-today-error">{state.error}</div> : null}
+      {state.error ? (
+        <div className="doctor-today-error">
+          <span>{state.error}</span>
+          <button type="button" onClick={() => reload()}>Thử lại</button>
+        </div>
+      ) : null}
+      {actionNotice ? (
+        <div className="doctor-today-error is-info">
+          <span>{actionNotice}</span>
+          <button type="button" onClick={() => setActionNotice('')}>Đóng</button>
+        </div>
+      ) : null}
 
       <section className="doctor-empty-kpis" aria-label="Tổng quan lịch trống">
-        <EmptyKpiCard icon="calendar" tone="blue" label="Tổng slot trống" value={empty.availableCount} hint={`${empty.emptyRate}% tổng slot`} />
-        <EmptyKpiCard icon="clock" tone="blue-soft" label="Khung giờ còn trống" value={durationText(empty.availableMinutes)} hint={`${empty.rows.length} khung giờ`} />
-        <EmptyKpiCard icon="clipboard" tone="purple" label="Phòng khám khả dụng" value={`${empty.availableRooms.size} / ${empty.rooms.size || 0}`} hint={empty.rooms.size ? `${Math.round((empty.availableRooms.size / empty.rooms.size) * 100)}% đang khả dụng` : '--'} />
-        <EmptyKpiCard icon="pulse" tone="purple-soft" label="Tỷ lệ trống" value={`${empty.emptyRate}%`} hint="Theo dữ liệu slot hiện tại" />
+        <EmptyKpiCard icon="calendar" tone="blue" label="Tổng slot trống" value={state.loading ? '--' : empty.availableCount} hint={state.loading ? 'Đang tải dữ liệu...' : `${empty.emptyRate}% tổng slot`} />
+        <EmptyKpiCard icon="clock" tone="blue-soft" label="Khung giờ còn trống" value={state.loading ? '--' : durationText(empty.availableMinutes)} hint={state.loading ? 'Đang tải dữ liệu...' : `${empty.rows.length} khung giờ`} />
+        <EmptyKpiCard icon="clipboard" tone="purple" label="Phòng khám khả dụng" value={state.loading ? '--' : `${empty.availableRooms.size} / ${empty.rooms.size || 0}`} hint={state.loading ? 'Đang tải dữ liệu...' : empty.rooms.size ? `${Math.round((empty.availableRooms.size / empty.rooms.size) * 100)}% đang khả dụng` : '--'} />
+        <EmptyKpiCard icon="pulse" tone="purple-soft" label="Tỷ lệ trống" value={state.loading ? '--' : `${empty.emptyRate}%`} hint={state.loading ? 'Đang tải dữ liệu...' : 'Theo dữ liệu slot hiện tại'} />
       </section>
 
       <section className="doctor-empty-filters" aria-label="Bộ lọc lịch trống">
-        <button className="doctor-empty-filter-field is-date" type="button">
+        <button
+          className="doctor-empty-filter-field is-date"
+          type="button"
+          onClick={() => setPendingRangeOffset((current) => nextRangeOffset(current))}
+          title="Bấm để chuyển khoảng ngày, sau đó chọn Bộ lọc"
+        >
           <DoctorIcon name="calendar" />
-          <strong>{weekRangeText(state.data.monday)}</strong>
+          <strong>{weekRangeText(addDays(startOfWeek(new Date()), pendingRangeOffset * 7))}</strong>
           <DoctorIcon name="chevron_down" />
         </button>
-        <button className="doctor-empty-filter-field" type="button">
+        <button
+          className="doctor-empty-filter-field"
+          type="button"
+          onClick={() => setPendingFilters((current) => ({ ...current, shift: cycleFilterValue(current.shift, empty.filterOptions.shifts) }))}
+        >
           <span>Ca khám</span>
-          <strong>Tất cả ca</strong>
+          <strong>{filterLabel(pendingFilters.shift, 'Tất cả ca')}</strong>
           <DoctorIcon name="chevron_down" />
         </button>
-        <button className="doctor-empty-filter-field" type="button">
+        <button
+          className="doctor-empty-filter-field"
+          type="button"
+          onClick={() => setPendingFilters((current) => ({ ...current, room: cycleFilterValue(current.room, empty.filterOptions.rooms) }))}
+        >
           <span>Phòng khám</span>
-          <strong>Tất cả phòng</strong>
+          <strong>{filterLabel(pendingFilters.room, 'Tất cả phòng')}</strong>
           <DoctorIcon name="chevron_down" />
         </button>
-        <button className="doctor-empty-filter-field" type="button">
+        <button
+          className="doctor-empty-filter-field"
+          type="button"
+          onClick={() => setPendingFilters((current) => ({ ...current, status: cycleFilterValue(current.status, empty.filterOptions.statuses) }))}
+        >
           <span>Trạng thái</span>
-          <strong>Tất cả</strong>
+          <strong>{filterLabel(pendingFilters.status, 'Tất cả')}</strong>
           <DoctorIcon name="chevron_down" />
         </button>
-        <button className="doctor-empty-filter-action is-primary" type="button">
+        <button className="doctor-empty-filter-action is-primary" type="button" onClick={applyFilters}>
           <DoctorIcon name="settings" />
           Bộ lọc
         </button>
-        <button className="doctor-empty-filter-action" type="button" onClick={reload} disabled={state.loading}>
+        <button className="doctor-empty-filter-action" type="button" onClick={resetFilters} disabled={state.loading}>
           Đặt lại
         </button>
       </section>
@@ -476,34 +720,41 @@ export function DoctorEmptyScheduleScreen({ user }) {
           <div className="doctor-empty-table-body">
             {state.loading ? (
               <div className="doctor-empty-state">Đang tải danh sách slot trống...</div>
-            ) : empty.rows.length ? empty.rows.slice(0, 8).map((row, index) => (
+            ) : pagedRows.length ? pagedRows.map((row, index) => (
               <div className="doctor-empty-row" key={`${scheduleIdOf(row.schedule)}-${row.timeValue}-${row.virtualIndex || index}`}>
                 <strong>{row.timeText}</strong>
                 <span><b>{compactDate(row.timeValue || row.dateKey)}</b></span>
                 <span><b>{tableShiftLabel(row)}</b></span>
                 <span><b>{row.room}</b></span>
                 <span><i className={`is-${statusTone(row.slot)}`}>{statusLabel(row.slot)}</i></span>
-                <span className="doctor-empty-actions"><button type="button">{rowActionLabel(row.slot)}</button></span>
+                <span className="doctor-empty-actions"><button type="button" onClick={() => openScheduleDetail(row.schedule)}>{rowActionLabel(row.slot)}</button></span>
               </div>
             )) : (
-              <div className="doctor-empty-state">Chưa có slot trống trong tuần này.</div>
+              <div className="doctor-empty-state">Chưa có slot trống trong khoảng thời gian này.</div>
             )}
           </div>
           <footer>
-            <span>Hiển thị {empty.rows.length ? `1 - ${Math.min(8, empty.rows.length)}` : '0'} trong tổng số {empty.rows.length} slot</span>
+            <span>Hiển thị {empty.rows.length ? `${pageStart} - ${pageEnd}` : '0'} trong tổng số {empty.rows.length} slot</span>
             <div>
-              <button type="button" disabled><DoctorIcon name="chevron_right" /></button>
-              <button type="button" className="is-active">1</button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <span>...</span>
-              <button type="button"><DoctorIcon name="chevron_right" /></button>
+              <button type="button" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><DoctorIcon name="chevron_right" /></button>
+              {pageButtons.map((pageNumber) => (
+                <button
+                  type="button"
+                  className={pageNumber === currentPage ? 'is-active' : ''}
+                  key={pageNumber}
+                  onClick={() => setPage(pageNumber)}
+                >
+                  {pageNumber}
+                </button>
+              ))}
+              {totalPages > 3 ? <span>...</span> : null}
+              <button type="button" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}><DoctorIcon name="chevron_right" /></button>
             </div>
-            <button type="button">8 / trang <DoctorIcon name="chevron_down" /></button>
+            <span className="doctor-fixed-page-size">Hiển thị <strong>{PAGE_SIZE}</strong> dòng</span>
           </footer>
         </article>
 
-        <article className="doctor-empty-panel doctor-empty-heatmap">
+        <article className="doctor-empty-panel doctor-empty-heatmap" ref={heatmapRef}>
           <header>
             <h2>Lịch trống theo ngày & ca khám <span className="doctor-empty-info-mark">i</span></h2>
           </header>
@@ -526,7 +777,7 @@ export function DoctorEmptyScheduleScreen({ user }) {
               <span><i className="is-low" /> Ít (1 - 4)</span>
               <span><i className="is-none" /> Hết (0)</span>
             </div>
-            <button type="button">Xem lịch theo biểu đồ <DoctorIcon name="chevron_right" /></button>
+            <button type="button" onClick={scrollToHeatmap}>Xem lịch theo biểu đồ <DoctorIcon name="chevron_right" /></button>
           </footer>
         </article>
 
@@ -534,7 +785,7 @@ export function DoctorEmptyScheduleScreen({ user }) {
           <article className="doctor-empty-panel doctor-empty-summary">
             <header>
               <h2>Tổng quan lịch trống</h2>
-              <button type="button">Xem chi tiết</button>
+              <button type="button" onClick={() => openScheduleDetail()}>Xem chi tiết</button>
             </header>
             <div className="doctor-empty-summary__top">
               <EmptyDonut percent={empty.emptyRate} value={`${empty.emptyRate}%`} label="Tỷ lệ trống" />
@@ -556,25 +807,25 @@ export function DoctorEmptyScheduleScreen({ user }) {
 
           <article className="doctor-empty-panel doctor-empty-quick">
             <h2>Thao tác nhanh</h2>
-            <button type="button">
+            <button type="button" onClick={openAppointmentFlow}>
               <span><DoctorIcon name="calendar" /></span>
               <b>Mở lịch hẹn mới</b>
               <small>Tạo lịch hẹn cho bệnh nhân</small>
               <DoctorIcon name="chevron_right" />
             </button>
-            <button type="button">
+            <button type="button" onClick={showInviteTodo}>
               <span><DoctorIcon name="message" /></span>
               <b>Gửi lời mời khám</b>
               <small>Gửi lời mời đến bệnh nhân tiềm năng</small>
               <DoctorIcon name="chevron_right" />
             </button>
-            <button type="button">
+            <button type="button" onClick={() => navigate('/doctor/schedules/week')}>
               <span><DoctorIcon name="calendar" /></span>
               <b>Xem lịch làm việc</b>
               <small>Xem toàn bộ lịch theo tuần/tháng</small>
               <DoctorIcon name="chevron_right" />
             </button>
-            <button type="button">
+            <button type="button" onClick={exportEmptySlots}>
               <span><DoctorIcon name="note" /></span>
               <b>Xuất báo cáo</b>
               <small>Xuất báo cáo slot trống & công suất</small>
@@ -607,9 +858,43 @@ export function DoctorEmptyScheduleScreen({ user }) {
             <span><i className="is-low" /> Ít (1 - 4)</span>
             <span><i className="is-none" /> Hết (0)</span>
           </div>
-          <button type="button">Xem lịch theo biểu đồ <DoctorIcon name="chevron_right" /></button>
+          <button type="button" onClick={scrollToHeatmap}>Xem lịch theo biểu đồ <DoctorIcon name="chevron_right" /></button>
         </footer>
       </article>
+
+      {detailState.loading || detailState.error || detailState.schedule ? (
+        <div className="doctor-today-modal-backdrop" role="presentation" onClick={() => setDetailState({ loading: false, error: '', schedule: null })}>
+          <section
+            className="doctor-today-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Chi tiết lịch trống"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <h2>Chi tiết lịch trống</h2>
+                <p>Dữ liệu lấy từ lịch làm việc thật của bác sĩ và API chi tiết lịch khi có scheduleId.</p>
+              </div>
+              <button type="button" onClick={() => setDetailState({ loading: false, error: '', schedule: null })} aria-label="Đóng">×</button>
+            </header>
+
+            <div className="doctor-today-modal-schedules">
+              {detailState.loading ? (
+                <div className="doctor-empty-state">Đang tải chi tiết lịch...</div>
+              ) : detailState.error ? (
+                <div className="doctor-empty-state">{detailState.error}</div>
+              ) : (
+                <button type="button" onClick={() => scheduleIdOf(detailState.schedule) && navigate(`/doctor/schedules/${encodeURIComponent(scheduleIdOf(detailState.schedule))}`)}>
+                  <b>{shiftLabel(detailState.schedule)}</b>
+                  <span>{formatTime(detailState.schedule?.shift_start || detailState.schedule?.start_time)} - {formatTime(detailState.schedule?.shift_end || detailState.schedule?.end_time)}</span>
+                  <small>{roomName(detailState.schedule)}</small>
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }

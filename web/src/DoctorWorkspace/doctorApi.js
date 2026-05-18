@@ -363,22 +363,25 @@ export function normalizePrescriptionItem(item = {}) {
 
 export function normalizeLabOrder(item = {}) {
   const order = item.lab_order || item.order || item
+  const patient = order?.patient || order?.patient_id || {}
+  const encounter = order?.encounter || order?.encounter_id || {}
+  const doctor = order?.doctor || order?.ordered_by || {}
 
   return {
     ...order,
     lab_order_id: normalizeId(order?.lab_order_id, order?.order_id, order?.id, order?._id),
     order_id: normalizeId(order?.order_id, order?.lab_order_id, order?.id, order?._id),
-    encounter_id: normalizeId(order?.encounter_id, order?.encounter?.encounter_id, order?.encounter?.id),
-    encounter_code: order?.encounter_code || order?.encounter?.encounter_code || '',
-    patient_id: normalizeId(order?.patient_id, order?.patient?.patient_id, order?.patient?.id),
-    patient_code: order?.patient_code || order?.patient?.patient_code || '',
-    patient_name: order?.patient_name || order?.patient?.full_name || order?.patient?.name || '',
-    patient_gender: order?.patient_gender || order?.patient?.gender || '',
-    patient_birth_year: order?.patient_birth_year || order?.patient?.birth_year || '',
+    encounter_id: normalizeId(order?.encounter_id, encounter?.encounter_id, encounter?.id, encounter?._id),
+    encounter_code: order?.encounter_code || encounter?.encounter_code || '',
+    patient_id: normalizeId(order?.patient_id, patient?.patient_id, patient?.id, patient?._id),
+    patient_code: order?.patient_code || patient?.patient_code || '',
+    patient_name: order?.patient_name || patient?.full_name || patient?.name || '',
+    patient_gender: order?.patient_gender || patient?.gender || '',
+    patient_birth_year: order?.patient_birth_year || patient?.birth_year || '',
     test_name: order?.test_name || order?.service_name || order?.service?.service_name || order?.name || '',
     test_type: order?.test_type || order?.category || order?.service?.category || '',
     lab_room: order?.lab_room || order?.lab_room_name || order?.department_name || order?.room_name || '',
-    ordering_doctor_name: order?.ordering_doctor_name || order?.doctor_name || order?.doctor?.full_name || '',
+    ordering_doctor_name: order?.ordering_doctor_name || order?.doctor_name || doctor?.full_name || '',
     status: order?.status || '',
     ordered_at: order?.ordered_at || order?.created_at || order?.requested_at || '',
     created_at: order?.created_at || order?.ordered_at || '',
@@ -388,19 +391,22 @@ export function normalizeLabOrder(item = {}) {
 
 export function normalizeLabResult(item = {}) {
   const result = item.lab_result || item.result || item
+  const order = result?.order || result?.lab_order_id || {}
+  const patient = result?.patient || result?.patient_id || {}
+  const encounter = result?.encounter || result?.encounter_id || order?.encounter_id || {}
 
   return {
     ...result,
     result_id: normalizeId(result?.result_id, result?.lab_result_id, result?.id, result?._id),
-    lab_order_id: normalizeId(result?.lab_order_id, result?.order_id, result?.order?.lab_order_id, result?.order?.id),
-    encounter_id: normalizeId(result?.encounter_id, result?.encounter?.encounter_id, result?.encounter?.id),
-    encounter_code: result?.encounter_code || result?.encounter?.encounter_code || '',
-    patient_id: normalizeId(result?.patient_id, result?.patient?.patient_id, result?.patient?.id),
-    patient_code: result?.patient_code || result?.patient?.patient_code || '',
-    patient_name: result?.patient_name || result?.patient?.full_name || result?.patient?.name || '',
-    patient_gender: result?.patient_gender || result?.patient?.gender || '',
-    patient_birth_year: result?.patient_birth_year || result?.patient?.birth_year || '',
-    test_name: result?.test_name || result?.service_name || result?.analyte_name || result?.name || '',
+    lab_order_id: normalizeId(result?.lab_order_id, result?.order_id, order?.lab_order_id, order?.id, order?._id),
+    encounter_id: normalizeId(result?.encounter_id, encounter?.encounter_id, encounter?.id, encounter?._id),
+    encounter_code: result?.encounter_code || encounter?.encounter_code || '',
+    patient_id: normalizeId(result?.patient_id, patient?.patient_id, patient?.id, patient?._id),
+    patient_code: result?.patient_code || patient?.patient_code || '',
+    patient_name: result?.patient_name || patient?.full_name || patient?.name || '',
+    patient_gender: result?.patient_gender || patient?.gender || '',
+    patient_birth_year: result?.patient_birth_year || patient?.birth_year || '',
+    test_name: result?.test_name || order?.test_name || result?.service_name || result?.analyte_name || result?.name || '',
     test_type: result?.test_type || result?.category || '',
     result_value: result?.result_value ?? result?.value ?? result?.display_value ?? '',
     unit: result?.unit || result?.result_unit || '',
@@ -413,6 +419,40 @@ export function normalizeLabResult(item = {}) {
     resulted_at: result?.resulted_at || result?.completed_at || result?.created_at || '',
     created_at: result?.created_at || result?.resulted_at || '',
     updated_at: result?.updated_at || '',
+  }
+}
+
+export function normalizeLabResultItem(item = {}) {
+  return {
+    ...item,
+    result_item_id: normalizeId(item?.result_item_id, item?.lab_result_item_id, item?.id, item?._id),
+    item_name: item?.item_name || item?.name || item?.item_code || '',
+    item_code: item?.item_code || '',
+    result_value: item?.result_value ?? item?.numeric_value ?? item?.value ?? '',
+    unit: item?.unit || '',
+    reference_range: item?.reference_range || item?.normal_range || '',
+    abnormal_flag: item?.abnormal_flag || '',
+    is_critical: Boolean(item?.is_critical),
+    status: item?.status || '',
+  }
+}
+
+export function normalizeLabResultDetail(payload = {}) {
+  const result = normalizeLabResult(payload?.result || payload?.lab_result || payload)
+  const items = asArray(payload?.items || payload?.result_items).map(normalizeLabResultItem)
+  return { ...result, result, items }
+}
+
+export function normalizeLabOrderDetail(payload = {}) {
+  const order = normalizeLabOrder(payload?.lab_order || payload?.order || payload)
+  return {
+    ...order,
+    order,
+    specimens: asArray(payload?.specimens),
+    results: asArray(payload?.results).map(normalizeLabResult),
+    charge: payload?.charge || null,
+    activity: asArray(payload?.activity),
+    allowed_actions: payload?.allowed_actions || null,
   }
 }
 
@@ -702,6 +742,10 @@ export const doctorApi = {
       requestAndNormalize(scheduleAPI.getMyWeekSchedule(params), (payload) =>
         asArray(payload?.schedules || payload).map(normalizeSchedule),
       ),
+    dateRange: async (params = {}) =>
+      requestAndNormalize(scheduleAPI.dateRange(withListLimit(params, 200)), (payload) =>
+        asArray(payload?.schedules || payload).map(normalizeSchedule),
+      ),
     getDetail: async (scheduleId) =>
       requestAndNormalize(scheduleAPI.detail(scheduleId), normalizeSchedule),
     getSummary: async (scheduleId) =>
@@ -811,6 +855,15 @@ export const doctorApi = {
           : canCheckIn,
       }
     },
+    canCheckIn: async (appointmentId) =>
+      requestAndNormalize(appointmentAPI.canCheckIn(appointmentId), (payload) =>
+        payload
+          ? {
+              ...payload,
+              can_check_in: Boolean(payload.can_check_in ?? payload.can_checkin),
+            }
+          : payload,
+      ),
     confirm: async (appointmentId) => requestAndNormalize(appointmentAPI.confirmAppointment(appointmentId)),
     checkIn: async (appointmentId) => requestAndNormalize(appointmentAPI.checkIn(appointmentId)),
     noShow: async (appointmentId) => requestAndNormalize(appointmentAPI.markAppointmentNoShow(appointmentId)),
@@ -921,13 +974,13 @@ export const doctorApi = {
         items: asArray(payload).map(normalizeLabOrder),
         pagination: payload?.pagination || null,
       })),
-    getOrder: async (labOrderId) => requestAndNormalize(labAPI.orderDetail(labOrderId), normalizeLabOrder),
+    getOrder: async (labOrderId) => requestAndNormalize(labAPI.orderDetail(labOrderId), normalizeLabOrderDetail),
     listResults: async (params = {}) =>
       requestAndNormalize(labAPI.listResults(withListLimit(params, 500)), (payload) => ({
         items: asArray(payload).map(normalizeLabResult),
         pagination: payload?.pagination || null,
       })),
-    getResult: async (resultId) => requestAndNormalize(labAPI.resultDetail(resultId), normalizeLabResult),
+    getResult: async (resultId) => requestAndNormalize(labAPI.resultDetail(resultId), normalizeLabResultDetail),
     listEncounterOrders: async (encounterId, params = {}) =>
       requestAndNormalize(labAPI.encounterOrders(encounterId, withListLimit(params, 100)), (payload) =>
         asArray(payload).map(normalizeLabOrder),
@@ -943,7 +996,7 @@ export const doctorApi = {
         asArray(payload).map(normalizeLabResult),
       ),
     acknowledgeCritical: async (resultId, payload = {}) =>
-      requestAndNormalize(labAPI.acknowledgeCritical(resultId, payload), normalizeLabResult),
+      requestAndNormalize(labAPI.acknowledgeCritical(resultId, payload), normalizeLabResultDetail),
   },
   procedures: {
     getDashboardSummary: async (params = {}) =>

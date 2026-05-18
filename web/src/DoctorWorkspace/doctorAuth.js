@@ -9,7 +9,9 @@ function getStoredUser(auth) {
 }
 
 function getProfileFromResponse(response) {
-  return response?.data?.data?.profile || response?.data?.profile || response?.data?.data || null
+  const payload = response?.data?.data ?? response?.data ?? null
+  const profile = payload?.profile || payload
+  return profile?.user || profile?.patient_account || profile?.patient || profile
 }
 
 function emitAuthChanged() {

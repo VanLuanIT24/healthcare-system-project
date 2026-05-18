@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -20,10 +21,10 @@ import {
 import { doctorApi } from './doctorApi'
 import { getInitials, safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
-import { useToast } from './toast/ToastProvider'
+import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
 
-const PAGE_SIZE = 10
+const DEFAULT_PAGE_SIZE = 5
 
 function settledValue(promise, fallback) {
   return promise.then((value) => value).catch(() => fallback)
@@ -262,16 +263,28 @@ export function DoctorPatientListScreen({ user }) {
   const toast = useToast()
   const [today] = useState(getTodayDate)
   const [page, setPage] = useState(1)
+  const [pageSize] = useState(DEFAULT_PAGE_SIZE)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [specialtyFilter, setSpecialtyFilter] = useState('all')
+  const [sortMode, setSortMode] = useState('updated_desc')
+  const [filterRevision, setFilterRevision] = useState(0)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [specialtyOpen, setSpecialtyOpen] = useState(false)
+  const [statusOpen, setStatusOpen] = useState(false)
   const [selectedId, setSelectedId] = useState('')
   const [state, setState] = useState({ loading: true, error: '', patients: [], pagination: null })
   const [statsState, setStatsState] = useState({ patients: [], pagination: null })
   const [enrichment, setEnrichment] = useState({})
   const [selectedDetail, setSelectedDetail] = useState({ loading: false, data: null })
 
-  const queryKey = `${page}|${searchTerm}|${statusFilter}`
+  const sortConfig = useMemo(() => {
+    if (sortMode === 'created_desc') return { sort_by: 'created_at', sort_order: 'desc' }
+    if (sortMode === 'created_asc') return { sort_by: 'created_at', sort_order: 'asc' }
+    return { sort_by: 'updated_at', sort_order: 'desc' }
+  }, [sortMode])
+
+  const queryKey = `${page}|${pageSize}|${searchTerm}|${statusFilter}|${sortMode}|${filterRevision}`
 
   useEffect(() => {
     let active = true
@@ -279,9 +292,8 @@ export function DoctorPatientListScreen({ user }) {
 
     const params = {
       page,
-      limit: PAGE_SIZE,
-      sort_by: 'updated_at',
-      sort_order: 'desc',
+      limit: pageSize,
+      ...sortConfig,
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     }
     const request = searchTerm.trim()
@@ -311,7 +323,7 @@ export function DoctorPatientListScreen({ user }) {
     return () => {
       active = false
     }
-  }, [queryKey])
+  }, [queryKey, sortConfig])
 
   useEffect(() => {
     let active = true
@@ -381,16 +393,30 @@ export function DoctorPatientListScreen({ user }) {
     [enrichment, state.patients, statsState.patients],
   )
 
-  const displayPatients = useMemo(
-    () => state.patients.filter((patient) => (
-      specialtyFilter === 'all'
-      || specialtyText(patient, enrichment[patientIdOf(patient)] || {}) === specialtyFilter
-    )),
-    [enrichment, specialtyFilter, state.patients],
-  )
+  const displayPatients = useMemo(() => {
+    const loadedPatients = specialtyFilter === 'all'
+      ? state.patients
+      : Array.from(new Map(
+        [...state.patients, ...statsState.patients].map((patient) => [patientIdOf(patient) || patientCode(patient), patient]),
+      ).values())
+
+    return loadedPatients.filter((patient) => {
+      const extra = enrichment[patientIdOf(patient)] || {}
+      const matchesSpecialty = specialtyFilter === 'all' || specialtyText(patient, extra) === specialtyFilter
+      const matchesStatus = statusFilter === 'all' || String(patient.status || '').toLowerCase() === statusFilter
+      const keyword = searchTerm.trim().toLowerCase()
+      const matchesSearch = !keyword || [
+        patientCode(patient),
+        patientName(patient),
+        patientPhone(patient),
+      ].some((value) => String(value || '').toLowerCase().includes(keyword))
+
+      return matchesSpecialty && matchesStatus && matchesSearch
+    })
+  }, [enrichment, searchTerm, specialtyFilter, state.patients, statsState.patients, statusFilter])
 
   const total = Number(state.pagination?.total ?? statsState.pagination?.total ?? state.patients.length)
-  const totalPages = Math.max(1, Number(state.pagination?.totalPages || Math.ceil(total / PAGE_SIZE) || 1))
+  const totalPages = Math.max(1, Number(state.pagination?.totalPages || Math.ceil(total / pageSize) || 1))
 
   const dashboard = useMemo(() => {
     const statPatients = statsState.patients.length ? statsState.patients : state.patients
@@ -476,30 +502,43 @@ export function DoctorPatientListScreen({ user }) {
     URL.revokeObjectURL(url)
   }
 
+  function applyFilters() {
+    setPage(1)
+    setFilterRevision((current) => current + 1)
+    setFilterOpen(false)
+    toast.info('Đã áp dụng bộ lọc từ API danh sách bệnh nhân.')
+  }
+
+  function resetFilters() {
+    setSearchTerm('')
+    setStatusFilter('all')
+    setSpecialtyFilter('all')
+    setSortMode('updated_desc')
+    setPage(1)
+    setFilterRevision((current) => current + 1)
+    setFilterOpen(false)
+  }
+
+  function chooseSortMode(nextSortMode) {
+    setSortMode(nextSortMode)
+    setPage(1)
+    setFilterOpen(false)
+  }
+
+  function chooseSpecialty(nextSpecialty) {
+    setSpecialtyFilter(nextSpecialty)
+    setPage(1)
+    setSpecialtyOpen(false)
+  }
+
+  function chooseStatus(nextStatus) {
+    setStatusFilter(nextStatus)
+    setPage(1)
+    setStatusOpen(false)
+  }
+
   return (
     <div className="doctor-patient-list-page">
-      <header className="doctor-patient-list-header">
-        <div>
-          <h1>Danh sách bệnh nhân</h1>
-          <p>Quản lý thông tin bệnh nhân, lịch sử khám và theo dõi tình trạng điều trị.</p>
-        </div>
-        <div className="doctor-patient-list-header__right">
-          <button className="doctor-patient-list-date" type="button">
-            <CalendarDays size={18} />
-            <span>{todayLabel(today)}</span>
-            <ChevronDown size={15} />
-          </button>
-          <div className="doctor-patient-list-profile">
-            <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-            <div>
-              <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-              <small>Khoa Khám bệnh</small>
-            </div>
-            <ChevronDown size={15} />
-          </div>
-        </div>
-      </header>
-
       {state.error ? <div className="doctor-patient-list-error">{state.error}</div> : null}
 
       <section className="doctor-patient-list-kpis" aria-label="Tổng quan bệnh nhân">
@@ -512,7 +551,7 @@ export function DoctorPatientListScreen({ user }) {
       <section className="doctor-patient-list-grid">
         <article className="doctor-patient-list-panel doctor-patient-list-table-card">
           <div className="doctor-patient-list-toolbar">
-            <label className="doctor-patient-list-search">
+            <label className="doctor-patient-list-search" onFocus={() => { setFilterOpen(false); setSpecialtyOpen(false); setStatusOpen(false) }}>
               <Search size={15} />
               <input
                 value={searchTerm}
@@ -523,84 +562,160 @@ export function DoctorPatientListScreen({ user }) {
                 }}
               />
             </label>
-            <select value={specialtyFilter} onChange={(event) => setSpecialtyFilter(event.target.value)}>
-              <option value="all">Tất cả chuyên khoa</option>
-              {specialties.map((specialty) => <option value={specialty} key={specialty}>{specialty}</option>)}
-            </select>
-            <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1) }}>
-              <option value="all">Tất cả trạng thái</option>
-              <option value="active">Đang hoạt động</option>
-              <option value="inactive">Ngừng hoạt động</option>
-              <option value="archived">Lưu trữ</option>
-            </select>
-            <button type="button"><Filter size={15} /> Bộ lọc</button>
+            <div className="doctor-patient-list-select-menu">
+              <button
+                type="button"
+                className={specialtyOpen ? 'is-open' : ''}
+                aria-haspopup="menu"
+                aria-expanded={specialtyOpen}
+                onClick={() => { setSpecialtyOpen((open) => !open); setStatusOpen(false); setFilterOpen(false) }}
+              >
+                <span>{specialtyFilter === 'all' ? 'Tất cả chuyên khoa' : specialtyFilter}</span>
+                <ChevronDown size={13} />
+              </button>
+              {specialtyOpen ? (
+                <div className="doctor-patient-list-select-dropdown" role="menu">
+                  {[{ value: 'all', label: 'Tất cả chuyên khoa' }, ...specialties.map((specialty) => ({ value: specialty, label: specialty }))].map((item) => (
+                    <button
+                      type="button"
+                      className={specialtyFilter === item.value ? 'is-active' : ''}
+                      key={item.value}
+                      onClick={() => chooseSpecialty(item.value)}
+                    >
+                      <Check size={12} />
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="doctor-patient-list-select-menu">
+              <button
+                type="button"
+                className={statusOpen ? 'is-open' : ''}
+                aria-haspopup="menu"
+                aria-expanded={statusOpen}
+                onClick={() => { setStatusOpen((open) => !open); setSpecialtyOpen(false); setFilterOpen(false) }}
+              >
+                <span>{statusFilter === 'all' ? 'Tất cả trạng thái' : statusFilter === 'active' ? 'Đang hoạt động' : statusFilter === 'inactive' ? 'Ngừng hoạt động' : 'Lưu trữ'}</span>
+                <ChevronDown size={13} />
+              </button>
+              {statusOpen ? (
+                <div className="doctor-patient-list-select-dropdown" role="menu">
+                  {[
+                    { value: 'all', label: 'Tất cả trạng thái' },
+                    { value: 'active', label: 'Đang hoạt động' },
+                    { value: 'inactive', label: 'Ngừng hoạt động' },
+                    { value: 'archived', label: 'Lưu trữ' },
+                  ].map((item) => (
+                    <button
+                      type="button"
+                      className={statusFilter === item.value ? 'is-active' : ''}
+                      key={item.value}
+                      onClick={() => chooseStatus(item.value)}
+                    >
+                      <Check size={12} />
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="doctor-patient-list-filter-menu">
+              <button
+                type="button"
+                className={filterOpen ? 'is-open' : ''}
+                aria-haspopup="menu"
+                aria-expanded={filterOpen}
+                onClick={() => { setFilterOpen((open) => !open); setSpecialtyOpen(false); setStatusOpen(false) }}
+              >
+                <Filter size={15} />
+                <span>Bộ lọc</span>
+                <ChevronDown size={12} />
+              </button>
+              {filterOpen ? (
+                <div className="doctor-patient-list-filter-dropdown" role="menu">
+                  <button type="button" className={sortMode === 'updated_desc' ? 'is-active' : ''} onClick={() => chooseSortMode('updated_desc')}><Check size={12} /><span>Mới cập nhật</span></button>
+                  <button type="button" className={sortMode === 'created_desc' ? 'is-active' : ''} onClick={() => chooseSortMode('created_desc')}><Check size={12} /><span>Mới nhất</span></button>
+                  <button type="button" className={sortMode === 'created_asc' ? 'is-active' : ''} onClick={() => chooseSortMode('created_asc')}><Check size={12} /><span>Cũ nhất</span></button>
+                </div>
+              ) : null}
+            </div>
             <button type="button" aria-label="Tải xuống danh sách" onClick={exportCsv}><Download size={15} /></button>
           </div>
 
-          <div className="doctor-patient-list-table-head">
-            <span>Mã BN</span>
-            <span>Bệnh nhân</span>
-            <span>Tuổi / Giới tính</span>
-            <span>Chuyên khoa</span>
-            <span>Lần khám gần nhất</span>
-            <span>Lịch hẹn tiếp theo</span>
-            <span>Dị ứng / Vấn đề</span>
-            <span>Trạng thái</span>
-            <span>Thao tác</span>
-          </div>
+          <div className="doctor-patient-list-table-scroll">
+            <div className="doctor-patient-list-table-head">
+              <span>Mã BN</span>
+              <span>Bệnh nhân</span>
+              <span>SĐT</span>
+              <span>Tuổi / Giới tính</span>
+              <span>Chuyên khoa</span>
+              <span>Lần khám gần nhất</span>
+              <span>Lịch hẹn tiếp theo</span>
+              <span>Dị ứng / Vấn đề</span>
+              <span>Trạng thái</span>
+              <span>Thao tác</span>
+            </div>
 
-          <div className="doctor-patient-list-table">
-            {state.loading ? (
-              <div className="doctor-patient-list-empty">Đang tải danh sách bệnh nhân...</div>
-            ) : displayPatients.length ? displayPatients.map((patient) => {
-              const id = patientIdOf(patient)
-              const extra = enrichment[id] || {}
-              const visit = lastVisit(extra)
-              const alerts = [
-                ...safeArray(extra.activeAllergies).map((item) => ({ label: allergyName(item), tone: 'red' })),
-                ...safeArray(extra.activeProblems).map((item) => ({ label: problemName(item), tone: 'orange' })),
-              ].slice(0, 2)
+            <div className="doctor-patient-list-table">
+              {state.loading ? (
+                <div className="doctor-patient-list-empty">Đang tải danh sách bệnh nhân...</div>
+              ) : displayPatients.length ? displayPatients.map((patient) => {
+                const id = patientIdOf(patient)
+                const extra = enrichment[id] || {}
+                const visit = lastVisit(extra)
+                const alerts = [
+                  ...safeArray(extra.activeAllergies).map((item) => ({ label: allergyName(item), tone: 'red' })),
+                  ...safeArray(extra.activeProblems).map((item) => ({ label: problemName(item), tone: 'orange' })),
+                ].slice(0, 2)
 
-              return (
-                <div className={`doctor-patient-list-row${selectedId === id ? ' is-selected' : ''}`} key={id || patientCode(patient)}>
-                  <strong>{patientCode(patient)}</strong>
-                  <span className="doctor-patient-list-person">
-                    <PatientAvatar patient={patient} />
-                    <span>
-                      <b>{patientName(patient)}</b>
-                      <small>{patientPhone(patient) || 'Chưa có SĐT'}</small>
+                return (
+                  <div className={`doctor-patient-list-row${selectedId === id ? ' is-selected' : ''}`} key={id || patientCode(patient)}>
+                    <strong>{patientCode(patient)}</strong>
+                    <span className="doctor-patient-list-person">
+                      <PatientAvatar patient={patient} />
+                      <span>
+                        <b>{patientName(patient)}</b>
+                      </span>
                     </span>
-                  </span>
-                  <span className="doctor-patient-list-age">
-                    <b>{getAge(patient.date_of_birth) ? `${getAge(patient.date_of_birth)} tuổi` : '--'}</b>
-                    <small>{genderLabel(patient.gender)}</small>
-                  </span>
-                  <strong>{specialtyText(patient, extra)}</strong>
-                  <span className="doctor-patient-list-visit">
-                    <b>{visit.date}</b>
-                    <small>{visit.doctor || '--'}</small>
-                  </span>
-                  <span className="doctor-patient-list-visit">
-                    <b>{nextAppointment(extra).split('\n')[0]}</b>
-                    <small>{nextAppointment(extra).split('\n')[1] || ''}</small>
-                  </span>
-                  <span className="doctor-patient-list-tags">
-                    {alerts.length ? alerts.map((item) => <Tag key={`${id}-${item.label}`} tone={item.tone}>{item.label}</Tag>) : <Tag>Không có</Tag>}
-                  </span>
-                  <StatusBadge patient={patient} extra={extra} />
-                  <span className="doctor-patient-list-actions">
-                    <button type="button" onClick={() => handleOpenPatient(patient)}><Eye size={13} /> Xem hồ sơ</button>
-                    <button type="button" aria-label="Tùy chọn bệnh nhân" onClick={() => setSelectedId(id)}><MoreVertical size={14} /></button>
-                  </span>
-                </div>
-              )
-            }) : (
-              <div className="doctor-patient-list-empty">Chưa có bệnh nhân phù hợp.</div>
-            )}
+                    <span className="doctor-patient-list-phone">{patientPhone(patient) || 'Chưa có SĐT'}</span>
+                    <span className="doctor-patient-list-age">
+                      <b>{getAge(patient.date_of_birth) ? `${getAge(patient.date_of_birth)} tuổi` : '--'}</b>
+                      <small>{genderLabel(patient.gender)}</small>
+                    </span>
+                    <strong>{specialtyText(patient, extra)}</strong>
+                    <span className="doctor-patient-list-visit">
+                      <b>{visit.date}</b>
+                      <small>{visit.doctor || '--'}</small>
+                    </span>
+                    <span className="doctor-patient-list-visit">
+                      <b>{nextAppointment(extra).split('\n')[0]}</b>
+                      <small>{nextAppointment(extra).split('\n')[1] || ''}</small>
+                    </span>
+                    <span className="doctor-patient-list-tags">
+                      {alerts.length ? alerts.map((item) => <Tag key={`${id}-${item.label}`} tone={item.tone}>{item.label}</Tag>) : <Tag>Không có</Tag>}
+                    </span>
+                    <StatusBadge patient={patient} extra={extra} />
+                    <span className="doctor-patient-list-actions">
+                      <button type="button" onClick={() => handleOpenPatient(patient)}><Eye size={13} /> Xem hồ sơ</button>
+                      <button type="button" aria-label="Tùy chọn bệnh nhân" onClick={() => setSelectedId(id)}><MoreVertical size={14} /></button>
+                    </span>
+                  </div>
+                )
+              }) : (
+                <div className="doctor-patient-list-empty">Chưa có bệnh nhân phù hợp.</div>
+              )}
+            </div>
+
           </div>
 
           <footer className="doctor-patient-list-footer">
-            <button type="button">Hiển thị <strong>{PAGE_SIZE}</strong> dòng <ChevronDown size={14} /></button>
+            <div className="doctor-patient-list-page-size">
+              <button type="button" disabled>
+                Hiển thị <strong>{pageSize}</strong> dòng
+              </button>
+            </div>
             <div>
               <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft size={15} /></button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, index) => index + 1).map((pageNumber) => (
@@ -615,7 +730,7 @@ export function DoctorPatientListScreen({ user }) {
               ))}
               <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}><ChevronRight size={15} /></button>
             </div>
-            <span>Hiển thị {total ? `${(page - 1) * PAGE_SIZE + 1} đến ${Math.min(page * PAGE_SIZE, total)}` : '0'} của {total.toLocaleString('vi-VN')} bệnh nhân</span>
+            <span>Hiển thị {total ? `${(page - 1) * pageSize + 1} đến ${Math.min(page * pageSize, total)}` : '0'} của {total.toLocaleString('vi-VN')} bệnh nhân</span>
           </footer>
         </article>
 
