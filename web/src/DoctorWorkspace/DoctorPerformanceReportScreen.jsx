@@ -2,10 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
-  BarChart3,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   Clock3,
   Download,
   FileDown,
@@ -61,27 +59,6 @@ function formatNumber(value) {
 
 function formatPercent(value) {
   return `${(Math.round(Number(value || 0) * 10) / 10).toLocaleString('vi-VN')}%`
-}
-
-function initialsFromName(name = '') {
-  return String(name || 'BS')
-    .trim()
-    .split(/\s+/)
-    .slice(-2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase() || 'BS'
-}
-
-function userIdentity(user = {}) {
-  const profile = user.profile || user.doctor || {}
-  const name = user.full_name || user.fullName || user.name || profile.full_name || profile.name || 'BS. Nguyễn Văn An'
-  return {
-    name,
-    department: user.department_name || profile.department_name || user.department || profile.department || 'Khoa Khám bệnh',
-    avatar: user.avatar_url || user.avatar || profile.avatar_url || profile.avatar || '',
-    initials: initialsFromName(name),
-  }
 }
 
 function percent(part, total) {
@@ -462,7 +439,6 @@ function ProgressCell({ value }) {
 export function DoctorPerformanceReportScreen({ user }) {
   const navigate = useNavigate()
   const toast = useToast()
-  const identity = userIdentity(user)
   const [today] = useState(() => toDate(getTodayDate()) || new Date())
   const [reloadKey, setReloadKey] = useState(0)
   const [state, setState] = useState({
@@ -566,31 +542,6 @@ export function DoctorPerformanceReportScreen({ user }) {
 
   return (
     <div className="doctor-performance-page">
-      <header className="doctor-performance-header">
-        <div className="doctor-performance-title">
-          <span><BarChart3 size={24} /></span>
-          <div>
-            <h1>Hiệu suất khám bệnh</h1>
-            <p>Báo cáo hiệu suất hoạt động của phòng khám và bác sĩ theo thời gian.</p>
-          </div>
-        </div>
-        <div className="doctor-performance-top-actions">
-          <button type="button" className="doctor-performance-range">
-            <CalendarDays size={18} />
-            {formatDate(range.start)} - {formatDate(range.end)}
-            <ChevronDown size={17} />
-          </button>
-          <div className="doctor-performance-user">
-            {identity.avatar ? <img src={identity.avatar} alt={identity.name} /> : <span>{identity.initials}</span>}
-            <div>
-              <strong>{identity.name}</strong>
-              <small>{identity.department}</small>
-            </div>
-            <ChevronDown size={17} />
-          </div>
-        </div>
-      </header>
-
       {state.error ? <p className="doctor-performance-error">{state.error}</p> : null}
 
       <section className="doctor-performance-kpis">

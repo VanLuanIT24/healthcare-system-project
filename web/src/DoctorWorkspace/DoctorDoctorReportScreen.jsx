@@ -4,14 +4,12 @@ import {
   AlertTriangle,
   BarChart3,
   CalendarDays,
-  ChevronDown,
   Download,
   FileDown,
   Pill,
   RefreshCw,
   Stethoscope,
   Trophy,
-  UserRound,
   UsersRound,
 } from 'lucide-react'
 import { doctorApi, getDoctorId } from './doctorApi'
@@ -362,7 +360,6 @@ function ProgressCell({ value }) {
 export function DoctorDoctorReportScreen({ user }) {
   const navigate = useNavigate()
   const toast = useToast()
-  const identity = userIdentity(user)
   const [today] = useState(() => toDate(getTodayDate()) || new Date())
   const [reloadKey, setReloadKey] = useState(0)
   const [state, setState] = useState({
@@ -459,31 +456,6 @@ export function DoctorDoctorReportScreen({ user }) {
 
   return (
     <div className="doctor-performance-page doctor-report-page">
-      <header className="doctor-performance-header">
-        <div className="doctor-performance-title">
-          <span><UserRound size={24} /></span>
-          <div>
-            <h1>Báo cáo bác sĩ</h1>
-            <p>Báo cáo chi tiết hoạt động và hiệu suất của bác sĩ.</p>
-          </div>
-        </div>
-        <div className="doctor-performance-top-actions">
-          <button type="button" className="doctor-performance-range">
-            <CalendarDays size={18} />
-            {formatDate(range.start)} - {formatDate(range.end)}
-            <ChevronDown size={17} />
-          </button>
-          <div className="doctor-performance-user">
-            {identity.avatar ? <img src={identity.avatar} alt={identity.name} /> : <span>{identity.initials}</span>}
-            <div>
-              <strong>{identity.name}</strong>
-              <small>{identity.department}</small>
-            </div>
-            <ChevronDown size={17} />
-          </div>
-        </div>
-      </header>
-
       {state.error ? <p className="doctor-performance-error">{state.error}</p> : null}
 
       <section className="doctor-performance-kpis">

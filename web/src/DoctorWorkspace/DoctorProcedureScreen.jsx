@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Bell,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -8,7 +7,6 @@ import {
   Download,
   FileClock,
   FilePlus2,
-  HelpCircle,
   ListPlus,
   MoreVertical,
   RefreshCw,
@@ -318,17 +316,6 @@ export function DoctorProcedureScreen() {
 
   return (
     <div className="doctor-procedure-page">
-      <header className="doctor-procedure-header">
-        <div>
-          <h1>Thủ thuật</h1>
-          <p>Quản lý chỉ định thủ thuật và theo dõi tiến trình thực hiện</p>
-        </div>
-        <div className="doctor-procedure-topbar">
-          <button type="button" aria-label="Thông báo"><Bell size={18} /><i>3</i></button>
-          <button type="button" aria-label="Trợ giúp"><HelpCircle size={19} /></button>
-        </div>
-      </header>
-
       {state.error ? <div className="doctor-procedure-error">{state.error}</div> : null}
 
       <section className="doctor-procedure-kpis">

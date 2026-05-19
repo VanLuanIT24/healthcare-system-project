@@ -1,26 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
-  Bell,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
   Eye,
   FileText,
   Filter,
-  HelpCircle,
   Image as ImageIcon,
-  Menu,
   MoreVertical,
   RefreshCw,
   Search,
   Timer,
 } from 'lucide-react'
 import { doctorApi, getDoctorId } from './doctorApi'
-import { getInitials, safeArray } from './doctorData'
+import { safeArray } from './doctorData'
 import { getTodayDate } from './DoctorHooks'
 import { useToast } from './ToastProvider'
 import { getApiErrorMessage } from '../utils/api'
@@ -350,29 +346,6 @@ export function DoctorImagingScreen({ user }) {
 
   return (
     <div className="doctor-imaging-page">
-      <header className="doctor-imaging-header">
-        <div className="doctor-imaging-title">
-          <button type="button" aria-label="Mở menu"><Menu size={20} /></button>
-          <div>
-            <h1>Chẩn đoán hình ảnh</h1>
-            <p>Quản lý chỉ định và báo cáo chẩn đoán hình ảnh của bệnh nhân.</p>
-          </div>
-        </div>
-        <div className="doctor-imaging-topbar">
-          <label><input placeholder="Tìm bệnh nhân (Ctrl + K)" value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setPage(1) }} /><Search size={17} /></label>
-          <button type="button" aria-label="Thông báo"><Bell size={18} /><i>5</i></button>
-          <button type="button" aria-label="Trợ giúp"><HelpCircle size={18} /></button>
-          <div className="doctor-imaging-profile">
-            <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-            <div>
-              <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-              <small>Khoa Nội tổng hợp</small>
-            </div>
-            <ChevronDown size={14} />
-          </div>
-        </div>
-      </header>
-
       {state.error ? <div className="doctor-imaging-error">{state.error}</div> : null}
 
       <section className="doctor-imaging-kpis">

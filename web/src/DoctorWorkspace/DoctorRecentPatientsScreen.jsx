@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   CalendarDays,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -49,12 +48,6 @@ function formatDate(value) {
 function formatTime(value) {
   const date = toDate(value)
   return date ? date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'
-}
-
-function todayLabel(dateKey) {
-  const date = new Date(`${dateKey}T00:00:00`)
-  const weekday = date.toLocaleDateString('vi-VN', { weekday: 'short' })
-  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${date.toLocaleDateString('vi-VN')}`
 }
 
 function percent(part, total) {
@@ -418,28 +411,6 @@ export function DoctorRecentPatientsScreen({ user }) {
 
   return (
     <div className="doctor-recent-patient-page">
-      <header className="doctor-recent-patient-header">
-        <div>
-          <h1>Bệnh nhân gần đây</h1>
-          <p>Theo dõi và quản lý các bệnh nhân bạn đã tương tác gần đây</p>
-        </div>
-        <div className="doctor-recent-patient-header__right">
-          <button className="doctor-recent-patient-date" type="button">
-            <CalendarDays size={18} />
-            <span>{todayLabel(today)}</span>
-            <ChevronDown size={15} />
-          </button>
-          <div className="doctor-recent-patient-profile">
-            <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-            <div>
-              <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-              <small>Khoa Khám bệnh</small>
-            </div>
-            <ChevronDown size={15} />
-          </div>
-        </div>
-      </header>
-
       {state.error ? <div className="doctor-recent-patient-error">{state.error}</div> : null}
 
       <section className="doctor-recent-patient-kpis">

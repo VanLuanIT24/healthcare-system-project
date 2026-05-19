@@ -29,12 +29,6 @@ import { getApiErrorMessage } from '../utils/api'
 
 const PAGE_SIZE = 5
 
-function todayLabel(dateKey) {
-  const date = new Date(`${dateKey}T00:00:00`)
-  const weekday = date.toLocaleDateString('vi-VN', { weekday: 'short' })
-  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${date.toLocaleDateString('vi-VN')}`
-}
-
 function formatDate(value) {
   if (!value) return '-'
   const date = new Date(value)
@@ -882,28 +876,6 @@ export function DoctorMyPrescriptionsScreen({ user }) {
   if (isActiveView) {
     return (
       <div className="doctor-prescription-page doctor-prescription-active-page">
-        <header className="doctor-prescription-header">
-          <div>
-            <h1>Đơn thuốc đang hoạt động</h1>
-            <p>Theo dõi các đơn thuốc còn hiệu lực, cảnh báo an toàn và tiến trình sử dụng.</p>
-          </div>
-          <div className="doctor-prescription-header__right">
-            <button className="doctor-prescription-date" type="button">
-              <CalendarDays size={18} />
-              <span>{todayLabel(today)}</span>
-              <ChevronDown size={15} />
-            </button>
-            <div className="doctor-prescription-profile">
-              <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-              <div>
-                <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-                <small>Khoa Khám bệnh</small>
-              </div>
-              <ChevronDown size={15} />
-            </div>
-          </div>
-        </header>
-
         {state.error ? <div className="doctor-prescription-error">{state.error}</div> : null}
 
         <section className="doctor-prescription-kpis" aria-label="Tổng quan đơn thuốc đang hoạt động">
@@ -1159,28 +1131,6 @@ export function DoctorMyPrescriptionsScreen({ user }) {
 
     return (
       <div className="doctor-prescription-page doctor-prescription-encounter-page">
-        <header className="doctor-prescription-header">
-          <div>
-            <h1>Đơn thuốc theo encounter</h1>
-            <p>Theo dõi và quản lý các đơn thuốc được kê trong từng encounter.</p>
-          </div>
-          <div className="doctor-prescription-header__right">
-            <button className="doctor-prescription-date" type="button">
-              <CalendarDays size={18} />
-              <span>{todayLabel(today)}</span>
-              <ChevronDown size={15} />
-            </button>
-            <div className="doctor-prescription-profile">
-              <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-              <div>
-                <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-                <small>Khoa Khám bệnh</small>
-              </div>
-              <ChevronDown size={15} />
-            </div>
-          </div>
-        </header>
-
         {state.error ? <div className="doctor-prescription-error">{state.error}</div> : null}
 
         <section className="doctor-prescription-kpis" aria-label="Tổng quan đơn thuốc theo encounter">
@@ -1400,28 +1350,6 @@ export function DoctorMyPrescriptionsScreen({ user }) {
 
   return (
     <div className="doctor-prescription-page">
-      <header className="doctor-prescription-header">
-        <div>
-          <h1>Đơn thuốc của tôi</h1>
-          <p>Quản lý và theo dõi các đơn thuốc do bạn kê đơn cho bệnh nhân.</p>
-        </div>
-        <div className="doctor-prescription-header__right">
-          <button className="doctor-prescription-date" type="button">
-            <CalendarDays size={18} />
-            <span>{todayLabel(today)}</span>
-            <ChevronDown size={15} />
-          </button>
-          <div className="doctor-prescription-profile">
-            <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-            <div>
-              <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-              <small>Khoa Khám bệnh</small>
-            </div>
-            <ChevronDown size={15} />
-          </div>
-        </div>
-      </header>
-
       {state.error ? <div className="doctor-prescription-error">{state.error}</div> : null}
 
       <section className="doctor-prescription-kpis" aria-label="Tổng quan đơn thuốc">

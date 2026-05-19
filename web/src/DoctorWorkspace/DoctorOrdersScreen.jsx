@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  CalendarDays,
   CalendarCheck2,
   CheckCircle2,
   ChevronDown,
@@ -50,12 +49,6 @@ const PROCESSING_STATUSES = new Set([
 const COMPLETE_STATUSES = new Set(['completed', 'complete', 'done', 'result_ready', 'resulted'])
 const CANCELLED_STATUSES = new Set(['cancelled', 'canceled', 'voided'])
 const NOT_STARTED_STATUSES = new Set(['draft', 'created', 'new', 'requested'])
-
-function todayLabel(dateKey) {
-  const date = new Date(`${dateKey}T00:00:00`)
-  const weekday = date.toLocaleDateString('vi-VN', { weekday: 'short' })
-  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${date.toLocaleDateString('vi-VN')}`
-}
 
 function formatDate(value) {
   if (!value) return '-'
@@ -760,28 +753,6 @@ export function DoctorOrdersScreen({ user }) {
 
     return (
       <div className="doctor-order-list-page doctor-order-pending-page">
-        <header className="doctor-order-list-header">
-          <div>
-            <h1>Chỉ định đang chờ xử lý</h1>
-            <p>Quản lý các chỉ định đang chờ xác nhận, gửi xử lý hoặc thực hiện.</p>
-          </div>
-          <div className="doctor-order-list-header__right">
-            <button className="doctor-order-list-date" type="button">
-              <CalendarDays size={18} />
-              <span>{todayLabel(today)}</span>
-              <ChevronDown size={15} />
-            </button>
-            <div className="doctor-order-list-profile">
-              <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-              <div>
-                <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-                <small>Khoa Khám bệnh</small>
-              </div>
-              <ChevronDown size={15} />
-            </div>
-          </div>
-        </header>
-
         {state.error ? <div className="doctor-order-list-error">{state.error}</div> : null}
 
         <section className="doctor-order-pending-layout">
@@ -1002,28 +973,6 @@ export function DoctorOrdersScreen({ user }) {
   if (isEncounterView) {
     return (
       <div className="doctor-order-list-page doctor-order-encounter-page">
-        <header className="doctor-order-list-header">
-          <div>
-            <h1>Chỉ định theo encounter</h1>
-            <p>Theo dõi và quản lý các chỉ định được tạo trong từng encounter.</p>
-          </div>
-          <div className="doctor-order-list-header__right">
-            <button className="doctor-order-list-date" type="button">
-              <CalendarDays size={18} />
-              <span>{todayLabel(today)}</span>
-              <ChevronDown size={15} />
-            </button>
-            <div className="doctor-order-list-profile">
-              <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-              <div>
-                <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-                <small>Khoa Khám bệnh</small>
-              </div>
-              <ChevronDown size={15} />
-            </div>
-          </div>
-        </header>
-
         {state.error ? <div className="doctor-order-list-error">{state.error}</div> : null}
 
         <section className="doctor-order-list-kpis" aria-label="Tổng quan chỉ định theo encounter">
@@ -1260,28 +1209,6 @@ export function DoctorOrdersScreen({ user }) {
 
   return (
     <div className="doctor-order-list-page">
-      <header className="doctor-order-list-header">
-        <div>
-          <h1>Đơn chỉ định</h1>
-          <p>Quản lý tất cả đơn chỉ định của bác sĩ.</p>
-        </div>
-        <div className="doctor-order-list-header__right">
-          <button className="doctor-order-list-date" type="button">
-            <CalendarDays size={18} />
-            <span>{todayLabel(today)}</span>
-            <ChevronDown size={15} />
-          </button>
-          <div className="doctor-order-list-profile">
-            <span>{getInitials(user?.fullName || user?.full_name || user?.name) || 'BS'}</span>
-            <div>
-              <strong>{user?.fullName || user?.full_name || user?.name || 'Bác sĩ'}</strong>
-              <small>Khoa Khám bệnh</small>
-            </div>
-            <ChevronDown size={15} />
-          </div>
-        </div>
-      </header>
-
       {state.error ? <div className="doctor-order-list-error">{state.error}</div> : null}
 
       <section className="doctor-order-list-kpis" aria-label="Tổng quan chỉ định">
