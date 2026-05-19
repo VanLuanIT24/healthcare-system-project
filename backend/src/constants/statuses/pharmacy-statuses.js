@@ -72,6 +72,7 @@ const STOCK_BATCH_STATUSES = Object.values(STOCK_BATCH_STATUS);
 
 const INVENTORY_TRANSACTION_TYPE = {
   RECEIPT: 'receipt',
+  ISSUE: 'issue',
   DISPENSE: 'dispense',
   ADJUSTMENT: 'adjustment',
   RETURN: 'return',
@@ -89,6 +90,26 @@ const INVENTORY_TRANSACTION_DIRECTION = {
 };
 
 const INVENTORY_TRANSACTION_DIRECTIONS = Object.values(INVENTORY_TRANSACTION_DIRECTION);
+
+const STOCKTAKE_STATUS = {
+  DRAFT: 'draft',
+  OPEN: 'open',
+  COUNTING: 'counting',
+  REVIEW: 'review',
+  POSTED: 'posted',
+  CANCELLED: 'cancelled',
+};
+
+const STOCKTAKE_STATUSES = Object.values(STOCKTAKE_STATUS);
+
+const STOCKTAKE_ITEM_STATUS = {
+  PENDING: 'pending',
+  COUNTED: 'counted',
+  REVIEWED: 'reviewed',
+  POSTED: 'posted',
+};
+
+const STOCKTAKE_ITEM_STATUSES = Object.values(STOCKTAKE_ITEM_STATUS);
 
 module.exports = {
   MEDICATION_STATUS,
@@ -109,4 +130,8 @@ module.exports = {
   INVENTORY_TRANSACTION_TYPES,
   INVENTORY_TRANSACTION_DIRECTION,
   INVENTORY_TRANSACTION_DIRECTIONS,
+  STOCKTAKE_STATUS,
+  STOCKTAKE_STATUSES,
+  STOCKTAKE_ITEM_STATUS,
+  STOCKTAKE_ITEM_STATUSES,
 };

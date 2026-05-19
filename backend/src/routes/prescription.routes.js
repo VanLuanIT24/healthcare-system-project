@@ -1,5 +1,6 @@
 const express = require('express');
 const prescriptionController = require('../controllers/prescription.controller');
+const pharmacyDispensingController = require('../controllers/pharmacy-dispensing.controller');
 const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
@@ -16,6 +17,7 @@ router.param('encounterId', validateObjectIdParam);
 router.param('patientId', validateObjectIdParam);
 router.param('doctorId', validateObjectIdParam);
 router.param('itemId', validateObjectIdParam);
+router.param('refillRequestId', validateObjectIdParam);
 
 router.use(authenticate);
 
@@ -38,6 +40,11 @@ router.post('/stock-batches', authorize({ permissions: [PERMISSION.STOCK_BATCHES
 router.get('/stock-batches/:batchId', authorize({ permissions: [PERMISSION.STOCK_BATCHES.READ] }), prescriptionController.getStockBatchDetail);
 router.patch('/stock-batches/:batchId', authorize({ permissions: [PERMISSION.STOCK_BATCHES.UPDATE] }), prescriptionController.updateStockBatch);
 router.post('/stock-batches/:batchId/adjustment', authorize({ anyPermissions: [PERMISSION.INVENTORY_TRANSACTIONS.CREATE_ADJUSTMENT_IN, PERMISSION.INVENTORY_TRANSACTIONS.CREATE_ADJUSTMENT_OUT] }), prescriptionController.adjustInventory);
+router.post('/stock-batches/:batchId/quarantine', authorize({ permissions: [PERMISSION.STOCK_BATCHES.QUARANTINE] }), prescriptionController.quarantineStockBatch);
+router.post('/stock-batches/:batchId/release-quarantine', authorize({ permissions: [PERMISSION.STOCK_BATCHES.QUARANTINE] }), prescriptionController.releaseQuarantineStockBatch);
+router.post('/stock-batches/:batchId/waste', authorize({ permissions: [PERMISSION.INVENTORY_TRANSACTIONS.CREATE_DISPOSAL] }), prescriptionController.wasteStockBatch);
+router.post('/stock-batches/:batchId/transfer-location', authorize({ anyPermissions: [PERMISSION.INVENTORY_TRANSACTIONS.CREATE_TRANSFER_IN, PERMISSION.INVENTORY_TRANSACTIONS.CREATE_TRANSFER_OUT] }), prescriptionController.transferStockBatchLocation);
+router.get('/stock-batches/:batchId/recall-impact', authorize({ permissions: [PERMISSION.STOCK_BATCHES.READ] }), prescriptionController.getStockBatchRecallImpact);
 router.post('/stock-batches/:batchId/expire', authorize({ permissions: [PERMISSION.STOCK_BATCHES.MARK_EXPIRED] }), prescriptionController.markBatchExpired);
 router.post('/stock-batches/:batchId/recall', authorize({ permissions: [PERMISSION.STOCK_BATCHES.RECALL] }), prescriptionController.recallStockBatch);
 
@@ -45,10 +52,33 @@ router.post('/inventory/receipts', authorize({ permissions: [PERMISSION.INVENTOR
 router.post('/inventory/adjustments', authorize({ anyPermissions: [PERMISSION.INVENTORY_TRANSACTIONS.CREATE_ADJUSTMENT_IN, PERMISSION.INVENTORY_TRANSACTIONS.CREATE_ADJUSTMENT_OUT] }), prescriptionController.adjustInventory);
 router.get('/inventory/transactions', authorize({ anyPermissions: [PERMISSION.INVENTORY_TRANSACTIONS.READ, PERMISSION.INVENTORY_TRANSACTIONS.READ_RELATED] }), prescriptionController.listInventoryTransactions);
 
+router.get('/refill-requests', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_OWN, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.PRESCRIPTIONS.VERIFY] }), prescriptionController.listRefillRequests);
+router.get('/refill-requests/:refillRequestId', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_OWN, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.PRESCRIPTIONS.VERIFY] }), prescriptionController.getRefillRequestDetail);
+router.post('/refill-requests/:refillRequestId/approve', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.VERIFY, PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.approveRefillRequest);
+router.post('/refill-requests/:refillRequestId/reject', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.VERIFY, PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.rejectRefillRequest);
+router.post('/refill-requests/:refillRequestId/send-to-doctor', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.VERIFY, PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.sendRefillRequestToDoctor);
+router.post('/refill-requests/:refillRequestId/convert-to-prescription', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.convertRefillRequestToPrescription);
+
 router.get('/dispenses', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), prescriptionController.listDispenses);
 router.get('/dispenses/:dispenseId', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), prescriptionController.getDispenseDetail);
+router.post('/dispenses/:dispenseId/preview-completion-plan', authorize({ anyPermissions: [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.COMPLETE] }), prescriptionController.previewDispenseCompletionPlan);
 router.post('/dispenses/:dispenseId/complete', authorize({ permissions: [PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/prescriptions/dispenses/:dispenseId/complete' }), prescriptionController.completeDispense);
 router.post('/dispenses/:dispenseId/cancel', authorize({ permissions: [PERMISSION.DISPENSES.CANCEL] }), prescriptionController.cancelDispense);
+router.post('/dispenses/:dispenseId/assign', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.CREATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.assignDispense);
+router.post('/dispenses/:dispenseId/start-preparation', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.startPreparation);
+router.post('/dispenses/:dispenseId/change-stage', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.changeStage);
+router.post('/dispenses/:dispenseId/lock', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.lockDispense);
+router.post('/dispenses/:dispenseId/unlock', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.unlockDispense);
+router.get('/dispenses/:dispenseId/checklist', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), pharmacyDispensingController.getChecklist);
+router.patch('/dispenses/:dispenseId/checklist/:code', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.updateChecklistItem);
+router.post('/dispenses/:dispenseId/checklist/complete', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.completeChecklist);
+router.post('/dispenses/:dispenseId/holds', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.CANCEL, PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/prescriptions/dispenses/:dispenseId/holds' }), pharmacyDispensingController.createHold);
+router.post('/dispenses/:dispenseId/return-preview', authorize({ anyPermissions: [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.RETURN] }), pharmacyDispensingController.previewReturn);
+router.post('/dispenses/:dispenseId/returns', authorize({ permissions: [PERMISSION.DISPENSES.RETURN] }), idempotencyRequired({ route: '/api/prescriptions/dispenses/:dispenseId/returns' }), pharmacyDispensingController.createReturn);
+router.get('/dispenses/:dispenseId/label-preview', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), pharmacyDispensingController.labelPreview);
+router.post('/dispenses/:dispenseId/print-labels', authorize({ anyPermissions: [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/prescriptions/dispenses/:dispenseId/print-labels' }), pharmacyDispensingController.printLabels);
+router.post('/dispenses/:dispenseId/print-instructions', authorize({ anyPermissions: [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/prescriptions/dispenses/:dispenseId/print-instructions' }), pharmacyDispensingController.printInstructions);
+router.get('/dispenses/:dispenseId/print-jobs', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), pharmacyDispensingController.getDispensePrintJobs);
 
 router.get('/', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_OWN, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ] }), prescriptionController.listPrescriptions);
 router.get('/search', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_OWN, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ] }), prescriptionController.searchPrescriptions);
@@ -73,6 +103,7 @@ router.post('/:prescriptionId/verify', authorize({ permissions: [PERMISSION.PRES
 router.post('/:prescriptionId/cancel', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.CANCEL, PERMISSION.PRESCRIPTIONS.CANCEL_OWN, PERMISSION.PRESCRIPTIONS.CANCEL_BY_POLICY] }), prescriptionController.cancelPrescription);
 router.post('/:prescriptionId/complete', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.UPDATE_OWN, PERMISSION.PRESCRIPTIONS.VERIFY] }), prescriptionController.completePrescription);
 router.post('/:prescriptionId/dispenses', authorize({ permissions: [PERMISSION.DISPENSES.CREATE] }), idempotencyRequired({ route: '/api/prescriptions/:prescriptionId/dispenses' }), prescriptionController.createDispense);
+router.post('/:prescriptionId/refill-requests', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.CREATE, PERMISSION.PRESCRIPTIONS.SELF_READ] }), prescriptionController.createRefillRequest);
 router.post('/:prescriptionId/duplicate', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.duplicatePrescription);
 router.post('/:prescriptionId/renew', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.CREATE] }), prescriptionController.renewPrescription);
 router.get('/:prescriptionId/items', authorize({ anyPermissions: [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_OWN, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ] }), prescriptionController.listPrescriptionItems);

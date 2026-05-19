@@ -1,4 +1,5 @@
 const express = require('express');
+const pharmacyReportRoutes = require('./pharmacy-report.routes');
 const reportsController = require('../controllers/reports.controller');
 const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
@@ -8,6 +9,8 @@ const router = express.Router();
 
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));
+
+router.use('/pharmacy', pharmacyReportRoutes);
 
 router.get('/appointments', authorize({
   anyPermissions: [

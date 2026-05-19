@@ -7,6 +7,8 @@ import {
   notificationAPI,
   orderAPI,
   patientAPI,
+  pharmacyOverviewAPI,
+  pharmacyReportAPI,
   prescriptionAPI,
   reportAPI,
   unwrapData,
@@ -113,7 +115,25 @@ export function getTodayRange() {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(start.getTime() + 86400000 - 1);
   return {
-    date: start.toISOString().slice(0, 10),
+    date: formatLocalDate(start),
+    date_from: start.toISOString(),
+    date_to: end.toISOString(),
+  };
+}
+
+function formatLocalDate(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getDateRangeForDate(dateValue) {
+  const start = new Date(`${dateValue}T00:00:00`);
+  const end = new Date(`${dateValue}T23:59:59.999`);
+  return {
+    range: 'custom',
+    date: dateValue,
     date_from: start.toISOString(),
     date_to: end.toISOString(),
   };
@@ -129,7 +149,7 @@ export function getRangeQuery(rangeKey = 'today') {
 
   return {
     range: rangeKey,
-    date: rangeKey === 'today' ? start.toISOString().slice(0, 10) : undefined,
+    date: rangeKey === 'today' ? formatLocalDate(start) : undefined,
     date_from: start.toISOString(),
     date_to: end.toISOString(),
   };
@@ -338,14 +358,7 @@ export async function searchPharmacyWorkspace(query) {
 export async function loadPharmacyOverviewData(filters = {}) {
   let range = getRangeQuery(filters.range);
   if (filters.date) {
-    const start = new Date(`${filters.date}T00:00:00`);
-    const end = new Date(`${filters.date}T23:59:59.999`);
-    range = {
-      range: 'custom',
-      date: filters.date,
-      date_from: start.toISOString(),
-      date_to: end.toISOString(),
-    };
+    range = getDateRangeForDate(filters.date);
   }
   const prescriptionBaseParams = {
     ...range,
@@ -494,6 +507,543 @@ export async function loadPharmacyOverviewData(filters = {}) {
       inventoryReport: getSettledStatus(inventoryReport),
     },
   };
+}
+
+export async function loadPharmacyCommandDashboard(filters = {}) {
+  const range = filters.date ? getDateRangeForDate(filters.date) : getRangeQuery(filters.range || 'today');
+  const response = await pharmacyOverviewAPI.dashboard({
+    ...range,
+    storage_location: filters.storageLocation || undefined,
+    supplier_name: filters.supplier || undefined,
+    status: filters.status || undefined,
+    near_expiry_days: filters.nearExpiryDays || undefined,
+  });
+  return unwrapData(response);
+}
+
+export async function loadPrescriptionWorkbench(filters = {}) {
+  const response = await pharmacyOverviewAPI.prescriptionWorkbench({
+    status_group: filters.statusGroup || filters.status_group || undefined,
+    search: filters.search || undefined,
+    patient_id: filters.patientId || filters.patient_id || undefined,
+    doctor_id: filters.doctorId || filters.doctor_id || undefined,
+    department_id: filters.departmentId || filters.department_id || undefined,
+    department: filters.department || undefined,
+    encounter_id: filters.encounterId || filters.encounter_id || undefined,
+    from: filters.dateFrom || filters.from || undefined,
+    to: filters.dateTo || filters.to || undefined,
+    priority: filters.priority || undefined,
+    risk_type: filters.riskType || filters.risk_type || undefined,
+    has_allergy_alert: filters.hasAllergy || undefined,
+    has_interaction_warning: filters.hasInteraction || undefined,
+    has_duplicate_medication: filters.hasDuplicate || undefined,
+    has_stock_shortage: filters.hasStockShortage || undefined,
+    has_unpriced_medication: filters.hasUnpriced || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 25,
+    sort: filters.sort || undefined,
+  });
+  return unwrapData(response);
+}
+
+export async function loadPrescriptionRiskQueue(filters = {}) {
+  const response = await pharmacyOverviewAPI.prescriptionRiskQueue({
+    search: filters.search || undefined,
+    priority: filters.priority || undefined,
+    risk_type: filters.riskType || filters.risk_type || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 25,
+    sort: filters.sort || 'risk',
+  });
+  return unwrapData(response);
+}
+
+export async function loadPharmacyWorkQueue(filters = {}) {
+  const response = await pharmacyOverviewAPI.workQueue({
+    type: filters.type || undefined,
+    priority: filters.priority || undefined,
+    status: filters.status || undefined,
+    search: filters.search || undefined,
+    assigned_to: filters.assignedTo || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 30,
+  });
+  return unwrapData(response);
+}
+
+export async function loadPharmacyDispensingToday(filters = {}) {
+  const range = filters.date ? getDateRangeForDate(filters.date) : getRangeQuery(filters.range || 'today');
+  const response = await pharmacyOverviewAPI.dispensingToday({
+    ...range,
+    status: filters.status || undefined,
+  });
+  return unwrapData(response);
+}
+
+export async function loadPharmacyAlerts(filters = {}) {
+  const response = await pharmacyOverviewAPI.alertsOverview({
+    alert_type: filters.alertType || undefined,
+    severity: filters.severity || undefined,
+    status: filters.status || undefined,
+    search: filters.search || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 30,
+  });
+  return unwrapData(response);
+}
+
+function getAlertCommandParams(filters = {}) {
+  return {
+    search: filters.search || undefined,
+    severity: filters.severity || undefined,
+    status: filters.status || undefined,
+    storage_location: filters.storageLocation || filters.storage_location || undefined,
+    supplier_name: filters.supplier || filters.supplierName || filters.supplier_name || undefined,
+    warehouse_id: filters.warehouseId || filters.warehouse_id || undefined,
+    near_expiry_days: filters.nearExpiryDays || filters.near_expiry_days || undefined,
+    days_left: filters.daysLeft || filters.days_left || undefined,
+    spike_ratio: filters.spikeRatio || filters.spike_ratio || undefined,
+    transaction_type: filters.transactionType || filters.transaction_type || undefined,
+    range: filters.range || undefined,
+    date: filters.date || undefined,
+    date_from: filters.date_from || filters.dateFrom || undefined,
+    date_to: filters.date_to || filters.dateTo || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 30,
+  };
+}
+
+export async function loadPharmacyAlertCommandBoard(board = 'low-stock', filters = {}) {
+  const params = getAlertCommandParams(filters);
+  const loaders = {
+    'low-stock': pharmacyOverviewAPI.lowStockAlerts,
+    lowStock: pharmacyOverviewAPI.lowStockAlerts,
+    'out-of-stock': pharmacyOverviewAPI.outOfStockAlerts,
+    outOfStock: pharmacyOverviewAPI.outOfStockAlerts,
+    'expiring-batches': pharmacyOverviewAPI.expiringBatchAlerts,
+    expiringBatches: pharmacyOverviewAPI.expiringBatchAlerts,
+    'expired-batches': pharmacyOverviewAPI.expiredBatchAlerts,
+    expiredBatches: pharmacyOverviewAPI.expiredBatchAlerts,
+    'dispense-shortage': pharmacyOverviewAPI.dispenseShortageAlerts,
+    'insufficient-stock': pharmacyOverviewAPI.dispenseShortageAlerts,
+    dispenseShortage: pharmacyOverviewAPI.dispenseShortageAlerts,
+    allergy: pharmacyOverviewAPI.allergyAlerts,
+    'high-usage': pharmacyOverviewAPI.highUsageAlerts,
+    highUsage: pharmacyOverviewAPI.highUsageAlerts,
+    'waste-loss': pharmacyOverviewAPI.wasteLossAlerts,
+    'loss-waste': pharmacyOverviewAPI.wasteLossAlerts,
+    wasteLoss: pharmacyOverviewAPI.wasteLossAlerts,
+  };
+  const loader = loaders[board] || pharmacyOverviewAPI.lowStockAlerts;
+  return unwrapData(await loader(params));
+}
+
+export async function loadPharmacyPerformance(filters = {}) {
+  const range = filters.date ? getDateRangeForDate(filters.date) : getRangeQuery(filters.range || 'today');
+  const response = await pharmacyOverviewAPI.performance({
+    ...range,
+    storage_location: filters.storageLocation || undefined,
+    supplier_name: filters.supplier || undefined,
+  });
+  return unwrapData(response);
+}
+
+function getReportDateParams(filters = {}) {
+  const range = filters.date ? getDateRangeForDate(filters.date) : getRangeQuery(filters.range || '30d');
+  return {
+    ...range,
+    search: filters.search || undefined,
+    medication_id: filters.medicationId || filters.medication_id || undefined,
+    stock_batch_id: filters.batchId || filters.stock_batch_id || undefined,
+    warehouse_id: filters.warehouseId || filters.warehouse_id || undefined,
+    storage_location_id: filters.storageLocationId || filters.storage_location_id || undefined,
+    storage_location: filters.storageLocation || filters.storage_location || undefined,
+    supplier_name: filters.supplier || filters.supplier_name || undefined,
+    medication_status: filters.medicationStatus || filters.medication_status || undefined,
+    batch_status: filters.batchStatus || filters.batch_status || undefined,
+    transaction_type: filters.transactionType || filters.transaction_type || undefined,
+    direction: filters.direction || undefined,
+    pharmacist_id: filters.pharmacistId || filters.pharmacist_id || undefined,
+    near_expiry_days: filters.nearExpiryDays || filters.near_expiry_days || undefined,
+    group_by: filters.groupBy || filters.group_by || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 30,
+  };
+}
+
+export async function loadPharmacyReport(view = 'dashboard', filters = {}) {
+  const params = getReportDateParams(filters);
+  const loaders = {
+    dashboard: pharmacyReportAPI.dashboard,
+    inventoryOverview: pharmacyReportAPI.inventoryOverview,
+    stockMovement: pharmacyReportAPI.inventoryMovement,
+    dispensing: pharmacyReportAPI.dispensing,
+    expiringStock: pharmacyReportAPI.expiringStock,
+    lowStock: pharmacyReportAPI.lowStock,
+    inventoryValuation: pharmacyReportAPI.inventoryValuation,
+    highUsage: pharmacyReportAPI.highUsageMedications,
+    wasteDisposal: pharmacyReportAPI.wasteDisposal,
+    exportHistory: pharmacyReportAPI.exportHistory,
+  };
+  const loader = loaders[view] || pharmacyReportAPI.dashboard;
+  return unwrapData(await loader(params));
+}
+
+export async function exportPharmacyReport(view = 'dashboard', format = 'json', filters = {}) {
+  const reportTypeMap = {
+    dashboard: 'dashboard',
+    inventoryOverview: 'inventory_overview',
+    stockMovement: 'inventory_movement',
+    dispensing: 'dispensing',
+    expiringStock: 'expiring_stock',
+    lowStock: 'low_stock',
+    inventoryValuation: 'inventory_valuation',
+    highUsage: 'high_usage_medications',
+    wasteDisposal: 'waste_disposal',
+  };
+  const payload = {
+    ...getReportDateParams(filters),
+    report_type: reportTypeMap[view] || 'dashboard',
+    format,
+  };
+  return unwrapData(await pharmacyReportAPI.export(payload));
+}
+
+export async function loadMedicationCatalog(filters = {}) {
+  const [medications, summary] = await Promise.allSettled([
+    prescriptionAPI.listMedications({
+      search: filters.search || undefined,
+      status: filters.status || undefined,
+      dosage_form: filters.dosageForm || undefined,
+      route_default: filters.routeDefault || undefined,
+      below_min_stock: filters.belowMinStock || undefined,
+      without_stock: filters.withoutStock || undefined,
+      missing_price: filters.missingPrice || undefined,
+      missing_service: filters.missingService || undefined,
+      has_near_expiry: filters.hasNearExpiry || undefined,
+      page: filters.page || 1,
+      limit: filters.limit || 30,
+    }),
+    pharmacyOverviewAPI.medicationSummary({ near_expiry_days: filters.nearExpiryDays || 30 }),
+  ]);
+  return {
+    medications: getSettledItems(medications),
+    pagination: medications.status === 'fulfilled' ? (unwrapData(medications.value)?.pagination || {}) : {},
+    summary: getSettledPayload(summary) || {},
+    errors: {
+      medications: getSettledError(medications, 'Không thể tải danh mục thuốc.'),
+      summary: getSettledError(summary, 'Không thể tải KPI danh mục thuốc.'),
+    },
+  };
+}
+
+export async function loadCurrentStock(filters = {}) {
+  const [currentStock, report, transactions] = await Promise.allSettled([
+    pharmacyOverviewAPI.currentStock({
+      search: filters.search || undefined,
+      stock_status: filters.stockStatus || undefined,
+      storage_location: filters.storageLocation || undefined,
+      supplier_name: filters.supplier || undefined,
+      near_expiry_days: filters.nearExpiryDays || 30,
+      page: filters.page || 1,
+      limit: filters.limit || 30,
+    }),
+    reportAPI.inventory({ near_expiry_days: filters.nearExpiryDays || 30 }),
+    prescriptionAPI.listInventoryTransactions({ limit: 12 }),
+  ]);
+  return {
+    items: getSettledItems(currentStock),
+    pagination: currentStock.status === 'fulfilled' ? (unwrapData(currentStock.value)?.pagination || {}) : {},
+    report: getSettledPayload(report) || {},
+    transactions: getSettledItems(transactions),
+    errors: {
+      currentStock: getSettledError(currentStock, 'Không thể tải tồn kho hiện tại.'),
+      report: getSettledError(report, 'Không thể tải KPI tồn kho.'),
+      transactions: getSettledError(transactions, 'Không thể tải ledger tồn kho.'),
+    },
+  };
+}
+
+export async function loadStockBatchConsole(filters = {}) {
+  const params = {
+    search: filters.search || undefined,
+    medication_id: filters.medicationId || undefined,
+    status: filters.status || undefined,
+    storage_location: filters.storageLocation || undefined,
+    supplier_name: filters.supplier || undefined,
+    near_expiry: filters.nearExpiry || undefined,
+    near_expiry_days: filters.nearExpiryDays || 30,
+    valid: filters.valid || undefined,
+    expired: filters.expired || undefined,
+    depleted: filters.depleted || undefined,
+    has_stock: filters.hasStock || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 30,
+  };
+  const [batches, report, expiryRisk] = await Promise.allSettled([
+    prescriptionAPI.listStockBatches(params),
+    reportAPI.inventory({ near_expiry_days: filters.nearExpiryDays || 30 }),
+    pharmacyOverviewAPI.expiryRisk({ days: filters.nearExpiryDays || 60, limit: 8 }),
+  ]);
+  return {
+    batches: getSettledItems(batches),
+    pagination: batches.status === 'fulfilled' ? (unwrapData(batches.value)?.pagination || {}) : {},
+    report: getSettledPayload(report) || {},
+    expiryRisk: getSettledPayload(expiryRisk) || {},
+    errors: {
+      batches: getSettledError(batches, 'Không thể tải lô thuốc.'),
+      report: getSettledError(report, 'Không thể tải KPI kho.'),
+      expiryRisk: getSettledError(expiryRisk, 'Không thể tải expiry risk.'),
+    },
+  };
+}
+
+export async function loadStockBatchDetail(batchId) {
+  const [detail, transactions, impact] = await Promise.allSettled([
+    prescriptionAPI.stockBatchDetail(batchId),
+    prescriptionAPI.listInventoryTransactions({ stock_batch_id: batchId, limit: 25 }),
+    prescriptionAPI.stockBatchRecallImpact(batchId),
+  ]);
+  return {
+    detail: getSettledPayload(detail),
+    transactions: getSettledItems(transactions),
+    impact: getSettledPayload(impact),
+    errors: {
+      detail: getSettledError(detail, 'Không thể tải chi tiết lô.'),
+      transactions: getSettledError(transactions, 'Không thể tải ledger lô.'),
+      impact: getSettledError(impact, 'Không thể tải recall impact.'),
+    },
+  };
+}
+
+export async function loadMedicationDetail(medicationId) {
+  const [detail, batches, transactions] = await Promise.allSettled([
+    prescriptionAPI.medicationDetail(medicationId),
+    prescriptionAPI.listStockBatches({ medication_id: medicationId, limit: 20 }),
+    prescriptionAPI.listInventoryTransactions({ medication_id: medicationId, limit: 20 }),
+  ]);
+  return {
+    detail: getSettledPayload(detail),
+    batches: getSettledItems(batches),
+    transactions: getSettledItems(transactions),
+    errors: {
+      detail: getSettledError(detail, 'Không thể tải chi tiết thuốc.'),
+      batches: getSettledError(batches, 'Không thể tải lô liên quan.'),
+      transactions: getSettledError(transactions, 'Không thể tải giao dịch thuốc.'),
+    },
+  };
+}
+
+export async function receiveInventoryFromConsole(body = {}) {
+  return prescriptionAPI.receiveInventory(body);
+}
+
+export async function adjustBatchFromConsole(batchId, body = {}) {
+  return prescriptionAPI.adjustStockBatch(batchId, body);
+}
+
+export async function expireBatchFromConsole(batchId, body = {}) {
+  return prescriptionAPI.markStockBatchExpired(batchId, body);
+}
+
+export async function recallBatchFromConsole(batchId, body = {}) {
+  return prescriptionAPI.recallStockBatch(batchId, body);
+}
+
+export async function quarantineBatchFromConsole(batchId, body = {}) {
+  return prescriptionAPI.quarantineStockBatch(batchId, body);
+}
+
+export async function releaseQuarantineFromConsole(batchId, body = {}) {
+  return prescriptionAPI.releaseQuarantineStockBatch(batchId, body);
+}
+
+export async function wasteBatchFromConsole(batchId, body = {}) {
+  return prescriptionAPI.wasteStockBatch(batchId, body);
+}
+
+export async function transferBatchLocationFromConsole(batchId, body = {}) {
+  return prescriptionAPI.transferStockBatchLocation(batchId, body);
+}
+
+export async function loadStocktakes(filters = {}) {
+  const response = await pharmacyOverviewAPI.listStocktakes({
+    search: filters.search || undefined,
+    status: filters.status || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 20,
+  });
+  return unwrapData(response);
+}
+
+export async function loadStocktakeDetail(stocktakeId, filters = {}) {
+  const response = await pharmacyOverviewAPI.stocktakeDetail(stocktakeId, filters);
+  return unwrapData(response);
+}
+
+export async function createStocktakeFromConsole(body = {}) {
+  return pharmacyOverviewAPI.createStocktake(body);
+}
+
+export async function startStocktakeFromConsole(stocktakeId, body = {}) {
+  return pharmacyOverviewAPI.startStocktake(stocktakeId, body);
+}
+
+export async function generateStocktakeItemsFromConsole(stocktakeId, body = {}) {
+  return pharmacyOverviewAPI.generateStocktakeItems(stocktakeId, body);
+}
+
+export async function countStocktakeItemFromConsole(stocktakeId, itemId, body = {}) {
+  return pharmacyOverviewAPI.countStocktakeItem(stocktakeId, itemId, body);
+}
+
+export async function reviewStocktakeFromConsole(stocktakeId, body = {}) {
+  return pharmacyOverviewAPI.reviewStocktake(stocktakeId, body);
+}
+
+export async function postStocktakeAdjustmentsFromConsole(stocktakeId, body = {}) {
+  return pharmacyOverviewAPI.postStocktakeAdjustments(stocktakeId, body);
+}
+
+export async function loadDispensingQueue(filters = {}) {
+  const response = await pharmacyOverviewAPI.dispensingQueue({
+    status: filters.status || undefined,
+    search: filters.search || undefined,
+    risk: filters.risk || undefined,
+    department_id: filters.departmentId || undefined,
+    doctor_id: filters.doctorId || undefined,
+    storage_location: filters.storageLocation || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 25,
+  });
+  return unwrapData(response);
+}
+
+export async function loadDispensingQueueSummary(filters = {}) {
+  const response = await pharmacyOverviewAPI.dispensingQueueSummary({
+    search: filters.search || undefined,
+    risk: filters.risk || undefined,
+    storage_location: filters.storageLocation || undefined,
+  });
+  return unwrapData(response);
+}
+
+export async function loadDispensingAnalytics(filters = {}) {
+  const range = filters.date ? getDateRangeForDate(filters.date) : getRangeQuery(filters.range || 'today');
+  const response = await pharmacyOverviewAPI.dispensingAnalytics(range);
+  return unwrapData(response);
+}
+
+export async function loadDispenseHolds(filters = {}) {
+  const response = await pharmacyOverviewAPI.listDispenseHolds({
+    status: filters.status || undefined,
+    hold_type: filters.holdType || filters.hold_type || undefined,
+    severity: filters.severity || undefined,
+    search: filters.search || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 25,
+  });
+  return unwrapData(response);
+}
+
+export async function loadDispenseReturns(filters = {}) {
+  const response = await pharmacyOverviewAPI.listDispenseReturns({
+    status: filters.status || undefined,
+    search: filters.search || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 25,
+  });
+  return unwrapData(response);
+}
+
+export async function loadDispensePrintJobs(filters = {}) {
+  const response = await pharmacyOverviewAPI.listPrintJobs({
+    status: filters.status || undefined,
+    print_type: filters.printType || filters.print_type || undefined,
+    dispense_id: filters.dispenseId || filters.dispense_id || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 25,
+  });
+  return unwrapData(response);
+}
+
+export async function loadDispensesForCommand(filters = {}) {
+  const response = await prescriptionAPI.listDispenses({
+    status: filters.status || undefined,
+    workflow_stage: filters.workflowStage || filters.workflow_stage || undefined,
+    assigned_to: filters.assignedTo || filters.assigned_to || undefined,
+    priority: filters.priority || undefined,
+    date_from: filters.date_from || filters.dateFrom || undefined,
+    date_to: filters.date_to || filters.dateTo || undefined,
+    page: filters.page || 1,
+    limit: filters.limit || 30,
+  });
+  return unwrapData(response);
+}
+
+export async function loadDispenseDetailForCommand(dispenseId) {
+  const [detail, checklist, timeline, printJobs] = await Promise.allSettled([
+    prescriptionAPI.dispenseDetail(dispenseId),
+    prescriptionAPI.dispenseChecklist(dispenseId),
+    pharmacyOverviewAPI.dispenseTimeline(dispenseId),
+    prescriptionAPI.dispensePrintJobs(dispenseId),
+  ]);
+  return {
+    detail: getSettledPayload(detail),
+    checklist: getSettledPayload(checklist),
+    timeline: getSettledPayload(timeline),
+    printJobs: getSettledPayload(printJobs),
+    errors: {
+      detail: getSettledError(detail, 'Không thể tải phiếu cấp phát.'),
+      checklist: getSettledError(checklist, 'Không thể tải checklist.'),
+      timeline: getSettledError(timeline, 'Không thể tải timeline.'),
+      printJobs: getSettledError(printJobs, 'Không thể tải lịch sử in.'),
+    },
+  };
+}
+
+export async function previewDispenseCompletionPlanFromOverview(dispenseId, body = {}) {
+  return prescriptionAPI.previewDispenseCompletionPlan(dispenseId, body);
+}
+
+export async function acknowledgePharmacyAlert(alertId, body = {}) {
+  return pharmacyOverviewAPI.acknowledgeAlert(alertId, body);
+}
+
+export async function assignPharmacyAlert(alertId, body = {}) {
+  return pharmacyOverviewAPI.assignAlert(alertId, body);
+}
+
+export async function startPharmacyAlert(alertId, body = {}) {
+  return pharmacyOverviewAPI.startAlert(alertId, body);
+}
+
+export async function snoozePharmacyAlert(alertId, body = {}) {
+  return pharmacyOverviewAPI.snoozeAlert(alertId, body);
+}
+
+export async function resolvePharmacyAlert(alertId, body = {}) {
+  return pharmacyOverviewAPI.resolveAlert(alertId, body);
+}
+
+export async function dismissPharmacyAlert(alertId, body = {}) {
+  return pharmacyOverviewAPI.dismissAlert(alertId, body);
+}
+
+export async function escalatePharmacyAlert(alertId, body = {}) {
+  return pharmacyOverviewAPI.escalateAlert(alertId, body);
+}
+
+export async function bulkActionPharmacyAlerts(body = {}) {
+  return pharmacyOverviewAPI.bulkAlertAction(body);
+}
+
+export async function assignPharmacyWorkItem(workItemId, body = {}) {
+  return pharmacyOverviewAPI.assignWorkItem(workItemId, body);
+}
+
+export async function resolvePharmacyWorkItem(workItemId, body = {}) {
+  return pharmacyOverviewAPI.resolveWorkItem(workItemId, body);
 }
 
 export async function runPrescriptionSafetyChecks(prescriptionId) {

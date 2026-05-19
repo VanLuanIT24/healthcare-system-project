@@ -9,6 +9,7 @@ const {
   ImagingReport,
   LabResult,
   MedicationAdministration,
+  MedicationAdministrationEvent,
   MedicationMaster,
   MedicationReactionObservation,
   Notification,
@@ -1952,6 +1953,20 @@ async function addMedicationReaction(administrationId, payload = {}, actor = {},
     status: 'success',
     message: 'Ghi nhận phản ứng sau dùng thuốc.',
     requestMeta,
+  });
+  await MedicationAdministrationEvent.create({
+    medication_administration_id: administration._id,
+    event_type: 'reaction_recorded',
+    from_status: administration.status,
+    to_status: administration.status,
+    actor_id: actorUserId(actor),
+    actor_role: (actor.roles || actor.roleCodes || [])[0],
+    note: reaction.intervention_note || (reaction.symptoms || []).join(', '),
+    metadata: {
+      medication_reaction_observation_id: reaction._id,
+      severity: reaction.severity,
+      suspected_allergy: reaction.suspected_allergy,
+    },
   });
   return getMedicationAdministration(administration._id, actor);
 }

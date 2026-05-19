@@ -9,6 +9,7 @@ const {
   Department,
   InpatientHandover,
   InpatientTask,
+  MedicationAdministrationEvent,
   MedicationAdministration,
   MedicationMaster,
   Patient,
@@ -16,6 +17,7 @@ const {
   PrescriptionItem,
   ProblemList,
   Room,
+  StockBatch,
   User,
   VitalSign,
 } = require('../models');
@@ -29,6 +31,7 @@ const {
   INPATIENT_TASK_STATUS,
   PROBLEM_STATUS,
   ROOM_STATUS,
+  STOCK_BATCH_STATUS,
 } = require('../constants/statuses');
 const { PERMISSION } = require('../constants/permissions');
 const {
@@ -1063,6 +1066,26 @@ function medicationAdministrationDto(item = {}) {
     prescription_item: item.prescription_item_id && typeof item.prescription_item_id === 'object' ? item.prescription_item_id : null,
     medication_id: normalizeId(item.medication_id),
     medication: item.medication_id && typeof item.medication_id === 'object' ? item.medication_id : null,
+    dispense_id: normalizeId(item.dispense_id),
+    dispense_item_id: normalizeId(item.dispense_item_id),
+    stock_batch_id: normalizeId(item.stock_batch_id),
+    stock_batch: item.stock_batch_id && typeof item.stock_batch_id === 'object' ? item.stock_batch_id : null,
+    batch_no_snapshot: item.batch_no_snapshot,
+    lot_no_snapshot: item.lot_no_snapshot,
+    expiry_date_snapshot: item.expiry_date_snapshot,
+    dispensed_quantity_snapshot: item.dispensed_quantity_snapshot,
+    dispensed_unit_snapshot: item.dispensed_unit_snapshot,
+    scan_result: item.scan_result,
+    scan_warnings: item.scan_warnings || [],
+    double_check_required: Boolean(item.double_check_required),
+    double_checked_by: normalizeId(item.double_checked_by),
+    double_checked_at: item.double_checked_at,
+    exception_type: item.exception_type,
+    reason_code: item.reason_code,
+    reason_detail: item.reason_detail,
+    requires_doctor_review: Boolean(item.requires_doctor_review),
+    requires_pharmacist_review: Boolean(item.requires_pharmacist_review),
+    pharmacist_review_status: item.pharmacist_review_status,
     administered_by: normalizeId(item.administered_by),
     administered_by_user: userDto(item.administered_by),
     scheduled_at: item.scheduled_at,
@@ -1116,7 +1139,8 @@ async function listMedicationAdministrations(query = {}, actor = {}) {
       .populate('patient_id', 'patient_code full_name gender date_of_birth')
       .populate('admission_id', 'admission_no status department_id')
       .populate('prescription_item_id', 'dose frequency route instructions status')
-      .populate('medication_id', 'medication_code name generic_name strength dosage_form')
+      .populate('medication_id', 'medication_code name generic_name strength dosage_form high_alert_medication controlled_drug requires_double_check requires_vital_before_admin requires_vital_after_admin requires_blood_glucose requires_pain_score')
+      .populate('stock_batch_id', 'batch_no lot_no expiry_date status storage_location')
       .populate('administered_by', 'full_name username employee_code')
       .lean(),
     MedicationAdministration.countDocuments(filter),
@@ -1143,7 +1167,8 @@ async function getMedicationAdministrationDetail(administrationId, actor = {}) {
     .populate('patient_id', 'patient_code full_name gender date_of_birth')
     .populate('admission_id', 'admission_no status department_id')
     .populate('prescription_item_id', 'dose frequency route instructions status')
-    .populate('medication_id', 'medication_code name generic_name strength dosage_form')
+    .populate('medication_id', 'medication_code name generic_name strength dosage_form high_alert_medication controlled_drug requires_double_check requires_vital_before_admin requires_vital_after_admin requires_blood_glucose requires_pain_score')
+    .populate('stock_batch_id', 'batch_no lot_no expiry_date status storage_location')
     .populate('administered_by', 'full_name username employee_code')
     .lean();
   if (!item) throw createError('Không tìm thấy medication administration.', 404);
@@ -1164,6 +1189,7 @@ async function transitionMedicationAdministration(administrationId, nextStatus, 
   assertStaffPermission(actor, writePermissions);
   const item = await MedicationAdministration.findById(administrationId).populate('admission_id');
   if (!item) throw createError('Không tìm thấy medication administration.', 404);
+  const previousStatus = item.status;
   assertDepartmentAccess(actor, item.admission_id?.department_id, [
     PERMISSION.ADMISSIONS.READ,
     PERMISSION.PRESCRIPTIONS.READ,
@@ -1181,6 +1207,20 @@ async function transitionMedicationAdministration(administrationId, nextStatus, 
     if (payload.site !== undefined) item.site = normalizeString(payload.site);
   } else {
     item.reason_not_given = normalizeString(payload.reason_not_given || payload.reason || item.reason_not_given);
+    item.exception_type = nextStatus === ADMINISTRATION_STATUS.HELD
+      ? 'held'
+      : nextStatus === ADMINISTRATION_STATUS.REFUSED
+        ? 'refused'
+        : nextStatus === ADMINISTRATION_STATUS.OMITTED
+          ? 'omitted'
+          : nextStatus === ADMINISTRATION_STATUS.ENTERED_IN_ERROR
+            ? 'entered_in_error'
+            : item.exception_type;
+    item.reason_code = normalizeString(payload.reason_code || item.reason_code) || undefined;
+    item.reason_detail = normalizeString(payload.reason_detail || payload.reason || item.reason_detail) || undefined;
+    item.requires_doctor_review = Boolean(payload.requires_doctor_review || item.requires_doctor_review);
+    item.requires_pharmacist_review = Boolean(payload.requires_pharmacist_review || item.requires_pharmacist_review);
+    if (item.requires_pharmacist_review && !item.pharmacist_review_status) item.pharmacist_review_status = 'pending';
   }
   item.updated_by = actorUserId(actor);
   await item.save();
@@ -1192,6 +1232,17 @@ async function transitionMedicationAdministration(administrationId, nextStatus, 
     [ADMINISTRATION_STATUS.ENTERED_IN_ERROR]: 'inpatient.medication.entered_in_error',
   };
   await recordAuditLog({ actor, action: `medication_administration.${nextStatus}`, targetType: 'medication_administration', targetId: item._id, status: 'success', message: 'Cập nhật medication administration thành công.', requestMeta });
+  await MedicationAdministrationEvent.create({
+    medication_administration_id: item._id,
+    event_type: nextStatus === ADMINISTRATION_STATUS.GIVEN ? 'administered' : nextStatus,
+    from_status: previousStatus,
+    to_status: nextStatus,
+    actor_id: actorUserId(actor),
+    actor_role: (actor.roles || actor.roleCodes || [])[0],
+    reason_code: item.reason_code,
+    note: item.note || item.reason_not_given,
+    metadata: { request_id: requestMeta?.requestId },
+  });
   emitInpatientEvent(eventByStatus[nextStatus] || 'inpatient.medication.updated', {
     department_id: item.admission_id?.department_id,
     admission_id: item.admission_id?._id || item.admission_id,
@@ -1206,6 +1257,8 @@ async function rescheduleMedicationAdministration(administrationId, payload = {}
   assertStaffPermission(actor, [PERMISSION.MEDICATION_ADMINISTRATIONS.HOLD, PERMISSION.MEDICATION_ADMINISTRATIONS.ADMINISTER]);
   const item = await MedicationAdministration.findById(administrationId).populate('admission_id');
   if (!item) throw createError('Không tìm thấy medication administration.', 404);
+  const previousScheduledAt = item.scheduled_at;
+  const previousStatus = item.status;
   assertDepartmentAccess(actor, item.admission_id?.department_id, [
     PERMISSION.ADMISSIONS.READ,
     PERMISSION.PRESCRIPTIONS.READ,
@@ -1218,6 +1271,17 @@ async function rescheduleMedicationAdministration(administrationId, payload = {}
   item.updated_by = actorUserId(actor);
   await item.save();
   await recordAuditLog({ actor, action: 'medication_administration.reschedule', targetType: 'medication_administration', targetId: item._id, status: 'success', message: 'Reschedule medication administration thành công.', requestMeta });
+  await MedicationAdministrationEvent.create({
+    medication_administration_id: item._id,
+    event_type: 'rescheduled',
+    from_status: previousStatus,
+    to_status: item.status,
+    actor_id: actorUserId(actor),
+    actor_role: (actor.roles || actor.roleCodes || [])[0],
+    reason_code: payload.reason_code,
+    note: payload.note || payload.reason,
+    metadata: { previous_scheduled_at: previousScheduledAt, scheduled_at: item.scheduled_at },
+  });
   return getMedicationAdministrationDetail(item._id, actor);
 }
 
@@ -1278,12 +1342,14 @@ async function generateMedicationScheduleFromPrescription(payload = {}, actor = 
 
 async function verifyMedicationScan(payload = {}, actor = {}) {
   assertStaffPermission(actor, [PERMISSION.MEDICATION_ADMINISTRATIONS.READ, PERMISSION.MEDICATION_ADMINISTRATIONS.ADMINISTER]);
+  const administrationDoc = await MedicationAdministration.findById(payload.administration_id);
+  if (!administrationDoc) throw createError('Không tìm thấy medication administration.', 404);
   const administration = await MedicationAdministration.findById(payload.administration_id)
     .populate('patient_id', 'patient_code full_name')
     .populate('admission_id', 'admission_no department_id')
-    .populate('medication_id', 'medication_code name generic_name')
+    .populate('medication_id', 'medication_code name generic_name high_alert_medication controlled_drug requires_double_check')
+    .populate('stock_batch_id', 'batch_no lot_no expiry_date status')
     .lean();
-  if (!administration) throw createError('Không tìm thấy medication administration.', 404);
   assertDepartmentAccess(actor, administration.admission_id?.department_id, [
     PERMISSION.ADMISSIONS.READ,
     PERMISSION.PRESCRIPTIONS.READ,
@@ -1291,6 +1357,16 @@ async function verifyMedicationScan(payload = {}, actor = {}) {
   const patientMatch = !payload.patient_id || sameId(payload.patient_id, administration.patient_id);
   const admissionMatch = !payload.admission_id || sameId(payload.admission_id, administration.admission_id);
   const medicationMatch = !payload.medication_id || sameId(payload.medication_id, administration.medication_id);
+  let stockBatch = null;
+  if (payload.stock_batch_id) {
+    stockBatch = await StockBatch.findById(payload.stock_batch_id).lean();
+  } else if (payload.batch_no) {
+    stockBatch = await StockBatch.findOne({ batch_no: normalizeString(payload.batch_no), medication_id: administration.medication_id?._id || administration.medication_id, is_deleted: false }).lean();
+  }
+  const stockBatchMatch = !stockBatch || !administration.stock_batch_id || sameId(stockBatch._id, administration.stock_batch_id);
+  const expiryValid = !stockBatch?.expiry_date || new Date(stockBatch.expiry_date) > new Date();
+  const recallValid = stockBatch?.status !== STOCK_BATCH_STATUS.RECALLED;
+  const quarantineValid = stockBatch?.status !== STOCK_BATCH_STATUS.QUARANTINED;
   const dueMinutes = minutesFromNow(administration.scheduled_at);
   const timeWindowValid = dueMinutes !== null && dueMinutes >= -120 && dueMinutes <= 120;
   const warnings = [];
@@ -1298,11 +1374,47 @@ async function verifyMedicationScan(payload = {}, actor = {}) {
   if (!patientMatch) warnings.push('QR bệnh nhân không khớp.');
   if (!medicationMatch) warnings.push('Mã thuốc không khớp.');
   if (!admissionMatch) warnings.push('Admission không khớp.');
+  if (!stockBatchMatch) warnings.push('Lô thuốc không khớp eMAR/cấp phát.');
+  if (!expiryValid) warnings.push('Lô thuốc đã hết hạn.');
+  if (!recallValid) warnings.push('Lô thuốc đang recall.');
+  if (!quarantineValid) warnings.push('Lô thuốc đang cách ly.');
+  if (administration.medication_id?.high_alert_medication || administration.medication_id?.requires_double_check) warnings.push('Thuốc cần double-check.');
+  const valid = patientMatch && admissionMatch && medicationMatch && stockBatchMatch && expiryValid && recallValid && quarantineValid;
+  administrationDoc.verified_patient_scan_at = payload.patient_id ? new Date() : administrationDoc.verified_patient_scan_at;
+  administrationDoc.verified_medication_scan_at = payload.medication_id || stockBatch ? new Date() : administrationDoc.verified_medication_scan_at;
+  administrationDoc.verified_stock_batch_id = stockBatch?._id || administrationDoc.verified_stock_batch_id;
+  administrationDoc.scan_result = valid ? (warnings.length ? 'warning' : 'pass') : 'fail';
+  administrationDoc.scan_warnings = warnings;
+  if (stockBatch && !administrationDoc.stock_batch_id) {
+    administrationDoc.stock_batch_id = stockBatch._id;
+    administrationDoc.batch_no_snapshot = stockBatch.batch_no;
+    administrationDoc.lot_no_snapshot = stockBatch.lot_no;
+    administrationDoc.expiry_date_snapshot = stockBatch.expiry_date;
+  }
+  administrationDoc.double_check_required = Boolean(administrationDoc.double_check_required || administration.medication_id?.requires_double_check || administration.medication_id?.high_alert_medication);
+  administrationDoc.updated_by = actorUserId(actor);
+  await administrationDoc.save();
+  await MedicationAdministrationEvent.create({
+    medication_administration_id: administrationDoc._id,
+    event_type: 'scan_verified',
+    from_status: administration.status,
+    to_status: administration.status,
+    actor_id: actorUserId(actor),
+    actor_role: (actor.roles || actor.roleCodes || [])[0],
+    note: warnings.join(' | '),
+    metadata: { stock_batch_id: stockBatch?._id, scan_result: administrationDoc.scan_result },
+  });
   return {
-    valid: patientMatch && admissionMatch && medicationMatch,
+    valid,
     patient_match: patientMatch,
     admission_match: admissionMatch,
     medication_match: medicationMatch,
+    stock_batch_match: stockBatchMatch,
+    dispense_item_match: true,
+    expiry_valid: expiryValid,
+    recall_valid: recallValid,
+    quarantine_valid: quarantineValid,
+    double_check_required: administrationDoc.double_check_required,
     time_window_valid: timeWindowValid,
     dose_match: !payload.dose || normalizeString(payload.dose) === normalizeString(administration.dose),
     route_match: !payload.route || normalizeString(payload.route) === normalizeString(administration.route),
@@ -1310,6 +1422,7 @@ async function verifyMedicationScan(payload = {}, actor = {}) {
     administration: medicationAdministrationDto(administration),
     patient: patientDto(administration.patient_id),
     medication: administration.medication_id,
+    stock_batch: stockBatch || administration.stock_batch_id,
   };
 }
 

@@ -1,13 +1,34 @@
-const { StockBatch } = require('../models');
+const { PharmacyAlert, StockBatch } = require('../models');
 const { REALTIME_EVENT_TYPE, STOCK_BATCH_STATUS } = require('../constants/statuses');
 const { ROLE_CODE } = require('../constants/permissions');
 const eventBus = require('../events/event-bus.service');
+const { generateSequenceCode } = require('../services/code-generator.service');
 
 const EXPIRY_WINDOW_DAYS = Number(process.env.DRUG_EXPIRY_ALERT_DAYS || 30);
 
 function toId(value) {
   if (!value) return null;
   return typeof value.toString === 'function' ? value.toString() : String(value);
+}
+
+async function ensurePharmacyAlert(payload = {}) {
+  if (!payload.dedupe_key) return null;
+  const openStatuses = ['open', 'acknowledged', 'assigned', 'in_progress'];
+  const existing = await PharmacyAlert.findOne({ dedupe_key: payload.dedupe_key, status: { $in: openStatuses } }).select('_id').lean();
+  if (existing) return existing;
+  const alertCode = await generateSequenceCode(PharmacyAlert, 'alert_code', 'PAL', { sequenceWidth: 4 });
+  try {
+    return await PharmacyAlert.create({
+      ...payload,
+      alert_code: alertCode,
+      status: payload.status || 'open',
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return PharmacyAlert.findOne({ dedupe_key: payload.dedupe_key }).lean();
+    }
+    throw error;
+  }
 }
 
 async function lowStockAlert({ limit = 100 } = {}) {
@@ -40,6 +61,22 @@ async function lowStockAlert({ limit = 100 } = {}) {
       },
       idempotencyKey: `low_stock:${toId(batch._id)}:${batch.quantity_on_hand}`,
     }, { publishImmediately: false });
+
+    await ensurePharmacyAlert({
+      alert_type: 'low_stock',
+      severity: 'high',
+      source_type: 'stock_batch',
+      source_id: batch._id,
+      medication_id: batch.medication_id?._id || batch.medication_id,
+      stock_batch_id: batch._id,
+      title: 'Cảnh báo tồn kho thấp',
+      message: `${batch.medication_id?.generic_name || batch.batch_no} còn ${batch.quantity_on_hand}, ngưỡng tối thiểu ${batch.min_stock_level}.`,
+      dedupe_key: `low_stock:${toId(batch._id)}`,
+      metadata: {
+        quantity_on_hand: batch.quantity_on_hand,
+        min_stock_level: batch.min_stock_level,
+      },
+    });
   }
 
   return { low_stock_count: batches.length, stock_batch_ids: batches.map((item) => toId(item._id)) };
@@ -76,6 +113,22 @@ async function drugExpiryAlert({ limit = 100 } = {}) {
       },
       idempotencyKey: `drug_expiring:${toId(batch._id)}:${new Date(batch.expiry_date).toISOString().slice(0, 10)}`,
     }, { publishImmediately: false });
+
+    await ensurePharmacyAlert({
+      alert_type: 'near_expiry',
+      severity: 'high',
+      source_type: 'stock_batch',
+      source_id: batch._id,
+      medication_id: batch.medication_id?._id || batch.medication_id,
+      stock_batch_id: batch._id,
+      title: 'Cảnh báo thuốc sắp hết hạn',
+      message: `${batch.medication_id?.generic_name || batch.batch_no} sắp hết hạn ngày ${new Date(batch.expiry_date).toISOString().slice(0, 10)}.`,
+      dedupe_key: `drug_expiring:${toId(batch._id)}`,
+      metadata: {
+        expiry_date: batch.expiry_date,
+        quantity_on_hand: batch.quantity_on_hand,
+      },
+    });
   }
 
   return { expiring_count: batches.length, stock_batch_ids: batches.map((item) => toId(item._id)) };

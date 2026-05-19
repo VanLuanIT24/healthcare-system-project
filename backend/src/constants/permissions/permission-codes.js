@@ -750,6 +750,43 @@ const PERMISSION = {
     MEDICAL_RECORDS_READ: 'reports.medical_records.read',
     MEDICAL_RECORDS_EXPORT: 'reports.medical_records.export',
   },
+  PHARMACY_REPORTS: {
+    DASHBOARD_READ: 'pharmacy_reports.dashboard.read',
+    INVENTORY_OVERVIEW_READ: 'pharmacy_reports.inventory_overview.read',
+    INVENTORY_MOVEMENT_READ: 'pharmacy_reports.inventory_movement.read',
+    DISPENSING_READ: 'pharmacy_reports.dispensing.read',
+    EXPIRING_STOCK_READ: 'pharmacy_reports.expiring_stock.read',
+    LOW_STOCK_READ: 'pharmacy_reports.low_stock.read',
+    INVENTORY_VALUATION_READ: 'pharmacy_reports.inventory_valuation.read',
+    HIGH_USAGE_READ: 'pharmacy_reports.high_usage.read',
+    WASTE_DISPOSAL_READ: 'pharmacy_reports.waste_disposal.read',
+    EXPORT: 'pharmacy_reports.export',
+  },
+  PHARMACY_CONFIG: {
+    READ: 'pharmacy_config.read',
+    CREATE: 'pharmacy_config.create',
+    UPDATE: 'pharmacy_config.update',
+    DELETE: 'pharmacy_config.delete',
+    MERGE: 'pharmacy_config.merge',
+    IMPORT: 'pharmacy_config.import',
+    EXPORT: 'pharmacy_config.export',
+  },
+  PHARMACY_POLICY: {
+    READ: 'pharmacy_policy.read',
+    CREATE: 'pharmacy_policy.create',
+    UPDATE: 'pharmacy_policy.update',
+    ACTIVATE: 'pharmacy_policy.activate',
+    DEACTIVATE: 'pharmacy_policy.deactivate',
+    TEST: 'pharmacy_policy.test',
+  },
+  CONTROLLED_DRUG_POLICY: {
+    READ: 'controlled_drug_policy.read',
+    MANAGE: 'controlled_drug_policy.manage',
+  },
+  CONTROLLED_DRUG_LEDGER: {
+    READ: 'controlled_drug_ledger.read',
+    CREATE: 'controlled_drug_ledger.create',
+  },
 };
 
 const LEGACY_PERMISSION = {

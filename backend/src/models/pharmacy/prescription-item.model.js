@@ -11,6 +11,7 @@ const prescriptionItemSchema = new Schema(
     dose: { type: String, trim: true },
     frequency: { type: String, trim: true },
     route: { type: String, trim: true },
+    route_id: { type: Schema.Types.ObjectId, ref: 'AdministrationRoute' },
     duration_days: { type: Number, min: 0 },
     quantity: { type: Number, required: true, min: 0 },
     unit: { type: String, required: true, trim: true },
@@ -24,6 +25,7 @@ const prescriptionItemSchema = new Schema(
 
 prescriptionItemSchema.index({ prescription_id: 1 });
 prescriptionItemSchema.index({ medication_id: 1 });
+prescriptionItemSchema.index({ route_id: 1 });
 prescriptionItemSchema.index({ status: 1 });
 prescriptionItemSchema.index(
   { prescription_id: 1, medication_id: 1 },

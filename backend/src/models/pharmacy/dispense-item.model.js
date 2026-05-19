@@ -11,6 +11,7 @@ const dispenseItemSchema = new Schema(
     medication_id: { type: Schema.Types.ObjectId, ref: 'MedicationMaster', required: true },
     stock_batch_id: { type: Schema.Types.ObjectId, ref: 'StockBatch' },
     quantity: { type: Number, required: true, min: 0 },
+    returned_quantity: { type: Number, default: 0, min: 0, required: true },
     unit: { type: String, trim: true },
     instructions: { type: String },
     status: { type: String, enum: DISPENSE_ITEM_STATUSES, default: DISPENSE_ITEM_STATUS.PLANNED, required: true },

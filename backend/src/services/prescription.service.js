@@ -11,6 +11,7 @@ const {
   Patient,
   Prescription,
   PrescriptionItem,
+  PrescriptionRefillRequest,
   ServiceCatalog,
   StockBatch,
 } = require('../models');
@@ -39,6 +40,7 @@ const {
   ORDER_TYPE,
   PRESCRIPTION_ITEM_STATUS,
   PRESCRIPTION_STATUS,
+  PRESCRIPTION_REFILL_REQUEST_STATUS,
   SERVICE_STATUS,
   SERVICE_TYPE,
   STOCK_BATCH_STATUS,
@@ -145,6 +147,10 @@ function nonEmpty(value) {
   return normalizeString(value).length > 0;
 }
 
+function booleanQuery(value) {
+  return value === true || String(value || '').toLowerCase() === 'true' || String(value || '') === '1';
+}
+
 function isDuplicateKeyError(error) {
   return error?.code === 11000 || error?.name === 'MongoServerError' && error?.code === 11000;
 }
@@ -159,6 +165,13 @@ function parseDate(value, fieldName) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) throw createError(`${fieldName} không hợp lệ.`);
   return date;
+}
+
+function applyDateRangeFilter(filter, fieldName, fromValue, toValue, fromFieldName = `${fieldName}_from`, toFieldName = `${fieldName}_to`) {
+  if (!fromValue && !toValue) return;
+  filter[fieldName] = {};
+  if (fromValue) filter[fieldName].$gte = parseDate(fromValue, fromFieldName);
+  if (toValue) filter[fieldName].$lte = parseDate(toValue, toFieldName);
 }
 
 function parseNonNegativeNumber(value, fieldName, fallback = 0) {
@@ -388,6 +401,167 @@ async function createMedication(payload = {}, actor, requestMeta = {}) {
   return getMedicationDetail(medication._id, actor);
 }
 
+async function getMedicationStockSummaries(medicationIds = []) {
+  const ids = medicationIds.map((id) => toObjectId(id, 'medication_id'));
+  if (!ids.length) return new Map();
+  const now = new Date();
+  const thirtyDaysFromNow = new Date(now.getTime() + 30 * 86400000);
+  const rows = await StockBatch.aggregate([
+    { $match: { medication_id: { $in: ids }, is_deleted: false } },
+    {
+      $group: {
+        _id: '$medication_id',
+        total_on_hand: { $sum: '$quantity_on_hand' },
+        available_on_hand: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$status', STOCK_BATCH_STATUS.AVAILABLE] },
+                  { $gt: ['$quantity_on_hand', 0] },
+                  {
+                    $or: [
+                      { $eq: ['$expiry_date', null] },
+                      { $gt: ['$expiry_date', now] },
+                    ],
+                  },
+                ],
+              },
+              '$quantity_on_hand',
+              0,
+            ],
+          },
+        },
+        batch_count: { $sum: 1 },
+        available_batches: {
+          $sum: {
+            $cond: [
+              { $and: [{ $eq: ['$status', STOCK_BATCH_STATUS.AVAILABLE] }, { $gt: ['$quantity_on_hand', 0] }] },
+              1,
+              0,
+            ],
+          },
+        },
+        near_expiry_batches: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ['$expiry_date', null] },
+                  { $gte: ['$expiry_date', now] },
+                  { $lte: ['$expiry_date', thirtyDaysFromNow] },
+                  { $gt: ['$quantity_on_hand', 0] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+        expired_batches: {
+          $sum: {
+            $cond: [
+              { $or: [{ $eq: ['$status', STOCK_BATCH_STATUS.EXPIRED] }, { $lt: ['$expiry_date', now] }] },
+              1,
+              0,
+            ],
+          },
+        },
+        recalled_batches: {
+          $sum: { $cond: [{ $eq: ['$status', STOCK_BATCH_STATUS.RECALLED] }, 1, 0] },
+        },
+        quarantined_batches: {
+          $sum: { $cond: [{ $eq: ['$status', STOCK_BATCH_STATUS.QUARANTINED] }, 1, 0] },
+        },
+        inventory_value: { $sum: { $multiply: ['$quantity_on_hand', { $ifNull: ['$unit_cost', 0] }] } },
+      },
+    },
+  ]);
+  return new Map(rows.map((row) => [String(row._id), row]));
+}
+
+async function findMedicationIdsByStockFilters(baseFilter = {}, query = {}) {
+  const needsStockFilter = booleanQuery(query.below_min_stock)
+    || booleanQuery(query.without_stock)
+    || booleanQuery(query.has_near_expiry);
+  if (!needsStockFilter) return null;
+
+  const now = new Date();
+  const days = Math.min(Math.max(Number(query.near_expiry_days || 30), 1), 365);
+  const nearExpiryTo = new Date(now.getTime() + days * 86400000);
+  const conditions = [];
+  if (booleanQuery(query.below_min_stock)) {
+    conditions.push({ $expr: { $and: [{ $gt: ['$total_on_hand', 0] }, { $lte: ['$total_on_hand', '$min_stock_level'] }] } });
+  }
+  if (booleanQuery(query.without_stock)) {
+    conditions.push({ available_on_hand: { $lte: 0 } });
+  }
+  if (booleanQuery(query.has_near_expiry)) {
+    conditions.push({ near_expiry_batches: { $gt: 0 } });
+  }
+
+  const rows = await MedicationMaster.aggregate([
+    { $match: baseFilter },
+    {
+      $lookup: {
+        from: 'stock_batches',
+        let: { medicationId: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$medication_id', '$$medicationId'] }, is_deleted: false } },
+          {
+            $group: {
+              _id: '$medication_id',
+              total_on_hand: { $sum: '$quantity_on_hand' },
+              available_on_hand: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $eq: ['$status', STOCK_BATCH_STATUS.AVAILABLE] },
+                        { $gt: ['$quantity_on_hand', 0] },
+                        { $or: [{ $eq: ['$expiry_date', null] }, { $gt: ['$expiry_date', now] }] },
+                      ],
+                    },
+                    '$quantity_on_hand',
+                    0,
+                  ],
+                },
+              },
+              near_expiry_batches: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $ne: ['$expiry_date', null] },
+                        { $gte: ['$expiry_date', now] },
+                        { $lte: ['$expiry_date', nearExpiryTo] },
+                        { $gt: ['$quantity_on_hand', 0] },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ],
+        as: 'stock',
+      },
+    },
+    {
+      $addFields: {
+        total_on_hand: { $ifNull: [{ $first: '$stock.total_on_hand' }, 0] },
+        available_on_hand: { $ifNull: [{ $first: '$stock.available_on_hand' }, 0] },
+        near_expiry_batches: { $ifNull: [{ $first: '$stock.near_expiry_batches' }, 0] },
+      },
+    },
+    { $match: { $and: conditions } },
+    { $project: { _id: 1 } },
+  ]);
+  return rows.map((row) => row._id);
+}
+
 async function listMedications(query = {}) {
   const { page, limit, skip } = getPagination(query);
   const filter = { is_deleted: false };
@@ -396,18 +570,66 @@ async function listMedications(query = {}) {
   }
   if (query.search || query.keyword) {
     const keyword = escapeRegex(query.search || query.keyword);
-    filter.$or = [
-      { medication_code: { $regex: keyword, $options: 'i' } },
-      { generic_name: { $regex: keyword, $options: 'i' } },
-      { brand_name: { $regex: keyword, $options: 'i' } },
+    filter.$and = [
+      ...(filter.$and || []),
+      {
+        $or: [
+          { medication_code: { $regex: keyword, $options: 'i' } },
+          { generic_name: { $regex: keyword, $options: 'i' } },
+          { brand_name: { $regex: keyword, $options: 'i' } },
+        ],
+      },
     ];
   }
+  if (booleanQuery(query.missing_price)) {
+    filter.$and = [
+      ...(filter.$and || []),
+      {
+        $or: [
+          { sale_price: { $exists: false } },
+          { sale_price: null },
+          { sale_price: { $lte: 0 } },
+        ],
+      },
+    ];
+  }
+  if (booleanQuery(query.missing_service)) {
+    filter.$and = [
+      ...(filter.$and || []),
+      {
+        $or: [
+          { service_id: { $exists: false } },
+          { service_id: null },
+        ],
+      },
+    ];
+  }
+
+  const stockFilteredIds = await findMedicationIdsByStockFilters(filter, query);
+  if (stockFilteredIds) filter._id = stockFilteredIds.length ? { $in: stockFilteredIds } : { $in: [] };
 
   const [items, total] = await Promise.all([
     MedicationMaster.find(filter).sort({ generic_name: 1, brand_name: 1 }).skip(skip).limit(limit).lean(),
     MedicationMaster.countDocuments(filter),
   ]);
-  return { items, pagination: buildPagination(page, limit, total) };
+  const stockSummaries = await getMedicationStockSummaries(items.map((item) => item._id));
+  return {
+    items: items.map((item) => ({
+      ...item,
+      stock_summary: stockSummaries.get(String(item._id)) || {
+        total_on_hand: 0,
+        available_on_hand: 0,
+        batch_count: 0,
+        available_batches: 0,
+        near_expiry_batches: 0,
+        expired_batches: 0,
+        recalled_batches: 0,
+        quarantined_batches: 0,
+        inventory_value: 0,
+      },
+    })),
+    pagination: buildPagination(page, limit, total),
+  };
 }
 
 async function searchMedications(query = {}) {
@@ -515,6 +737,14 @@ function normalizeStockBatchStatus(quantityOnHand, expiryDate, currentStatus = S
   return currentStatus;
 }
 
+function applyDepletionMetadata(batch, actor, reason, transactionId = null) {
+  if (!batch || Number(batch.quantity_on_hand || 0) > 0 || batch.status !== STOCK_BATCH_STATUS.DEPLETED) return;
+  batch.depleted_at = batch.depleted_at || new Date();
+  batch.depleted_by = batch.depleted_by || actor?.userId;
+  batch.depleted_reason = batch.depleted_reason || reason;
+  if (transactionId) batch.last_transaction_id = transactionId;
+}
+
 function validateStockBatchPayload(payload = {}, options = {}) {
   if (!payload.medication_id) throw createError('medication_id là bắt buộc.');
   if (!nonEmpty(payload.batch_no)) throw createError('batch_no là bắt buộc.');
@@ -541,6 +771,8 @@ function validateStockBatchPayload(payload = {}, options = {}) {
     quantity_on_hand: quantityOnHand,
     unit_cost: payload.unit_cost !== undefined ? parseNonNegativeNumber(payload.unit_cost, 'unit_cost') : undefined,
     min_stock_level: parseNonNegativeNumber(payload.min_stock_level, 'min_stock_level', 0),
+    warehouse_id: payload.warehouse_id || undefined,
+    storage_location_id: payload.storage_location_id || undefined,
     storage_location: payload.storage_location ? normalizeString(payload.storage_location) : undefined,
     status: payload.status || normalizeStockBatchStatus(quantityOnHand, expiryDate),
   };
@@ -585,17 +817,59 @@ async function createStockBatch(payload = {}, actor, requestMeta = {}) {
 async function listStockBatches(query = {}) {
   const { page, limit, skip } = getPagination(query);
   const filter = { is_deleted: false };
-  for (const field of ['medication_id', 'status', 'storage_location', 'supplier_name']) {
+  for (const field of ['medication_id', 'status', 'storage_location', 'supplier_name', 'warehouse_id', 'storage_location_id']) {
     if (query[field]) filter[field] = query[field];
+  }
+  if (query.search || query.keyword) {
+    const keyword = escapeRegex(query.search || query.keyword);
+    filter.$and = [
+      ...(filter.$and || []),
+      {
+        $or: [
+          { batch_no: { $regex: keyword, $options: 'i' } },
+          { lot_no: { $regex: keyword, $options: 'i' } },
+          { supplier_name: { $regex: keyword, $options: 'i' } },
+          { storage_location: { $regex: keyword, $options: 'i' } },
+        ],
+      },
+    ];
   }
   if (query.expiry_from || query.expiry_to) {
     filter.expiry_date = {};
     if (query.expiry_from) filter.expiry_date.$gte = parseDate(query.expiry_from, 'expiry_from');
     if (query.expiry_to) filter.expiry_date.$lte = parseDate(query.expiry_to, 'expiry_to');
   }
+  if (query.received_from || query.received_to) {
+    filter.received_date = {};
+    if (query.received_from) filter.received_date.$gte = parseDate(query.received_from, 'received_from');
+    if (query.received_to) filter.received_date.$lte = parseDate(query.received_to, 'received_to');
+  }
   if (String(query.near_expiry || '') === 'true') {
     const days = Number(query.near_expiry_days || 30);
     filter.expiry_date = { $lte: new Date(Date.now() + days * 24 * 60 * 60 * 1000), $gte: new Date() };
+  }
+  if (booleanQuery(query.depleted)) {
+    filter.$and = [
+      ...(filter.$and || []),
+      { $or: [{ status: STOCK_BATCH_STATUS.DEPLETED }, { quantity_on_hand: 0 }] },
+    ];
+  }
+  if (booleanQuery(query.has_stock)) {
+    filter.quantity_on_hand = { $gt: 0 };
+  }
+  if (booleanQuery(query.expired)) {
+    filter.$and = [
+      ...(filter.$and || []),
+      { $or: [{ status: STOCK_BATCH_STATUS.EXPIRED }, { expiry_date: { $lt: new Date() } }] },
+    ];
+  }
+  if (booleanQuery(query.valid)) {
+    filter.status = STOCK_BATCH_STATUS.AVAILABLE;
+    filter.quantity_on_hand = { $gt: 0 };
+    filter.$and = [
+      ...(filter.$and || []),
+      buildExpiryAvailableCondition(new Date()),
+    ];
   }
   const [items, total] = await Promise.all([
     StockBatch.find(filter)
@@ -649,10 +923,21 @@ async function createInventoryTransaction(payload = {}, actor, session = null) {
     transaction_type: payload.transaction_type,
     direction: payload.direction,
     quantity,
+    balance_before: payload.balance_before !== undefined ? parseNonNegativeNumber(payload.balance_before, 'balance_before') : undefined,
     balance_after: parseNonNegativeNumber(payload.balance_after, 'balance_after', 0),
     unit_cost: payload.unit_cost !== undefined ? parseNonNegativeNumber(payload.unit_cost, 'unit_cost') : undefined,
+    warehouse_id: payload.warehouse_id,
+    from_warehouse_id: payload.from_warehouse_id,
+    to_warehouse_id: payload.to_warehouse_id,
+    storage_location_id: payload.storage_location_id,
+    from_storage_location_id: payload.from_storage_location_id,
+    to_storage_location_id: payload.to_storage_location_id,
     reference_type: payload.reference_type,
     reference_id: payload.reference_id,
+    reason_code: payload.reason_code,
+    document_no: payload.document_no,
+    approval_id: payload.approval_id,
+    metadata: payload.metadata,
     performed_by: actor?.userId,
     occurred_at: payload.occurred_at || new Date(),
     note: payload.note,
@@ -702,6 +987,9 @@ async function receiveInventory(payload = {}, actor, requestMeta = {}) {
       if ([STOCK_BATCH_STATUS.DEPLETED, STOCK_BATCH_STATUS.AVAILABLE].includes(batch.status)) {
         batch.status = STOCK_BATCH_STATUS.AVAILABLE;
       }
+      batch.depleted_at = undefined;
+      batch.depleted_by = undefined;
+      batch.depleted_reason = undefined;
       if (payload.unit_cost !== undefined) batch.unit_cost = parseNonNegativeNumber(payload.unit_cost, 'unit_cost');
       if (payload.storage_location !== undefined) batch.storage_location = normalizeString(payload.storage_location);
       batch.updated_by = actor?.userId;
@@ -717,7 +1005,12 @@ async function receiveInventory(payload = {}, actor, requestMeta = {}) {
       balance_after: batch.quantity_on_hand,
       unit_cost: payload.unit_cost !== undefined ? payload.unit_cost : batch.unit_cost,
       reference_type: payload.reference_type || 'inventory_receipt',
-      reference_id: batch._id,
+      reference_id: payload.reference_id || batch._id,
+      reason_code: payload.reason_code,
+      document_no: payload.document_no,
+      warehouse_id: payload.warehouse_id || batch.warehouse_id,
+      storage_location_id: payload.storage_location_id || batch.storage_location_id,
+      metadata: payload.metadata,
       occurred_at: parseDate(payload.occurred_at, 'occurred_at') || new Date(),
       note: reason,
     }, actor, session);
@@ -778,6 +1071,10 @@ async function adjustInventory(batchId, payload = {}, actor, requestMeta = {}) {
       note: reason,
     }, actor, session);
     transactionId = transaction._id;
+    if (batch.status === STOCK_BATCH_STATUS.DEPLETED) {
+      applyDepletionMetadata(batch, actor, 'adjustment', transaction._id);
+      await batch.save(sessionOptions(session));
+    }
   }, { fallbackToNoTransaction: false });
 
   await recordAuditLog({ actor, action: 'inventory.adjustment', targetType: 'stock_batch', targetId: batchId, status: 'success', message: 'Điều chỉnh tồn kho thành công.', requestMeta, metadata: { transaction_id: transactionId, direction, quantity, reason } });
@@ -864,6 +1161,12 @@ async function recallStockBatch(batchId, payload = {}, actor, requestMeta = {}) 
     const quantityOut = Number(batch.quantity_on_hand || 0);
     batch.quantity_on_hand = 0;
     batch.status = STOCK_BATCH_STATUS.RECALLED;
+    batch.recall_reason = reason;
+    batch.recalled_by = actor?.userId;
+    batch.recalled_at = new Date();
+    batch.recall_reference_no = payload.recall_reference_no || payload.reference_no || batch.recall_reference_no;
+    batch.recall_source = payload.recall_source || batch.recall_source;
+    batch.recall_resolution_status = payload.recall_resolution_status || 'open';
     batch.updated_by = actor?.userId;
     await batch.save(sessionOptions(session));
     if (quantityOut > 0) {
@@ -884,6 +1187,242 @@ async function recallStockBatch(batchId, payload = {}, actor, requestMeta = {}) 
   }, { fallbackToNoTransaction: false });
   await recordAuditLog({ actor, action: 'stock_batch.recalled', targetType: 'stock_batch', targetId: resolvedBatchId, status: 'success', message: 'Recall stock batch thành công.', requestMeta, metadata: { reason, transaction_id: transactionId } });
   return getStockBatchDetail(resolvedBatchId);
+}
+
+async function quarantineStockBatch(batchId, payload = {}, actor, requestMeta = {}) {
+  assertStaffPermission(actor, [PERMISSION.STOCK_BATCHES.QUARANTINE]);
+  const reason = payload.reason || payload.quarantine_reason;
+  if (!nonEmpty(reason)) throw createError('reason là bắt buộc khi quarantine batch.');
+  const batch = await StockBatch.findById(batchId);
+  if (!batch || batch.is_deleted) throw createError('Không tìm thấy stock batch.', 404);
+  if (batch.status === STOCK_BATCH_STATUS.QUARANTINED) return getStockBatchDetail(batch._id);
+  assertTransition(STOCK_BATCH_TRANSITIONS, batch.status, STOCK_BATCH_STATUS.QUARANTINED, 'stock_batch');
+  const before = batch.toObject();
+  batch.status = STOCK_BATCH_STATUS.QUARANTINED;
+  batch.quarantine_reason = reason;
+  batch.quarantined_by = actor?.userId;
+  batch.quarantined_at = new Date();
+  batch.release_reason = undefined;
+  batch.released_by = undefined;
+  batch.released_at = undefined;
+  batch.updated_by = actor?.userId;
+  await batch.save();
+  await recordAuditLog({
+    actor,
+    action: 'stock_batch.quarantined',
+    targetType: 'stock_batch',
+    targetId: batch._id,
+    status: 'success',
+    message: 'Quarantine stock batch thành công.',
+    requestMeta,
+    before,
+    after: batch.toObject(),
+    metadata: { reason },
+  });
+  return getStockBatchDetail(batch._id);
+}
+
+async function releaseQuarantineStockBatch(batchId, payload = {}, actor, requestMeta = {}) {
+  assertStaffPermission(actor, [PERMISSION.STOCK_BATCHES.QUARANTINE]);
+  const reason = payload.reason || payload.release_reason;
+  if (!nonEmpty(reason)) throw createError('reason là bắt buộc khi release quarantine batch.');
+  const batch = await StockBatch.findById(batchId);
+  if (!batch || batch.is_deleted) throw createError('Không tìm thấy stock batch.', 404);
+  if (batch.status !== STOCK_BATCH_STATUS.QUARANTINED) throw createError('Chỉ batch đang quarantined mới được release.', 409);
+  if (batch.expiry_date && batch.expiry_date <= new Date()) throw createError('Batch đã hết hạn, không thể release về available.', 409);
+  if (Number(batch.quantity_on_hand || 0) <= 0) throw createError('Batch không còn tồn, không thể release quarantine.', 409);
+  assertTransition(STOCK_BATCH_TRANSITIONS, batch.status, STOCK_BATCH_STATUS.AVAILABLE, 'stock_batch');
+  const before = batch.toObject();
+  batch.status = STOCK_BATCH_STATUS.AVAILABLE;
+  batch.release_reason = reason;
+  batch.released_by = actor?.userId;
+  batch.released_at = new Date();
+  batch.updated_by = actor?.userId;
+  await batch.save();
+  await recordAuditLog({
+    actor,
+    action: 'stock_batch.quarantine_released',
+    targetType: 'stock_batch',
+    targetId: batch._id,
+    status: 'success',
+    message: 'Release quarantine stock batch thành công.',
+    requestMeta,
+    before,
+    after: batch.toObject(),
+    metadata: { reason },
+  });
+  return getStockBatchDetail(batch._id);
+}
+
+async function wasteStockBatch(batchId, payload = {}, actor, requestMeta = {}) {
+  assertStaffPermission(actor, [PERMISSION.INVENTORY_TRANSACTIONS.CREATE_DISPOSAL]);
+  const quantity = parsePositiveNumber(payload.quantity, 'quantity');
+  const reason = payload.reason || payload.waste_reason || payload.note;
+  if (!nonEmpty(reason)) throw createError('reason là bắt buộc khi hủy/hao hụt batch.');
+  let transactionId = null;
+
+  await withOptionalTransaction(async (session) => {
+    let batch = await withSession(StockBatch.findById(batchId), session);
+    if (!batch || batch.is_deleted) throw createError('Không tìm thấy stock batch.', 404);
+    if (Number(batch.quantity_on_hand || 0) < quantity) throw createError('Số lượng hủy/hao hụt vượt tồn hiện tại.', 409);
+    if ([STOCK_BATCH_STATUS.RECALLED, STOCK_BATCH_STATUS.EXPIRED].includes(batch.status)) {
+      throw createError('Batch đã expired/recalled, không tạo waste riêng.', 409);
+    }
+    batch.quantity_on_hand = Number(batch.quantity_on_hand || 0) - quantity;
+    batch.status = normalizeStockBatchStatus(batch.quantity_on_hand, batch.expiry_date, batch.status);
+    batch.updated_by = actor?.userId;
+    await batch.save(sessionOptions(session));
+
+    const transaction = await createInventoryTransaction({
+      medication_id: batch.medication_id,
+      stock_batch_id: batch._id,
+      transaction_type: INVENTORY_TRANSACTION_TYPE.WASTE,
+      direction: INVENTORY_TRANSACTION_DIRECTION.OUT,
+      quantity,
+      balance_after: batch.quantity_on_hand,
+      unit_cost: batch.unit_cost,
+      reference_type: payload.reference_type || 'stock_batch_waste',
+      reference_id: batch._id,
+      occurred_at: parseDate(payload.occurred_at, 'occurred_at') || new Date(),
+      note: reason,
+    }, actor, session);
+    transactionId = transaction._id;
+
+    if (batch.status === STOCK_BATCH_STATUS.DEPLETED) {
+      applyDepletionMetadata(batch, actor, 'waste', transaction._id);
+      await batch.save(sessionOptions(session));
+    } else {
+      batch.last_transaction_id = transaction._id;
+      await batch.save(sessionOptions(session));
+    }
+  }, { fallbackToNoTransaction: false });
+
+  await recordAuditLog({ actor, action: 'stock_batch.waste', targetType: 'stock_batch', targetId: batchId, status: 'success', message: 'Ghi nhận hủy/hao hụt batch thành công.', requestMeta, metadata: { transaction_id: transactionId, quantity, reason } });
+  return {
+    stock_batch: (await getStockBatchDetail(batchId)).stock_batch,
+    transaction: transactionId ? await InventoryTransaction.findById(transactionId).lean() : null,
+  };
+}
+
+async function transferStockBatchLocation(batchId, payload = {}, actor, requestMeta = {}) {
+  assertStaffPermission(actor, [
+    PERMISSION.INVENTORY_TRANSACTIONS.CREATE_TRANSFER_OUT,
+    PERMISSION.INVENTORY_TRANSACTIONS.CREATE_TRANSFER_IN,
+  ]);
+  const toLocation = normalizeString(payload.to_location || payload.storage_location);
+  if (!toLocation) throw createError('to_location là bắt buộc khi chuyển vị trí.');
+  const quantity = parsePositiveNumber(payload.quantity, 'quantity');
+  const reason = payload.reason || payload.note || 'Chuyển vị trí lưu kho';
+  const transactionIds = [];
+  let previousLocation = null;
+
+  await withOptionalTransaction(async (session) => {
+    const batch = await withSession(StockBatch.findById(batchId), session);
+    if (!batch || batch.is_deleted) throw createError('Không tìm thấy stock batch.', 404);
+    if (Number(batch.quantity_on_hand || 0) < quantity) throw createError('Số lượng chuyển vị trí vượt tồn hiện tại.', 409);
+    if ([STOCK_BATCH_STATUS.RECALLED, STOCK_BATCH_STATUS.EXPIRED, STOCK_BATCH_STATUS.DEPLETED].includes(batch.status)) {
+      throw createError('Batch không còn khả dụng để chuyển vị trí.', 409);
+    }
+    previousLocation = batch.storage_location || payload.from_location || '';
+    if (payload.from_location && normalizeString(payload.from_location) !== normalizeString(batch.storage_location)) {
+      throw createError('from_location không khớp vị trí hiện tại của batch.', 409);
+    }
+
+    const referenceType = 'stock_batch_transfer_location';
+    const common = {
+      medication_id: batch.medication_id,
+      stock_batch_id: batch._id,
+      transaction_type: INVENTORY_TRANSACTION_TYPE.TRANSFER,
+      quantity,
+      balance_after: batch.quantity_on_hand,
+      unit_cost: batch.unit_cost,
+      reference_type: referenceType,
+      reference_id: batch._id,
+      occurred_at: parseDate(payload.occurred_at, 'occurred_at') || new Date(),
+    };
+    const outTx = await createInventoryTransaction({
+      ...common,
+      direction: INVENTORY_TRANSACTION_DIRECTION.OUT,
+      note: `${reason}. From: ${previousLocation || 'unknown'}; To: ${toLocation}`,
+    }, actor, session);
+    const inTx = await createInventoryTransaction({
+      ...common,
+      direction: INVENTORY_TRANSACTION_DIRECTION.IN,
+      note: `${reason}. To: ${toLocation}; From: ${previousLocation || 'unknown'}`,
+    }, actor, session);
+    transactionIds.push(outTx._id, inTx._id);
+
+    batch.storage_location = toLocation;
+    batch.last_transaction_id = inTx._id;
+    batch.updated_by = actor?.userId;
+    await batch.save(sessionOptions(session));
+  }, { fallbackToNoTransaction: false });
+
+  await recordAuditLog({ actor, action: 'stock_batch.transfer_location', targetType: 'stock_batch', targetId: batchId, status: 'success', message: 'Chuyển vị trí batch thành công.', requestMeta, metadata: { quantity, from_location: previousLocation, to_location: toLocation, transaction_ids: transactionIds } });
+  return {
+    stock_batch: (await getStockBatchDetail(batchId)).stock_batch,
+    transactions: await InventoryTransaction.find({ _id: { $in: transactionIds } }).sort({ occurred_at: 1 }).lean(),
+  };
+}
+
+async function getStockBatchRecallImpact(batchId) {
+  const { stock_batch } = await getStockBatchDetail(batchId);
+  const dispenseItems = await DispenseItem.find({ stock_batch_id: batchId })
+    .sort({ created_at: -1 })
+    .populate({
+      path: 'dispense_id',
+      select: 'dispense_no status prescription_id patient_id completed_at dispensed_at',
+      populate: [
+        { path: 'patient_id', select: 'patient_code full_name phone date_of_birth gender' },
+        { path: 'prescription_id', select: 'prescription_no status prescribed_at' },
+      ],
+    })
+    .populate('prescription_item_id', 'dose frequency route instructions')
+    .populate('medication_id', 'medication_code generic_name brand_name strength unit')
+    .lean();
+
+  const dispenses = [];
+  const prescriptions = [];
+  const patients = [];
+  const seenDispense = new Set();
+  const seenPrescription = new Set();
+  const seenPatient = new Set();
+  let affectedQuantity = 0;
+
+  for (const item of dispenseItems) {
+    affectedQuantity += Math.max(Number(item.quantity || 0) - Number(item.returned_quantity || 0), 0);
+    const dispense = item.dispense_id;
+    if (dispense?._id && !seenDispense.has(String(dispense._id))) {
+      seenDispense.add(String(dispense._id));
+      dispenses.push(dispense);
+    }
+    const prescription = dispense?.prescription_id;
+    if (prescription?._id && !seenPrescription.has(String(prescription._id))) {
+      seenPrescription.add(String(prescription._id));
+      prescriptions.push(prescription);
+    }
+    const patient = dispense?.patient_id;
+    if (patient?._id && !seenPatient.has(String(patient._id))) {
+      seenPatient.add(String(patient._id));
+      patients.push(patient);
+    }
+  }
+
+  return {
+    batch: stock_batch,
+    dispense_items: dispenseItems,
+    dispenses,
+    prescriptions,
+    patients,
+    affected_patient_count: patients.length,
+    affected_quantity: affectedQuantity,
+    recommended_actions: [
+      'notify_pharmacist',
+      'notify_doctor',
+      'notify_patient',
+      'block_future_dispense',
+    ],
+  };
 }
 
 async function validatePrescriptionCreation(payload = {}, actor = {}, options = {}) {
@@ -1548,7 +2087,18 @@ async function calculateDispensedQuantities(prescriptionItemIds, session = null)
         status: DISPENSE_ITEM_STATUS.DISPENSED,
       },
     },
-    { $group: { _id: '$prescription_item_id', dispensed_quantity: { $sum: '$quantity' } } },
+    {
+      $project: {
+        prescription_item_id: 1,
+        effective_quantity: {
+          $max: [
+            { $subtract: ['$quantity', { $ifNull: ['$returned_quantity', 0] }] },
+            0,
+          ],
+        },
+      },
+    },
+    { $group: { _id: '$prescription_item_id', dispensed_quantity: { $sum: '$effective_quantity' } } },
   ]);
   if (session) aggregate.session(session);
   const rows = await aggregate;
@@ -1642,6 +2192,11 @@ async function createDispense(prescriptionId, payload = {}, actor, requestMeta =
       encounter_id: validation.prescription.encounter_id,
       dispense_no: dispenseNo,
       note: payload.note,
+      assigned_to: payload.assigned_to || undefined,
+      assigned_at: payload.assigned_to ? new Date() : undefined,
+      priority: payload.priority || 'medium',
+      sla_due_at: payload.sla_due_at ? parseDate(payload.sla_due_at, 'sla_due_at') : undefined,
+      workflow_stage: payload.assigned_to ? 'assigned' : 'created',
       status: DISPENSE_STATUS.DRAFT,
       created_by: actor?.userId,
       updated_by: actor?.userId,
@@ -1677,9 +2232,19 @@ async function applyDispenseListScope(filter, actor = {}) {
 async function listDispenses(query = {}, actor = {}) {
   const { page, limit, skip } = getPagination(query);
   const filter = {};
-  for (const field of ['prescription_id', 'patient_id', 'encounter_id', 'dispensed_by', 'status']) {
+  for (const field of ['prescription_id', 'patient_id', 'encounter_id', 'dispensed_by', 'assigned_to', 'locked_by']) {
     if (query[field]) filter[field] = query[field];
   }
+  for (const field of ['status', 'workflow_stage', 'priority', 'checklist_status']) {
+    if (query[field]) {
+      const values = String(query[field]).split(',').map((item) => item.trim()).filter(Boolean);
+      filter[field] = values.length > 1 ? { $in: values } : values[0];
+    }
+  }
+  applyDateRangeFilter(filter, 'created_at', query.created_from || query.date_from, query.created_to || query.date_to, 'created_from', 'created_to');
+  applyDateRangeFilter(filter, 'dispensed_at', query.dispensed_from, query.dispensed_to, 'dispensed_from', 'dispensed_to');
+  applyDateRangeFilter(filter, 'completed_at', query.completed_from, query.completed_to, 'completed_from', 'completed_to');
+  applyDateRangeFilter(filter, 'cancelled_at', query.cancelled_from, query.cancelled_to, 'cancelled_from', 'cancelled_to');
   await applyDispenseListScope(filter, actor);
   const [items, total] = await Promise.all([
     Dispense.find(filter)
@@ -1689,6 +2254,8 @@ async function listDispenses(query = {}, actor = {}) {
       .populate('prescription_id', 'prescription_no status prescribed_at')
       .populate('patient_id', 'patient_code full_name date_of_birth gender')
       .populate('dispensed_by', 'full_name username employee_code')
+      .populate('assigned_to', 'full_name username employee_code')
+      .populate('locked_by', 'full_name username employee_code')
       .lean(),
     Dispense.countDocuments(filter),
   ]);
@@ -1701,6 +2268,9 @@ async function getDispenseDetail(dispenseId, actor = {}) {
     .populate('patient_id', 'patient_code full_name date_of_birth gender phone')
     .populate('encounter_id', 'encounter_code encounter_type status start_time department_id')
     .populate('dispensed_by', 'full_name username employee_code')
+    .populate('completed_by', 'full_name username employee_code')
+    .populate('assigned_to', 'full_name username employee_code')
+    .populate('locked_by', 'full_name username employee_code')
     .lean();
   if (!dispense) throw createError('Không tìm thấy dispense.', 404);
   const prescription = await Prescription.findById(dispense.prescription_id?._id || dispense.prescription_id).lean();
@@ -1709,9 +2279,9 @@ async function getDispenseDetail(dispenseId, actor = {}) {
   const [items, transactions, charges] = await Promise.all([
     DispenseItem.find({ dispense_id: dispenseId })
       .sort({ created_at: 1 })
-      .populate('prescription_item_id', 'dose frequency route quantity instructions')
+      .populate('prescription_item_id', 'dose frequency route quantity dispensed_quantity instructions')
       .populate('medication_id', 'medication_code generic_name brand_name strength unit')
-      .populate('stock_batch_id', 'batch_no lot_no expiry_date storage_location')
+      .populate('stock_batch_id', 'batch_no lot_no expiry_date storage_location quantity_on_hand status')
       .lean(),
     InventoryTransaction.find({ reference_type: 'dispense', reference_id: dispenseId }).sort({ occurred_at: 1 }).lean(),
     Charge.find({ dispense_id: dispenseId }).sort({ charged_at: -1 }).lean(),
@@ -1764,6 +2334,7 @@ async function decrementStockBatchForDispense(batchId, quantity, actor, session 
   if (!updatedBatch) throw createError('Không đủ tồn hoặc batch đã thay đổi, vui lòng chọn lại stock batch.', 409, null, ERROR_CODE.INSUFFICIENT_STOCK);
   if (updatedBatch.quantity_on_hand === 0) {
     updatedBatch.status = STOCK_BATCH_STATUS.DEPLETED;
+    applyDepletionMetadata(updatedBatch, actor, 'dispense');
     updatedBatch.updated_by = actor?.userId;
     await updatedBatch.save(sessionOptions(session));
   }
@@ -1839,6 +2410,90 @@ async function buildDispenseCompletionPlan(dispense, payload = {}, actor, sessio
     plan.push({ prescriptionItem, requestedQuantity: request.quantity, allocations });
   }
   return { prescription, context, plan };
+}
+
+async function previewDispenseCompletionPlan(dispenseId, payload = {}, actor = {}) {
+  assertActorUser(actor);
+  assertStaffPermission(actor, [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.COMPLETE]);
+  const dispense = await getDispenseOrThrow(dispenseId);
+  let validation;
+  try {
+    validation = await buildDispenseCompletionPlan(dispense, payload, actor, null);
+  } catch (error) {
+    if (error?.code === ERROR_CODE.INSUFFICIENT_STOCK) {
+      return {
+        can_complete: false,
+        shortages: [{
+          medication_id: error.details?.medication_id,
+          requested_quantity: error.details?.quantity_needed,
+          shortage: error.details?.shortage,
+          message: error.message,
+        }],
+        allocations: [],
+        charge_preview: { total_amount: 0, items: [] },
+      };
+    }
+    throw error;
+  }
+
+  const medicationIds = [...new Set(validation.plan.map((item) => String(item.prescriptionItem.medication_id)))];
+  const batchIds = [...new Set(validation.plan.flatMap((item) => item.allocations.map((allocation) => String(allocation.stock_batch_id))))];
+  const [medications, batches] = await Promise.all([
+    MedicationMaster.find({ _id: { $in: medicationIds } }).lean(),
+    StockBatch.find({ _id: { $in: batchIds } }).lean(),
+  ]);
+  const medicationMap = new Map(medications.map((item) => [String(item._id), item]));
+  const batchMap = new Map(batches.map((item) => [String(item._id), item]));
+
+  const allocations = validation.plan.map((plannedItem) => {
+    const medication = medicationMap.get(String(plannedItem.prescriptionItem.medication_id));
+    return {
+      prescription_item_id: String(plannedItem.prescriptionItem._id),
+      medication_id: String(plannedItem.prescriptionItem.medication_id),
+      medication_name: [medication?.brand_name || medication?.generic_name, medication?.strength].filter(Boolean).join(' ') || medication?.medication_code,
+      requested_quantity: plannedItem.requestedQuantity,
+      remaining_quantity: plannedItem.requestedQuantity,
+      unit: plannedItem.prescriptionItem.unit,
+      batches: plannedItem.allocations.map((allocation) => {
+        const batch = batchMap.get(String(allocation.stock_batch_id));
+        const before = Number(batch?.quantity_on_hand || 0);
+        return {
+          stock_batch_id: String(allocation.stock_batch_id),
+          batch_no: batch?.batch_no,
+          lot_no: batch?.lot_no,
+          expiry_date: batch?.expiry_date,
+          quantity: allocation.quantity,
+          quantity_on_hand_before: before,
+          quantity_on_hand_after: Math.max(before - Number(allocation.quantity || 0), 0),
+          storage_location: batch?.storage_location,
+          unit_cost: batch?.unit_cost,
+        };
+      }),
+    };
+  });
+
+  const chargeItems = allocations.map((allocation) => {
+    const medication = medicationMap.get(String(allocation.medication_id));
+    const unitPrice = Number(medication?.sale_price ?? 0);
+    return {
+      prescription_item_id: allocation.prescription_item_id,
+      medication_id: allocation.medication_id,
+      medication_name: allocation.medication_name,
+      quantity: allocation.requested_quantity,
+      unit_price: unitPrice,
+      total_amount: unitPrice * Number(allocation.requested_quantity || 0),
+    };
+  });
+
+  return {
+    can_complete: true,
+    shortages: [],
+    allocations,
+    charge_preview: {
+      total_amount: chargeItems.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
+      items: chargeItems,
+    },
+  };
 }
 
 async function createMedicationChargesForDispense(dispense, actor, session = null, options = {}) {
@@ -1971,6 +2626,7 @@ async function completeDispense(dispenseId, payload = {}, actor, requestMeta = {
             medication_id: plannedItem.prescriptionItem.medication_id,
             stock_batch_id: allocation.stock_batch_id,
             quantity: allocation.quantity,
+            returned_quantity: 0,
             unit: plannedItem.prescriptionItem.unit,
             instructions: plannedItem.prescriptionItem.instructions,
             status: DISPENSE_ITEM_STATUS.DISPENSED,
@@ -1997,6 +2653,10 @@ async function completeDispense(dispenseId, payload = {}, actor, requestMeta = {
           note: `dispense_item:${dispenseItem._id}`,
         }, actor, session);
         transactionIds.push(transaction._id);
+        if (updatedBatch.status === STOCK_BATCH_STATUS.DEPLETED) {
+          updatedBatch.last_transaction_id = transaction._id;
+          await updatedBatch.save(sessionOptions(session));
+        }
       }
     }
 
@@ -2109,6 +2769,7 @@ async function cancelDispense(dispenseId, payload = {}, actor, requestMeta = {})
         }, actor, session);
         transactionIds.push(transaction._id);
       }
+      item.returned_quantity = item.quantity;
       item.status = DISPENSE_ITEM_STATUS.RETURNED;
       item.updated_by = actor?.userId;
       await item.save(sessionOptions(session));
@@ -2249,6 +2910,164 @@ async function renewPrescription(prescriptionId, payload = {}, actor, requestMet
   return duplicatePrescription(prescriptionId, { ...payload, reason, note: payload.note || 'Gia hạn từ đơn thuốc cũ.' }, actor, requestMeta);
 }
 
+async function listRefillRequests(query = {}, actor = {}) {
+  const { page, limit, skip } = getPagination(query, 25, 100);
+  const filter = {};
+  if (query.status) filter.status = query.status;
+  if (query.patient_id) filter.patient_id = toObjectId(query.patient_id, 'patient_id');
+  if (query.prescription_id) filter.prescription_id = toObjectId(query.prescription_id, 'prescription_id');
+  applyDateRangeFilter(filter, 'created_at', query.created_from || query.date_from, query.created_to || query.date_to, 'created_from', 'created_to');
+
+  if (actorType(actor) === 'patient') {
+    if (!hasPermission(actor, PERMISSION.PRESCRIPTIONS.SELF_READ)) throw createError('Bạn không có quyền xem refill request.', 403);
+    filter.patient_id = actor.patientId || actor.patient_id;
+  } else if (actorType(actor)) {
+    assertStaffPermission(actor, [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.PRESCRIPTIONS.VERIFY]);
+  }
+
+  if (query.search || query.q) {
+    const keyword = escapeRegex(query.search || query.q);
+    filter.$or = [
+      { reason: { $regex: keyword, $options: 'i' } },
+      { review_note: { $regex: keyword, $options: 'i' } },
+      { decision_reason: { $regex: keyword, $options: 'i' } },
+    ];
+  }
+
+  const [items, total] = await Promise.all([
+    PrescriptionRefillRequest.find(filter)
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('patient_id', 'patient_code full_name date_of_birth gender phone')
+      .populate('prescription_id', 'prescription_no status prescribed_at prescribed_by')
+      .populate('reviewed_by', 'full_name username employee_code')
+      .populate('reviewed_by_pharmacist', 'full_name username employee_code')
+      .populate('reviewed_by_doctor', 'full_name username employee_code')
+      .populate('converted_prescription_id', 'prescription_no status')
+      .lean(),
+    PrescriptionRefillRequest.countDocuments(filter),
+  ]);
+  return { items, pagination: buildPagination(page, limit, total) };
+}
+
+async function getRefillRequestDetail(refillRequestId, actor = {}) {
+  const request = await PrescriptionRefillRequest.findById(refillRequestId)
+    .populate('patient_id', 'patient_code full_name date_of_birth gender phone')
+    .populate('prescription_id', 'prescription_no status prescribed_at prescribed_by')
+    .populate('reviewed_by', 'full_name username employee_code')
+    .populate('reviewed_by_pharmacist', 'full_name username employee_code')
+    .populate('reviewed_by_doctor', 'full_name username employee_code')
+    .populate('converted_prescription_id', 'prescription_no status')
+    .lean();
+  if (!request) throw createError('Không tìm thấy yêu cầu cấp lại thuốc.', 404);
+  if (actorType(actor) === 'patient' && !sameId(request.patient_id?._id || request.patient_id, actor.patientId || actor.patient_id)) {
+    throw createError('Bạn không có quyền xem refill request này.', 403);
+  }
+  if (actorType(actor) === 'staff') {
+    assertStaffPermission(actor, [PERMISSION.PRESCRIPTIONS.READ, PERMISSION.PRESCRIPTIONS.READ_DEPARTMENT, PERMISSION.PRESCRIPTIONS.VERIFY]);
+  }
+  return { refill_request: request };
+}
+
+async function createRefillRequest(prescriptionId, payload = {}, actor = {}, requestMeta = {}) {
+  const prescription = await Prescription.findById(prescriptionId).lean();
+  if (!prescription) throw createError('Không tìm thấy prescription.', 404);
+  if (actorType(actor) === 'patient' && !sameId(prescription.patient_id, actor.patientId || actor.patient_id)) {
+    throw createError('Bạn không có quyền yêu cầu cấp lại đơn thuốc này.', 403);
+  }
+
+  const latestDispense = await Dispense.findOne({
+    prescription_id: prescription._id,
+    status: DISPENSE_STATUS.DISPENSED,
+  }).sort({ completed_at: -1, dispensed_at: -1 }).lean();
+
+  const request = await PrescriptionRefillRequest.create({
+    patient_id: prescription.patient_id,
+    prescription_id: prescription._id,
+    requested_by_actor_type: actorType(actor) || payload.requested_by_actor_type || 'staff',
+    requested_by_actor_id: actor.userId || actor.patientId || actor.actorId || payload.requested_by_actor_id,
+    priority: payload.priority || 'medium',
+    requested_items: payload.requested_items || [],
+    last_dispensed_at: latestDispense?.completed_at || latestDispense?.dispensed_at,
+    reason: payload.reason,
+    expired_at: parseDate(payload.expired_at, 'expired_at'),
+    created_by: actor?.userId,
+    updated_by: actor?.userId,
+  });
+  await recordAuditLog({ actor, action: 'prescription_refill_request.create', targetType: 'prescription_refill_request', targetId: request._id, status: 'success', message: 'Tạo yêu cầu cấp lại thuốc thành công.', requestMeta });
+  return getRefillRequestDetail(request._id, actor);
+}
+
+async function updateRefillDecision(refillRequestId, payload = {}, actor = {}, requestMeta = {}, decision) {
+  assertActorUser(actor);
+  assertStaffPermission(actor, [PERMISSION.PRESCRIPTIONS.VERIFY, PERMISSION.PRESCRIPTIONS.CREATE]);
+  const request = await PrescriptionRefillRequest.findById(refillRequestId);
+  if (!request) throw createError('Không tìm thấy yêu cầu cấp lại thuốc.', 404);
+  if (request.status !== PRESCRIPTION_REFILL_REQUEST_STATUS.PENDING) {
+    throw createError('Yêu cầu cấp lại thuốc đã được xử lý.', 409);
+  }
+  request.status = decision;
+  request.reviewed_by = actor.userId;
+  request.reviewed_by_pharmacist = actor.userId;
+  request.reviewed_at = new Date();
+  request.review_note = payload.review_note || payload.note;
+  request.decision_reason = payload.decision_reason || payload.reason || payload.note;
+  request.updated_by = actor.userId;
+  await request.save();
+  await recordAuditLog({ actor, action: `prescription_refill_request.${decision}`, targetType: 'prescription_refill_request', targetId: request._id, status: 'success', message: 'Cập nhật quyết định refill request thành công.', requestMeta });
+  return getRefillRequestDetail(request._id, actor);
+}
+
+function approveRefillRequest(refillRequestId, payload = {}, actor = {}, requestMeta = {}) {
+  return updateRefillDecision(refillRequestId, payload, actor, requestMeta, PRESCRIPTION_REFILL_REQUEST_STATUS.APPROVED);
+}
+
+function rejectRefillRequest(refillRequestId, payload = {}, actor = {}, requestMeta = {}) {
+  return updateRefillDecision(refillRequestId, payload, actor, requestMeta, PRESCRIPTION_REFILL_REQUEST_STATUS.REJECTED);
+}
+
+async function sendRefillRequestToDoctor(refillRequestId, payload = {}, actor = {}, requestMeta = {}) {
+  assertActorUser(actor);
+  assertStaffPermission(actor, [PERMISSION.PRESCRIPTIONS.VERIFY, PERMISSION.PRESCRIPTIONS.CREATE]);
+  const request = await PrescriptionRefillRequest.findById(refillRequestId);
+  if (!request) throw createError('Không tìm thấy yêu cầu cấp lại thuốc.', 404);
+  if (request.status !== PRESCRIPTION_REFILL_REQUEST_STATUS.PENDING) throw createError('Chỉ yêu cầu pending mới gửi bác sĩ duyệt.', 409);
+  request.review_note = payload.note || payload.review_note;
+  request.routed_to_doctor_at = new Date();
+  request.routed_to_doctor_by = actor.userId;
+  request.reviewed_by_doctor = payload.doctor_id || undefined;
+  request.updated_by = actor.userId;
+  await request.save();
+  await recordAuditLog({ actor, action: 'prescription_refill_request.send_to_doctor', targetType: 'prescription_refill_request', targetId: request._id, status: 'success', message: 'Đã gửi yêu cầu refill cho bác sĩ.', requestMeta });
+  return getRefillRequestDetail(request._id, actor);
+}
+
+async function convertRefillRequestToPrescription(refillRequestId, payload = {}, actor = {}, requestMeta = {}) {
+  assertActorUser(actor);
+  assertStaffPermission(actor, [PERMISSION.PRESCRIPTIONS.CREATE]);
+  const request = await PrescriptionRefillRequest.findById(refillRequestId);
+  if (!request) throw createError('Không tìm thấy yêu cầu cấp lại thuốc.', 404);
+  if (request.converted_prescription_id) return getRefillRequestDetail(request._id, actor);
+  if (![PRESCRIPTION_REFILL_REQUEST_STATUS.PENDING, PRESCRIPTION_REFILL_REQUEST_STATUS.APPROVED].includes(request.status)) {
+    throw createError('Chỉ yêu cầu pending/approved mới chuyển thành đơn thuốc.', 409);
+  }
+  const created = await renewPrescription(request.prescription_id, {
+    ...payload,
+    reason: payload.reason || request.reason || 'Chuyển yêu cầu cấp lại thuốc thành đơn mới.',
+  }, actor, requestMeta);
+  request.status = PRESCRIPTION_REFILL_REQUEST_STATUS.APPROVED;
+  request.reviewed_by = actor.userId;
+  request.reviewed_by_pharmacist = actor.userId;
+  request.reviewed_at = new Date();
+  request.converted_prescription_id = created.prescription?._id || created.prescription_id || created._id;
+  request.decision_reason = payload.reason || request.reason;
+  request.updated_by = actor.userId;
+  await request.save();
+  await recordAuditLog({ actor, action: 'prescription_refill_request.convert_to_prescription', targetType: 'prescription_refill_request', targetId: request._id, status: 'success', message: 'Đã chuyển refill request thành prescription.', requestMeta, metadata: { converted_prescription_id: String(request.converted_prescription_id) } });
+  return getRefillRequestDetail(request._id, actor);
+}
+
 async function recordPrescriptionFailure({ actor, action, targetId, requestMeta, error }) {
   try {
     await recordAuditLog({
@@ -2272,6 +3091,10 @@ function prescriptionFailureAuditContext(methodName, args = []) {
     adjustInventory: { action: 'inventory.adjustment', actorIndex: 2, requestMetaIndex: 3, targetIndex: 0 },
     markBatchExpired: { action: 'stock_batch.expired', actorIndex: 2, requestMetaIndex: 3, targetIndex: 0 },
     recallStockBatch: { action: 'stock_batch.recalled', actorIndex: 2, requestMetaIndex: 3, targetIndex: 0 },
+    quarantineStockBatch: { action: 'stock_batch.quarantined', actorIndex: 2, requestMetaIndex: 3, targetIndex: 0 },
+    releaseQuarantineStockBatch: { action: 'stock_batch.quarantine_released', actorIndex: 2, requestMetaIndex: 3, targetIndex: 0 },
+    wasteStockBatch: { action: 'stock_batch.waste', actorIndex: 2, requestMetaIndex: 3, targetIndex: 0 },
+    transferStockBatchLocation: { action: 'stock_batch.transfer_location', actorIndex: 2, requestMetaIndex: 3, targetIndex: 0 },
     createPrescription: { action: 'prescription.create', actorIndex: 1, requestMetaIndex: 2, targetIndex: null },
     updatePrescription: { action: 'prescription.update', actorIndex: 2, requestMetaIndex: 3, targetIndex: 0 },
     activatePrescription: { action: 'prescription.activate', actorIndex: 1, requestMetaIndex: 2, targetIndex: 0 },
@@ -2344,6 +3167,16 @@ const prescriptionServiceExports = {
   markBatchExpired,
   // recallStockBatch: Thu hồi/gọi lại lô tồn kho.
   recallStockBatch,
+  // quarantineStockBatch: Cách ly lô thuốc.
+  quarantineStockBatch,
+  // releaseQuarantineStockBatch: Mở cách ly lô thuốc.
+  releaseQuarantineStockBatch,
+  // wasteStockBatch: Ghi nhận hủy/hao hụt lô thuốc.
+  wasteStockBatch,
+  // transferStockBatchLocation: Chuyển vị trí lưu kho cho lô thuốc.
+  transferStockBatchLocation,
+  // getStockBatchRecallImpact: Lấy phạm vi ảnh hưởng của lô bị recall.
+  getStockBatchRecallImpact,
   // receiveInventory: Tiếp nhận tồn kho.
   receiveInventory,
   // adjustInventory: Điều chỉnh tồn kho.
@@ -2422,6 +3255,8 @@ const prescriptionServiceExports = {
   selectStockBatch,
   // completeDispense: Hoàn tất cấp phát thuốc.
   completeDispense,
+  // previewDispenseCompletionPlan: Xem trước kế hoạch FEFO, trừ tồn và charge trước khi hoàn tất cấp phát.
+  previewDispenseCompletionPlan,
   // cancelDispense: Hủy cấp phát thuốc.
   cancelDispense,
   // createMedicationChargesForDispense: Tạo thuốc khoản phí cho cấp phát thuốc.
@@ -2440,6 +3275,20 @@ const prescriptionServiceExports = {
   duplicatePrescription,
   // renewPrescription: Gia hạn/làm mới đơn thuốc.
   renewPrescription,
+  // listRefillRequests: Liệt kê yêu cầu cấp lại thuốc.
+  listRefillRequests,
+  // getRefillRequestDetail: Lấy chi tiết yêu cầu cấp lại thuốc.
+  getRefillRequestDetail,
+  // createRefillRequest: Tạo yêu cầu cấp lại thuốc.
+  createRefillRequest,
+  // approveRefillRequest: Duyệt yêu cầu cấp lại thuốc.
+  approveRefillRequest,
+  // rejectRefillRequest: Từ chối yêu cầu cấp lại thuốc.
+  rejectRefillRequest,
+  // sendRefillRequestToDoctor: Gửi yêu cầu cấp lại thuốc cho bác sĩ.
+  sendRefillRequestToDoctor,
+  // convertRefillRequestToPrescription: Chuyển yêu cầu cấp lại thuốc thành đơn mới.
+  convertRefillRequestToPrescription,
 };
 
 module.exports = withPrescriptionFailureAudits(prescriptionServiceExports);

@@ -31,14 +31,6 @@ const writePermissions = [
 
 router.get('/', authorize({ anyPermissions: readPermissions }), controller.listAdministrations);
 router.post('/', authorize({ anyPermissions: writePermissions }), controller.createAdministration);
-router.get('/:administrationId', authorize({ anyPermissions: readPermissions }), controller.getAdministration);
-router.post('/:administrationId/give', authorize({ anyPermissions: writePermissions }), controller.giveAdministration);
-router.post('/:administrationId/hold', authorize({ anyPermissions: writePermissions }), controller.holdAdministration);
-router.post('/:administrationId/refuse', authorize({ anyPermissions: writePermissions }), controller.refuseAdministration);
-router.post('/:administrationId/omit', authorize({ anyPermissions: writePermissions }), controller.omitAdministration);
-router.post('/:administrationId/cancel', authorize({ anyPermissions: writePermissions }), controller.cancelAdministration);
-router.post('/:administrationId/entered-in-error', authorize({ anyPermissions: writePermissions }), controller.markEnteredInError);
-router.post('/:administrationId/reactions', authorize({ anyPermissions: writePermissions }), controller.addReaction);
 
 router.get('/encounters/:encounterId', authorize({ anyPermissions: readPermissions }), (req, res, next) => {
   req.query.encounter_id = req.params.encounterId;
@@ -49,5 +41,14 @@ router.get('/patients/:patientId', authorize({ anyPermissions: readPermissions }
   req.query.patient_id = req.params.patientId;
   return controller.listAdministrations(req, res, next);
 });
+
+router.get('/:administrationId', authorize({ anyPermissions: readPermissions }), controller.getAdministration);
+router.post('/:administrationId/give', authorize({ anyPermissions: writePermissions }), controller.giveAdministration);
+router.post('/:administrationId/hold', authorize({ anyPermissions: writePermissions }), controller.holdAdministration);
+router.post('/:administrationId/refuse', authorize({ anyPermissions: writePermissions }), controller.refuseAdministration);
+router.post('/:administrationId/omit', authorize({ anyPermissions: writePermissions }), controller.omitAdministration);
+router.post('/:administrationId/cancel', authorize({ anyPermissions: writePermissions }), controller.cancelAdministration);
+router.post('/:administrationId/entered-in-error', authorize({ anyPermissions: writePermissions }), controller.markEnteredInError);
+router.post('/:administrationId/reactions', authorize({ anyPermissions: writePermissions }), controller.addReaction);
 
 module.exports = router;

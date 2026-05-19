@@ -46,14 +46,50 @@ const ImagingModality = require('./imaging/imaging-modality.model');
 const ProcedureOrder = require('./procedures/procedure-order.model');
 
 const MedicationMaster = require('./pharmacy/medication-master.model');
+const MedicationUnit = require('./pharmacy/medication-unit.model');
+const DosageForm = require('./pharmacy/dosage-form.model');
+const AdministrationRoute = require('./pharmacy/administration-route.model');
 const Prescription = require('./pharmacy/prescription.model');
 const PrescriptionItem = require('./pharmacy/prescription-item.model');
 const PrescriptionRefillRequest = require('./pharmacy/prescription-refill-request.model');
 const Dispense = require('./pharmacy/dispense.model');
 const DispenseItem = require('./pharmacy/dispense-item.model');
+const DispenseHold = require('./pharmacy/dispense-hold.model');
+const DispenseReturn = require('./pharmacy/dispense-return.model');
+const DispenseReturnItem = require('./pharmacy/dispense-return-item.model');
+const DispensePrintJob = require('./pharmacy/dispense-print-job.model');
+const MedicationLabelTemplate = require('./pharmacy/medication-label-template.model');
 const MedicationAdministration = require('./pharmacy/medication-administration.model');
+const MedicationAdministrationEvent = require('./pharmacy/medication-administration-event.model');
+const MedicationAdministrationPolicy = require('./pharmacy/medication-administration-policy.model');
+const MedicationIntervention = require('./pharmacy/medication-intervention.model');
 const StockBatch = require('./pharmacy/stock-batch.model');
 const InventoryTransaction = require('./pharmacy/inventory-transaction.model');
+const Warehouse = require('./pharmacy/warehouse.model');
+const StorageLocation = require('./pharmacy/storage-location.model');
+const Supplier = require('./pharmacy/supplier.model');
+const InventoryReceipt = require('./pharmacy/inventory-receipt.model');
+const InventoryReceiptItem = require('./pharmacy/inventory-receipt-item.model');
+const InternalIssue = require('./pharmacy/internal-issue.model');
+const InternalIssueItem = require('./pharmacy/internal-issue-item.model');
+const InventoryTransfer = require('./pharmacy/inventory-transfer.model');
+const InventoryTransferItem = require('./pharmacy/inventory-transfer-item.model');
+const InventoryDisposal = require('./pharmacy/inventory-disposal.model');
+const InventoryDisposalItem = require('./pharmacy/inventory-disposal-item.model');
+const InventoryReturn = require('./pharmacy/inventory-return.model');
+const InventoryReturnItem = require('./pharmacy/inventory-return-item.model');
+const StocktakeSession = require('./pharmacy/stocktake-session.model');
+const StocktakeItem = require('./pharmacy/stocktake-item.model');
+const PharmacyAlert = require('./pharmacy/pharmacy-alert.model');
+const PharmacyAlertRule = require('./pharmacy/pharmacy-alert-rule.model');
+const PharmacyAlertActionLog = require('./pharmacy/pharmacy-alert-action-log.model');
+const PharmacyAlertAssignment = require('./pharmacy/pharmacy-alert-assignment.model');
+const PharmacyAlertSnooze = require('./pharmacy/pharmacy-alert-snooze.model');
+const PharmacyAlertResolution = require('./pharmacy/pharmacy-alert-resolution.model');
+const PharmacyWorkItem = require('./pharmacy/pharmacy-work-item.model');
+const PharmacyExpiryPolicy = require('./pharmacy/pharmacy-expiry-policy.model');
+const ControlledDrugPolicy = require('./pharmacy/controlled-drug-policy.model');
+const ControlledDrugLedger = require('./pharmacy/controlled-drug-ledger.model');
 
 const Room = require('./inpatient/room.model');
 const Bed = require('./inpatient/bed.model');
@@ -164,14 +200,50 @@ module.exports = {
   ImagingModality,
   ProcedureOrder,
   MedicationMaster,
+  MedicationUnit,
+  DosageForm,
+  AdministrationRoute,
   Prescription,
   PrescriptionItem,
   PrescriptionRefillRequest,
   Dispense,
   DispenseItem,
+  DispenseHold,
+  DispenseReturn,
+  DispenseReturnItem,
+  DispensePrintJob,
+  MedicationLabelTemplate,
   MedicationAdministration,
+  MedicationAdministrationEvent,
+  MedicationAdministrationPolicy,
+  MedicationIntervention,
   StockBatch,
   InventoryTransaction,
+  Warehouse,
+  StorageLocation,
+  Supplier,
+  InventoryReceipt,
+  InventoryReceiptItem,
+  InternalIssue,
+  InternalIssueItem,
+  InventoryTransfer,
+  InventoryTransferItem,
+  InventoryDisposal,
+  InventoryDisposalItem,
+  InventoryReturn,
+  InventoryReturnItem,
+  StocktakeSession,
+  StocktakeItem,
+  PharmacyAlert,
+  PharmacyAlertRule,
+  PharmacyAlertActionLog,
+  PharmacyAlertAssignment,
+  PharmacyAlertSnooze,
+  PharmacyAlertResolution,
+  PharmacyWorkItem,
+  PharmacyExpiryPolicy,
+  ControlledDrugPolicy,
+  ControlledDrugLedger,
   Room,
   Bed,
   Admission,
