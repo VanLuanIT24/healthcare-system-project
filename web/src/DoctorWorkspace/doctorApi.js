@@ -79,10 +79,21 @@ const permissionKeys = {
 
 export function getDoctorId(user) {
   return (
+    user?.doctor_id ||
+    user?.doctorId ||
     user?.user_id ||
     user?.userId ||
     user?.id ||
     user?._id ||
+    user?.doctor?.doctor_id ||
+    user?.doctor?.user_id ||
+    user?.doctor?.id ||
+    user?.doctor?._id ||
+    user?.doctor_profile?.doctor_id ||
+    user?.doctor_profile?.user_id ||
+    user?.doctor_profile?.id ||
+    user?.profile?.doctor_id ||
+    user?.profile?.doctorId ||
     user?.profile?.user_id ||
     user?.profile?.userId ||
     user?.profile?._id ||
@@ -641,7 +652,7 @@ function normalizeBoard(payload = {}) {
     in_service: asArray(payload?.in_service).map(normalizeQueueTicket),
     serving: asArray(payload?.serving).map(normalizeQueueTicket),
     completed: asArray(payload?.completed).map(normalizeQueueTicket),
-    skipped: asArray(payload?.skipped).map(normalizeQueueTicket),
+    skipped: [...asArray(payload?.skipped), ...asArray(payload?.no_show), ...asArray(payload?.noShow)].map(normalizeQueueTicket),
     cancelled: asArray(payload?.cancelled || payload?.canceled).map(normalizeQueueTicket),
   }
 }
@@ -659,12 +670,12 @@ function groupQueueItems(items = []) {
   const tickets = asArray(items).map(normalizeQueueTicket)
 
   return {
-    waiting: tickets.filter((item) => item.status === 'waiting'),
-    called: tickets.filter((item) => ['called', 'recalled'].includes(item.status)),
-    in_service: tickets.filter((item) => ['in_service', 'serving', 'examining', 'in_progress'].includes(item.status)),
-    completed: tickets.filter((item) => ['completed', 'done', 'finished'].includes(item.status)),
-    skipped: tickets.filter((item) => ['skipped', 'skip'].includes(item.status)),
-    cancelled: tickets.filter((item) => ['cancelled', 'canceled'].includes(item.status)),
+    waiting: tickets.filter((item) => ['waiting', 'pending', 'queued'].includes(String(item.status).toLowerCase())),
+    called: tickets.filter((item) => ['calling', 'called', 'recalled'].includes(String(item.status).toLowerCase())),
+    in_service: tickets.filter((item) => ['in_service', 'serving', 'examining', 'in_progress', 'in-progress'].includes(String(item.status).toLowerCase())),
+    completed: tickets.filter((item) => ['completed', 'done', 'finished'].includes(String(item.status).toLowerCase())),
+    skipped: tickets.filter((item) => ['skipped', 'skip', 'no_show', 'no-show', 'missed'].includes(String(item.status).toLowerCase())),
+    cancelled: tickets.filter((item) => ['cancelled', 'canceled'].includes(String(item.status).toLowerCase())),
   }
 }
 
@@ -786,10 +797,11 @@ export const doctorApi = {
     getTimeline: async (ticketId) =>
       requestAndNormalize(queueAPI.timeline(ticketId), (payload) => asArray(payload?.items || payload)),
     getTodaySummary: async (params = {}) => requestAndNormalize(queueAPI.summaryToday(params), (payload) => payload || null),
-    callNext: async (doctorId) => requestAndNormalize(queueAPI.callNext({ doctor_id: doctorId })),
+    callNext: async (doctorId) => requestAndNormalize(queueAPI.callNext(doctorId ? { doctor_id: doctorId } : {})),
     call: async (ticketId) => requestAndNormalize(queueAPI.call(ticketId)),
     recall: async (ticketId) => requestAndNormalize(queueAPI.recall(ticketId)),
     skip: async (ticketId) => requestAndNormalize(queueAPI.skip(ticketId)),
+    markNoShow: async (ticketId, body = {}) => requestAndNormalize(queueAPI.markNoShow(ticketId, body)),
     startService: async (ticketId) => requestAndNormalize(queueAPI.startService(ticketId)),
     complete: async (ticketId) => requestAndNormalize(queueAPI.complete(ticketId)),
     cancel: async (ticketId) => requestAndNormalize(queueAPI.cancel(ticketId)),

@@ -317,6 +317,7 @@ export const queueAPI = {
   call: (ticketId, body = {}) => request(`/queue/${encodeURIComponent(ticketId)}/call`, { method: 'POST', body }),
   recall: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/recall`, { method: 'POST', body: {} }),
   skip: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/skip`, { method: 'POST', body: {} }),
+  markNoShow: (ticketId, body = {}) => request(`/queue/${encodeURIComponent(ticketId)}/mark-no-show`, { method: 'POST', body }),
   startService: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/start-service`, { method: 'POST', body: {} }),
   complete: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/complete`, { method: 'POST', body: {} }),
   cancel: (ticketId) => request(`/queue/${encodeURIComponent(ticketId)}/cancel`, { method: 'POST', body: {} }),

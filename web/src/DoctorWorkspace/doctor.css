@@ -26798,10 +26798,24 @@
 .doctor-queue-kpi {
   min-height: 112px;
   padding: 18px 22px;
+  border: 1px solid #dbe6f6;
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
   gap: 18px;
   align-items: center;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.doctor-queue-kpi.is-actionable {
+  cursor: pointer;
+}
+
+.doctor-queue-kpi.is-actionable:hover,
+.doctor-queue-kpi.is-active {
+  border-color: rgba(18, 100, 242, .38);
+  box-shadow: 0 18px 38px rgba(18, 100, 242, .12);
 }
 
 .doctor-queue-kpi__icon {
@@ -26892,10 +26906,10 @@
 .doctor-queue-head,
 .doctor-queue-row {
   display: grid;
-  grid-template-columns: 66px minmax(150px, 1.35fr) 62px 88px 72px minmax(90px, 1fr) 84px 88px;
+  grid-template-columns: 66px minmax(150px, 1.35fr) 62px 88px 72px minmax(90px, 1fr) 84px 112px;
   align-items: center;
   gap: 10px;
-  min-width: 840px;
+  min-width: 880px;
 }
 
 .doctor-queue-head {
@@ -26991,13 +27005,14 @@
 .doctor-queue-row i.is-orange { color: #c56a00; background: #fff0dc; }
 .doctor-queue-row i.is-blue { color: #1264f2; background: #e8f2ff; }
 .doctor-queue-row i.is-green { color: #00875f; background: #dff8eb; }
+.doctor-queue-row i.is-purple { color: #6c3be6; background: #eee6ff; }
 .doctor-queue-row i.is-slate { color: #59677e; background: #eef2f7; }
 .doctor-queue-row i.is-red { color: #b42318; background: #ffe9e9; }
 
 .doctor-queue-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -27042,10 +27057,6 @@
   border-color: #d6e3f5;
 }
 
-.doctor-queue-actions button:not(:first-child) {
-  display: none;
-}
-
 .doctor-queue-actions button svg {
   width: 13px;
   height: 13px;
@@ -27065,7 +27076,7 @@
   gap: 14px;
   min-height: 54px;
   padding-top: 12px;
-  min-width: 840px;
+  min-width: 880px;
 }
 
 .doctor-queue-footer > button,
@@ -27322,6 +27333,65 @@
 
 .doctor-queue-tip p {
   margin: 0;
+}
+
+.doctor-queue-detail-dialog {
+  max-width: 640px;
+}
+
+.doctor-queue-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.doctor-queue-detail-grid p,
+.doctor-queue-detail-timeline p {
+  margin: 0;
+}
+
+.doctor-queue-detail-grid p {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #e5ebf4;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.doctor-queue-detail-grid span,
+.doctor-queue-detail-timeline time {
+  color: #60749d;
+  font-size: .74rem;
+  font-weight: 800;
+}
+
+.doctor-queue-detail-grid strong {
+  color: #0a1b45;
+  font-size: .86rem;
+  font-weight: 950;
+}
+
+.doctor-queue-detail-timeline {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.doctor-queue-detail-timeline h4 {
+  margin: 0;
+  color: #0a1b45;
+  font-size: .92rem;
+}
+
+.doctor-queue-detail-timeline p:not(.doctor-appointment-empty) {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e5ebf4;
+  border-radius: 8px;
 }
 
 /* Queue calling page */
@@ -27629,6 +27699,154 @@ img.doctor-calling-avatar {
   cursor: not-allowed;
 }
 
+.doctor-calling-list-panel {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.doctor-calling-table-head,
+.doctor-calling-table-row {
+  display: grid;
+  grid-template-columns: 70px minmax(170px, 1.25fr) 76px 76px 82px 92px 74px 260px;
+  align-items: center;
+  gap: 10px;
+  min-width: 980px;
+}
+
+.doctor-calling-table-head {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #e2e9f4;
+  border-radius: 9px 9px 0 0;
+  background: #f8fbff;
+  color: #4f638c;
+  font-size: .68rem;
+  font-weight: 950;
+}
+
+.doctor-calling-table-body {
+  border: 1px solid #e2e9f4;
+  border-top: 0;
+  border-radius: 0 0 9px 9px;
+}
+
+.doctor-calling-table-row {
+  min-height: 64px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #edf2f8;
+}
+
+.doctor-calling-table-row:last-child {
+  border-bottom: 0;
+}
+
+.doctor-calling-table-row > strong,
+.doctor-calling-table-row > span {
+  min-width: 0;
+  color: #0d2453;
+  font-size: .76rem;
+  font-weight: 900;
+}
+
+.doctor-calling-table-patient {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.doctor-calling-table-patient > span {
+  min-width: 0;
+  display: grid;
+}
+
+.doctor-calling-table-patient b {
+  min-width: 0;
+  overflow: hidden;
+  color: #102756;
+  font-size: .78rem;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doctor-calling-table-patient small {
+  min-width: 0;
+  overflow: hidden;
+  color: #65779d;
+  font-size: .64rem;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doctor-calling-row-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.doctor-calling-row-actions button {
+  min-height: 30px;
+  padding: 0 6px;
+  border: 1px solid #bcd6ff;
+  border-radius: 7px;
+  background: #fff;
+  color: #1264f2;
+  font: inherit;
+  font-size: .64rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.doctor-calling-row-actions button:disabled {
+  color: #9aa8bf;
+  background: #f5f7fb;
+  border-color: #dce4f0;
+  cursor: not-allowed;
+}
+
+.doctor-calling-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 980px;
+  padding-top: 12px;
+}
+
+.doctor-calling-pagination span {
+  color: #60749d;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.doctor-calling-pagination div {
+  display: flex;
+  gap: 8px;
+}
+
+.doctor-calling-pagination button {
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid #d6e3f5;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #526a96;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+.doctor-calling-pagination button.is-active {
+  color: #fff;
+  border-color: #1264f2;
+  background: #1264f2;
+}
+
 .doctor-calling-lists {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
@@ -27864,6 +28082,11 @@ img.doctor-calling-avatar {
 .doctor-calling-overview dt i.is-1 { background: #35c875; }
 .doctor-calling-overview dt i.is-2 { background: #ff9f1a; }
 .doctor-calling-overview dt i.is-3 { background: #7c4dff; }
+.doctor-calling-overview dt i.is-waiting { background: #ff9f1a; }
+.doctor-calling-overview dt i.is-calling { background: #2f86ff; }
+.doctor-calling-overview dt i.is-serving { background: #35c875; }
+.doctor-calling-overview dt i.is-completed { background: #7c4dff; }
+.doctor-calling-overview dt i.is-skipped { background: #98a2b3; }
 
 .doctor-calling-estimate,
 .doctor-calling-current,
@@ -27952,6 +28175,85 @@ img.doctor-calling-avatar {
   border-color: #ffd1d1;
 }
 
+.doctor-calling-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.doctor-calling-error button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d6e3f5;
+  border-radius: 8px;
+  background: #fff;
+  color: #1264f2;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.doctor-calling-detail-dialog {
+  max-width: 640px;
+}
+
+.doctor-calling-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.doctor-calling-detail-grid p,
+.doctor-calling-detail-timeline p {
+  margin: 0;
+}
+
+.doctor-calling-detail-grid p {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #e5ebf4;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.doctor-calling-detail-grid span,
+.doctor-calling-detail-timeline time {
+  color: #60749d;
+  font-size: .74rem;
+  font-weight: 800;
+}
+
+.doctor-calling-detail-grid strong {
+  color: #0a1b45;
+  font-size: .86rem;
+  font-weight: 950;
+}
+
+.doctor-calling-detail-timeline {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.doctor-calling-detail-timeline h4 {
+  margin: 0;
+  color: #0a1b45;
+  font-size: .92rem;
+}
+
+.doctor-calling-detail-timeline p:not(.doctor-appointment-empty) {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e5ebf4;
+  border-radius: 8px;
+}
+
 @media (max-width: 1420px) {
   .doctor-calling-layout {
     grid-template-columns: 1fr;
@@ -27989,7 +28291,7 @@ img.doctor-calling-avatar {
 
 .doctor-history-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -28008,6 +28310,22 @@ img.doctor-calling-avatar {
   grid-template-columns: 58px minmax(0, 1fr);
   gap: 18px;
   align-items: center;
+}
+
+button.doctor-history-kpi {
+  width: 100%;
+  border: 1px solid #dbe6f6;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doctor-history-kpi.is-actionable:hover,
+.doctor-history-kpi.is-actionable:focus-visible {
+  border-color: #bcd3f7;
+  box-shadow: 0 18px 38px rgba(18, 100, 242, .12);
+  outline: 0;
 }
 
 .doctor-history-kpi__icon {
@@ -28031,6 +28349,7 @@ img.doctor-calling-avatar {
 .doctor-history-kpi__icon.is-green { color: #08ad6f; background: #dcf8ea; }
 .doctor-history-kpi__icon.is-orange { color: #f59a16; background: #fff0dc; }
 .doctor-history-kpi__icon.is-purple { color: #6c3be6; background: #eee6ff; }
+.doctor-history-kpi__icon.is-red { color: #ef4444; background: #fff0f0; }
 
 .doctor-history-kpi p,
 .doctor-history-kpi strong,
@@ -28141,6 +28460,26 @@ img.doctor-calling-avatar {
   padding: 0 12px;
 }
 
+.doctor-history-filter-button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #d7e3f5;
+  border-radius: 8px;
+  color: #1264f2;
+  background: #fff;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.doctor-history-filter-button:hover,
+.doctor-history-filter-button:focus-visible {
+  border-color: #bcd3f7;
+  background: #f7fbff;
+  outline: 0;
+}
+
 .doctor-history-table {
   border: 1px solid #e1e9f5;
   border-radius: 10px;
@@ -28151,10 +28490,10 @@ img.doctor-calling-avatar {
 .doctor-history-head,
 .doctor-history-row {
   display: grid;
-  grid-template-columns: 70px 72px minmax(140px, 1.25fr) 94px 68px 84px 76px 86px 86px 88px;
+  grid-template-columns: 70px 72px minmax(140px, 1.25fr) 94px 68px 84px 76px 86px 86px 122px;
   align-items: center;
   gap: 8px;
-  min-width: 960px;
+  min-width: 1020px;
 }
 
 .doctor-history-head {
@@ -28266,6 +28605,18 @@ img.doctor-calling-avatar {
 .doctor-history-row button svg {
   width: 14px;
   height: 14px;
+}
+
+.doctor-history-actions {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.doctor-history-row .doctor-history-actions button {
+  min-height: 28px;
+  font-size: .68rem;
 }
 
 .doctor-history-footer {
@@ -28464,6 +28815,9 @@ img.doctor-calling-avatar {
 .doctor-history-events article i.is-transferred { background: #2177ff; }
 .doctor-history-events article i.is-cancelled { background: #ef4444; }
 .doctor-history-events article i.is-called { background: #2177ff; }
+.doctor-history-events article i.is-calling { background: #2177ff; }
+.doctor-history-events article i.is-serving { background: #25bd71; }
+.doctor-history-events article i.is-waiting { background: #98a2b3; }
 
 .doctor-history-events time {
   color: #5d6e94;
@@ -28553,6 +28907,216 @@ img.doctor-calling-avatar {
   height: 19px;
 }
 
+.doctor-history-error {
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #ffd1d1;
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #b42318;
+  background: #fff5f5;
+  font-size: .84rem;
+  font-weight: 850;
+}
+
+.doctor-history-error button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #ffc9c9;
+  border-radius: 8px;
+  color: #b42318;
+  background: #fff;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.doctor-history-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.doctor-history-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 20, 48, .38);
+}
+
+.doctor-history-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid #dbe6f6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(8, 20, 48, .22);
+}
+
+.doctor-history-modal__panel.is-compact {
+  width: min(560px, 100%);
+}
+
+.doctor-history-modal__panel > header {
+  padding: 18px 20px;
+  border-bottom: 1px solid #edf2f8;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 14px;
+  align-items: start;
+}
+
+.doctor-history-modal__panel > header span {
+  color: #1264f2;
+  font-size: .78rem;
+  font-weight: 950;
+}
+
+.doctor-history-modal__panel > header h2,
+.doctor-history-modal__panel > header p {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.doctor-history-modal__panel > header h2 {
+  margin-top: 4px;
+  color: #071844;
+  font-size: 1.2rem;
+  font-weight: 950;
+}
+
+.doctor-history-modal__panel > header p {
+  margin-top: 4px;
+  color: #60749d;
+  font-size: .82rem;
+  font-weight: 820;
+}
+
+.doctor-history-modal__panel > header button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d7e3f5;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #0d2453;
+  background: #fff;
+  cursor: pointer;
+}
+
+.doctor-history-modal__panel > header button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.doctor-history-modal__panel > dl {
+  margin: 0;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.doctor-history-modal__panel > dl div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e5edf8;
+  border-radius: 10px;
+  background: #f9fbff;
+}
+
+.doctor-history-modal__panel dt,
+.doctor-history-modal__panel dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.doctor-history-modal__panel dt {
+  color: #66789e;
+  font-size: .72rem;
+  font-weight: 850;
+}
+
+.doctor-history-modal__panel dd {
+  margin-top: 5px;
+  color: #102756;
+  font-size: .86rem;
+  font-weight: 930;
+}
+
+.doctor-history-modal__panel dd i {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  font-style: normal;
+  font-size: .72rem;
+  font-weight: 950;
+}
+
+.doctor-history-modal__panel dd i.is-green { color: #00875f; background: #dff8eb; border: 1px solid #bfeecf; }
+.doctor-history-modal__panel dd i.is-orange { color: #c56a00; background: #fff0dc; border: 1px solid #ffd8a6; }
+.doctor-history-modal__panel dd i.is-blue { color: #1264f2; background: #e8f2ff; border: 1px solid #bfd8ff; }
+.doctor-history-modal__panel dd i.is-red { color: #d92d20; background: #fff0f0; border: 1px solid #ffc9c9; }
+.doctor-history-modal__panel dd i.is-slate { color: #59677e; background: #eef2f7; border: 1px solid #dde5ef; }
+
+.doctor-history-modal__panel > section,
+.doctor-history-modal-events {
+  padding: 0 20px 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.doctor-history-modal__panel h3 {
+  margin: 0;
+  color: #0a1b45;
+  font-size: .95rem;
+  font-weight: 950;
+}
+
+.doctor-history-modal__panel section article,
+.doctor-history-modal-events article {
+  padding: 10px 12px;
+  border: 1px solid #e5edf8;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.doctor-history-modal__panel section time,
+.doctor-history-modal-events time {
+  color: #60749d;
+  font-size: .72rem;
+  font-weight: 850;
+}
+
+.doctor-history-modal__panel section strong,
+.doctor-history-modal-events strong {
+  display: block;
+  margin-top: 4px;
+  color: #102756;
+  font-size: .84rem;
+  font-weight: 950;
+}
+
+.doctor-history-modal__panel section p,
+.doctor-history-modal-events p {
+  margin: 4px 0 0;
+  color: #60749d;
+  font-size: .78rem;
+  font-weight: 780;
+}
+
 @media (max-width: 1420px) {
   .doctor-history-layout {
     grid-template-columns: 1fr;
@@ -28577,6 +29141,16 @@ img.doctor-calling-avatar {
   .doctor-history-head,
   .doctor-history-row {
     min-width: 1080px;
+  }
+}
+
+@media (max-width: 720px) {
+  .doctor-history-modal {
+    padding: 12px;
+  }
+
+  .doctor-history-modal__panel > dl {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -41567,6 +42141,27 @@ img.doctor-calling-avatar {
 .doctor-lab-result-detail h2 {
   font-size: 16px;
   font-weight: 950;
+}
+
+.doctor-queue-clear-filter,
+.doctor-queue-error button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d6e3f5;
+  border-radius: 8px;
+  background: #fff;
+  color: #1264f2;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.doctor-queue-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .doctor-lab-result-detail header button {
