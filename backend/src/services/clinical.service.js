@@ -1,12 +1,15 @@
 const {
   Allergy,
+  Appointment,
   CarePlan,
   ClinicalNote,
   Consultation,
   Diagnosis,
   Encounter,
+  NursingTask,
   Patient,
   ProblemList,
+  QueueTicket,
   VitalSign,
 } = require('../models');
 const {
@@ -41,6 +44,9 @@ const { assertTransition } = require('../shared/utils/status-transition');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
 const { PERMISSION } = require('../constants/permissions');
 const permissionService = require('./permission.service');
+const vitalAssessmentService = require('./vital-sign-assessment.service');
+const vitalCorrectionService = require('./vital-correction.service');
+const { isValidObjectId } = require('../common/helpers/object-id.helper');
 
 const CLINICAL_EDITABLE_ENCOUNTER_STATUSES = [
   ENCOUNTER_STATUS.ARRIVED,
@@ -83,6 +89,45 @@ const VITAL_SIGN_FIELDS = [
   'height',
 ];
 
+const VITAL_SIGN_EXTRA_NUMERIC_FIELDS = [
+  'pain_score',
+  'blood_glucose',
+  'oxygen_flow_rate',
+  'gcs_eye',
+  'gcs_verbal',
+  'gcs_motor',
+  'gcs_total',
+  'map',
+];
+
+const VITAL_SIGN_OPTION_FIELDS = [
+  'oxygen_device',
+  'consciousness_level',
+  'measurement_position',
+  'temperature_site',
+  'bp_site',
+  'source',
+  'device_id',
+  'note',
+  'related_task_id',
+  'related_alert_id',
+];
+
+const VITAL_SIGN_EDITABLE_FIELDS = [
+  ...VITAL_SIGN_FIELDS,
+  ...VITAL_SIGN_EXTRA_NUMERIC_FIELDS,
+  ...VITAL_SIGN_OPTION_FIELDS,
+];
+
+const VITAL_SIGN_ENUMS = {
+  oxygen_device: ['room_air', 'nasal_cannula', 'simple_mask', 'non_rebreather_mask', 'venturi_mask', 'high_flow', 'ventilator'],
+  consciousness_level: ['alert', 'voice', 'pain', 'unresponsive'],
+  measurement_position: ['sitting', 'lying', 'standing'],
+  temperature_site: ['oral', 'axillary', 'tympanic', 'rectal', 'forehead'],
+  bp_site: ['left_arm', 'right_arm', 'left_leg', 'right_leg'],
+  source: ['manual', 'device', 'imported'],
+};
+
 const ALLERGY_SEVERITY_WEIGHT = {
   life_threatening: 5,
   severe: 4,
@@ -118,6 +163,10 @@ function actorRoles(actor = {}) {
   return Array.isArray(actor.roles) ? actor.roles : [];
 }
 
+function actorUserId(actor = {}) {
+  return actor.userId || actor.user_id || actor.actorId || actor.actor_id || actor.id || null;
+}
+
 function hasRole(actor = {}, roleCode) {
   return actorRoles(actor).includes(roleCode);
 }
@@ -147,6 +196,12 @@ function assertActorUser(actor = {}) {
 
 function normalizeString(value) {
   return String(value || '').trim();
+}
+
+function normalizeObjectIdInput(value, fieldName = 'id') {
+  const raw = value && typeof value === 'object' && value._id ? value._id : value;
+  if (!raw || !isValidObjectId(raw)) throw createError(`${fieldName} không hợp lệ.`, 400);
+  return raw;
 }
 
 function nonEmpty(value) {
@@ -235,13 +290,120 @@ function assertEncounterClinicalEditable(encounter, options = {}) {
 }
 
 async function getEncounterOrThrow(encounterId, session = null) {
-  const encounter = await withSession(Encounter.findById(encounterId).lean(), session);
+  const targetId = normalizeObjectIdInput(encounterId, 'encounterId');
+  const encounter = await withSession(Encounter.findById(targetId).lean(), session);
   if (!encounter) throw createError('Không tìm thấy encounter.', 404);
   return encounter;
 }
 
+function assertDepartmentScopedAccess(departmentId, actor = {}, permissions = []) {
+  if (!actorType(actor)) return true;
+  if (hasGlobalClinicalScope(actor)) return true;
+  if (hasAnyPermission(actor, permissions)) return true;
+  const actorDepartment = actorDepartmentId(actor);
+  if (actorDepartment && sameId(departmentId, actorDepartment) && hasAnyPermission(actor, [
+    ...permissions,
+    PERMISSION.ENCOUNTERS.READ_DEPARTMENT,
+    PERMISSION.ENCOUNTERS.UPDATE_NURSING_STATUS,
+  ])) {
+    return true;
+  }
+  throw createError('Bạn không có quyền thao tác dữ liệu lâm sàng ngoài phạm vi khoa/phòng được cấp.', 403);
+}
+
+async function resolveVitalContext(payload = {}, actor = {}) {
+  if (payload.encounter_id) {
+    const encounterId = normalizeObjectIdInput(payload.encounter_id, 'encounter_id');
+    const encounter = await getEncounterOrThrow(encounterId);
+    assertEncounterClinicalEditable(encounter);
+    assertEncounterAccess(encounter, actor, {
+      globalPermissions: [PERMISSION.VITAL_SIGNS.CREATE],
+      ownPermissions: [PERMISSION.VITAL_SIGNS.CREATE],
+      departmentPermissions: [PERMISSION.VITAL_SIGNS.CREATE, PERMISSION.ENCOUNTERS.UPDATE_NURSING_STATUS],
+    });
+    return {
+      patient_id: encounter.patient_id,
+      encounter_id: encounter._id,
+      queue_ticket_id: payload.queue_ticket_id || undefined,
+      appointment_id: encounter.appointment_id || payload.appointment_id || undefined,
+      department_id: encounter.department_id,
+      context: payload.context || 'encounter',
+    };
+  }
+
+  if (payload.queue_ticket_id) {
+    const queueTicketId = normalizeObjectIdInput(payload.queue_ticket_id, 'queue_ticket_id');
+    const ticket = await QueueTicket.findById(queueTicketId).lean();
+    if (!ticket) throw createError('Không tìm thấy queue ticket để ghi sinh hiệu.', 404);
+    assertDepartmentScopedAccess(ticket.department_id, actor, [PERMISSION.VITAL_SIGNS.CREATE, PERMISSION.QUEUE.READ_DEPARTMENT]);
+    return {
+      patient_id: ticket.patient_id,
+      encounter_id: ticket.encounter_id || undefined,
+      queue_ticket_id: ticket._id,
+      appointment_id: ticket.appointment_id || payload.appointment_id || undefined,
+      department_id: ticket.department_id,
+      context: payload.context || 'pre_triage',
+    };
+  }
+
+  if (payload.appointment_id) {
+    const appointmentId = normalizeObjectIdInput(payload.appointment_id, 'appointment_id');
+    const appointment = await Appointment.findById(appointmentId).lean();
+    if (!appointment) throw createError('Không tìm thấy lịch hẹn để ghi sinh hiệu.', 404);
+    assertDepartmentScopedAccess(appointment.department_id, actor, [PERMISSION.VITAL_SIGNS.CREATE, PERMISSION.APPOINTMENTS.READ_DEPARTMENT]);
+    return {
+      patient_id: appointment.patient_id,
+      appointment_id: appointment._id,
+      department_id: appointment.department_id,
+      context: payload.context || 'pre_triage',
+    };
+  }
+
+  throw createError('Cần encounter_id, queue_ticket_id hoặc appointment_id để ghi sinh hiệu.', 400);
+}
+
+async function assertVitalSignAccess(vitalSign = {}, actor = {}, mode = 'read') {
+  if (vitalSign.encounter_id) {
+    const encounter = await getEncounterOrThrow(vitalSign.encounter_id);
+    if (mode === 'write') assertEncounterClinicalEditable(encounter);
+    assertEncounterAccess(encounter, actor, {
+      globalPermissions: [mode === 'write' ? PERMISSION.VITAL_SIGNS.UPDATE_OWN : PERMISSION.VITAL_SIGNS.READ, PERMISSION.ENCOUNTERS.READ],
+      ownPermissions: [PERMISSION.ENCOUNTERS.READ_OWN, PERMISSION.VITAL_SIGNS.UPDATE_OWN],
+      departmentPermissions: [
+        mode === 'write' ? PERMISSION.VITAL_SIGNS.UPDATE_OWN : PERMISSION.VITAL_SIGNS.READ,
+        PERMISSION.ENCOUNTERS.READ_DEPARTMENT,
+        PERMISSION.ENCOUNTERS.UPDATE_NURSING_STATUS,
+      ],
+    });
+    return encounter;
+  }
+
+  if (vitalSign.queue_ticket_id) {
+    const ticket = await QueueTicket.findById(vitalSign.queue_ticket_id).lean();
+    if (!ticket) throw createError('Không tìm thấy queue ticket của sinh hiệu.', 404);
+    assertDepartmentScopedAccess(ticket.department_id, actor, [
+      mode === 'write' ? PERMISSION.VITAL_SIGNS.UPDATE_OWN : PERMISSION.VITAL_SIGNS.READ,
+      PERMISSION.QUEUE.READ_DEPARTMENT,
+    ]);
+    return ticket;
+  }
+
+  if (vitalSign.appointment_id) {
+    const appointment = await Appointment.findById(vitalSign.appointment_id).lean();
+    if (!appointment) throw createError('Không tìm thấy lịch hẹn của sinh hiệu.', 404);
+    assertDepartmentScopedAccess(appointment.department_id, actor, [
+      mode === 'write' ? PERMISSION.VITAL_SIGNS.UPDATE_OWN : PERMISSION.VITAL_SIGNS.READ,
+      PERMISSION.APPOINTMENTS.READ_DEPARTMENT,
+    ]);
+    return appointment;
+  }
+
+  throw createError('Sinh hiệu thiếu ngữ cảnh lâm sàng.', 409);
+}
+
 async function assertPatientActive(patientId, session = null) {
-  const patient = await withSession(Patient.findById(patientId).lean(), session);
+  const targetId = normalizeObjectIdInput(patientId, 'patientId');
+  const patient = await withSession(Patient.findById(targetId).lean(), session);
   if (!patient || patient.is_deleted) throw createError('Không tìm thấy bệnh nhân.', 404);
   if (patient.status !== 'active') throw createError('Bệnh nhân không active.', 409);
   return patient;
@@ -927,12 +1089,7 @@ async function removeDiagnosis(diagnosisId, payload = {}, actor, requestMeta = {
 }
 
 function calculateBMI({ weight, height }) {
-  const numericWeight = Number(weight);
-  const numericHeight = Number(height);
-  if (!numericWeight || !numericHeight || numericWeight <= 0 || numericHeight <= 0) return null;
-  const meters = numericHeight > 10 ? numericHeight / 100 : numericHeight;
-  if (!meters) return null;
-  return Number((numericWeight / (meters * meters)).toFixed(2));
+  return vitalAssessmentService.calculateBMI({ weight, height });
 }
 
 function validateVitalSignsPayload(payload = {}) {
@@ -946,15 +1103,23 @@ function validateVitalSignsPayload(payload = {}) {
     spo2: [50, 100],
     weight: [0.5, 500],
     height: [20, 250],
+    pain_score: [0, 10],
+    blood_glucose: [10, 1000],
+    oxygen_flow_rate: [0, 80],
+    gcs_eye: [1, 4],
+    gcs_verbal: [1, 5],
+    gcs_motor: [1, 6],
+    gcs_total: [3, 15],
+    map: [0, 250],
   };
   let hasAnyValue = false;
-  for (const field of VITAL_SIGN_FIELDS) {
+  for (const field of [...VITAL_SIGN_FIELDS, ...VITAL_SIGN_EXTRA_NUMERIC_FIELDS]) {
     if (payload[field] !== undefined && payload[field] !== null && payload[field] !== '') {
       const value = Number(payload[field]);
       const [min, max] = ranges[field];
       if (Number.isNaN(value) || value < min || value > max) throw createError(`${field} ngoài khoảng hợp lệ.`);
       normalized[field] = value;
-      hasAnyValue = true;
+      if (field !== 'map' && field !== 'gcs_total') hasAnyValue = true;
     }
   }
   if (!hasAnyValue) throw createError('Cần có ít nhất một chỉ số sinh hiệu.');
@@ -965,29 +1130,89 @@ function validateVitalSignsPayload(payload = {}) {
   if (Number.isNaN(recordedAt.getTime())) throw createError('recorded_at không hợp lệ.');
   if (recordedAt > new Date(Date.now() + 5 * 60 * 1000)) throw createError('recorded_at không được ở tương lai.');
   normalized.recorded_at = recordedAt;
-  normalized.bmi = payload.bmi !== undefined ? Number(payload.bmi) : calculateBMI(normalized);
+
+  Object.entries(VITAL_SIGN_ENUMS).forEach(([field, allowed]) => {
+    if (payload[field] !== undefined && payload[field] !== null && payload[field] !== '') {
+      ensureEnum(payload[field], allowed, field);
+      normalized[field] = payload[field];
+    }
+  });
+
+  for (const field of ['device_id', 'note']) {
+    if (payload[field] !== undefined) normalized[field] = normalizeString(payload[field]);
+  }
+  if (payload.related_task_id) normalized.related_task_id = normalizeObjectIdInput(payload.related_task_id, 'related_task_id');
+  if (payload.related_alert_id) normalized.related_alert_id = normalizeObjectIdInput(payload.related_alert_id, 'related_alert_id');
+
+  const calculated = vitalAssessmentService.assessVitalSign(normalized).calculated;
+  normalized.bmi = payload.bmi !== undefined ? Number(payload.bmi) : calculated.bmi;
+  normalized.map = payload.map !== undefined ? Number(payload.map) : calculated.map;
+  normalized.gcs_total = payload.gcs_total !== undefined ? Number(payload.gcs_total) : calculated.gcs_total;
   return normalized;
 }
 
 async function recordVitalSigns(payload, actor, requestMeta = {}) {
   assertActorUser(actor);
   const normalized = validateVitalSignsPayload(payload);
-  const encounter = await getEncounterOrThrow(payload.encounter_id);
-  assertEncounterClinicalEditable(encounter);
-  assertEncounterAccess(encounter, actor, {
-    globalPermissions: [PERMISSION.VITAL_SIGNS.CREATE],
-    ownPermissions: [PERMISSION.VITAL_SIGNS.CREATE],
-    departmentPermissions: [PERMISSION.VITAL_SIGNS.CREATE, PERMISSION.ENCOUNTERS.UPDATE_NURSING_STATUS],
-  });
+  const context = await resolveVitalContext(payload, actor);
 
   const vitalSign = await VitalSign.create({
-    patient_id: encounter.patient_id,
-    encounter_id: encounter._id,
+    patient_id: context.patient_id,
+    encounter_id: context.encounter_id,
+    queue_ticket_id: context.queue_ticket_id,
+    appointment_id: context.appointment_id,
+    context: context.context,
     recorded_by: payload.recorded_by || actor?.userId,
     ...normalized,
     status: VITAL_SIGN_STATUS.RECORDED,
     created_by: actor?.userId,
   });
+
+  if (context.queue_ticket_id) {
+    await QueueTicket.updateOne(
+      { _id: context.queue_ticket_id },
+      {
+        $set: {
+          latest_vital_sign_id: vitalSign._id,
+          vital_recorded_at: vitalSign.recorded_at,
+          nursing_stage: 'vital_done',
+          nursing_stage_updated_at: new Date(),
+          nursing_stage_updated_by: actorUserId(actor),
+          updated_by: actorUserId(actor),
+        },
+      },
+    );
+  }
+
+  if (context.encounter_id) {
+    await Encounter.updateOne(
+      { _id: context.encounter_id },
+      {
+        $set: {
+          vital_recorded_at: vitalSign.recorded_at,
+          nursing_status: 'vital_done',
+          nursing_status_updated_at: new Date(),
+          nursing_status_updated_by: actorUserId(actor),
+          updated_by: actorUserId(actor),
+        },
+      },
+    );
+  }
+
+  if (normalized.related_task_id) {
+    await NursingTask.updateOne(
+      { _id: normalized.related_task_id, status: { $in: ['todo', 'in_progress'] } },
+      {
+        $set: {
+          status: 'done',
+          completed_at: new Date(),
+          completed_by: actorUserId(actor),
+          updated_by: actorUserId(actor),
+          'metadata.latest_vital_sign_id': vitalSign._id,
+        },
+      },
+    );
+  }
 
   await recordAuditLog({
     actor,
@@ -997,8 +1222,41 @@ async function recordVitalSigns(payload, actor, requestMeta = {}) {
     status: 'success',
     message: 'Ghi nhận vital signs thành công.',
     requestMeta,
+    metadata: {
+      context: vitalSign.context,
+      queue_ticket_id: context.queue_ticket_id ? String(context.queue_ticket_id) : null,
+      appointment_id: context.appointment_id ? String(context.appointment_id) : null,
+      encounter_id: context.encounter_id ? String(context.encounter_id) : null,
+    },
   });
   return getVitalSignDetail(vitalSign._id, actor);
+}
+
+async function previewVitalSigns(payload, actor = {}) {
+  assertActorUser(actor);
+  const normalized = validateVitalSignsPayload(payload);
+  const context = await resolveVitalContext(payload, actor);
+  const previousVitalSign = await VitalSign.findOne({
+    ...(context.encounter_id ? { encounter_id: context.encounter_id } : { patient_id: context.patient_id }),
+    status: { $ne: VITAL_SIGN_STATUS.ENTERED_IN_ERROR },
+  }).sort({ recorded_at: -1 }).lean();
+  const assessment = vitalAssessmentService.assessVitalSign(normalized, context);
+
+  return {
+    normalized: assessment.normalized,
+    calculated: assessment.calculated,
+    assessment: {
+      severity: assessment.severity,
+      overall_severity: assessment.overall_severity,
+      abnormal_flags: assessment.abnormal_flags,
+      requires_recheck: assessment.requires_recheck,
+      suggested_recheck_minutes: assessment.suggested_recheck_minutes,
+      doctor_notification_required: assessment.doctor_notification_required,
+      requires_doctor_notification: assessment.requires_doctor_notification,
+    },
+    previous_vital_sign: previousVitalSign,
+    deltas: vitalAssessmentService.calculateDeltas(assessment.normalized, previousVitalSign || {}),
+  };
 }
 
 async function listVitalSigns(encounterId, actor = {}, query = {}) {
@@ -1013,6 +1271,160 @@ async function listVitalSigns(encounterId, actor = {}, query = {}) {
   if (!query.include_entered_in_error) filter.status = filter.status || { $ne: VITAL_SIGN_STATUS.ENTERED_IN_ERROR };
   const items = await VitalSign.find(filter).sort({ recorded_at: -1 }).lean();
   return { encounter_id: String(encounterId), items };
+}
+
+function parseVitalDate(value, fieldName) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw createError(`${fieldName} không hợp lệ.`);
+  return date;
+}
+
+function buildVitalHistoryFilter(query = {}) {
+  const filter = {};
+  const dateFrom = parseVitalDate(query.date_from || query.dateFrom, 'date_from');
+  const dateTo = parseVitalDate(query.date_to || query.dateTo, 'date_to');
+  if (dateFrom || dateTo) {
+    filter.recorded_at = {};
+    if (dateFrom) filter.recorded_at.$gte = dateFrom;
+    if (dateTo) filter.recorded_at.$lte = dateTo;
+  }
+  if (query.encounter_id) filter.encounter_id = normalizeObjectIdInput(query.encounter_id, 'encounter_id');
+  if (query.recorded_by) filter.recorded_by = normalizeObjectIdInput(query.recorded_by, 'recorded_by');
+  if (query.status) filter.status = query.status;
+  if (query.severity) filter.$or = [{ severity: query.severity }, { overall_severity: query.severity }];
+  if (query.abnormal_only === 'true' || query.abnormal_only === true) {
+    filter.$or = [
+      ...(filter.$or || []),
+      { overall_severity: { $ne: 'normal' } },
+      { severity: { $ne: 'normal' } },
+    ];
+  }
+  if (!query.include_entered_in_error) {
+    filter.status = filter.status || { $ne: VITAL_SIGN_STATUS.ENTERED_IN_ERROR };
+  }
+  return filter;
+}
+
+async function listPatientVitalSigns(patientId, actor = {}, query = {}) {
+  await assertPatientActive(patientId);
+  if (actorType(actor) && !hasAnyPermission(actor, [PERMISSION.VITAL_SIGNS.READ, PERMISSION.PATIENTS.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.SYSTEM.FULL_ACCESS])) {
+    throw createError('Bạn không có quyền xem lịch sử sinh hiệu của bệnh nhân.', 403);
+  }
+  const { page, limit, skip } = getPagination(query, 20, 100);
+  const filter = { patient_id: patientId, ...buildVitalHistoryFilter(query) };
+
+  if (query.department_id) {
+    const encounters = await Encounter.find({ patient_id: patientId, department_id: query.department_id }).select('_id').lean();
+    filter.encounter_id = { $in: encounters.map((encounter) => encounter._id) };
+  }
+
+  const [patient, items, total] = await Promise.all([
+    Patient.findById(patientId).select('patient_code full_name gender date_of_birth phone').lean(),
+    VitalSign.find(filter)
+      .sort({ recorded_at: query.sort === 'asc' ? 1 : -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('recorded_by', 'full_name employee_code')
+      .populate({
+        path: 'encounter_id',
+        select: 'encounter_code status start_time department_id attending_doctor_id reason_for_visit chief_complaint',
+        populate: [
+          { path: 'department_id', select: 'department_name department_code' },
+          { path: 'attending_doctor_id', select: 'full_name employee_code' },
+        ],
+      })
+      .lean(),
+    VitalSign.countDocuments(filter),
+  ]);
+
+  return {
+    patient,
+    summary: {
+      total_records: total,
+      abnormal_records: await VitalSign.countDocuments({ ...filter, overall_severity: { $ne: 'normal' } }),
+      critical_records: await VitalSign.countDocuments({ ...filter, overall_severity: 'critical' }),
+      amended_records: await VitalSign.countDocuments({ ...filter, status: VITAL_SIGN_STATUS.AMENDED }),
+      entered_in_error_records: await VitalSign.countDocuments({ ...filter, status: VITAL_SIGN_STATUS.ENTERED_IN_ERROR }),
+    },
+    items: items.map((vital, index) => ({
+      vital_sign: vital,
+      encounter: vital.encounter_id || null,
+      recorded_by_user: vital.recorded_by || null,
+      assessment: {
+        severity: vital.severity || vital.overall_severity || 'normal',
+        abnormal_flags: vital.abnormal_flags || [],
+        requires_recheck: vital.requires_recheck,
+        doctor_notification_required: vital.doctor_notification_required || vital.requires_doctor_notification,
+      },
+      deltas: vitalAssessmentService.calculateDeltas(vital, items[index + 1] || {}),
+    })),
+    pagination: buildPagination(page, limit, total),
+  };
+}
+
+function buildTrendSeries(items = []) {
+  const fields = [
+    'temperature',
+    'heart_rate',
+    'respiratory_rate',
+    'systolic_bp',
+    'diastolic_bp',
+    'spo2',
+    'bmi',
+    'pain_score',
+    'blood_glucose',
+    'map',
+  ];
+  return fields.reduce((series, field) => {
+    series[field] = items
+      .filter((item) => item[field] !== undefined && item[field] !== null)
+      .map((item) => ({ time: item.recorded_at, value: item[field], vital_sign_id: String(item._id) }));
+    return series;
+  }, {});
+}
+
+async function buildVitalTrends(filter, actor = {}, query = {}) {
+  if (!query.include_entered_in_error) filter.status = filter.status || { $ne: VITAL_SIGN_STATUS.ENTERED_IN_ERROR };
+  const dateFilter = buildVitalHistoryFilter(query);
+  const items = await VitalSign.find({ ...filter, ...dateFilter }).sort({ recorded_at: 1 }).lean();
+  const latest = items[items.length - 1] || null;
+  const previous = items[items.length - 2] || null;
+  const baseline = items[0] || null;
+  return {
+    latest,
+    previous,
+    baseline,
+    deltas: vitalAssessmentService.calculateDeltas(latest || {}, previous || {}),
+    series: buildTrendSeries(items),
+    abnormal_periods: items
+      .filter((item) => (item.overall_severity || item.severity) && (item.overall_severity || item.severity) !== 'normal')
+      .map((item) => ({
+        time: item.recorded_at,
+        vital_sign_id: String(item._id),
+        severity: item.overall_severity || item.severity,
+        flags: item.abnormal_flags || [],
+      })),
+    annotations: [],
+  };
+}
+
+async function getPatientVitalTrends(patientId, actor = {}, query = {}) {
+  await assertPatientActive(patientId);
+  if (actorType(actor) && !hasAnyPermission(actor, [PERMISSION.VITAL_SIGNS.READ, PERMISSION.PATIENTS.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.SYSTEM.FULL_ACCESS])) {
+    throw createError('Bạn không có quyền xem trend sinh hiệu của bệnh nhân.', 403);
+  }
+  return buildVitalTrends({ patient_id: patientId }, actor, query);
+}
+
+async function getEncounterVitalTrends(encounterId, actor = {}, query = {}) {
+  const encounter = await getEncounterOrThrow(encounterId);
+  assertEncounterAccess(encounter, actor, {
+    globalPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.ENCOUNTERS.READ],
+    ownPermissions: [PERMISSION.ENCOUNTERS.READ_OWN],
+    departmentPermissions: [PERMISSION.ENCOUNTERS.READ_DEPARTMENT],
+  });
+  return buildVitalTrends({ encounter_id: encounterId }, actor, query);
 }
 
 async function getLatestVitalSigns(encounterId, actor = {}) {
@@ -1032,12 +1444,7 @@ async function getLatestVitalSigns(encounterId, actor = {}) {
 async function getVitalSignDetail(vitalSignId, actor = {}) {
   const vitalSign = await VitalSign.findById(vitalSignId).lean();
   if (!vitalSign) throw createError('Không tìm thấy vital sign.', 404);
-  const encounter = await getEncounterOrThrow(vitalSign.encounter_id);
-  assertEncounterAccess(encounter, actor, {
-    globalPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.ENCOUNTERS.READ],
-    ownPermissions: [PERMISSION.ENCOUNTERS.READ_OWN],
-    departmentPermissions: [PERMISSION.ENCOUNTERS.READ_DEPARTMENT],
-  });
+  await assertVitalSignAccess(vitalSign, actor, 'read');
   return { vital_sign: vitalSign };
 }
 
@@ -1047,23 +1454,17 @@ async function updateVitalSigns(vitalSignId, payload, actor, requestMeta = {}) {
   if (vitalSign.status === VITAL_SIGN_STATUS.ENTERED_IN_ERROR) {
     throw createError('Vital sign entered_in_error không được sửa.', 409);
   }
-  const encounter = await getEncounterOrThrow(vitalSign.encounter_id);
-  assertEncounterClinicalEditable(encounter);
-  assertEncounterAccess(encounter, actor, {
-    globalPermissions: [PERMISSION.VITAL_SIGNS.UPDATE_OWN],
-    ownPermissions: [PERMISSION.VITAL_SIGNS.UPDATE_OWN],
-    departmentPermissions: [PERMISSION.VITAL_SIGNS.UPDATE_OWN, PERMISSION.ENCOUNTERS.UPDATE_NURSING_STATUS],
-  });
+  await assertVitalSignAccess(vitalSign, actor, 'write');
   assertAuthorOrOverride(vitalSign.recorded_by, actor, [PERMISSION.ENCOUNTERS.UPDATE_NURSING_STATUS]);
 
   const nextPayload = {};
-  for (const field of VITAL_SIGN_FIELDS) nextPayload[field] = payload[field] !== undefined ? payload[field] : vitalSign[field];
+  for (const field of VITAL_SIGN_EDITABLE_FIELDS) nextPayload[field] = payload[field] !== undefined ? payload[field] : vitalSign[field];
   nextPayload.recorded_at = payload.recorded_at !== undefined ? payload.recorded_at : vitalSign.recorded_at;
   nextPayload.bmi = payload.bmi;
   const normalized = validateVitalSignsPayload(nextPayload);
 
   const before = vitalSign.toObject();
-  for (const field of VITAL_SIGN_FIELDS) {
+  for (const field of VITAL_SIGN_EDITABLE_FIELDS) {
     vitalSign[field] = normalized[field] !== undefined ? normalized[field] : undefined;
   }
   vitalSign.recorded_at = normalized.recorded_at;
@@ -1089,12 +1490,7 @@ async function updateVitalSigns(vitalSignId, payload, actor, requestMeta = {}) {
 async function deleteVitalSignsRecord(vitalSignId, payload = {}, actor, requestMeta = {}) {
   const vitalSign = await VitalSign.findById(vitalSignId);
   if (!vitalSign) throw createError('Không tìm thấy vital sign.', 404);
-  const encounter = await getEncounterOrThrow(vitalSign.encounter_id);
-  assertEncounterAccess(encounter, actor, {
-    globalPermissions: [PERMISSION.VITAL_SIGNS.ENTERED_IN_ERROR],
-    ownPermissions: [PERMISSION.VITAL_SIGNS.ENTERED_IN_ERROR],
-    departmentPermissions: [PERMISSION.VITAL_SIGNS.ENTERED_IN_ERROR, PERMISSION.ENCOUNTERS.UPDATE_NURSING_STATUS],
-  });
+  await assertVitalSignAccess(vitalSign, actor, 'write');
 
   const before = vitalSign.toObject();
   vitalSign.status = VITAL_SIGN_STATUS.ENTERED_IN_ERROR;
@@ -1118,6 +1514,14 @@ async function deleteVitalSignsRecord(vitalSignId, payload = {}, actor, requestM
   return getVitalSignDetail(vitalSign._id, actor);
 }
 
+async function requestVitalSignCorrection(vitalSignId, payload = {}, actor = {}, requestMeta = {}) {
+  return vitalCorrectionService.requestCorrection(vitalSignId, payload, actor, requestMeta);
+}
+
+async function getVitalSignChangeHistory(vitalSignId, actor = {}) {
+  return vitalCorrectionService.getVitalSignChangeHistory(vitalSignId, actor);
+}
+
 async function validateClinicalNotePayload(payload = {}, options = {}) {
   if (options.requireContent !== false && !nonEmpty(payload.content)) throw createError('content là bắt buộc.');
   if (payload.consultation_id) {
@@ -1132,6 +1536,15 @@ async function validateClinicalNotePayload(payload = {}, options = {}) {
     note_type: normalizeString(payload.note_type) || 'progress_note',
     title: payload.title,
     content: payload.content,
+    linked_vital_sign_ids: Array.isArray(payload.linked_vital_sign_ids) ? payload.linked_vital_sign_ids : undefined,
+    linked_vital_alert_id: payload.linked_vital_alert_id || undefined,
+    linked_task_id: payload.linked_task_id || undefined,
+    priority: ['normal', 'important', 'urgent'].includes(payload.priority) ? payload.priority : undefined,
+    visibility: ['care_team', 'nursing_only', 'patient_visible'].includes(payload.visibility) ? payload.visibility : undefined,
+    template_id: payload.template_id || undefined,
+    tags: Array.isArray(payload.tags) ? payload.tags.map(normalizeString).filter(Boolean) : undefined,
+    notified_doctor_id: payload.notified_doctor_id || undefined,
+    doctor_response_status: ['pending', 'seen', 'responded'].includes(payload.doctor_response_status) ? payload.doctor_response_status : undefined,
     status: [CLINICAL_NOTE_STATUS.DRAFT, CLINICAL_NOTE_STATUS.IN_PROGRESS].includes(payload.status)
       ? payload.status
       : CLINICAL_NOTE_STATUS.DRAFT,
@@ -1155,6 +1568,16 @@ async function createClinicalNote(payload, actor, requestMeta = {}) {
     note_type: normalized.note_type,
     title: normalized.title,
     content: normalized.content,
+    linked_vital_sign_ids: normalized.linked_vital_sign_ids,
+    linked_vital_alert_id: normalized.linked_vital_alert_id,
+    linked_task_id: normalized.linked_task_id,
+    priority: normalized.priority,
+    visibility: normalized.visibility,
+    template_id: normalized.template_id,
+    tags: normalized.tags,
+    notified_doctor_id: normalized.notified_doctor_id,
+    doctor_notified_at: normalized.notified_doctor_id ? new Date() : undefined,
+    doctor_response_status: normalized.doctor_response_status,
     status: normalized.status,
     created_by: actor?.userId,
   });
@@ -1232,6 +1655,18 @@ async function updateClinicalNote(noteId, payload, actor, requestMeta = {}) {
   if (payload.content !== undefined) {
     if (!nonEmpty(payload.content)) throw createError('content không được rỗng.');
     note.content = payload.content;
+  }
+  if (Array.isArray(payload.linked_vital_sign_ids)) note.linked_vital_sign_ids = payload.linked_vital_sign_ids;
+  if (payload.linked_vital_alert_id !== undefined) note.linked_vital_alert_id = payload.linked_vital_alert_id || undefined;
+  if (payload.linked_task_id !== undefined) note.linked_task_id = payload.linked_task_id || undefined;
+  if (payload.priority !== undefined) note.priority = ['normal', 'important', 'urgent'].includes(payload.priority) ? payload.priority : note.priority;
+  if (payload.visibility !== undefined) note.visibility = ['care_team', 'nursing_only', 'patient_visible'].includes(payload.visibility) ? payload.visibility : note.visibility;
+  if (payload.template_id !== undefined) note.template_id = payload.template_id || undefined;
+  if (Array.isArray(payload.tags)) note.tags = payload.tags.map(normalizeString).filter(Boolean);
+  if (payload.notified_doctor_id !== undefined) {
+    note.notified_doctor_id = payload.notified_doctor_id || undefined;
+    note.doctor_notified_at = payload.notified_doctor_id ? new Date() : undefined;
+    note.doctor_response_status = payload.notified_doctor_id ? 'pending' : undefined;
   }
   note.updated_by = actor?.userId;
   await note.save();
@@ -1793,16 +2228,28 @@ module.exports = {
   ensureSinglePrimaryDiagnosis,
   // recordVitalSigns: Ghi nhận dấu hiệu sinh tồn.
   recordVitalSigns,
+  // previewVitalSigns: Xem trước tính toán, đánh giá bất thường và delta trước khi lưu.
+  previewVitalSigns,
   // listVitalSigns: Liệt kê dấu hiệu sinh tồn.
   listVitalSigns,
+  // listPatientVitalSigns: Liệt kê sinh hiệu toàn bệnh nhân qua nhiều encounter.
+  listPatientVitalSigns,
   // getLatestVitalSigns: Lấy dấu hiệu sinh tồn mới nhất.
   getLatestVitalSigns,
+  // getPatientVitalTrends: Lấy chuỗi trend sinh hiệu toàn bệnh nhân.
+  getPatientVitalTrends,
+  // getEncounterVitalTrends: Lấy chuỗi trend sinh hiệu theo encounter.
+  getEncounterVitalTrends,
   // getVitalSignDetail: Lấy chi tiết dấu hiệu sinh tồn.
   getVitalSignDetail,
   // updateVitalSigns: Cập nhật dấu hiệu sinh tồn.
   updateVitalSigns,
   // deleteVitalSignsRecord: Xóa bản ghi dấu hiệu sinh tồn.
   deleteVitalSignsRecord,
+  // requestVitalSignCorrection: Gửi yêu cầu sửa bản ghi sinh hiệu.
+  requestVitalSignCorrection,
+  // getVitalSignChangeHistory: Lấy audit/correction history của sinh hiệu.
+  getVitalSignChangeHistory,
   // calculateBMI: Tính toán BMI.
   calculateBMI,
   // validateVitalSignsPayload: Kiểm tra tính hợp lệ của dữ liệu dấu hiệu sinh tồn.

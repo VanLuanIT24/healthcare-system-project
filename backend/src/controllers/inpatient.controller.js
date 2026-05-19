@@ -1,4 +1,5 @@
 const inpatientService = require('../services/inpatient.service');
+const inpatientWorkspaceService = require('../services/inpatient-workspace.service');
 const { controllerHandler: wrap, markLegacyControllerError, requestMeta, sendSuccess } = require('../common/controllers');
 
 module.exports = {
@@ -33,4 +34,45 @@ module.exports = {
   transferBedByAssignment: wrap((req) => inpatientService.transferBedAssignment(req.params.assignmentId, req.body, req.auth, requestMeta(req)), 'Transfer bed thành công.'),
   releaseBedAssignment: wrap((req) => inpatientService.releaseBedAssignment(req.params.assignmentId, req.body, req.auth, requestMeta(req)), 'Release bed assignment thành công.'),
   cancelBedAssignment: wrap((req) => inpatientService.cancelBedAssignment(req.params.assignmentId, req.body, req.auth, requestMeta(req)), 'Cancel bed assignment thành công.'),
+
+  getWardBoard: wrap((req) => inpatientWorkspaceService.getWardBoard(req.query, req.auth), 'Lấy ward board nội trú thành công.'),
+  getWardMap: wrap((req) => inpatientWorkspaceService.getWardMap(req.query, req.auth), 'Lấy ward map nội trú thành công.'),
+  getDischargeReadiness: wrap((req) => inpatientWorkspaceService.getDischargeReadiness(req.params.admissionId, req.auth), 'Lấy discharge readiness thành công.'),
+  validateBedAssignmentPreview: wrap((req) => inpatientWorkspaceService.validateBedAssignmentPreview(req.params.admissionId, req.body, req.auth), 'Validate bed assignment thành công.'),
+  getBedSuggestions: wrap((req) => inpatientWorkspaceService.getBedSuggestions(req.body, req.auth), 'Gợi ý giường thành công.'),
+
+  listInpatientTasks: wrap((req) => inpatientWorkspaceService.listInpatientTasks(req.query, req.auth), 'Lấy danh sách task nội trú thành công.'),
+  getInpatientTaskDetail: wrap((req) => inpatientWorkspaceService.getInpatientTaskDetail(req.params.taskId, req.auth), 'Lấy chi tiết task nội trú thành công.'),
+  createInpatientTask: wrap((req) => inpatientWorkspaceService.createInpatientTask(req.body, req.auth, requestMeta(req)), 'Tạo task nội trú thành công.', 201),
+  updateInpatientTask: wrap((req) => inpatientWorkspaceService.updateInpatientTask(req.params.taskId, req.body, req.auth, requestMeta(req)), 'Cập nhật task nội trú thành công.'),
+  startInpatientTask: wrap((req) => inpatientWorkspaceService.startInpatientTask(req.params.taskId, req.body, req.auth, requestMeta(req)), 'Bắt đầu task nội trú thành công.'),
+  completeInpatientTask: wrap((req) => inpatientWorkspaceService.completeInpatientTask(req.params.taskId, req.body, req.auth, requestMeta(req)), 'Hoàn tất task nội trú thành công.'),
+  cancelInpatientTask: wrap((req) => inpatientWorkspaceService.cancelInpatientTask(req.params.taskId, req.body, req.auth, requestMeta(req)), 'Hủy task nội trú thành công.'),
+  assignInpatientTask: wrap((req) => inpatientWorkspaceService.assignInpatientTask(req.params.taskId, req.body, req.auth, requestMeta(req)), 'Giao task nội trú thành công.'),
+  bulkCreateInpatientTasks: wrap((req) => inpatientWorkspaceService.bulkCreateInpatientTasks(req.body, req.auth, requestMeta(req)), 'Tạo task nội trú hàng loạt thành công.', 201),
+  bulkAssignInpatientTasks: wrap((req) => inpatientWorkspaceService.bulkAssignInpatientTasks(req.body, req.auth, requestMeta(req)), 'Giao task nội trú hàng loạt thành công.'),
+  bulkCompleteInpatientTasks: wrap((req) => inpatientWorkspaceService.bulkCompleteInpatientTasks(req.body, req.auth, requestMeta(req)), 'Hoàn tất task nội trú hàng loạt thành công.'),
+
+  listMedicationAdministrations: wrap((req) => inpatientWorkspaceService.listMedicationAdministrations(req.query, req.auth), 'Lấy eMAR nội trú thành công.'),
+  getMedicationAdministrationDetail: wrap((req) => inpatientWorkspaceService.getMedicationAdministrationDetail(req.params.administrationId, req.auth), 'Lấy chi tiết eMAR thành công.'),
+  generateMedicationScheduleFromPrescription: wrap((req) => inpatientWorkspaceService.generateMedicationScheduleFromPrescription(req.body, req.auth, requestMeta(req)), 'Tạo lịch eMAR từ prescription thành công.', 201),
+  administerMedication: wrap((req) => inpatientWorkspaceService.administerMedication(req.params.administrationId, req.body, req.auth, requestMeta(req)), 'Ghi nhận cấp thuốc thành công.'),
+  holdMedication: wrap((req) => inpatientWorkspaceService.holdMedication(req.params.administrationId, req.body, req.auth, requestMeta(req)), 'Hold thuốc thành công.'),
+  refuseMedication: wrap((req) => inpatientWorkspaceService.refuseMedication(req.params.administrationId, req.body, req.auth, requestMeta(req)), 'Ghi nhận từ chối thuốc thành công.'),
+  omitMedication: wrap((req) => inpatientWorkspaceService.omitMedication(req.params.administrationId, req.body, req.auth, requestMeta(req)), 'Ghi nhận bỏ liều thuốc thành công.'),
+  rescheduleMedicationAdministration: wrap((req) => inpatientWorkspaceService.rescheduleMedicationAdministration(req.params.administrationId, req.body, req.auth, requestMeta(req)), 'Đổi lịch thuốc thành công.'),
+  markMedicationEnteredInError: wrap((req) => inpatientWorkspaceService.markMedicationEnteredInError(req.params.administrationId, req.body, req.auth, requestMeta(req)), 'Đánh dấu eMAR nhập sai thành công.'),
+  verifyMedicationScan: wrap((req) => inpatientWorkspaceService.verifyMedicationScan(req.body, req.auth), 'Verify scan eMAR thành công.'),
+
+  listInpatientHandovers: wrap((req) => inpatientWorkspaceService.listInpatientHandovers(req.query, req.auth), 'Lấy danh sách bàn giao nội trú thành công.'),
+  createInpatientHandover: wrap((req) => inpatientWorkspaceService.createInpatientHandover(req.body, req.auth, requestMeta(req)), 'Tạo bàn giao nội trú thành công.', 201),
+  getInpatientHandoverDetail: wrap((req) => inpatientWorkspaceService.getInpatientHandoverDetail(req.params.handoverId, req.auth), 'Lấy chi tiết bàn giao nội trú thành công.'),
+  updateInpatientHandover: wrap((req) => inpatientWorkspaceService.updateInpatientHandover(req.params.handoverId, req.body, req.auth, requestMeta(req)), 'Cập nhật bàn giao nội trú thành công.'),
+  generateInpatientHandover: wrap((req) => inpatientWorkspaceService.generateInpatientHandover(req.params.handoverId, req.body, req.auth, requestMeta(req)), 'Generate bàn giao nội trú thành công.'),
+  signInpatientHandover: wrap((req) => inpatientWorkspaceService.signInpatientHandover(req.params.handoverId, req.body, req.auth, requestMeta(req)), 'Ký bàn giao nội trú thành công.'),
+  acknowledgeInpatientHandover: wrap((req) => inpatientWorkspaceService.acknowledgeInpatientHandover(req.params.handoverId, req.body, req.auth, requestMeta(req)), 'Xác nhận nhận bàn giao nội trú thành công.'),
+  closeInpatientHandover: wrap((req) => inpatientWorkspaceService.closeInpatientHandover(req.params.handoverId, req.body, req.auth, requestMeta(req)), 'Đóng bàn giao nội trú thành công.'),
+  reopenInpatientHandover: wrap((req) => inpatientWorkspaceService.reopenInpatientHandover(req.params.handoverId, req.body, req.auth, requestMeta(req)), 'Mở lại bàn giao nội trú thành công.'),
+  acknowledgeHandoverItem: wrap((req) => inpatientWorkspaceService.acknowledgeHandoverItem(req.params.handoverId, req.params.itemId, req.body, req.auth, requestMeta(req)), 'Ack item bàn giao nội trú thành công.'),
+  updateHandoverItem: wrap((req) => inpatientWorkspaceService.updateHandoverItem(req.params.handoverId, req.params.itemId, req.body, req.auth, requestMeta(req)), 'Cập nhật item bàn giao nội trú thành công.'),
 };

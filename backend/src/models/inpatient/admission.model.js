@@ -22,6 +22,20 @@ const admissionSchema = new Schema(
     reason: { type: String },
     discharge_disposition: { type: String, trim: true },
     discharge_summary: { type: String },
+    priority: { type: String, enum: ['routine', 'high', 'urgent', 'critical'], default: 'routine' },
+    expected_discharge_at: { type: Date },
+    discharge_planning_status: {
+      type: String,
+      enum: ['not_started', 'in_progress', 'ready', 'delayed'],
+      default: 'not_started',
+    },
+    isolation_required: { type: Boolean, default: false },
+    isolation_type: { type: String, trim: true },
+    fall_risk_level: { type: String, enum: ['low', 'medium', 'high'] },
+    infection_risk_level: { type: String, enum: ['low', 'medium', 'high'] },
+    pressure_ulcer_risk_level: { type: String, enum: ['low', 'medium', 'high'] },
+    nursing_acuity_score: { type: Number, min: 0 },
+    nursing_note_summary: { type: String, trim: true },
     status: { type: String, enum: ADMISSION_STATUSES, default: ADMISSION_STATUS.PLANNED, required: true },
     ...auditFields(),
   },
@@ -34,6 +48,8 @@ admissionSchema.index({ department_id: 1 });
 admissionSchema.index({ attending_doctor_id: 1 });
 admissionSchema.index({ admitted_at: 1 });
 admissionSchema.index({ discharged_at: 1 });
+admissionSchema.index({ expected_discharge_at: 1 });
+admissionSchema.index({ priority: 1, status: 1 });
 admissionSchema.index({ status: 1 });
 admissionSchema.index({ patient_id: 1, admitted_at: 1 });
 

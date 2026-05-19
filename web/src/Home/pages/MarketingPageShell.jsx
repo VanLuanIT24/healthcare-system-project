@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarPlus, ChevronDown, Globe2, HeartPulse, PhoneCall } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
 
@@ -46,10 +47,10 @@ const pageCopy = {
     footerContact: 'Liên hệ',
     footerCare: 'Dịch vụ chăm sóc',
     footerCareItems: ['Đặt lịch khám', 'Tìm bác sĩ phù hợp', 'Xem câu chuyện bệnh nhân'],
-    footerCopyright: 'Sanctuary Health. Bảo lưu mọi quyền.',
+    footerCopyright: 'Healthcare Plus+. Bảo lưu mọi quyền.',
     visitDetails: [
       '124 Hải Phòng, phường Thạch Thang, quận Hải Châu, Đà Nẵng',
-      'support@sanctuary.health · +84 1800 1234',
+      'support@healthcareplus.vn · +84 1800 1234',
       'Thứ 2 - Thứ 7 07:00 - 20:00 · Cấp cứu 24/7',
     ],
     directions: 'Chỉ đường',
@@ -78,10 +79,10 @@ const pageCopy = {
     footerContact: 'Contact',
     footerCare: 'Care Services',
     footerCareItems: ['Book appointments', 'Find specialists', 'View patient stories'],
-    footerCopyright: 'Sanctuary Health. All rights reserved.',
+    footerCopyright: 'Healthcare Plus+. All rights reserved.',
     visitDetails: [
       '124 Hai Phong Street, Thach Thang Ward, Hai Chau District, Da Nang',
-      'support@sanctuary.health · +84 1800 1234',
+      'support@healthcareplus.vn · +84 1800 1234',
       'Mon-Sat 07:00 - 20:00 · Emergency 24/7',
     ],
     directions: 'Get Directions',
@@ -110,10 +111,10 @@ const pageCopy = {
     footerContact: '연락처',
     footerCare: '케어 서비스',
     footerCareItems: ['진료 예약', '전문의 찾기', '환자 이야기 보기'],
-    footerCopyright: 'Sanctuary Health. All rights reserved.',
+    footerCopyright: 'Healthcare Plus+. All rights reserved.',
     visitDetails: [
       '124 Hai Phong St, Thach Thang Ward, Hai Chau District, Da Nang',
-      'support@sanctuary.health · +84 1800 1234',
+      'support@healthcareplus.vn · +84 1800 1234',
       '월-토 07:00 - 20:00 · 응급 24/7',
     ],
     directions: '길찾기',
@@ -155,8 +156,14 @@ export function MarketingPageShell({ activeKey, hero, children }) {
     <main className="home-shell site-page-shell">
       <div className="home-topbar">
         <div className="home-topbar__left">
-          <span>✆ {t.hotline}</span>
-          <span>✚ {t.care}</span>
+          <span className="home-topbar__item">
+            <PhoneCall size={15} strokeWidth={2.4} aria-hidden="true" />
+            {t.hotline}
+          </span>
+          <span className="home-topbar__item">
+            <HeartPulse size={15} strokeWidth={2.4} aria-hidden="true" />
+            {t.care}
+          </span>
         </div>
         <div className="home-topbar__right">
           <div className="home-language" ref={menuRef}>
@@ -166,9 +173,9 @@ export function MarketingPageShell({ activeKey, hero, children }) {
               onClick={() => setIsLanguageMenuOpen((current) => !current)}
               aria-expanded={isLanguageMenuOpen}
             >
-              <span className="home-language__icon" aria-hidden="true">🌐</span>
+              <Globe2 className="home-language__icon" size={16} strokeWidth={2.4} aria-hidden="true" />
               <span>{getLanguageLabel(language)}</span>
-              <span className="home-language__caret" aria-hidden="true">▾</span>
+              <ChevronDown className="home-language__caret" size={16} strokeWidth={2.6} aria-hidden="true" />
             </button>
             {isLanguageMenuOpen ? (
               <div className="home-language__menu">
@@ -178,7 +185,10 @@ export function MarketingPageShell({ activeKey, hero, children }) {
               </div>
             ) : null}
           </div>
-          <span>{t.portal}</span>
+          <span className="home-topbar__item home-topbar__portal">
+            <HeartPulse size={15} strokeWidth={2.4} aria-hidden="true" />
+            {t.portal}
+          </span>
         </div>
       </div>
 
@@ -213,7 +223,10 @@ export function MarketingPageShell({ activeKey, hero, children }) {
 
         <div className="home-header__actions">
           {profile ? <span className="home-header__welcome">{t.hello}, {profile.full_name}</span> : null}
-          <Link className="home-header__button" to="/support">{t.book}</Link>
+          <Link className="home-header__button" to="/support">
+            <CalendarPlus size={19} strokeWidth={2.5} aria-hidden="true" />
+            <span>{t.book}</span>
+          </Link>
           {profile ? <button type="button" className="home-header__ghost" onClick={handleLogout}>{t.logout}</button> : null}
         </div>
       </header>
@@ -235,7 +248,7 @@ export function MarketingPageShell({ activeKey, hero, children }) {
       <footer className="home-footer">
         <div className="home-footer__main">
           <div className="home-footer__brand">
-            <span className="home-footer__eyebrow">Sanctuary Health</span>
+            <span className="home-footer__eyebrow">Healthcare Plus+</span>
             <strong>Healthcare Plus+</strong>
             <p>{t.footerLead}</p>
             <span className="home-footer__note">{t.footerNote}</span>

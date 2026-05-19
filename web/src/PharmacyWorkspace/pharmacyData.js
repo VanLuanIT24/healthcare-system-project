@@ -1,260 +1,228 @@
 import {
   Activity,
-  Archive,
+  AlertTriangle,
   ArrowLeftRight,
-  Ban,
+  BadgeCheck,
   BarChart3,
   Bell,
   Boxes,
+  CalendarDays,
   CheckCircle2,
-  CircleDollarSign,
   ClipboardCheck,
   ClipboardList,
   Clock3,
-  CreditCard,
   FileCheck2,
   FileText,
   History,
-  House,
-  ListChecks,
   PackageCheck,
   PackagePlus,
-  PauseCircle,
   Pill,
-  Plus,
-  ReceiptText,
   RotateCcw,
-  Search,
   Settings,
   ShieldAlert,
-  SlidersHorizontal,
   TimerOff,
   TriangleAlert,
-  UsersRound,
   WalletCards,
 } from 'lucide-react';
-import { PHARMACY_PERMISSIONS } from './pharmacyApi';
 
 export const pharmacyMenuSections = [
   {
     id: 'overview',
-    order: '1.',
-    label: 'Tổng quan',
-    to: '/pharmacy/overview',
-    icon: House,
-    hint: 'Bảng điều khiển nhà thuốc',
+    label: 'Tổng quan nhà thuốc',
+    icon: BarChart3,
+    defaultOpen: true,
+    children: [
+      { id: 'overview-dashboard', label: 'Bảng điều khiển nhà thuốc', to: '/pharmacy/overview', icon: BarChart3 },
+      { id: 'overview-action-items', label: 'Việc cần xử lý', to: '/pharmacy/overview/action-items', icon: ClipboardCheck },
+      { id: 'overview-today-dispensing', label: 'Cấp phát hôm nay', to: '/pharmacy/overview/today-dispensing', icon: PackageCheck },
+      { id: 'overview-pharmacy-alerts', label: 'Cảnh báo dược', to: '/pharmacy/overview/alerts', icon: ShieldAlert },
+      { id: 'overview-performance', label: 'Hiệu suất nhà thuốc', to: '/pharmacy/overview/performance', icon: Activity },
+    ],
   },
   {
     id: 'prescriptions',
-    order: '2.',
     label: 'Đơn thuốc',
     icon: ClipboardList,
     defaultOpen: true,
     children: [
-      { id: 'prescriptions-all', label: 'Tất cả đơn', to: '/pharmacy/prescriptions', icon: FileText, permissionAny: PHARMACY_PERMISSIONS.prescriptionsRead },
-      { id: 'prescriptions-verify', label: 'Chờ xác minh', to: '/pharmacy/prescriptions/pending-verification', icon: Clock3, badge: 18, badgeTone: 'danger', permissionAny: PHARMACY_PERMISSIONS.prescriptionsVerify },
-      { id: 'prescriptions-ready', label: 'Sẵn sàng cấp phát', to: '/pharmacy/prescriptions/ready-to-dispense', icon: CheckCircle2, badge: 12, badgeTone: 'warning', permissionAny: PHARMACY_PERMISSIONS.dispensesRead },
-      { id: 'prescriptions-dispensed', label: 'Đã cấp phát', to: '/pharmacy/prescriptions/dispensed', icon: FileCheck2, badge: 156, badgeTone: 'neutral', permissionAny: PHARMACY_PERMISSIONS.dispensesRead },
-      { id: 'prescriptions-cancelled', label: 'Đã hủy', to: '/pharmacy/prescriptions/cancelled', icon: Ban, badge: 8, badgeTone: 'neutral', permissionAny: PHARMACY_PERMISSIONS.prescriptionsRead },
+      { id: 'prescriptions-approval', label: 'Chờ duyệt dược', to: '/pharmacy/prescriptions/pharmacy-approval', icon: ClipboardCheck },
+      { id: 'prescriptions-review', label: 'Cần kiểm tra', to: '/pharmacy/prescriptions/review-needed', icon: AlertTriangle },
+      { id: 'prescriptions-pending-dispense', label: 'Chờ cấp phát', to: '/pharmacy/prescriptions/pending-dispense', icon: Clock3 },
+      { id: 'prescriptions-partial-dispense', label: 'Cấp phát một phần', to: '/pharmacy/prescriptions/partial-dispense', icon: Activity },
+      { id: 'prescriptions-dispensed', label: 'Đã cấp phát', to: '/pharmacy/prescriptions/dispensed', icon: FileCheck2 },
+      { id: 'prescriptions-cancelled', label: 'Đã hủy', to: '/pharmacy/prescriptions/cancelled', icon: RotateCcw },
+      { id: 'prescriptions-refill', label: 'Yêu cầu cấp lại thuốc', to: '/pharmacy/prescriptions/refill-requests', icon: PackagePlus },
+      { id: 'prescriptions-history', label: 'Lịch sử đơn thuốc', to: '/pharmacy/prescriptions/history', icon: History },
     ],
   },
   {
     id: 'dispensing',
-    order: '3.',
     label: 'Cấp phát thuốc',
     icon: PackageCheck,
     defaultOpen: true,
     children: [
-      { id: 'dispensing-queue', label: 'Hàng chờ cấp phát', to: '/pharmacy/dispensing/queue', icon: ListChecks, badge: 24, badgeTone: 'danger', permissionAny: PHARMACY_PERMISSIONS.dispensesRead },
-      { id: 'dispensing-create', label: 'Tạo phiếu cấp phát', to: '/pharmacy/dispensing/create', icon: Plus, permissionAny: PHARMACY_PERMISSIONS.dispensesCreate },
-      { id: 'dispensing-completed', label: 'Hoàn tất cấp phát', to: '/pharmacy/dispensing/completed', icon: ClipboardCheck, permissionAny: PHARMACY_PERMISSIONS.dispensesRead },
-    ],
-  },
-  {
-    id: 'medications',
-    order: '4.',
-    label: 'Danh mục thuốc',
-    icon: Pill,
-    defaultOpen: true,
-    children: [
-      { id: 'medications-all', label: 'Tất cả thuốc', to: '/pharmacy/medications', icon: Boxes, permissionAny: PHARMACY_PERMISSIONS.medicationsRead },
-      { id: 'medications-new', label: 'Thêm thuốc', to: '/pharmacy/medications/create', icon: PackagePlus, permissionAny: PHARMACY_PERMISSIONS.medicationsCreate },
-      { id: 'medications-inactive', label: 'Thuốc ngưng dùng', to: '/pharmacy/medications/retired', icon: PauseCircle, permissionAny: PHARMACY_PERMISSIONS.medicationsRead },
+      { id: 'dispensing-queue', label: 'Hàng đợi cấp phát', to: '/pharmacy/dispensing/queue', icon: ClipboardList },
+      { id: 'dispensing-preparing', label: 'Phiếu đang chuẩn bị', to: '/pharmacy/dispensing/preparing-slips', icon: FileText },
+      { id: 'dispensing-pending-completion', label: 'Chờ hoàn tất cấp phát', to: '/pharmacy/dispensing/pending-completion', icon: Clock3 },
+      { id: 'dispensing-completed', label: 'Đã cấp phát', to: '/pharmacy/dispensing/completed', icon: CheckCircle2 },
+      { id: 'dispensing-held-rejected', label: 'Tạm giữ / từ chối', to: '/pharmacy/dispensing/held-rejected', icon: AlertTriangle },
+      { id: 'dispensing-returns', label: 'Hoàn trả thuốc', to: '/pharmacy/dispensing/returns', icon: RotateCcw },
+      { id: 'dispensing-labels-instructions', label: 'In nhãn và hướng dẫn', to: '/pharmacy/dispensing/labels-instructions', icon: FileCheck2 },
     ],
   },
   {
     id: 'inventory',
-    order: '5.',
-    label: 'Tồn kho',
-    icon: Archive,
+    label: 'Kho thuốc',
+    icon: Boxes,
     defaultOpen: true,
     children: [
-      { id: 'inventory-batches', label: 'Lô thuốc', to: '/pharmacy/inventory/batches', icon: Boxes, permissionAny: PHARMACY_PERMISSIONS.stockBatchesRead },
-      { id: 'inventory-receipts', label: 'Nhập kho', to: '/pharmacy/inventory/receipts', icon: PackagePlus, permissionAny: PHARMACY_PERMISSIONS.inventoryReceipt },
-      { id: 'inventory-adjustments', label: 'Điều chỉnh kho', to: '/pharmacy/inventory/adjustments', icon: SlidersHorizontal, permissionAny: PHARMACY_PERMISSIONS.inventoryAdjust },
-      { id: 'inventory-transactions', label: 'Giao dịch kho', to: '/pharmacy/inventory/transactions', icon: ArrowLeftRight, permissionAny: PHARMACY_PERMISSIONS.inventoryRead },
-      { id: 'inventory-low-stock', label: 'Sắp hết hàng', to: '/pharmacy/inventory/low-stock', icon: TriangleAlert, badge: 21, badgeTone: 'danger', permissionAny: PHARMACY_PERMISSIONS.stockBatchesRead },
-      { id: 'inventory-expiring', label: 'Sắp hết hạn', to: '/pharmacy/inventory/expiring', icon: TimerOff, badge: 9, badgeTone: 'warning', permissionAny: PHARMACY_PERMISSIONS.stockBatchesRead },
-      { id: 'inventory-recalls', label: 'Thu hồi', to: '/pharmacy/inventory/recalls', icon: RotateCcw, permissionAny: PHARMACY_PERMISSIONS.stockBatchesRecall },
+      { id: 'inventory-medications', label: 'Danh mục thuốc', to: '/pharmacy/inventory/medication-catalog', icon: Pill },
+      { id: 'inventory-current', label: 'Tồn kho hiện tại', to: '/pharmacy/inventory/current-stock', icon: Boxes },
+      { id: 'inventory-batches', label: 'Lô thuốc', to: '/pharmacy/inventory/batches', icon: PackageCheck },
+      { id: 'inventory-valid-batches', label: 'Lô còn hạn', to: '/pharmacy/inventory/valid-batches', icon: BadgeCheck },
+      { id: 'inventory-expiring-batches', label: 'Lô sắp hết hạn', to: '/pharmacy/inventory/expiring-batches', icon: TimerOff },
+      { id: 'inventory-expired-batches', label: 'Lô đã hết hạn', to: '/pharmacy/inventory/expired-batches', icon: AlertTriangle },
+      { id: 'inventory-empty-batches', label: 'Lô hết tồn', to: '/pharmacy/inventory/empty-batches', icon: TriangleAlert },
+      { id: 'inventory-quarantine', label: 'Cách ly / thu hồi', to: '/pharmacy/inventory/quarantine-recall', icon: ShieldAlert },
+      { id: 'inventory-count', label: 'Kiểm kê', to: '/pharmacy/inventory/stock-count', icon: ClipboardCheck },
     ],
   },
   {
-    id: 'patients',
-    order: '6.',
-    label: 'Bệnh nhân',
-    icon: UsersRound,
-    defaultOpen: true,
+    id: 'transactions',
+    label: 'Nhập và xuất kho',
+    icon: ArrowLeftRight,
+    defaultOpen: false,
     children: [
-      { id: 'patients-search', label: 'Tìm bệnh nhân', to: '/pharmacy/patients', icon: Search, permissionAny: ['patients.search', 'patients.read'] },
-      { id: 'patients-history', label: 'Lịch sử thuốc', to: '/pharmacy/patients/history', icon: History, permissionAny: PHARMACY_PERMISSIONS.prescriptionsRead },
-      { id: 'patients-active', label: 'Đơn đang hoạt động', to: '/pharmacy/patients/active-prescriptions', icon: Activity, permissionAny: PHARMACY_PERMISSIONS.prescriptionsRead },
-      { id: 'patients-allergies', label: 'Dị ứng', to: '/pharmacy/patients/allergies', icon: ShieldAlert, permissionAny: ['patients.read', 'allergies.read'] },
+      { id: 'transactions-receive', label: 'Nhập kho', to: '/pharmacy/transactions/receive-stock', icon: PackagePlus },
+      { id: 'transactions-internal-issue', label: 'Xuất kho nội bộ', to: '/pharmacy/transactions/internal-issue', icon: PackageCheck },
+      { id: 'transactions-transfer', label: 'Chuyển kho', to: '/pharmacy/transactions/stock-transfer', icon: ArrowLeftRight },
+      { id: 'transactions-adjust', label: 'Điều chỉnh tồn kho', to: '/pharmacy/transactions/stock-adjustment', icon: ClipboardCheck },
+      { id: 'transactions-loss', label: 'Hủy / hao hụt', to: '/pharmacy/transactions/loss-waste', icon: RotateCcw },
+      { id: 'transactions-return-stock', label: 'Hoàn trả về kho', to: '/pharmacy/transactions/return-to-stock', icon: FileCheck2 },
+      { id: 'transactions-history', label: 'Lịch sử giao dịch', to: '/pharmacy/transactions/history', icon: History },
     ],
   },
   {
-    id: 'billing',
-    order: '7.',
-    label: 'Thanh toán',
-    icon: WalletCards,
-    defaultOpen: true,
+    id: 'inpatient-medication',
+    label: 'Dùng thuốc nội trú',
+    icon: CalendarDays,
+    defaultOpen: false,
     children: [
-      { id: 'billing-fees', label: 'Chi phí thuốc', to: '/pharmacy/billing/charges', icon: CircleDollarSign, permissionAny: ['CHARGES.READ'] },
-      { id: 'billing-invoices', label: 'Hóa đơn', to: '/pharmacy/billing/invoices', icon: ReceiptText, permissionAny: ['INVOICES.READ'] },
-      { id: 'billing-payments', label: 'Thanh toán', to: '/pharmacy/billing/payments', icon: CreditCard, permissionAny: ['PAYMENTS.READ'] },
+      { id: 'inpatient-medication-schedule', label: 'Lịch dùng thuốc', to: '/pharmacy/inpatient-medication/schedule', icon: CalendarDays },
+      { id: 'inpatient-medication-today', label: 'Thuốc cần dùng hôm nay', to: '/pharmacy/inpatient-medication/today-medications', icon: Pill },
+      { id: 'inpatient-medication-confirm', label: 'Xác nhận dùng thuốc', to: '/pharmacy/inpatient-medication/confirm', icon: CheckCircle2 },
+      { id: 'inpatient-medication-exceptions', label: 'Tạm hoãn / từ chối / bỏ liều', to: '/pharmacy/inpatient-medication/defer-refuse-missed', icon: AlertTriangle },
+      { id: 'inpatient-medication-abnormal', label: 'Bất thường dùng thuốc', to: '/pharmacy/inpatient-medication/abnormal-events', icon: ShieldAlert },
     ],
   },
   {
     id: 'reports',
-    order: '8.',
-    label: 'Báo cáo',
+    label: 'Báo cáo dược',
     icon: BarChart3,
-    defaultOpen: true,
+    defaultOpen: false,
     children: [
-      { id: 'reports-stock', label: 'Báo cáo tồn kho', to: '/pharmacy/reports/inventory', icon: BarChart3, permissionAny: ['REPORTS.INVENTORY.READ', 'STOCK_BATCHES.READ'] },
-      { id: 'reports-prescriptions', label: 'Báo cáo đơn thuốc', to: '/pharmacy/reports/prescriptions', icon: ClipboardList, permissionAny: PHARMACY_PERMISSIONS.prescriptionsRead },
-      { id: 'reports-low-stock', label: 'Sắp hết hàng', to: '/pharmacy/reports/low-stock', icon: TriangleAlert, permissionAny: ['REPORTS.LOW_STOCK.READ', 'STOCK_BATCHES.READ'] },
-      { id: 'reports-expiring', label: 'Sắp hết hạn', to: '/pharmacy/reports/expiring', icon: TimerOff, permissionAny: ['REPORTS.EXPIRING_STOCK.READ', 'STOCK_BATCHES.READ'] },
+      { id: 'reports-inventory-overview', label: 'Tổng quan tồn kho', to: '/pharmacy/reports/inventory-overview', icon: BarChart3 },
+      { id: 'reports-movement', label: 'Nhập xuất tồn', to: '/pharmacy/reports/stock-movement', icon: ArrowLeftRight },
+      { id: 'reports-dispensed', label: 'Thuốc đã cấp phát', to: '/pharmacy/reports/dispensed-medications', icon: PackageCheck },
+      { id: 'reports-expiring', label: 'Thuốc sắp hết hạn', to: '/pharmacy/reports/expiring-medications', icon: TimerOff },
+      { id: 'reports-below-minimum', label: 'Thuốc dưới tồn tối thiểu', to: '/pharmacy/reports/below-minimum-stock', icon: TriangleAlert },
+      { id: 'reports-stock-value', label: 'Giá trị tồn kho', to: '/pharmacy/reports/stock-value', icon: WalletCards },
+      { id: 'reports-high-usage', label: 'Thuốc dùng nhiều', to: '/pharmacy/reports/high-usage', icon: Activity },
+      { id: 'reports-loss-waste', label: 'Hao hụt / hủy thuốc', to: '/pharmacy/reports/loss-waste', icon: RotateCcw },
     ],
   },
   {
-    id: 'notifications',
-    order: '9.',
-    label: 'Thông báo',
-    to: '/pharmacy/notifications',
-    icon: Bell,
-    hint: 'Cảnh báo vận hành',
-    permissionAny: PHARMACY_PERMISSIONS.notificationsRead,
+    id: 'alerts',
+    label: 'Cảnh báo',
+    icon: ShieldAlert,
+    defaultOpen: false,
+    children: [
+      { id: 'alerts-low-stock', label: 'Sắp hết thuốc', to: '/pharmacy/alerts/low-stock', icon: TriangleAlert },
+      { id: 'alerts-out-of-stock', label: 'Hết thuốc', to: '/pharmacy/alerts/out-of-stock', icon: AlertTriangle },
+      { id: 'alerts-expiring-batches', label: 'Lô sắp hết hạn', to: '/pharmacy/alerts/expiring-batches', icon: TimerOff },
+      { id: 'alerts-expired-batches', label: 'Lô đã hết hạn', to: '/pharmacy/alerts/expired-batches', icon: AlertTriangle },
+      { id: 'alerts-insufficient', label: 'Không đủ thuốc cấp phát', to: '/pharmacy/alerts/insufficient-stock', icon: ClipboardList },
+      { id: 'alerts-allergy', label: 'Cảnh báo dị ứng', to: '/pharmacy/alerts/allergy', icon: ShieldAlert },
+      { id: 'alerts-high-usage', label: 'Thuốc dùng nhiều', to: '/pharmacy/alerts/high-usage', icon: Activity },
+      { id: 'alerts-loss-waste', label: 'Hao hụt / hủy thuốc', to: '/pharmacy/alerts/loss-waste', icon: RotateCcw },
+    ],
   },
   {
     id: 'settings',
-    order: '10.',
-    label: 'Cài đặt',
-    to: '/pharmacy/settings',
+    label: 'Cấu hình dược',
     icon: Settings,
-    hint: 'Thiết lập nhà thuốc',
+    defaultOpen: false,
+    children: [
+      { id: 'settings-medication-units', label: 'Đơn vị thuốc', to: '/pharmacy/settings/medication-units', icon: Pill },
+      { id: 'settings-dosage-forms', label: 'Dạng bào chế', to: '/pharmacy/settings/dosage-forms', icon: FileText },
+      { id: 'settings-administration-routes', label: 'Đường dùng', to: '/pharmacy/settings/routes-of-administration', icon: Activity },
+      { id: 'settings-storage-locations', label: 'Vị trí lưu kho', to: '/pharmacy/settings/storage-locations', icon: Boxes },
+      { id: 'settings-suppliers', label: 'Nhà cung cấp', to: '/pharmacy/settings/suppliers', icon: PackagePlus },
+      { id: 'settings-alert-thresholds', label: 'Ngưỡng cảnh báo', to: '/pharmacy/settings/alert-thresholds', icon: Bell },
+      { id: 'settings-expiry-policy', label: 'Chính sách xuất trước theo hạn dùng', to: '/pharmacy/settings/expiry-policy', icon: TimerOff },
+      { id: 'settings-controlled-medications', label: 'Chính sách thuốc kiểm soát', to: '/pharmacy/settings/controlled-medication-policy', icon: ShieldAlert },
+    ],
   },
 ];
 
 export const pharmacyQuickActions = [
-  {
-    id: 'receive-inventory',
-    label: 'Nhập kho',
-    to: '/pharmacy/inventory/receipts',
-    icon: PackagePlus,
-    permissionAny: PHARMACY_PERMISSIONS.inventoryReceipt,
-  },
-  {
-    id: 'create-medication',
-    label: 'Tạo thuốc',
-    to: '/pharmacy/medications/create',
-    icon: Pill,
-    permissionAny: PHARMACY_PERMISSIONS.medicationsCreate,
-  },
-  {
-    id: 'adjust-inventory',
-    label: 'Điều chỉnh kho',
-    to: '/pharmacy/inventory/adjustments',
-    icon: SlidersHorizontal,
-    permissionAny: PHARMACY_PERMISSIONS.inventoryAdjust,
-  },
-  {
-    id: 'create-dispense',
-    label: 'Tạo phiếu cấp phát',
-    to: '/pharmacy/dispensing/create',
-    icon: PackageCheck,
-    permissionAny: PHARMACY_PERMISSIONS.dispensesCreate,
-  },
-];
-
-export const pharmacyDashboardStats = [
-  { label: 'Chờ xác minh', value: '18', trend: '+4 hôm nay', tone: 'danger', icon: Clock3 },
-  { label: 'Sẵn sàng cấp phát', value: '12', trend: 'Ưu tiên trước 11:30', tone: 'warning', icon: CheckCircle2 },
-  { label: 'Đã cấp phát', value: '156', trend: '92% đúng hạn', tone: 'success', icon: PackageCheck },
-  { label: 'Sắp hết hạn', value: '9', trend: 'Cần kiểm tra lô', tone: 'info', icon: TimerOff },
-];
-
-export const pharmacyQueueItems = [
-  { code: 'RX-2405-018', patient: 'Nguyễn Thị An', status: 'Chờ xác minh', time: '09:24', tone: 'danger' },
-  { code: 'RX-2405-021', patient: 'Trần Quốc Bảo', status: 'Sẵn sàng cấp phát', time: '09:36', tone: 'warning' },
-  { code: 'RX-2405-025', patient: 'Lê Minh Khoa', status: 'Đang soạn thuốc', time: '09:45', tone: 'info' },
-  { code: 'RX-2405-028', patient: 'Phạm Hồng Nhung', status: 'Đợi thanh toán', time: '10:02', tone: 'neutral' },
-];
-
-export const pharmacyInventoryAlerts = [
-  { title: 'Paracetamol 500mg', meta: 'Còn 34 hộp | Ngưỡng tối thiểu 50', tone: 'warning' },
-  { title: 'Amoxicillin 250mg', meta: 'Lô AMX-042 hết hạn sau 21 ngày', tone: 'danger' },
-  { title: 'Omeprazole 20mg', meta: 'Nhập kho mới 120 hộp sáng nay', tone: 'success' },
+  { id: 'dispensing-queue', label: 'Hàng đợi cấp phát', to: '/pharmacy/dispensing/queue', icon: PackageCheck },
+  { id: 'action-items', label: 'Việc cần xử lý', to: '/pharmacy/overview/action-items', icon: ClipboardCheck },
+  { id: 'receive-stock', label: 'Nhập kho', to: '/pharmacy/transactions/receive-stock', icon: PackagePlus },
+  { id: 'stock-count', label: 'Kiểm kê', to: '/pharmacy/inventory/stock-count', icon: ClipboardCheck },
 ];
 
 export const pharmacyNotifications = [
   {
-    id: 'verify-prescriptions',
-    title: '18 đơn thuốc cần xác minh',
-    body: 'Ưu tiên các đơn có cảnh báo tương tác thuốc.',
+    id: 'pending-prescriptions',
+    title: 'Đơn thuốc chờ cấp phát',
+    body: 'Ưu tiên các đơn có cảnh báo tương tác hoặc thiếu tồn kho.',
     time: '5 phút trước',
-    tone: 'danger',
-    read: false,
-    to: '/pharmacy/prescriptions/pending-verification',
-  },
-  {
-    id: 'ready-dispense',
-    title: '12 đơn sẵn sàng cấp phát',
-    body: 'Quầy số 2 đang có tải cao hơn bình thường.',
-    time: '17 phút trước',
     tone: 'warning',
     read: false,
-    to: '/pharmacy/prescriptions/ready-to-dispense',
+    to: '/pharmacy/prescriptions/pending-dispense',
   },
   {
-    id: 'batch-expiring',
-    title: '9 lô thuốc sắp hết hạn',
-    body: 'Kiểm tra hạn dùng và kế hoạch thu hồi.',
+    id: 'low-stock',
+    title: 'Sắp hết thuốc',
+    body: 'Một số thuốc đã xuống dưới ngưỡng tối thiểu.',
+    time: '17 phút trước',
+    tone: 'danger',
+    read: false,
+    to: '/pharmacy/alerts/low-stock',
+  },
+  {
+    id: 'expiring-batches',
+    title: 'Lô sắp hết hạn',
+    body: 'Kiểm tra hạn dùng và kế hoạch cách ly hoặc thu hồi.',
     time: '1 giờ trước',
     tone: 'info',
     read: false,
-    to: '/pharmacy/inventory/expiring',
+    to: '/pharmacy/inventory/expiring-batches',
   },
 ];
 
 export function flattenPharmacyMenu(sections = pharmacyMenuSections) {
-  return sections.flatMap((section) => {
-    if (!section.children?.length) return [section];
-    return section.children.map((item) => ({
+  return sections.flatMap((section) =>
+    (section.children || []).map((item) => ({
       ...item,
       groupLabel: section.label,
       groupIcon: section.icon,
-    }));
-  });
+    })),
+  );
 }
 
-export function getPharmacyPageMeta(pathname) {
+export function getPharmacyPageMeta(pathname = '/pharmacy/overview') {
+  const normalizedPath = pathname === '/pharmacy' || pathname === '/pharmacy/dashboard'
+    ? '/pharmacy/overview'
+    : pathname;
   const allItems = flattenPharmacyMenu();
-  const exactMatch = allItems.find((item) => item.to === pathname);
+  const exactMatch = allItems.find((item) => item.to === normalizedPath);
   if (exactMatch) return exactMatch;
 
   const prefixMatch = [...allItems]
     .sort((first, second) => second.to.length - first.to.length)
-    .find((item) => pathname.startsWith(`${item.to}/`));
+    .find((item) => normalizedPath.startsWith(`${item.to}/`));
 
-  return prefixMatch || pharmacyMenuSections[0];
+  return prefixMatch || allItems[0];
 }

@@ -60,6 +60,25 @@ const Bed = require('./inpatient/bed.model');
 const Admission = require('./inpatient/admission.model');
 const BedAssignment = require('./inpatient/bed-assignment.model');
 const InpatientTask = require('./inpatient/inpatient-task.model');
+const InpatientHandover = require('./inpatient/inpatient-handover.model');
+const NursingIntake = require('./nursing/nursing-intake.model');
+const NursingTask = require('./nursing/nursing-task.model');
+const NursingHandoff = require('./nursing/nursing-handoff.model');
+const NursingTaskTemplate = require('./nursing/nursing-task-template.model');
+const TriageAssessment = require('./nursing/triage-assessment.model');
+const ServicePreparationChecklist = require('./nursing/service-preparation-checklist.model');
+const ServicePreparation = require('./nursing/service-preparation.model');
+const PreparationChecklistTemplate = require('./nursing/preparation-checklist-template.model');
+const PreparationChecklistItem = require('./nursing/preparation-checklist-item.model');
+const PreparationActivity = require('./nursing/preparation-activity.model');
+const VitalSignCorrectionRequest = require('./nursing/vital-sign-correction-request.model');
+const NursingMonitoringSession = require('./nursing/nursing-monitoring-session.model');
+const NursingMonitoringCheck = require('./nursing/nursing-monitoring-check.model');
+const DoctorNotificationRequest = require('./nursing/doctor-notification-request.model');
+const ClinicalAlert = require('./nursing/clinical-alert.model');
+const ClinicalAlertRule = require('./nursing/clinical-alert-rule.model');
+const PostProcedureObservation = require('./nursing/post-procedure-observation.model');
+const MedicationReactionObservation = require('./nursing/medication-reaction-observation.model');
 
 const ServiceCatalog = require('./billing/service-catalog.model');
 const Charge = require('./billing/charge.model');
@@ -101,6 +120,8 @@ const EventOutbox = require('../events/event-outbox.model');
 const ConsentRecord = require('./access/consent-record.model');
 const BreakGlassAccess = require('./access/break-glass-access.model');
 const EmergencyCase = require('./emergency/emergency-case.model');
+const EmergencyCaseEvent = require('./emergency/emergency-case-event.model');
+const EmergencyTriage = require('./emergency/emergency-triage.model');
 const FacilityLocation = require('./directory/facility-location.model');
 
 module.exports = {
@@ -156,6 +177,25 @@ module.exports = {
   Admission,
   BedAssignment,
   InpatientTask,
+  InpatientHandover,
+  NursingIntake,
+  NursingTask,
+  NursingHandoff,
+  NursingTaskTemplate,
+  TriageAssessment,
+  ServicePreparationChecklist,
+  ServicePreparation,
+  PreparationChecklistTemplate,
+  PreparationChecklistItem,
+  PreparationActivity,
+  VitalSignCorrectionRequest,
+  NursingMonitoringSession,
+  NursingMonitoringCheck,
+  DoctorNotificationRequest,
+  ClinicalAlert,
+  ClinicalAlertRule,
+  PostProcedureObservation,
+  MedicationReactionObservation,
   ServiceCatalog,
   Charge,
   Invoice,
@@ -194,5 +234,7 @@ module.exports = {
   ConsentRecord,
   BreakGlassAccess,
   EmergencyCase,
+  EmergencyCaseEvent,
+  EmergencyTriage,
   FacilityLocation,
 };

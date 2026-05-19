@@ -1,4 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  Activity,
+  Ambulance,
+  ArrowUpRight,
+  CalendarDays,
+  ClipboardCheck,
+  Clock3,
+  FileText,
+  FlaskConical,
+  HeartPulse,
+  Hospital,
+  MapPin,
+  PhoneCall,
+  Pill,
+  Play,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  UsersRound,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { MarketingFooter, MarketingHeader, useSiteLanguage } from './marketingChrome';
@@ -9,8 +29,8 @@ export function HomePage() {
   const [language, setLanguage] = useSiteLanguage('vi');
   const [openAppointmentPicker, setOpenAppointmentPicker] = useState('');
   const [appointmentForm, setAppointmentForm] = useState({
-    service: 'Dental Therapy',
-    doctor: 'Dr. Sarah Williams',
+    service: 'cardiology',
+    doctor: 'olivia',
     date: '2026-04-15',
     time: '10:30',
   });
@@ -220,9 +240,9 @@ export function HomePage() {
       logout: 'Đăng xuất',
       hello: 'Xin chào',
       heroKicker: 'Viện Y khoa Healthcare Plus+',
-      heroTitle: 'Chăm sóc sức khỏe - Tận tâm & Chuyên nghiệp',
+      heroTitle: 'Y tế thông minh, chăm sóc tận tâm',
       heroLead:
-        'Chúng tôi mang đến dịch vụ chăm sóc sức khỏe tận tâm và chuyên nghiệp, đặt bạn làm trung tâm. Sức khỏe của bạn luôn là ưu tiên hàng đầu của chúng tôi.',
+        'Healthcare Plus+ kết nối đặt lịch, chẩn đoán, điều trị và theo dõi phục hồi trong một trải nghiệm y tế hiện đại, rõ ràng và luôn đặt người bệnh ở trung tâm.',
       heroBadge: 'Dịch vụ 24/7',
       heroPrimary: 'Đặt lịch khám ngay',
       heroSecondary: 'Xem giới thiệu',
@@ -244,7 +264,7 @@ export function HomePage() {
       departmentsTitle: 'Chăm sóc tiên phong trên nhiều chuyên ngành',
       learnMore: 'Xem thêm',
       excellenceKicker: 'Chuẩn mực điều trị',
-      excellenceTitle: 'Vì sao bệnh nhân tin tưởng Sanctuary Health',
+      excellenceTitle: 'Vì sao bệnh nhân tin tưởng Healthcare Plus+',
       excellenceLead:
         'Chúng tôi kết hợp không gian chuẩn phục hồi, lộ trình điều trị cá nhân hóa và đội ngũ chuyên gia liên ngành để tạo ra hành trình chăm sóc liền mạch.',
       satisfaction: 'Mức hài lòng của bệnh nhân',
@@ -258,7 +278,7 @@ export function HomePage() {
       doctorsKicker: 'Đội ngũ bác sĩ',
       doctorsTitle: 'Những chuyên gia đồng hành cùng quá trình hồi phục',
       philosophyKicker: 'Triết lý chữa lành',
-      philosophyTitle: 'Triết lý Sanctuary',
+      philosophyTitle: 'Triết lý chăm sóc Healthcare Plus+',
       philosophyP1:
         'Chữa lành không chỉ là một thủ thuật y khoa, mà là hành trình toàn diện được định hình bởi chính môi trường chăm sóc.',
       philosophyP2:
@@ -276,8 +296,8 @@ export function HomePage() {
         'Đội ngũ chuyên gia luôn sẵn sàng cho cả tư vấn trực tiếp và trực tuyến. Hãy bắt đầu hành trình chăm sóc sức khỏe của bạn ngay hôm nay.',
       ctaPrimary: 'Đặt lịch ngay',
       ctaSecondary: 'Tư vấn bác sĩ',
-      visitKicker: 'Đến với Sanctuary',
-      visitTitle: 'Thăm trung tâm Sanctuary',
+      visitKicker: 'Đến với Healthcare Plus+',
+      visitTitle: 'Thăm trung tâm Healthcare Plus+',
       visitLead:
         'Xem nhanh một địa điểm bệnh viện thực tế tại Đà Nẵng với bản đồ, thông tin liên hệ và hướng dẫn đường đi trực tiếp.',
       visitPoints: ['Bệnh viện tại Đà Nẵng', 'Liên hệ', 'Giờ hoạt động'],
@@ -456,28 +476,30 @@ export function HomePage() {
   const testimonials = t.testimonials;
   const faqs = t.faqs;
   const partners = t.partners;
+  const portalFeatureIcons = [FileText, FlaskConical, Pill, CalendarDays];
   const portalFeatureMeta = {
     en: [
-      { icon: '▣', detail: 'Centralized health timeline' },
-      { icon: '◌', detail: 'Clear lab summaries and updates' },
-      { icon: '✚', detail: 'Prescription tracking in one place' },
-      { icon: '◔', detail: 'Upcoming visits and reminders' },
+      { detail: 'Centralized health timeline' },
+      { detail: 'Clear lab summaries and updates' },
+      { detail: 'Prescription tracking in one place' },
+      { detail: 'Upcoming visits and reminders' },
     ],
     vi: [
-      { icon: '▣', detail: 'Theo dõi hồ sơ trong một dòng thời gian' },
-      { icon: '◌', detail: 'Kết quả xét nghiệm rõ ràng, dễ xem' },
-      { icon: '✚', detail: 'Quản lý đơn thuốc trên cùng một cổng' },
-      { icon: '◔', detail: 'Nhắc lịch và lần khám sắp tới' },
+      { detail: 'Theo dõi hồ sơ trong một dòng thời gian' },
+      { detail: 'Kết quả xét nghiệm rõ ràng, dễ xem' },
+      { detail: 'Quản lý đơn thuốc trên cùng một cổng' },
+      { detail: 'Nhắc lịch và lần khám sắp tới' },
     ],
     ko: [
-      { icon: '▣', detail: '하나의 타임라인으로 기록 관리' },
-      { icon: '◌', detail: '검사 결과를 쉽게 확인' },
-      { icon: '✚', detail: '처방 이력을 한곳에서 추적' },
-      { icon: '◔', detail: '예정된 방문과 알림 확인' },
+      { detail: '하나의 타임라인으로 기록 관리' },
+      { detail: '검사 결과를 쉽게 확인' },
+      { detail: '처방 이력을 한곳에서 추적' },
+      { detail: '예정된 방문과 알림 확인' },
     ],
   };
   const portalFeatures = t.portalItems.map((item, index) => ({
     title: item,
+    icon: portalFeatureIcons[index],
     ...portalFeatureMeta[language][index],
   }));
   const doctorSectionCopy = {
@@ -546,28 +568,40 @@ export function HomePage() {
   };
   const footerMeta = {
     en: {
+      footerBrandTitle: 'Your Trusted Health Partner',
       footerNav: 'Explore',
       footerContact: 'Contact',
       footerCare: 'Care Services',
       footerCareItems: ['Book appointments', 'Find specialists', 'View patient stories'],
       footerNote: 'Designed for modern, patient-centered recovery.',
-      footerCopyright: 'Sanctuary Health. All rights reserved.',
+      footerAbout: 'About Us',
+      footerPrivacy: 'Privacy Policy',
+      footerTerms: 'Terms of Service',
+      footerCopyright: 'Healthcare Plus+. All rights reserved.',
     },
     vi: {
+      footerBrandTitle: 'Đồng hành sức khỏe đáng tin cậy',
       footerNav: 'Khám phá',
       footerContact: 'Liên hệ',
       footerCare: 'Dịch vụ chăm sóc',
       footerCareItems: ['Đặt lịch khám', 'Tìm bác sĩ phù hợp', 'Xem câu chuyện bệnh nhân'],
       footerNote: 'Thiết kế cho hành trình phục hồi hiện đại, lấy bệnh nhân làm trung tâm.',
-      footerCopyright: 'Sanctuary Health. Bảo lưu mọi quyền.',
+      footerAbout: 'Về chúng tôi',
+      footerPrivacy: 'Chính sách bảo mật',
+      footerTerms: 'Điều khoản dịch vụ',
+      footerCopyright: 'Healthcare Plus+. Bảo lưu mọi quyền.',
     },
     ko: {
+      footerBrandTitle: '신뢰할 수 있는 헬스 파트너',
       footerNav: '탐색',
       footerContact: '연락처',
       footerCare: '케어 서비스',
       footerCareItems: ['진료 예약', '전문의 찾기', '환자 이야기 보기'],
       footerNote: '환자 중심의 현대적 회복 경험을 위해 설계되었습니다.',
-      footerCopyright: 'Sanctuary Health. All rights reserved.',
+      footerAbout: '소개',
+      footerPrivacy: '개인정보 처리방침',
+      footerTerms: '서비스 약관',
+      footerCopyright: 'Healthcare Plus+. All rights reserved.',
     },
   };
   const visitMapQuery = '124 Hai Phong, Thach Thang, Hai Chau, Da Nang, Vietnam';
@@ -596,8 +630,63 @@ export function HomePage() {
     },
   };
   const specialtyPanel = specialtyPanelCopy[language];
-  const appointmentServices = ['Dental Therapy', 'Advanced Cardiology', 'Pediatrics', 'Neurology'];
-  const appointmentDoctors = ['Dr. Sarah Williams', 'Dr. Olivia Vance', 'Dr. Marcus Thorne', 'Dr. Sarah Chen'];
+  const appointmentCopy = {
+    en: {
+      services: [
+        { value: 'dental', label: 'Dental Therapy' },
+        { value: 'cardiology', label: 'Advanced Cardiology' },
+        { value: 'pediatrics', label: 'Pediatrics' },
+        { value: 'neurology', label: 'Neurology' },
+      ],
+      doctors: [
+        { value: 'sarah', label: 'Dr. Sarah Williams' },
+        { value: 'olivia', label: 'Dr. Olivia Vance' },
+        { value: 'marcus', label: 'Dr. Marcus Thorne' },
+        { value: 'chen', label: 'Dr. Sarah Chen' },
+      ],
+      calendarMonth: 'April 2026',
+      availableDays: 'Available days',
+    },
+    vi: {
+      services: [
+        { value: 'dental', label: 'Nha khoa điều trị' },
+        { value: 'cardiology', label: 'Tim mạch chuyên sâu' },
+        { value: 'pediatrics', label: 'Nhi khoa' },
+        { value: 'neurology', label: 'Thần kinh' },
+      ],
+      doctors: [
+        { value: 'sarah', label: 'BS. Sarah Williams' },
+        { value: 'olivia', label: 'BS. Olivia Vance' },
+        { value: 'marcus', label: 'BS. Marcus Thorne' },
+        { value: 'chen', label: 'BS. Sarah Chen' },
+      ],
+      calendarMonth: 'Tháng 4 2026',
+      availableDays: 'Ngày còn lịch',
+    },
+    ko: {
+      services: [
+        { value: 'dental', label: '치과 치료' },
+        { value: 'cardiology', label: '심장내과' },
+        { value: 'pediatrics', label: '소아과' },
+        { value: 'neurology', label: '신경과' },
+      ],
+      doctors: [
+        { value: 'sarah', label: 'Dr. Sarah Williams' },
+        { value: 'olivia', label: 'Dr. Olivia Vance' },
+        { value: 'marcus', label: 'Dr. Marcus Thorne' },
+        { value: 'chen', label: 'Dr. Sarah Chen' },
+      ],
+      calendarMonth: '2026년 4월',
+      availableDays: '예약 가능일',
+    },
+  };
+  const appointmentLabels = appointmentCopy[language];
+  const appointmentServices = appointmentLabels.services;
+  const appointmentDoctors = appointmentLabels.doctors;
+  const selectedServiceLabel =
+    appointmentServices.find((item) => item.value === appointmentForm.service)?.label ?? appointmentServices[0].label;
+  const selectedDoctorLabel =
+    appointmentDoctors.find((item) => item.value === appointmentForm.doctor)?.label ?? appointmentDoctors[0].label;
   const appointmentTimes = ['08:00', '09:30', '10:30', '13:30', '15:00', '16:30'];
   const appointmentDates = ['2026-04-15', '2026-04-16', '2026-04-17', '2026-04-20', '2026-04-21', '2026-04-22'];
   const appointmentWeekdays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -605,13 +694,101 @@ export function HomePage() {
     const day = index + 8;
     return `2026-04-${String(day).padStart(2, '0')}`;
   });
-  const trustBand = [
-    'JCI Accredited',
-    'ISO 9001 clinical operation',
-    'Direct insurance billing',
-    '24/7 emergency response',
-    'Digital patient record',
-  ];
+  const trustBandCopy = {
+    en: [
+      'JCI accredited care',
+      'ISO 9001 clinical operation',
+      'Direct insurance billing',
+      '24/7 emergency response',
+      'Digital patient record',
+    ],
+    vi: [
+      'Chăm sóc đạt chuẩn JCI',
+      'Vận hành lâm sàng ISO 9001',
+      'Bảo lãnh viện phí trực tiếp',
+      'Cấp cứu phản ứng 24/7',
+      'Hồ sơ bệnh án số',
+    ],
+    ko: [
+      'JCI 인증 진료',
+      'ISO 9001 임상 운영',
+      '보험 직접 청구',
+      '24시간 응급 대응',
+      '디지털 환자 기록',
+    ],
+  };
+  const trustBand = trustBandCopy[language];
+  const trustBandIcons = [ShieldCheck, ClipboardCheck, FileText, Ambulance, Hospital];
+  const careJourneyCopy = {
+    en: [
+      {
+        title: 'Smart intake',
+        detail: 'Symptoms, records, and insurance are coordinated before the visit.',
+        metric: '08 min',
+      },
+      {
+        title: 'Precision diagnostics',
+        detail: 'Labs, imaging, and specialist review are connected in one flow.',
+        metric: 'Same day',
+      },
+      {
+        title: 'Team-based treatment',
+        detail: 'Doctors, nursing, pharmacy, and lab teams follow a shared plan.',
+        metric: '4 teams',
+      },
+      {
+        title: 'Recovery follow-up',
+        detail: 'Appointments, prescriptions, and results remain visible after care.',
+        metric: '24/7',
+      },
+    ],
+    vi: [
+      {
+        title: 'Tiếp nhận thông minh',
+        detail: 'Triệu chứng, hồ sơ và bảo hiểm được chuẩn bị trước buổi khám.',
+        metric: '08 phút',
+      },
+      {
+        title: 'Chẩn đoán chính xác',
+        detail: 'Xét nghiệm, chẩn đoán hình ảnh và hội chẩn được nối trong một luồng.',
+        metric: 'Trong ngày',
+      },
+      {
+        title: 'Điều trị phối hợp',
+        detail: 'Bác sĩ, điều dưỡng, dược và xét nghiệm cùng theo một kế hoạch.',
+        metric: '4 đội',
+      },
+      {
+        title: 'Theo dõi hồi phục',
+        detail: 'Lịch hẹn, đơn thuốc và kết quả luôn sẵn sàng sau điều trị.',
+        metric: '24/7',
+      },
+    ],
+    ko: [
+      {
+        title: '스마트 접수',
+        detail: '증상, 기록, 보험 정보를 방문 전부터 정리합니다.',
+        metric: '08분',
+      },
+      {
+        title: '정밀 진단',
+        detail: '검사, 영상, 전문의 검토를 하나의 흐름으로 연결합니다.',
+        metric: '당일',
+      },
+      {
+        title: '팀 기반 치료',
+        detail: '의사, 간호, 약국, 검사팀이 같은 계획을 따릅니다.',
+        metric: '4팀',
+      },
+      {
+        title: '회복 추적',
+        detail: '예약, 처방, 결과를 진료 후에도 계속 확인할 수 있습니다.',
+        metric: '24/7',
+      },
+    ],
+  };
+  const careJourney = careJourneyCopy[language];
+  const careJourneyIcons = [Activity, FlaskConical, UsersRound, HeartPulse];
   const specialtyVisuals = [
     'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?auto=format&fit=crop&w=900&q=86',
     'https://images.unsplash.com/photo-1555252333-9f8e92e65df9?auto=format&fit=crop&w=900&q=86',
@@ -623,25 +800,27 @@ export function HomePage() {
   const doctorVisuals = [
     {
       image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=900&q=86',
-      slot: 'Today 15:30',
       rating: '4.9',
     },
     {
       image: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=900&q=86',
-      slot: 'Tomorrow 09:00',
       rating: '4.9',
     },
     {
       image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=900&q=86',
-      slot: 'Today 17:00',
       rating: '4.8',
     },
     {
       image: 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?auto=format&fit=crop&w=900&q=86',
-      slot: 'Fri 10:30',
       rating: '4.9',
     },
   ];
+  const doctorSlots = {
+    en: ['Today 15:30', 'Tomorrow 09:00', 'Today 17:00', 'Fri 10:30'],
+    vi: ['Hôm nay 15:30', 'Ngày mai 09:00', 'Hôm nay 17:00', 'Thứ sáu 10:30'],
+    ko: ['오늘 15:30', '내일 09:00', '오늘 17:00', '금요일 10:30'],
+  };
+  const specialtyIcons = [HeartPulse, Activity, Stethoscope, ShieldCheck, Ambulance, Sparkles];
   const heroProofs = {
     en: [
       ['50k+', 'Patients served'],
@@ -654,11 +833,71 @@ export function HomePage() {
       ['98%', 'H\u00e0i l\u00f2ng d\u1ecbch v\u1ee5'],
     ],
     ko: [
-      ['50k+', 'í™˜ìž ì‹ ë¢°'],
-      ['24/7', 'ì‘ê¸‰ ì§€ì›'],
-      ['98%', 'ë§Œì¡±ë„'],
+      ['50k+', '환자 신뢰'],
+      ['24/7', '응급 지원'],
+      ['98%', '만족도'],
     ],
   };
+  const careDeskCopy = {
+    en: {
+      title: 'Care desk online',
+      detail: '3 doctors accepting appointments',
+      slots: 'slots today',
+      response: 'avg response',
+      hotline: 'Hotline 1900 8888',
+    },
+    vi: {
+      title: 'Tổ chăm sóc trực tuyến',
+      detail: '3 bác sĩ đang nhận lịch',
+      slots: 'lịch trống hôm nay',
+      response: 'phản hồi trung bình',
+      hotline: 'Hotline 1900 8888',
+    },
+    ko: {
+      title: '온라인 케어 데스크',
+      detail: '3명의 의사가 예약을 받고 있습니다',
+      slots: '오늘 예약 가능',
+      response: '평균 응답',
+      hotline: '핫라인 1900 8888',
+    },
+  };
+  const portalPreviewCopy = {
+    en: {
+      app: 'Patient app',
+      day: 'Today',
+      next: 'Next appointment',
+      visit: 'Cardiology check-up',
+      doctor: '09:30 · Dr. Olivia Vance',
+      lab: 'Lab',
+      labStatus: '2 results ready',
+      rx: 'Rx',
+      rxStatus: '1 refill due',
+    },
+    vi: {
+      app: 'Ứng dụng bệnh nhân',
+      day: 'Hôm nay',
+      next: 'Lịch hẹn kế tiếp',
+      visit: 'Tái khám tim mạch',
+      doctor: '09:30 · BS. Olivia Vance',
+      lab: 'Xét nghiệm',
+      labStatus: '2 kết quả đã sẵn sàng',
+      rx: 'Đơn thuốc',
+      rxStatus: '1 yêu cầu gia hạn',
+    },
+    ko: {
+      app: '환자 앱',
+      day: '오늘',
+      next: '다음 예약',
+      visit: '심장내과 검진',
+      doctor: '09:30 · Dr. Olivia Vance',
+      lab: '검사',
+      labStatus: '결과 2건 준비됨',
+      rx: '처방',
+      rxStatus: '리필 1건 예정',
+    },
+  };
+  const careDesk = careDeskCopy[language];
+  const portalPreview = portalPreviewCopy[language];
   useEffect(() => {
     const target = statsRef.current;
     if (!target) return undefined;
@@ -707,11 +946,6 @@ export function HomePage() {
       cancelAnimationFrame(frameId);
     };
   }, []);
-
-  function handleAppointmentChange(event) {
-    const { name, value } = event.target;
-    setAppointmentForm((current) => ({ ...current, [name]: value }));
-  }
 
   function handleAppointmentSelect(name, value) {
     setAppointmentForm((current) => ({ ...current, [name]: value }));
@@ -783,23 +1017,25 @@ function PartnerIcon({ type }) {
 
         <div className="home-hero__care-panel" aria-label="Live care availability">
           <div className="home-hero__care-head">
-            <span aria-hidden="true">+</span>
+            <span aria-hidden="true">
+              <Stethoscope size={22} />
+            </span>
             <div>
-              <strong>Care desk online</strong>
-              <small>3 doctors accepting appointments</small>
+              <strong>{careDesk.title}</strong>
+              <small>{careDesk.detail}</small>
             </div>
           </div>
           <div className="home-hero__care-grid">
             <article>
               <strong>12</strong>
-              <span>slots today</span>
+              <span>{careDesk.slots}</span>
             </article>
             <article>
               <strong>08m</strong>
-              <span>avg response</span>
+              <span>{careDesk.response}</span>
             </article>
           </div>
-          <a href="#visit">Hotline 1900 8888</a>
+          <a href="#visit">{careDesk.hotline}</a>
         </div>
 
         <div className="home-hero__content">
@@ -819,19 +1055,13 @@ function PartnerIcon({ type }) {
           <div className="home-hero__buttons">
             <a className="home-btn home-btn--primary" href="#departments">
               <span className="home-btn__icon home-btn__icon--calendar" aria-hidden="true">
-                <svg viewBox="0 0 24 24" role="img">
-                  <path d="M7 2.75v3M17 2.75v3M4.75 9.25h14.5" />
-                  <path d="M6.4 5h11.2c1.35 0 2.4 1.08 2.4 2.45v10.1c0 1.37-1.05 2.45-2.4 2.45H6.4C5.05 20 4 18.92 4 17.55V7.45C4 6.08 5.05 5 6.4 5Z" />
-                  <path d="M8 13h.01M12 13h.01M16 13h.01M8 16.25h.01M12 16.25h.01" />
-                </svg>
+                <CalendarDays size={16} />
               </span>
               {t.heroPrimary}
             </a>
             <a className="home-btn home-btn--secondary" href="#services">
               <span className="home-btn__icon home-btn__icon--play" aria-hidden="true">
-                <svg viewBox="0 0 24 24" role="img">
-                  <path d="M9 7.6v8.8c0 .72.78 1.16 1.4.8l7.15-4.4a.94.94 0 0 0 0-1.6L10.4 6.8A.92.92 0 0 0 9 7.6Z" />
-                </svg>
+                <Play size={13} fill="currentColor" />
               </span>
               {t.heroSecondary}
             </a>
@@ -845,14 +1075,16 @@ function PartnerIcon({ type }) {
               <span>{t.appointmentDepartment}</span>
               <div className="home-picker">
                 <button type="button" className="home-picker__trigger" onClick={() => setOpenAppointmentPicker(openAppointmentPicker === 'service' ? '' : 'service')}>
-                  <span>{appointmentForm.service}</span>
-                  <span aria-hidden="true">⌄</span>
+                  <span>{selectedServiceLabel}</span>
+                  <span aria-hidden="true">
+                    <Stethoscope size={15} />
+                  </span>
                 </button>
                 {openAppointmentPicker === 'service' ? (
                   <div className="home-picker__menu">
                     {appointmentServices.map((item) => (
-                      <button key={item} type="button" className={appointmentForm.service === item ? 'is-active' : ''} onClick={() => handleAppointmentSelect('service', item)}>
-                        {item}
+                      <button key={item.value} type="button" className={appointmentForm.service === item.value ? 'is-active' : ''} onClick={() => handleAppointmentSelect('service', item.value)}>
+                        {item.label}
                       </button>
                     ))}
                   </div>
@@ -863,14 +1095,16 @@ function PartnerIcon({ type }) {
               <span>{t.appointmentDoctor}</span>
               <div className="home-picker">
                 <button type="button" className="home-picker__trigger" onClick={() => setOpenAppointmentPicker(openAppointmentPicker === 'doctor' ? '' : 'doctor')}>
-                  <span>{appointmentForm.doctor}</span>
-                  <span aria-hidden="true">⌄</span>
+                  <span>{selectedDoctorLabel}</span>
+                  <span aria-hidden="true">
+                    <UsersRound size={15} />
+                  </span>
                 </button>
                 {openAppointmentPicker === 'doctor' ? (
                   <div className="home-picker__menu">
                     {appointmentDoctors.map((item) => (
-                      <button key={item} type="button" className={appointmentForm.doctor === item ? 'is-active' : ''} onClick={() => handleAppointmentSelect('doctor', item)}>
-                        {item}
+                      <button key={item.value} type="button" className={appointmentForm.doctor === item.value ? 'is-active' : ''} onClick={() => handleAppointmentSelect('doctor', item.value)}>
+                        {item.label}
                       </button>
                     ))}
                   </div>
@@ -883,13 +1117,15 @@ function PartnerIcon({ type }) {
                 <div className="home-picker">
                   <button type="button" className="home-picker__trigger home-picker__trigger--compact" onClick={() => setOpenAppointmentPicker(openAppointmentPicker === 'date' ? '' : 'date')}>
                     <span>{formatAppointmentDate(appointmentForm.date)}</span>
-                    <span aria-hidden="true">▣</span>
+                    <span aria-hidden="true">
+                      <CalendarDays size={15} />
+                    </span>
                   </button>
                   {openAppointmentPicker === 'date' ? (
                     <div className="home-picker__menu home-picker__menu--calendar">
                       <div className="home-mini-calendar__head">
-                        <strong>April 2026</strong>
-                        <span>Available days</span>
+                        <strong>{appointmentLabels.calendarMonth}</strong>
+                        <span>{appointmentLabels.availableDays}</span>
                       </div>
                       <div className="home-mini-calendar__weekdays">
                         {appointmentWeekdays.map((item) => (
@@ -912,7 +1148,9 @@ function PartnerIcon({ type }) {
                 <div className="home-picker">
                   <button type="button" className="home-picker__trigger home-picker__trigger--compact" onClick={() => setOpenAppointmentPicker(openAppointmentPicker === 'time' ? '' : 'time')}>
                     <span>{appointmentForm.time}</span>
-                    <span aria-hidden="true">◷</span>
+                    <span aria-hidden="true">
+                      <Clock3 size={15} />
+                    </span>
                   </button>
                   {openAppointmentPicker === 'time' ? (
                     <div className="home-picker__menu home-picker__menu--time">
@@ -932,12 +1170,36 @@ function PartnerIcon({ type }) {
       </section>
 
       <section className="home-trust-band" aria-label="Healthcare accreditation and trust signals">
-        {trustBand.map((item) => (
+        {trustBand.map((item, index) => {
+          const TrustIcon = trustBandIcons[index % trustBandIcons.length];
+          return (
           <article key={item}>
-            <span aria-hidden="true">✓</span>
+            <span aria-hidden="true">
+              <TrustIcon size={18} />
+            </span>
             <strong>{item}</strong>
           </article>
-        ))}
+        );
+        })}
+      </section>
+
+      <section className="home-care-journey" aria-label="Connected patient care journey">
+        {careJourney.map((item, index) => {
+          const JourneyIcon = careJourneyIcons[index % careJourneyIcons.length];
+          return (
+            <article key={item.title} className="home-care-journey__step">
+              <span className="home-care-journey__index">{`0${index + 1}`}</span>
+              <span className="home-care-journey__icon" aria-hidden="true">
+                <JourneyIcon size={19} />
+              </span>
+              <div>
+                <strong>{item.title}</strong>
+                <p>{item.detail}</p>
+              </div>
+              <em>{item.metric}</em>
+            </article>
+          );
+        })}
       </section>
 
       <section className="home-partners">
@@ -979,7 +1241,10 @@ function PartnerIcon({ type }) {
               />
               <div className="specialty-card__top">
                 <span className="specialty-card__icon" aria-hidden="true">
-                  {item.icon}
+                  {(() => {
+                    const SpecialtyIcon = specialtyIcons[index % specialtyIcons.length];
+                    return <SpecialtyIcon size={21} />;
+                  })()}
                 </span>
                 <span className="specialty-card__badge">{item.badge}</span>
               </div>
@@ -991,7 +1256,7 @@ function PartnerIcon({ type }) {
                 <span className="specialty-card__metric">{item.metric}</span>
                 <a href="#services">
                   {t.learnMore}
-                  <span aria-hidden="true">↗</span>
+                  <ArrowUpRight size={14} aria-hidden="true" />
                 </a>
               </div>
             </article>
@@ -1020,22 +1285,30 @@ function PartnerIcon({ type }) {
 
           <div className="home-stats" ref={statsRef}>
             <article className="home-stats__card home-stats__card--patients">
-              <span className="home-stats__icon" aria-hidden="true">♡</span>
+              <span className="home-stats__icon" aria-hidden="true">
+                <UsersRound size={20} />
+              </span>
               <strong>{countStats.patients.toLocaleString('en-US')}+</strong>
               <span>{t.stats[0]}</span>
             </article>
             <article className="home-stats__card home-stats__card--doctors">
-              <span className="home-stats__icon" aria-hidden="true">✚</span>
+              <span className="home-stats__icon" aria-hidden="true">
+                <Stethoscope size={20} />
+              </span>
               <strong>{countStats.doctors}+</strong>
               <span>{t.stats[1]}</span>
             </article>
             <article className="home-stats__card home-stats__card--years">
-              <span className="home-stats__icon" aria-hidden="true">◎</span>
+              <span className="home-stats__icon" aria-hidden="true">
+                <CalendarDays size={20} />
+              </span>
               <strong>{countStats.years}+</strong>
               <span>{t.stats[2]}</span>
             </article>
             <article className="home-stats__card home-stats__card--care">
-              <span className="home-stats__icon" aria-hidden="true">✓</span>
+              <span className="home-stats__icon" aria-hidden="true">
+                <HeartPulse size={20} />
+              </span>
               <strong>{countStats.care}%</strong>
               <span>{t.stats[3]}</span>
             </article>
@@ -1055,33 +1328,38 @@ function PartnerIcon({ type }) {
           </div>
 
           <div className="home-portal__features">
-            {portalFeatures.map((item) => (
+            {portalFeatures.map((item) => {
+              const PortalIcon = item.icon;
+              return (
               <article key={item.title}>
-                <span className="home-portal__feature-icon" aria-hidden="true">{item.icon}</span>
+                <span className="home-portal__feature-icon" aria-hidden="true">
+                  <PortalIcon size={20} />
+                </span>
                 <strong>{item.title}</strong>
                 <p>{item.detail}</p>
               </article>
-            ))}
+            );
+            })}
           </div>
 
           <div className="home-portal__mockup" aria-label="Patient portal preview">
             <div className="home-portal__mockup-top">
-              <span>Patient app</span>
-              <strong>Today</strong>
+              <span>{portalPreview.app}</span>
+              <strong>{portalPreview.day}</strong>
             </div>
             <div className="home-portal__mockup-card home-portal__mockup-card--primary">
-              <small>Next appointment</small>
-              <strong>Cardiology check-up</strong>
-              <span>09:30 · Dr. Olivia Vance</span>
+              <small>{portalPreview.next}</small>
+              <strong>{portalPreview.visit}</strong>
+              <span>{portalPreview.doctor}</span>
             </div>
             <div className="home-portal__mockup-grid">
               <article>
-                <strong>Lab</strong>
-                <span>2 results ready</span>
+                <strong>{portalPreview.lab}</strong>
+                <span>{portalPreview.labStatus}</span>
               </article>
               <article>
-                <strong>Rx</strong>
-                <span>1 refill due</span>
+                <strong>{portalPreview.rx}</strong>
+                <span>{portalPreview.rxStatus}</span>
               </article>
             </div>
             <div className="home-portal__mockup-progress">
@@ -1114,7 +1392,7 @@ function PartnerIcon({ type }) {
                 <p>{doctor.role}</p>
                 <div className="doctor-card__meta">
                   <span>{doctorVisuals[index % doctorVisuals.length].rating} ★</span>
-                  <span>{doctorVisuals[index % doctorVisuals.length].slot}</span>
+                  <span>{doctorSlots[language][index % doctorSlots[language].length]}</span>
                 </div>
                 <div className="doctor-card__footer">
                   <span>{doctor.tag}</span>
@@ -1134,7 +1412,7 @@ function PartnerIcon({ type }) {
           <p>{t.philosophyP2}</p>
           <a className="home-philosophy__link" href="#visit">
             {t.philosophyLink}
-            <span aria-hidden="true">↗</span>
+            <ArrowUpRight size={15} aria-hidden="true" />
           </a>
         </div>
 
@@ -1283,21 +1561,21 @@ function PartnerIcon({ type }) {
           <div className="visit-points">
             <article>
               <span className="visit-points__icon" aria-hidden="true">
-                ◎
+                <MapPin size={19} />
               </span>
               <strong>{t.visitPoints[0]}</strong>
               <span>{t.visitDetails[0]}</span>
             </article>
             <article>
               <span className="visit-points__icon" aria-hidden="true">
-                ◌
+                <PhoneCall size={19} />
               </span>
               <strong>{t.visitPoints[1]}</strong>
               <span>{t.visitDetails[1]}</span>
             </article>
             <article>
               <span className="visit-points__icon" aria-hidden="true">
-                ◔
+                <Clock3 size={19} />
               </span>
               <strong>{t.visitPoints[2]}</strong>
               <span>{t.visitDetails[2]}</span>
@@ -1331,9 +1609,7 @@ function PartnerIcon({ type }) {
 
       <a className="home-floating-hotline" href="#visit" aria-label="Emergency hotline">
         <span aria-hidden="true">
-          <svg viewBox="0 0 24 24" role="img">
-            <path d="M6.6 3.8 9.7 3l1.7 4.2-1.8 1.1c.9 1.9 2.3 3.4 4.1 4.3l1.2-1.7 4.2 1.8-.8 3.1c-.2.8-.9 1.3-1.7 1.3C9.2 17.1 3 10.9 3 5.5c0-.8.6-1.5 1.4-1.7Z" />
-          </svg>
+          <PhoneCall size={21} />
         </span>
         <div>
           <small>{'\u0043\u1ea5\u0070\u0020\u0063\u1ee9\u0075\u0020\u0032\u0034\u002f\u0037'}</small>

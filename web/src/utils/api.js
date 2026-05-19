@@ -16,8 +16,10 @@ function buildUrl(path, params) {
 
 export async function request(path, { method = 'GET', params, body, auth = true, skipRefresh = false } = {}) {
   const storedAuth = readStoredAuth()
+  const normalizedMethod = String(method || 'GET').toUpperCase()
   const headers = {
     ...(body ? { 'Content-Type': 'application/json' } : {}),
+    ...(normalizedMethod === 'POST' ? { 'Idempotency-Key': globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}` } : {}),
     ...(auth && storedAuth?.tokens?.access_token
       ? { Authorization: `Bearer ${storedAuth.tokens.access_token}` }
       : {}),
@@ -25,7 +27,7 @@ export async function request(path, { method = 'GET', params, body, auth = true,
 
   const url = buildUrl(path, params)
   const requestOptions = {
-    method,
+    method: normalizedMethod,
     headers,
     body: body ? JSON.stringify(body) : undefined,
   }

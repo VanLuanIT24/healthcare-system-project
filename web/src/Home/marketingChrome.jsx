@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CalendarPlus, Globe2, HeartPulse, Mail, MapPin, PhoneCall } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { readStoredSiteLanguage, writeStoredSiteLanguage } from '../lib/storage';
 export function useSiteLanguage(defaultLanguage = 'vi') {
@@ -12,7 +13,7 @@ export function useSiteLanguage(defaultLanguage = 'vi') {
 function getLanguageLabel(language) {
   if (language === 'en') return 'English';
   if (language === 'ko') return '한국어';
-  return 'Tieng Viet';
+  return 'Tiếng Việt';
 }
 function getMarketingNavItems(labels) {
   return [
@@ -42,8 +43,14 @@ function getMarketingNavItems(labels) {
   return (
     <div className="home-topbar">
       <div className="home-topbar__left">
-        <span>✆ {labels.hotline}</span>
-        <span>✚ {labels.care}</span>
+        <span>
+          <PhoneCall size={14} aria-hidden="true" />
+          {labels.hotline}
+        </span>
+        <span>
+          <HeartPulse size={14} aria-hidden="true" />
+          {labels.care}
+        </span>
       </div>
       <div className="home-topbar__right">
         <div className="home-language" ref={menuRef}>
@@ -53,7 +60,9 @@ function getMarketingNavItems(labels) {
             onClick={() => setIsLanguageMenuOpen((current) => !current)}
             aria-expanded={isLanguageMenuOpen}
           >
-            <span className="home-language__icon" aria-hidden="true">🌐</span>
+            <span className="home-language__icon" aria-hidden="true">
+              <Globe2 size={14} />
+            </span>
             <span>{getLanguageLabel(language)}</span>
             <span className="home-language__caret" aria-hidden="true">▾</span>
           </button>
@@ -112,6 +121,7 @@ export function MarketingHeader({ labels, language, setLanguage, profile, onLogo
         <div className="home-header__actions">
           {profile ? <span className="home-header__welcome">{labels.hello}, {profile.full_name}</span> : null}
           <Link className="home-header__button" to="/support">
+            <CalendarPlus size={17} aria-hidden="true" />
             {labels.book}
           </Link>
           {profile && onLogout ? (
@@ -127,6 +137,7 @@ export function MarketingHeader({ labels, language, setLanguage, profile, onLogo
 
 export function MarketingFooter({ labels, footerLead, visitDetails, directionsLabel, secondaryLabel }) {
   const navItems = getMarketingNavItems(labels);
+  const careItems = labels.footerCareItems || [];
 
   return (
     <footer className="home-footer">
@@ -134,7 +145,7 @@ export function MarketingFooter({ labels, footerLead, visitDetails, directionsLa
       <div className="home-footer__main">
         <div className="home-footer__brand">
           <span className="home-footer__eyebrow">Healthcare Plus+</span>
-          <strong>Your Trusted Health Partner</strong>
+          <strong>{labels.footerBrandTitle}</strong>
           <p>{footerLead}</p>
           <span className="home-footer__note">{labels.footerNote}</span>
           {/* Social Links */}
@@ -158,19 +169,25 @@ export function MarketingFooter({ labels, footerLead, visitDetails, directionsLa
         <div className="home-footer__column">
           <h3>{labels.footerContact}</h3>
           <div className="home-footer__stack">
-            <span className="home-footer__item">📞 1900-8888</span>
-            <span className="home-footer__item">📧 support@healthcareplus.vn</span>
-            <span className="home-footer__item">📍 124 Hải Phòng, Đà Nẵng</span>
+            <span className="home-footer__item"><PhoneCall size={15} aria-hidden="true" />1900-8888</span>
+            <span className="home-footer__item"><Mail size={15} aria-hidden="true" />support@healthcareplus.vn</span>
+            <span className="home-footer__item"><MapPin size={15} aria-hidden="true" />{visitDetails?.[0] || '124 Hai Phong, Da Nang'}</span>
           </div>
         </div>
 
         <div className="home-footer__column">
           <h3>{labels.footerCare}</h3>
           <div className="home-footer__stack">
-            <span className="home-footer__item">❤️ Cardiology</span>
-            <span className="home-footer__item">🧠 Neurology</span>
-            <span className="home-footer__item">👶 Pediatrics</span>
-            <span className="home-footer__item">🚑 Emergency 24/7</span>
+            {careItems.map((item) => (
+              <span key={item} className="home-footer__item">
+                <HeartPulse size={15} aria-hidden="true" />
+                {item}
+              </span>
+            ))}
+            <span className="home-footer__item">
+              <CalendarPlus size={15} aria-hidden="true" />
+              {secondaryLabel}
+            </span>
           </div>
         </div>
       </div>
@@ -181,13 +198,13 @@ export function MarketingFooter({ labels, footerLead, visitDetails, directionsLa
       {/* Bottom Footer */}
       <div className="home-footer__bottom">
         <div className="home-footer__copyright">
-          <span>&copy; 2026 Healthcare Plus+. All rights reserved.</span>
+          <span>&copy; 2026 {labels.footerCopyright}</span>
         </div>
         <div className="home-footer__mini-links">
           <Link to="/contact" className="home-footer__mini-link">{directionsLabel}</Link>
-          <Link to="/about" className="home-footer__mini-link">About Us</Link>
-          <Link to="/contact" className="home-footer__mini-link">Privacy Policy</Link>
-          <Link to="/contact" className="home-footer__mini-link">Terms of Service</Link>
+          <Link to="/about" className="home-footer__mini-link">{labels.footerAbout}</Link>
+          <Link to="/contact" className="home-footer__mini-link">{labels.footerPrivacy}</Link>
+          <Link to="/contact" className="home-footer__mini-link">{labels.footerTerms}</Link>
         </div>
       </div>
     </footer>

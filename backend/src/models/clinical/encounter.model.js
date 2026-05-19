@@ -1,6 +1,12 @@
 const { model } = require('mongoose');
 const { Schema, baseSchemaOptions, auditFields } = require('../common/base-model');
-const { ENCOUNTER_STATUS, ENCOUNTER_STATUSES, ENCOUNTER_TYPES } = require('../../constants/statuses');
+const {
+  ENCOUNTER_STATUS,
+  ENCOUNTER_STATUSES,
+  ENCOUNTER_TYPES,
+  NURSING_WORKFLOW_STATUS,
+  NURSING_WORKFLOW_STATUSES,
+} = require('../../constants/statuses');
 
 // Bảng encounters: Lưu một lần khám hoặc lần điều trị của bệnh nhân.
 
@@ -29,6 +35,22 @@ const encounterSchema = new Schema(
     reopened_at: { type: Date },
     reopened_by: { type: Schema.Types.ObjectId, ref: 'User' },
     reopen_reason: { type: String },
+    nursing_status: {
+      type: String,
+      enum: NURSING_WORKFLOW_STATUSES,
+      default: NURSING_WORKFLOW_STATUS.NOT_STARTED,
+      required: true,
+    },
+    assigned_nurse_id: { type: Schema.Types.ObjectId, ref: 'User' },
+    assigned_nurse_at: { type: Date },
+    nursing_status_updated_at: { type: Date },
+    nursing_status_updated_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    waiting_nurse_at: { type: Date },
+    triage_started_at: { type: Date },
+    triage_completed_at: { type: Date },
+    vital_recorded_at: { type: Date },
+    preparation_completed_at: { type: Date },
+    ready_for_doctor_at: { type: Date },
     status: { type: String, enum: ENCOUNTER_STATUSES, default: ENCOUNTER_STATUS.PLANNED, required: true },
     ...auditFields(),
   },
@@ -40,6 +62,8 @@ encounterSchema.index({ department_id: 1 });
 encounterSchema.index({ attending_doctor_id: 1 });
 encounterSchema.index({ start_time: 1 });
 encounterSchema.index({ status: 1 });
+encounterSchema.index({ nursing_status: 1 });
+encounterSchema.index({ assigned_nurse_id: 1 });
 encounterSchema.index({ encounter_type: 1 });
 encounterSchema.index({ patient_id: 1, start_time: 1 });
 encounterSchema.index({ appointment_id: 1, status: 1 });
@@ -63,6 +87,8 @@ encounterSchema.index(
 );
 encounterSchema.index({ attending_doctor_id: 1, status: 1, start_time: 1 });
 encounterSchema.index({ department_id: 1, status: 1, start_time: 1 });
+encounterSchema.index({ department_id: 1, nursing_status: 1, start_time: 1 });
+encounterSchema.index({ department_id: 1, assigned_nurse_id: 1, start_time: 1 });
 encounterSchema.index({ department_id: 1, start_time: 1 });
 encounterSchema.index({ attending_doctor_id: 1, start_time: 1 });
 

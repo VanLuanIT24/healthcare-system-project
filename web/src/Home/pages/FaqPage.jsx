@@ -1,72 +1,74 @@
 import React, { useMemo, useState } from 'react';
+import {
+  ArrowRight,
+  BadgeCheck,
+  CalendarCheck,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  FileText,
+  Globe2,
+  HeartPulse,
+  MessageCircle,
+  PhoneCall,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  WalletCards,
+} from 'lucide-react';
 import { MarketingPageShell } from './MarketingPageShell';
 
-function FaqCategoryIcon({ type }) {
-  if (type === 'appointments') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="4.5" y="6.5" width="15" height="13" rx="3" />
-        <path d="M8 4.5v4" />
-        <path d="M16 4.5v4" />
-        <path d="M4.5 10.5h15" />
-      </svg>
-    );
-  }
-
-  if (type === 'insurance') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 4.5l6 2.7v4.5c0 4.2-2.4 6.8-6 7.8-3.6-1-6-3.6-6-7.8V7.2L12 4.5z" />
-        <path d="M9.5 11.9l1.6 1.6 3.4-3.7" />
-      </svg>
-    );
-  }
-
-  if (type === 'process') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="5" y="5" width="14" height="14" rx="3" />
-        <path d="M12 8v8" />
-        <path d="M8 12h8" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="4.5" y="5.5" width="9" height="5" rx="1.5" />
-      <rect x="4.5" y="13.5" width="6.5" height="5" rx="1.5" />
-      <path d="M15.5 14.5h4" />
-      <path d="M15.5 17.5h4" />
-      <path d="M15.5 10.5h4" />
-    </svg>
-  );
-}
+const FAQ_HERO_STATS = [
+  {
+    icon: Clock3,
+    value: '<20 phút',
+    label: 'phản hồi lịch hẹn',
+  },
+  {
+    icon: ShieldCheck,
+    value: '24/7',
+    label: 'điều phối y tế',
+  },
+  {
+    icon: FileText,
+    value: '100%',
+    label: 'hồ sơ lưu số',
+  },
+];
 
 const FAQ_CATEGORIES = [
   {
     title: 'Lịch hẹn',
-    icon: 'appointments',
+    icon: CalendarCheck,
     color: 'is-blue',
+    metric: '15 phút',
+    accent: 'Xác nhận nhanh',
     description: 'Quản lý, thay đổi và chuẩn bị cho lần thăm khám sắp tới.',
   },
   {
     title: 'Bảo hiểm',
-    icon: 'insurance',
+    icon: ShieldCheck,
     color: 'is-green',
-    description: 'Thông tin về đối tác bảo hiểm và quy trình thanh toán trực tiếp.',
+    metric: '30+ đối tác',
+    accent: 'Kiểm tra quyền lợi',
+    description: 'Thông tin về bảo hiểm và quy trình thanh toán trực tiếp.',
   },
   {
     title: 'Quy trình',
-    icon: 'process',
+    icon: CheckCircle2,
     color: 'is-indigo',
+    metric: '4 bước',
+    accent: 'Rõ ràng từng chặng',
     description: 'Các bước thăm khám từ lúc tiếp nhận đến khi xuất viện.',
   },
   {
     title: 'Dịch vụ',
-    icon: 'services',
+    icon: Stethoscope,
     color: 'is-slate',
-    description: 'Chi tiết về các chuyên khoa và công nghệ y tế tiên tiến.',
+    metric: '24/7',
+    accent: 'Chuyên khoa kết nối',
+    description: 'Chi tiết về chuyên khoa, công nghệ y tế và hỗ trợ quốc tế.',
   },
 ];
 
@@ -128,12 +130,54 @@ const FAQ_ITEMS = [
 ];
 
 const FAQ_TOPIC_GROUPS = [
-  { id: 'all', label: 'Chủ đề phổ biến' },
-  { id: 'records', label: 'Hồ sơ y tế điện tử' },
-  { id: 'services', label: 'Dịch vụ quốc tế' },
-  { id: 'privacy', label: 'Chính sách bảo mật' },
-  { id: 'billing', label: 'Hướng dẫn thanh toán' },
-  { id: 'appointments', label: 'Lịch hẹn & thăm khám' },
+  { id: 'all', label: 'Chủ đề phổ biến', icon: Sparkles },
+  { id: 'records', label: 'Hồ sơ y tế điện tử', icon: FileText },
+  { id: 'services', label: 'Dịch vụ quốc tế', icon: Globe2 },
+  { id: 'privacy', label: 'Chính sách bảo mật', icon: ShieldCheck },
+  { id: 'billing', label: 'Hướng dẫn thanh toán', icon: WalletCards },
+  { id: 'appointments', label: 'Lịch hẹn & thăm khám', icon: CalendarCheck },
+];
+
+const FAQ_PRIORITY_CARDS = [
+  {
+    title: 'Dịch vụ ưu tiên',
+    tone: 'dark',
+    icon: BadgeCheck,
+    badge: 'Care concierge',
+    description:
+      'Dành cho bệnh nhân quốc tế và khách hàng có nhu cầu chăm sóc đặc biệt với đội ngũ điều phối riêng biệt.',
+    action: 'Tìm hiểu thêm',
+  },
+  {
+    title: 'Hỗ trợ 24/7',
+    tone: 'light',
+    icon: HeartPulse,
+    badge: 'Medical hotline',
+    description:
+      'Đội ngũ y tế luôn túc trực để giải đáp thắc mắc khẩn cấp, chuẩn bị hồ sơ và điều phối lịch phù hợp.',
+    action: 'Liên hệ ngay',
+  },
+];
+
+const FAQ_SUPPORT_CHANNELS = [
+  {
+    label: 'Gọi ngay',
+    value: '1900 1234',
+    icon: PhoneCall,
+    className: 'is-call',
+  },
+  {
+    label: 'Chat trực tuyến',
+    value: 'Điều phối viên',
+    icon: MessageCircle,
+    className: 'is-chat',
+  },
+  {
+    label: 'Yêu cầu hồ sơ',
+    value: 'Kết quả & toa thuốc',
+    icon: FileText,
+    className: 'is-records',
+  },
 ];
 
 export function FaqPage() {
@@ -156,40 +200,113 @@ export function FaqPage() {
       <section className="home-section site-page-section faq-page">
         <section className="faq-search-hero">
           <div className="faq-search-hero__content">
-            <span className="faq-search-hero__badge">Trung tâm hỗ trợ</span>
-            <h2>Câu hỏi thường gặp</h2>
+            <span className="faq-search-hero__badge">
+              <Sparkles size={16} aria-hidden="true" />
+              Trung tâm hỗ trợ
+            </span>
+            <h2>Giải đáp nhanh, chuẩn y khoa</h2>
             <p>
-              Mọi thứ bạn cần biết về các thủ tục y tế, quy trình thăm khám và chăm sóc sức khỏe tại
-              Healthcare Plus+.
+              Tìm câu trả lời về lịch hẹn, bảo hiểm, hồ sơ điện tử và dịch vụ quốc tế trong một
+              không gian hỗ trợ được thiết kế cho bệnh nhân Healthcare Plus+.
             </p>
+
+            <div className="faq-hero-stats" aria-label="Chỉ số hỗ trợ bệnh nhân">
+              {FAQ_HERO_STATS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <article key={item.label}>
+                    <span aria-hidden="true">
+                      <Icon size={18} />
+                    </span>
+                    <strong>{item.value}</strong>
+                    <small>{item.label}</small>
+                  </article>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="faq-search-box">
-            <span className="faq-search-box__icon" aria-hidden="true">⌕</span>
-            <input
-              type="search"
-              placeholder="Tìm kiếm theo từ khóa (ví dụ: bảo hiểm, lịch hẹn...)"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <button type="button">Tìm kiếm</button>
+          <div className="faq-search-hero__desk">
+            <div className="faq-search-box" role="search">
+              <span className="faq-search-box__icon" aria-hidden="true">
+                <Search size={20} />
+              </span>
+              <input
+                aria-label="Tìm kiếm câu hỏi thường gặp"
+                type="search"
+                placeholder="Tìm kiếm: bảo hiểm, lịch hẹn, hồ sơ..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <button type="button">
+                <span>Tìm kiếm</span>
+                <ArrowRight size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="faq-search-hero__quick-card">
+              <div className="faq-quick-card__top">
+                <span className="faq-live-indicator">
+                  <span aria-hidden="true" />
+                  Online
+                </span>
+                <strong>Care desk</strong>
+              </div>
+              <p>
+                Điều phối viên hỗ trợ rà soát câu hỏi, chuẩn bị giấy tờ và kết nối đúng chuyên khoa.
+              </p>
+
+              <div className="faq-quick-card__timeline" aria-label="Quy trình hỗ trợ nhanh">
+                <span>
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  Tiếp nhận
+                </span>
+                <span>
+                  <FileText size={16} aria-hidden="true" />
+                  Hồ sơ
+                </span>
+                <span>
+                  <CalendarCheck size={16} aria-hidden="true" />
+                  Lịch hẹn
+                </span>
+              </div>
+
+              <div className="faq-quick-card__agent">
+                <span aria-hidden="true">HP+</span>
+                <div>
+                  <strong>Điều phối viên trực</strong>
+                  <small>Sẵn sàng hỗ trợ trong ngày</small>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="faq-category-grid">
-          {FAQ_CATEGORIES.map((item) => (
-            <article key={item.title} className="faq-category-card">
-              <span className={`faq-category-card__icon ${item.color}`} aria-hidden="true">
-                <FaqCategoryIcon type={item.icon} />
-              </span>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
-            </article>
-          ))}
+        <section className="faq-category-grid" aria-label="Nhóm câu hỏi thường gặp">
+          {FAQ_CATEGORIES.map((item) => {
+            const Icon = item.icon;
+            return (
+              <article key={item.title} className="faq-category-card">
+                <header>
+                  <span className={`faq-category-card__icon ${item.color}`} aria-hidden="true">
+                    <Icon size={20} />
+                  </span>
+                  <span className="faq-category-card__metric">{item.metric}</span>
+                </header>
+                <h3>{item.title}</h3>
+                <strong>{item.accent}</strong>
+                <p>{item.description}</p>
+              </article>
+            );
+          })}
         </section>
 
         <section className="faq-answers">
           <div className="faq-answers__heading">
+            <span className="faq-answers__eyebrow">
+              <BadgeCheck size={16} aria-hidden="true" />
+              Bộ câu hỏi đã kiểm duyệt
+            </span>
             <h2>Câu hỏi phổ biến nhất</h2>
             <p>Những vấn đề bệnh nhân thường quan tâm khi đến thăm khám.</p>
           </div>
@@ -198,16 +315,20 @@ export function FaqPage() {
             <aside className="faq-topic-sidebar">
               <span className="faq-topic-sidebar__eyebrow">Danh mục cần thiết</span>
               <div className="faq-topic-sidebar__list">
-                {FAQ_TOPIC_GROUPS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={item.id === activeTopic ? 'is-active' : ''}
-                    onClick={() => setActiveTopic(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+                {FAQ_TOPIC_GROUPS.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={item.id === activeTopic ? 'is-active' : ''}
+                      onClick={() => setActiveTopic(item.id)}
+                    >
+                      <Icon size={17} aria-hidden="true" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </aside>
 
@@ -216,8 +337,13 @@ export function FaqPage() {
                 filteredItems.map((item, index) => (
                   <details key={item.question} className="faq-accordion-item" open={index === 0}>
                     <summary>
-                      <span>{item.question}</span>
-                      <span className="faq-accordion-item__caret" aria-hidden="true">⌄</span>
+                      <span className="faq-accordion-item__question">
+                        <span>{String(index + 1).padStart(2, '0')}</span>
+                        <span>{item.question}</span>
+                      </span>
+                      <span className="faq-accordion-item__caret" aria-hidden="true">
+                        <ChevronDown size={19} />
+                      </span>
                     </summary>
                     <div className="faq-accordion-item__content">
                       <p>{item.answer}</p>
@@ -227,6 +353,7 @@ export function FaqPage() {
               ) : (
                 <div className="faq-accordion-item faq-accordion-item--empty">
                   <div className="faq-accordion-item__content">
+                    <Search size={24} aria-hidden="true" />
                     <p>Chưa có câu hỏi phù hợp với từ khóa hoặc chủ đề bạn đang chọn.</p>
                   </div>
                 </div>
@@ -235,45 +362,53 @@ export function FaqPage() {
           </div>
         </section>
 
-        <section className="faq-priority-grid">
-          <article className="faq-priority-card faq-priority-card--dark">
-            <h3>Dịch vụ ưu tiên</h3>
-            <p>
-              Dành cho bệnh nhân quốc tế và khách hàng có nhu cầu chăm sóc đặc biệt với đội ngũ điều
-              phối riêng biệt.
-            </p>
-            <button type="button">Tìm hiểu thêm ↗</button>
-            <span className="faq-priority-card__pulse" aria-hidden="true" />
-          </article>
-
-          <article className="faq-priority-card faq-priority-card--light">
-            <h3>Hỗ trợ 24/7</h3>
-            <p>
-              Đội ngũ y tế của chúng tôi luôn túc trực để giải đáp mọi thắc mắc khẩn cấp của bạn bất cứ
-              lúc nào.
-            </p>
-            <button type="button">Liên hệ ngay ↗</button>
-          </article>
+        <section className="faq-priority-grid" aria-label="Dịch vụ hỗ trợ ưu tiên">
+          {FAQ_PRIORITY_CARDS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <article key={item.title} className={`faq-priority-card faq-priority-card--${item.tone}`}>
+                <span className="faq-priority-card__badge">
+                  <Icon size={17} aria-hidden="true" />
+                  {item.badge}
+                </span>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+                <button type="button">
+                  <span>{item.action}</span>
+                  <ArrowRight size={17} aria-hidden="true" />
+                </button>
+                {item.tone === 'dark' ? <span className="faq-priority-card__pulse" aria-hidden="true" /> : null}
+              </article>
+            );
+          })}
         </section>
 
         <section className="faq-support-cta">
           <div className="faq-support-cta__copy">
+            <span>
+              <HeartPulse size={17} aria-hidden="true" />
+              Kết nối trực tiếp
+            </span>
             <h2>Vẫn còn thắc mắc?</h2>
             <p>
-              Đội ngũ hỗ trợ của chúng tôi luôn sẵn sàng giải đáp mọi câu hỏi của bạn 24/7. Hãy liên hệ
-              qua các kênh dưới đây để được tư vấn trực tiếp.
+              Đội ngũ hỗ trợ sẵn sàng giải đáp 24/7, kiểm tra thông tin trước ngày khám và giúp bạn
+              đi đúng luồng chăm sóc ngay từ bước đầu.
             </p>
           </div>
 
           <div className="faq-support-cta__actions">
-            <button type="button" className="faq-support-cta__call">
-              <span>📞</span>
-              <strong>Gọi ngay: 1900 1234</strong>
-            </button>
-            <button type="button" className="faq-support-cta__chat">
-              <span>💬</span>
-              <strong>Chat trực tuyến</strong>
-            </button>
+            {FAQ_SUPPORT_CHANNELS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button key={item.label} type="button" className={`faq-support-cta__channel ${item.className}`}>
+                  <span aria-hidden="true">
+                    <Icon size={20} />
+                  </span>
+                  <strong>{item.label}</strong>
+                  <small>{item.value}</small>
+                </button>
+              );
+            })}
           </div>
         </section>
       </section>

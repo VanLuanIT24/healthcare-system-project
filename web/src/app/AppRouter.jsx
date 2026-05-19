@@ -47,8 +47,12 @@ import { StaffOverviewPage } from '../receptionist/pages/StaffOverviewPage';
 import { UnauthorizedPage } from '../receptionist/pages/UnauthorizedPage';
 import PatientPage from '../Patient Page';
 
+import BillingWorkspace from '../BillingWorkspace';
 import DoctorWorkspace from '../DoctorWorkspace';
+import LabWorkspace from '../LabWorkspace';
+import NurseWorkspace from '../NurseWorkspace';
 import PharmacyWorkspace from '../PharmacyWorkspace';
+import ReportsWorkspace from '../ReportsWorkspace';
 import {
   ScheduleBulkCreatePage,
   ScheduleCreatePage,
@@ -69,12 +73,6 @@ import {
 } from '../scheduling';
 
 const devPlaceholderRoutes = [
-  { path: '/nurse/dashboard', title: 'Điều dưỡng', workspaceKey: 'nurse', guard: 'staff' },
-  { path: '/lab/dashboard', title: 'Cận lâm sàng', workspaceKey: 'lab', guard: 'staff' },
-  { path: '/lab/orders', title: 'Chỉ định cận lâm sàng', workspaceKey: 'lab', guard: 'staff' },
-  { path: '/billing/dashboard', title: 'Viện phí & thanh toán', workspaceKey: 'billing', guard: 'staff' },
-  { path: '/billing/invoices', title: 'Hóa đơn viện phí', workspaceKey: 'billing', guard: 'staff' },
-  { path: '/reports/dashboard', title: 'Báo cáo & phân tích', workspaceKey: 'reports', guard: 'staff' },
   { path: '/security/overview', title: 'Bảo mật & phiên đăng nhập', workspaceKey: 'admin', guard: 'staff' },
   { path: '/settings/system', title: 'Cài đặt hệ thống', workspaceKey: 'admin', guard: 'staff' },
   { path: '/appointments', title: 'Lịch hẹn', workspaceKey: 'reception', guard: 'staff' },
@@ -174,6 +172,38 @@ export function AppRouter() {
           />
         ))}
         <Route
+          path="/nurse/*"
+          element={
+            <StaffRoute requiredWorkspaceKey="nurse">
+              <NurseWorkspace />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/lab/*"
+          element={
+            <StaffRoute requiredWorkspaceKey="lab">
+              <LabWorkspace />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/billing/*"
+          element={
+            <StaffRoute requiredWorkspaceKey="billing">
+              <BillingWorkspace />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/reports/*"
+          element={
+            <StaffRoute requiredWorkspaceKey="reports">
+              <ReportsWorkspace />
+            </StaffRoute>
+          }
+        />
+        <Route
           path="/doctor/*"
           element={
             <StaffRoute requiredWorkspaceKey="doctor">
@@ -193,7 +223,7 @@ export function AppRouter() {
           path="/prescriptions"
           element={
             <StaffRoute requiredWorkspaceKey="pharmacy">
-              <Navigate to="/pharmacy/prescriptions" replace />
+              <Navigate to="/pharmacy/prescriptions/pending-dispense" replace />
             </StaffRoute>
           }
         />

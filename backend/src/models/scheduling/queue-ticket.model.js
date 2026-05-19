@@ -1,6 +1,14 @@
 const { model } = require('mongoose');
 const { Schema, baseSchemaOptions, auditFields } = require('../common/base-model');
-const { ACTIVE_QUEUE_STATUSES, QUEUE_STATUS, QUEUE_STATUSES, QUEUE_TYPE, QUEUE_TYPES } = require('../../constants/statuses');
+const {
+  ACTIVE_QUEUE_STATUSES,
+  NURSING_WORKFLOW_STATUS,
+  NURSING_WORKFLOW_STATUSES,
+  QUEUE_STATUS,
+  QUEUE_STATUSES,
+  QUEUE_TYPE,
+  QUEUE_TYPES,
+} = require('../../constants/statuses');
 
 // Bảng queue_tickets: Lưu số thứ tự hàng đợi khám theo ngày, khoa và bác sĩ.
 
@@ -30,6 +38,31 @@ const queueTicketSchema = new Schema(
     counter_id: { type: String, trim: true },
     priority_reason: { type: String },
     display_number: { type: String, trim: true },
+    nursing_stage: {
+      type: String,
+      enum: NURSING_WORKFLOW_STATUSES,
+      default: NURSING_WORKFLOW_STATUS.WAITING_NURSE,
+      required: true,
+    },
+    assigned_nurse_id: { type: Schema.Types.ObjectId, ref: 'User' },
+    assigned_nurse_at: { type: Date },
+    nurse_started_at: { type: Date },
+    nurse_completed_at: { type: Date },
+    triage_required: { type: Boolean, default: false },
+    triage_started_at: { type: Date },
+    triage_completed_at: { type: Date },
+    vital_required: { type: Boolean, default: true },
+    vital_recorded_at: { type: Date },
+    ready_for_doctor_at: { type: Date },
+    ready_for_doctor_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    doctor_room_id: { type: String, trim: true },
+    intake_checklist_completed: { type: Boolean, default: false },
+    triage_assessment_id: { type: Schema.Types.ObjectId, ref: 'TriageAssessment' },
+    latest_vital_sign_id: { type: Schema.Types.ObjectId, ref: 'VitalSign' },
+    sla_due_at: { type: Date },
+    sla_breached_at: { type: Date },
+    nursing_stage_updated_at: { type: Date },
+    nursing_stage_updated_by: { type: Schema.Types.ObjectId, ref: 'User' },
     ...auditFields(),
   },
   { ...baseSchemaOptions, collection: 'queue_tickets' },
@@ -51,6 +84,12 @@ queueTicketSchema.index({ doctor_id: 1 });
 queueTicketSchema.index({ department_id: 1 });
 queueTicketSchema.index({ queue_date: 1 });
 queueTicketSchema.index({ status: 1 });
+queueTicketSchema.index({ nursing_stage: 1 });
+queueTicketSchema.index({ assigned_nurse_id: 1 });
+queueTicketSchema.index({ triage_assessment_id: 1 });
+queueTicketSchema.index({ latest_vital_sign_id: 1 });
+queueTicketSchema.index({ ready_for_doctor_at: 1 });
+queueTicketSchema.index({ sla_due_at: 1 });
 queueTicketSchema.index({ checkin_time: 1 });
 queueTicketSchema.index({ estimated_called_at: 1 });
 queueTicketSchema.index({ qr_token_id: 1 });
@@ -64,6 +103,8 @@ queueTicketSchema.index({ department_id: 1, checkin_time: 1 });
 queueTicketSchema.index({ doctor_id: 1, checkin_time: 1 });
 queueTicketSchema.index({ status: 1, checkin_time: 1 });
 queueTicketSchema.index({ department_id: 1, queue_date: 1 });
+queueTicketSchema.index({ department_id: 1, queue_date: 1, nursing_stage: 1 });
+queueTicketSchema.index({ department_id: 1, queue_date: 1, assigned_nurse_id: 1 });
 queueTicketSchema.index({ doctor_id: 1, queue_date: 1 });
 
 module.exports = model('QueueTicket', queueTicketSchema);

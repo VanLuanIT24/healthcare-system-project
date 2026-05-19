@@ -174,6 +174,7 @@ function readAccessPermissions() {
       PERMISSION.ENCOUNTERS.READ_OWN,
     ],
     department: [
+      PERMISSION.IMAGING_ORDERS.READ_DEPARTMENT,
       PERMISSION.ORDERS.READ_DEPARTMENT,
       PERMISSION.ENCOUNTERS.READ_DEPARTMENT,
     ],
@@ -189,7 +190,7 @@ function writeAccessPermissions(extra = []) {
       ...extra,
     ],
     own: [PERMISSION.IMAGING_ORDERS.READ_OWN],
-    department: [PERMISSION.ORDERS.READ_DEPARTMENT],
+    department: [PERMISSION.IMAGING_ORDERS.READ_DEPARTMENT, PERMISSION.ORDERS.READ_DEPARTMENT],
   };
 }
 
@@ -236,7 +237,7 @@ function assertEncounterReadAccess(encounter, actor = {}) {
   if (hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.ENCOUNTERS.READ, PERMISSION.ORDERS.READ, PERMISSION.IMAGING_ORDERS.READ])) return true;
   if (actor.userId && sameId(encounter.attending_doctor_id, actor.userId) && hasAnyPermission(actor, [PERMISSION.ENCOUNTERS.READ_OWN, PERMISSION.ORDERS.READ_OWN, PERMISSION.IMAGING_ORDERS.READ_OWN])) return true;
   const departmentId = actorDepartmentId(actor);
-  if (departmentId && sameId(encounter.department_id, departmentId) && hasAnyPermission(actor, [PERMISSION.ENCOUNTERS.READ_DEPARTMENT, PERMISSION.ORDERS.READ_DEPARTMENT])) return true;
+  if (departmentId && sameId(encounter.department_id, departmentId) && hasAnyPermission(actor, [PERMISSION.IMAGING_ORDERS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ_DEPARTMENT, PERMISSION.ORDERS.READ_DEPARTMENT])) return true;
   throw createError('Bạn không có quyền xem imaging summary của encounter này.', 403);
 }
 
@@ -288,7 +289,7 @@ async function buildScopedOrderIds(query = {}, actor = {}) {
   if (actorType(actor) && !hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.IMAGING_ORDERS.READ, PERMISSION.IMAGING_REPORTS.READ, PERMISSION.ORDERS.READ, PERMISSION.ORDERS.READ_IMAGING])) {
     if (actor.userId && hasAnyPermission(actor, [PERMISSION.IMAGING_ORDERS.READ_OWN, PERMISSION.ORDERS.READ_OWN])) {
       orderFilter.ordered_by = actor.userId;
-    } else if (actorDepartmentId(actor) && hasAnyPermission(actor, [PERMISSION.ORDERS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ_DEPARTMENT])) {
+    } else if (actorDepartmentId(actor) && hasAnyPermission(actor, [PERMISSION.IMAGING_ORDERS.READ_DEPARTMENT, PERMISSION.ORDERS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ_DEPARTMENT])) {
       orderFilter.department_id = actorDepartmentId(actor);
     } else {
       throw createError('Bạn không có quyền xem danh sách imaging order.', 403);
@@ -777,7 +778,7 @@ async function buildScopedReportFilter(query = {}, actor = {}) {
   }
 
   const departmentId = actorDepartmentId(actor);
-  if (departmentId && hasAnyPermission(actor, [PERMISSION.ORDERS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ_DEPARTMENT])) {
+  if (departmentId && hasAnyPermission(actor, [PERMISSION.IMAGING_ORDERS.READ_DEPARTMENT, PERMISSION.ORDERS.READ_DEPARTMENT, PERMISSION.ENCOUNTERS.READ_DEPARTMENT])) {
     const orders = await Order.find({ order_type: ORDER_TYPE.IMAGING, department_id: departmentId }).select('_id').lean();
     const imagingOrders = await ImagingOrder.find({ order_id: { $in: orders.map((order) => order._id) } }).select('_id').lean();
     filter.imaging_order_id = { $in: imagingOrders.map((order) => order._id) };

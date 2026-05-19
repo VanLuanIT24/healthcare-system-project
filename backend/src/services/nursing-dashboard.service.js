@@ -1,0 +1,3406 @@
+const { Types } = require('mongoose');
+const {
+  Admission,
+  BedAssignment,
+  EmergencyCase,
+  Encounter,
+  InpatientTask,
+  MedicationAdministration,
+  Notification,
+  Allergy,
+  Appointment,
+  ClinicalNote,
+  NursingIntake,
+  NursingTask,
+  Order,
+  Patient,
+  ProblemList,
+  QueueTicket,
+  ServicePreparationChecklist,
+  TriageAssessment,
+  VitalSign,
+  Department,
+} = require('../models');
+const { PERMISSION } = require('../constants/permissions');
+const {
+  ADMISSION_STATUS,
+  ADMINISTRATION_STATUS,
+  EMERGENCY_STATUS,
+  ENCOUNTER_STATUS,
+  INPATIENT_TASK_STATUS,
+  NURSING_WORKFLOW_STATUS,
+  NURSING_WORKFLOW_STATUSES,
+  ORDER_STATUS,
+  ORDER_TYPE,
+  QUEUE_STATUS,
+  VITAL_SIGN_STATUS,
+} = require('../constants/statuses');
+const permissionService = require('./permission.service');
+const {
+  buildPagination,
+  createError,
+  getEndOfDay,
+  getPagination,
+  getStartOfDay,
+  normalizeString,
+  recordAuditLog,
+} = require('./core.service');
+
+const OPEN_QUEUE_STATUSES = [
+  QUEUE_STATUS.WAITING,
+  QUEUE_STATUS.CALLED,
+  QUEUE_STATUS.RECALLED,
+  QUEUE_STATUS.SKIPPED,
+  QUEUE_STATUS.IN_SERVICE,
+];
+
+const OPEN_EMERGENCY_STATUSES = [
+  EMERGENCY_STATUS.CREATED,
+  EMERGENCY_STATUS.ACKNOWLEDGED,
+  EMERGENCY_STATUS.TRIAGED,
+  EMERGENCY_STATUS.DISPATCHED,
+];
+
+const ACTIVE_ENCOUNTER_STATUSES = [
+  ENCOUNTER_STATUS.PLANNED,
+  ENCOUNTER_STATUS.ARRIVED,
+  ENCOUNTER_STATUS.IN_PROGRESS,
+  ENCOUNTER_STATUS.ON_HOLD,
+];
+
+const OPEN_ORDER_STATUSES = [
+  ORDER_STATUS.ORDERED,
+  ORDER_STATUS.ACKNOWLEDGED,
+  ORDER_STATUS.IN_PROGRESS,
+];
+
+const PREPARATION_ORDER_TYPES = [
+  ORDER_TYPE.LAB,
+  ORDER_TYPE.IMAGING,
+  ORDER_TYPE.PROCEDURE,
+  ORDER_TYPE.SERVICE,
+  ORDER_TYPE.NURSING,
+];
+
+const CHECKLIST_ORDER_TYPES = [
+  ORDER_TYPE.LAB,
+  ORDER_TYPE.IMAGING,
+  ORDER_TYPE.PROCEDURE,
+  ORDER_TYPE.SERVICE,
+];
+
+const OPEN_TASK_STATUSES = ['draft', 'assigned', 'accepted', 'todo', 'in_progress', 'blocked', 'waiting_doctor', 'overdue'];
+const DEFAULT_LIMIT = 80;
+const NURSING_WAITING_SLA_MINUTES = 30;
+const EMERGENCY_ACK_SLA_MINUTES = 5;
+
+function hasPermission(actor = {}, permissionCode) {
+  return permissionService.hasPermission(actor.permissions || [], permissionCode);
+}
+
+function hasAnyPermission(actor = {}, permissionCodes = []) {
+  return permissionService.hasAnyPermission(actor.permissions || [], permissionCodes);
+}
+
+function actorDepartmentId(actor = {}) {
+  return actor.departmentId || actor.department_id || actor.user?.department_id || null;
+}
+
+function actorUserId(actor = {}) {
+  return actor.userId || actor.user_id || actor.actorId || actor.actor_id || actor.id || null;
+}
+
+function actorRoles(actor = {}) {
+  return Array.isArray(actor.roles) ? actor.roles : actor.user?.roles || [];
+}
+
+function hasGlobalNursingScope(actor = {}) {
+  return hasAnyPermission(actor, [
+    PERMISSION.SYSTEM.FULL_ACCESS,
+    PERMISSION.REPORTS.READ_ALL,
+    PERMISSION.REPORTS.READ,
+    PERMISSION.QUEUE.READ,
+    PERMISSION.ENCOUNTERS.READ,
+  ]) || actorRoles(actor).some((role) => ['super_admin', 'admin', 'manager', 'department_head'].includes(role));
+}
+
+function toObjectId(value, fieldName = 'id') {
+  if (!value) return null;
+  if (value instanceof Types.ObjectId) return value;
+  if (!Types.ObjectId.isValid(value)) throw createError(`${fieldName} không hợp lệ.`, 400);
+  return new Types.ObjectId(value);
+}
+
+function normalizeId(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (value instanceof Types.ObjectId) return String(value);
+  if (value._id) return normalizeId(value._id);
+  if (value.id) return normalizeId(value.id);
+  if (typeof value.toString === 'function') {
+    const output = value.toString();
+    return output && output !== '[object Object]' ? output : null;
+  }
+  return null;
+}
+
+function sameId(left, right) {
+  return String(normalizeId(left) || '') === String(normalizeId(right) || '');
+}
+
+function parseDate(value, fieldName = 'date') {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw createError(`${fieldName} không hợp lệ.`, 400);
+  return date;
+}
+
+function toDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addHours(date, hours) {
+  const output = new Date(date);
+  output.setHours(output.getHours() + hours);
+  return output;
+}
+
+function getShiftRange(dayStart, shift) {
+  const start = new Date(dayStart);
+  const end = new Date(dayStart);
+
+  if (shift === 'morning') {
+    start.setHours(6, 0, 0, 0);
+    end.setHours(13, 59, 59, 999);
+    return { rangeStart: start, rangeEnd: end };
+  }
+
+  if (shift === 'afternoon') {
+    start.setHours(14, 0, 0, 0);
+    end.setHours(21, 59, 59, 999);
+    return { rangeStart: start, rangeEnd: end };
+  }
+
+  if (shift === 'night') {
+    start.setHours(22, 0, 0, 0);
+    end.setHours(5, 59, 59, 999);
+    return { rangeStart: start, rangeEnd: addHours(end, 24) };
+  }
+
+  return { rangeStart: dayStart, rangeEnd: getEndOfDay(dayStart) };
+}
+
+function normalizeFilters(query = {}, actor = {}) {
+  const selectedDate = parseDate(query.date, 'date') || new Date();
+  const dayStart = getStartOfDay(selectedDate);
+  const dayEnd = getEndOfDay(selectedDate);
+  const shift = ['morning', 'afternoon', 'night'].includes(normalizeString(query.shift).toLowerCase())
+    ? normalizeString(query.shift).toLowerCase()
+    : 'all';
+  const { rangeStart, rangeEnd } = getShiftRange(dayStart, shift);
+  const requestedDepartmentId = normalizeString(query.department_id || query.departmentId);
+  const actorDepartment = actorDepartmentId(actor);
+  const globalScope = hasGlobalNursingScope(actor);
+
+  if (!globalScope && requestedDepartmentId && actorDepartment && !sameId(requestedDepartmentId, actorDepartment)) {
+    throw createError('Bạn chỉ được xem dashboard điều dưỡng trong khoa/phòng được phân quyền.', 403);
+  }
+
+  const departmentId = requestedDepartmentId || (!globalScope ? actorDepartment : null);
+  if (!globalScope && !departmentId) {
+    throw createError('Không xác định được khoa/phòng của điều dưỡng hiện tại.', 403);
+  }
+  const requestedNurseId = normalizeString(query.nurse_id || query.nurseId);
+  const requestedNurseKey = requestedNurseId.toLowerCase();
+  const requestedAssignment = normalizeString(query.assigned_to || query.assignedTo);
+  const requestedAssignmentKey = requestedAssignment.toLowerCase();
+  const currentUserId = actorUserId(actor);
+  const nurseId = requestedNurseKey === 'me' || requestedAssignmentKey === 'me'
+    ? currentUserId
+    : requestedNurseKey === 'unassigned'
+      ? null
+      : requestedNurseId;
+  const assignmentFilter = requestedNurseKey === 'unassigned'
+    ? 'unassigned'
+    : requestedAssignmentKey === 'unassigned'
+      ? 'unassigned'
+      : requestedAssignmentKey === 'me'
+        ? ''
+        : requestedAssignment;
+
+  return {
+    date: selectedDate,
+    date_key: toDateKey(selectedDate),
+    day_start: dayStart,
+    day_end: dayEnd,
+    range_start: rangeStart,
+    range_end: rangeEnd,
+    shift,
+    department_id: departmentId ? String(departmentId) : null,
+    department_object_id: departmentId ? toObjectId(departmentId, 'department_id') : null,
+    nurse_id: nurseId ? String(nurseId) : '',
+    priority: normalizeString(query.priority).toLowerCase(),
+    type: normalizeString(query.type).toLowerCase(),
+    status: normalizeString(query.status).toLowerCase(),
+    assigned_to: assignmentFilter,
+    now: new Date(),
+  };
+}
+
+function addDepartmentFilter(filter, filters, field = 'department_id') {
+  if (filters.department_object_id) filter[field] = filters.department_object_id;
+  return filter;
+}
+
+function ageFromDate(value) {
+  if (!value) return null;
+  const birthDate = new Date(value);
+  if (Number.isNaN(birthDate.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birthDate.getFullYear();
+  const monthDiff = now.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birthDate.getDate())) age -= 1;
+  return age >= 0 ? age : null;
+}
+
+function patientDto(patient = {}) {
+  const value = patient && typeof patient === 'object' ? patient : {};
+  return {
+    patient_id: normalizeId(value),
+    patient_code: value.patient_code || null,
+    patient_name: value.full_name || value.patient_name || 'Chưa rõ bệnh nhân',
+    gender: value.gender || null,
+    age: ageFromDate(value.date_of_birth),
+    phone: value.phone || null,
+  };
+}
+
+function userName(user = {}) {
+  if (!user || typeof user !== 'object') return null;
+  return user.full_name || user.employee_code || null;
+}
+
+function minutesSince(value, now = new Date()) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return 0;
+  return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60000));
+}
+
+function severityRank(severity) {
+  return {
+    critical: 5,
+    high: 4,
+    urgent: 4,
+    medium: 3,
+    warning: 2,
+    low: 1,
+    normal: 0,
+  }[severity] || 0;
+}
+
+function priorityRank(priority) {
+  return {
+    critical: 5,
+    high: 4,
+    medium: 3,
+    normal: 2,
+    low: 1,
+  }[priority] || 0;
+}
+
+function normalizePriority(priority) {
+  if (['critical', 'stat'].includes(priority)) return 'critical';
+  if (['high', 'urgent', 'vip', 'priority'].includes(priority)) return 'high';
+  if (['medium', 'warning', 'routine', 'normal'].includes(priority)) return 'medium';
+  return 'normal';
+}
+
+function numeric(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function vitalFlag(field, value, severity, message, displayValue = value) {
+  if (value === undefined || value === null || value === '') return null;
+  return {
+    field,
+    value,
+    display_value: displayValue,
+    severity,
+    message,
+  };
+}
+
+function buildAbnormalFlags(vital = {}) {
+  const spo2 = numeric(vital.spo2);
+  const systolicBp = numeric(vital.systolic_bp);
+  const diastolicBp = numeric(vital.diastolic_bp);
+  const heartRate = numeric(vital.heart_rate);
+  const respiratoryRate = numeric(vital.respiratory_rate);
+  const temperature = numeric(vital.temperature);
+
+  return [
+    spo2 !== null && spo2 < 90 ? vitalFlag('spo2', spo2, 'critical', 'SpO2 thấp', `${spo2}%`) : null,
+    systolicBp !== null && systolicBp >= 180 ? vitalFlag('systolic_bp', systolicBp, 'critical', 'Huyết áp tâm thu rất cao', `${systolicBp} mmHg`) : null,
+    systolicBp !== null && systolicBp < 90 ? vitalFlag('systolic_bp', systolicBp, 'high', 'Huyết áp tâm thu thấp', `${systolicBp} mmHg`) : null,
+    diastolicBp !== null && diastolicBp >= 120 ? vitalFlag('diastolic_bp', diastolicBp, 'critical', 'Huyết áp tâm trương rất cao', `${diastolicBp} mmHg`) : null,
+    heartRate !== null && heartRate >= 130 ? vitalFlag('heart_rate', heartRate, 'high', 'Mạch nhanh', `${heartRate} bpm`) : null,
+    heartRate !== null && heartRate < 50 ? vitalFlag('heart_rate', heartRate, 'high', 'Mạch chậm', `${heartRate} bpm`) : null,
+    respiratoryRate !== null && respiratoryRate >= 30 ? vitalFlag('respiratory_rate', respiratoryRate, 'high', 'Nhịp thở nhanh', `${respiratoryRate}/phút`) : null,
+    respiratoryRate !== null && respiratoryRate < 8 ? vitalFlag('respiratory_rate', respiratoryRate, 'critical', 'Nhịp thở rất chậm', `${respiratoryRate}/phút`) : null,
+    temperature !== null && temperature >= 39 ? vitalFlag('temperature', temperature, 'high', 'Sốt cao', `${temperature}°C`) : null,
+    temperature !== null && temperature < 35 ? vitalFlag('temperature', temperature, 'high', 'Hạ thân nhiệt', `${temperature}°C`) : null,
+  ].filter(Boolean);
+}
+
+function getOverallSeverity(flags = []) {
+  if (flags.some((flag) => flag.severity === 'critical')) return 'critical';
+  if (flags.some((flag) => flag.severity === 'high')) return 'high';
+  if (flags.some((flag) => flag.severity === 'warning')) return 'warning';
+  return 'normal';
+}
+
+function normalizeVitalFlags(vital = {}) {
+  const flags = Array.isArray(vital.abnormal_flags) && vital.abnormal_flags.length
+    ? vital.abnormal_flags
+    : buildAbnormalFlags(vital);
+  const overall = vital.overall_severity && vital.overall_severity !== 'normal'
+    ? vital.overall_severity
+    : getOverallSeverity(flags);
+  return { flags, overall };
+}
+
+function getVitalAlertMessage(flags = [], vital = {}) {
+  if (flags.length) {
+    return flags
+      .slice(0, 2)
+      .map((flag) => `${flag.field === 'spo2' ? 'SpO2' : flag.message} ${flag.display_value || flag.value}`)
+      .join(' · ');
+  }
+  if (vital.systolic_bp && vital.diastolic_bp) return `HA ${vital.systolic_bp}/${vital.diastolic_bp}`;
+  if (vital.spo2) return `SpO2 ${vital.spo2}%`;
+  return 'Sinh hiệu cần xem lại';
+}
+
+function formatQueueItem(ticket = {}, filters = {}) {
+  const waitingSince = ticket.checkin_time || ticket.created_at;
+  return {
+    queue_ticket_id: normalizeId(ticket),
+    queue_number: ticket.display_number || ticket.queue_number,
+    patient: patientDto(ticket.patient_id),
+    patient_id: normalizeId(ticket.patient_id),
+    patient_code: ticket.patient_id?.patient_code || null,
+    patient_name: ticket.patient_id?.full_name || 'Chưa rõ bệnh nhân',
+    doctor_id: normalizeId(ticket.doctor_id),
+    doctor_name: userName(ticket.doctor_id),
+    assigned_nurse_id: normalizeId(ticket.assigned_nurse_id),
+    assigned_nurse_name: userName(ticket.assigned_nurse_id),
+    department_id: normalizeId(ticket.department_id),
+    department_name: ticket.department_id?.department_name || null,
+    encounter_id: normalizeId(ticket.encounter_id),
+    appointment_id: normalizeId(ticket.appointment_id),
+    status: ticket.status,
+    nursing_stage: ticket.nursing_stage || NURSING_WORKFLOW_STATUS.WAITING_NURSE,
+    queue_type: ticket.queue_type,
+    checkin_time: ticket.checkin_time,
+    called_time: ticket.called_time,
+    service_start_time: ticket.service_start_time,
+    skipped_at: ticket.skipped_at,
+    no_show_at: ticket.no_show_at,
+    priority_reason: ticket.priority_reason || null,
+    waiting_minutes: minutesSince(waitingSince, filters.now),
+  };
+}
+
+function statusCounts(items = [], key = 'status') {
+  return items.reduce((counts, item) => {
+    const status = item[key] || 'unknown';
+    counts[status] = (counts[status] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function isOpenTask(task = {}) {
+  return OPEN_TASK_STATUSES.includes(task.status);
+}
+
+function isOverdue(value, now = new Date()) {
+  if (!value) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date.getTime() < now.getTime();
+}
+
+function taskPriority(task = {}, now = new Date()) {
+  if (task.priority) return normalizePriority(task.priority);
+  return isOverdue(task.due_at, now) ? 'high' : 'medium';
+}
+
+function taskDto(task = {}, sourceType = 'nursing_task', now = new Date()) {
+  const patient = patientDto(task.patient_id);
+  const overdue = isOverdue(task.due_at, now) && isOpenTask(task);
+  return {
+    id: `${sourceType}_${normalizeId(task)}`,
+    source_type: sourceType,
+    source_id: normalizeId(task),
+    task_id: normalizeId(task),
+    patient_id: patient.patient_id,
+    patient_code: patient.patient_code,
+    patient_name: patient.patient_name,
+    type: task.task_type || task.type || 'nursing_task',
+    title: task.title || 'Nhiệm vụ điều dưỡng',
+    reason: task.description || task.title || 'Nhiệm vụ điều dưỡng cần xử lý',
+    priority: overdue ? 'high' : taskPriority(task, now),
+    status: overdue ? 'overdue' : task.status,
+    due_at: task.due_at,
+    waiting_since: task.created_at,
+    overdue_minutes: overdue ? minutesSince(task.due_at, now) : 0,
+    assigned_to: normalizeId(task.assigned_to),
+    assigned_to_name: userName(task.assigned_to),
+    actions: ['start_task', 'complete_task', 'create_nursing_note'],
+  };
+}
+
+function buildWorkItem({
+  id,
+  type,
+  priority = 'medium',
+  patient,
+  encounterId = null,
+  queueTicketId = null,
+  admissionId = null,
+  sourceType,
+  sourceId,
+  reason,
+  status = 'pending',
+  location = null,
+  assignedTo = null,
+  assignedToName = null,
+  waitingSince = null,
+  overdueMinutes = 0,
+  flags = [],
+  actions = [],
+  metadata = {},
+}) {
+  const patientInfo = patientDto(patient);
+  return {
+    id,
+    type,
+    priority,
+    patient_id: patientInfo.patient_id,
+    patient_code: patientInfo.patient_code,
+    patient_name: patientInfo.patient_name,
+    gender: patientInfo.gender,
+    age: patientInfo.age,
+    encounter_id: encounterId,
+    queue_ticket_id: queueTicketId,
+    admission_id: admissionId,
+    source_type: sourceType,
+    source_id: sourceId,
+    reason,
+    status,
+    location,
+    assigned_to: normalizeId(assignedTo),
+    assigned_to_name: assignedToName || userName(assignedTo),
+    waiting_since: waitingSince,
+    overdue_minutes: overdueMinutes,
+    flags,
+    actions,
+    metadata,
+  };
+}
+
+function sortWorkItems(items = []) {
+  return [...items].sort((a, b) => {
+    const priorityDiff = priorityRank(b.priority) - priorityRank(a.priority);
+    if (priorityDiff) return priorityDiff;
+    return new Date(a.waiting_since || 0).getTime() - new Date(b.waiting_since || 0).getTime();
+  });
+}
+
+function filterWorkItems(items = [], filters = {}) {
+  return items.filter((item) => {
+    if (filters.type && filters.type !== 'all' && item.type !== filters.type) return false;
+    if (filters.priority && filters.priority !== 'all' && item.priority !== filters.priority) return false;
+    if (filters.status && filters.status !== 'all' && item.status !== filters.status) return false;
+    if (filters.assigned_to === 'unassigned' && item.assigned_to) return false;
+    if (filters.nurse_id && !sameId(item.assigned_to, filters.nurse_id)) return false;
+    return true;
+  });
+}
+
+async function fetchQueueTickets(filters = {}) {
+  const queueFilter = {
+    queue_date: filters.day_start,
+  };
+  addDepartmentFilter(queueFilter, filters);
+  if (filters.shift !== 'all') {
+    queueFilter.checkin_time = { $gte: filters.range_start, $lte: filters.range_end };
+  }
+
+  return QueueTicket.find(queueFilter)
+    .sort({ checkin_time: 1, created_at: 1, queue_number: 1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('doctor_id', 'full_name employee_code')
+    .populate('assigned_nurse_id', 'full_name employee_code')
+    .populate('department_id', 'department_name department_code')
+    .lean();
+}
+
+async function fetchEncounters(filters = {}, queueTickets = []) {
+  const queueEncounterIds = queueTickets.map((ticket) => normalizeId(ticket.encounter_id)).filter(Boolean);
+  const dateFilter = { start_time: { $gte: filters.day_start, $lte: filters.day_end } };
+  const encounterFilter = queueEncounterIds.length
+    ? { $or: [dateFilter, { _id: { $in: queueEncounterIds.map((id) => toObjectId(id, 'encounter_id')) } }] }
+    : dateFilter;
+  addDepartmentFilter(encounterFilter, filters);
+
+  return Encounter.find(encounterFilter)
+    .sort({ start_time: 1, created_at: 1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('attending_doctor_id', 'full_name employee_code')
+    .populate('assigned_nurse_id', 'full_name employee_code')
+    .populate('department_id', 'department_name department_code')
+    .lean();
+}
+
+async function fetchVitals(filters = {}, encounters = [], queueTickets = []) {
+  const encounterIds = encounters.map((encounter) => normalizeId(encounter)).filter(Boolean);
+  const queueTicketIds = queueTickets.map((ticket) => normalizeId(ticket)).filter(Boolean);
+  const vitalFilter = {
+    recorded_at: { $gte: filters.range_start, $lte: filters.range_end },
+  };
+
+  const contextFilters = [];
+  if (encounterIds.length) {
+    contextFilters.push({ encounter_id: { $in: encounterIds.map((id) => toObjectId(id, 'encounter_id')) } });
+  }
+  if (queueTicketIds.length) {
+    contextFilters.push({ queue_ticket_id: { $in: queueTicketIds.map((id) => toObjectId(id, 'queue_ticket_id')) } });
+  }
+
+  if (contextFilters.length) {
+    vitalFilter.$or = contextFilters;
+  } else if (filters.department_object_id) {
+    vitalFilter.encounter_id = { $in: [] };
+  }
+
+  const [recorded, enteredInError] = await Promise.all([
+    VitalSign.find({ ...vitalFilter, status: { $ne: VITAL_SIGN_STATUS.ENTERED_IN_ERROR } })
+      .sort({ recorded_at: -1 })
+      .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+      .populate('encounter_id', 'encounter_code patient_id department_id attending_doctor_id nursing_status')
+      .populate('queue_ticket_id', 'queue_number display_number patient_id department_id doctor_id nursing_stage')
+      .populate('appointment_id', 'appointment_time appointment_type reason status patient_id department_id doctor_id')
+      .lean(),
+    VitalSign.countDocuments({ ...vitalFilter, status: VITAL_SIGN_STATUS.ENTERED_IN_ERROR }),
+  ]);
+
+  return { recorded, enteredInError };
+}
+
+async function fetchOrders(filters = {}) {
+  const orderFilter = {
+    ordered_at: { $gte: filters.range_start, $lte: filters.range_end },
+    status: { $in: OPEN_ORDER_STATUSES },
+    order_type: { $in: PREPARATION_ORDER_TYPES },
+  };
+  addDepartmentFilter(orderFilter, filters);
+
+  return Order.find(orderFilter)
+    .sort({ priority: -1, ordered_at: 1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('encounter_id', 'encounter_code nursing_status status')
+    .populate('ordered_by', 'full_name employee_code')
+    .lean();
+}
+
+async function fetchEmergencyCases(filters = {}) {
+  const emergencyFilter = {
+    status: { $in: OPEN_EMERGENCY_STATUSES },
+  };
+  addDepartmentFilter(emergencyFilter, filters, 'assigned_department_id');
+
+  return EmergencyCase.find(emergencyFilter)
+    .sort({ priority: -1, created_at: 1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('assigned_to_user_id', 'full_name employee_code')
+    .populate('assigned_department_id', 'department_name department_code')
+    .lean();
+}
+
+async function fetchAdmissions(filters = {}) {
+  const admissionFilter = {
+    status: { $in: [ADMISSION_STATUS.ADMITTED, ADMISSION_STATUS.TRANSFERRED] },
+  };
+  addDepartmentFilter(admissionFilter, filters);
+
+  return Admission.find(admissionFilter)
+    .sort({ admitted_at: -1, created_at: -1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('department_id', 'department_name department_code')
+    .lean();
+}
+
+async function fetchNursingTasks(filters = {}) {
+  const taskFilter = {
+    $or: [
+      { due_at: { $gte: filters.day_start, $lte: filters.day_end } },
+      { status: { $in: OPEN_TASK_STATUSES }, due_at: { $lte: filters.now } },
+    ],
+  };
+  addDepartmentFilter(taskFilter, filters);
+  if (filters.assigned_to === 'unassigned') taskFilter.assigned_to = null;
+  if (filters.nurse_id) taskFilter.assigned_to = toObjectId(filters.nurse_id, 'nurse_id');
+
+  return NursingTask.find(taskFilter)
+    .sort({ due_at: 1, priority: -1, created_at: 1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('assigned_to', 'full_name employee_code')
+    .lean();
+}
+
+async function fetchTriageAssessments(filters = {}) {
+  const triageFilter = {
+    created_at: { $gte: filters.day_start, $lte: filters.day_end },
+  };
+  addDepartmentFilter(triageFilter, filters);
+
+  return TriageAssessment.find(triageFilter)
+    .sort({ priority: -1, created_at: -1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('queue_ticket_id', 'queue_number display_number status checkin_time nursing_stage')
+    .populate('encounter_id', 'encounter_code nursing_status status')
+    .populate('triage_by', 'full_name employee_code')
+    .lean();
+}
+
+async function fetchPreparationChecklists(filters = {}) {
+  const checklistFilter = {
+    status: { $in: ['pending', 'in_progress'] },
+  };
+  addDepartmentFilter(checklistFilter, filters);
+  if (filters.assigned_to === 'unassigned') checklistFilter.assigned_to = null;
+  if (filters.nurse_id) checklistFilter.assigned_to = toObjectId(filters.nurse_id, 'nurse_id');
+
+  return ServicePreparationChecklist.find(checklistFilter)
+    .sort({ created_at: 1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('order_id', 'order_no order_type priority status clinical_indication ordered_at')
+    .populate('assigned_to', 'full_name employee_code')
+    .lean();
+}
+
+async function fetchInpatientData(filters = {}, admissions = []) {
+  const admissionIds = admissions.map((admission) => normalizeId(admission)).filter(Boolean);
+  if (!admissionIds.length) {
+    return {
+      bedAssignments: [],
+      inpatientTasks: [],
+      medicationDue: [],
+    };
+  }
+
+  const admissionObjectIds = admissionIds.map((id) => toObjectId(id, 'admission_id'));
+  const [bedAssignments, inpatientTasks, medicationDue] = await Promise.all([
+    BedAssignment.find({ admission_id: { $in: admissionObjectIds }, status: 'active' })
+      .populate({
+        path: 'bed_id',
+        select: 'bed_number room_id',
+        populate: { path: 'room_id', select: 'room_number room_name' },
+      })
+      .lean(),
+    InpatientTask.find({
+      admission_id: { $in: admissionObjectIds },
+      $or: [
+        { due_at: { $gte: filters.day_start, $lte: filters.day_end } },
+        { status: { $in: [INPATIENT_TASK_STATUS.TODO, INPATIENT_TASK_STATUS.IN_PROGRESS] }, due_at: { $lte: filters.now } },
+      ],
+    })
+      .sort({ due_at: 1, created_at: 1 })
+      .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+      .populate('assigned_to', 'full_name employee_code')
+      .lean(),
+    MedicationAdministration.find({
+      admission_id: { $in: admissionObjectIds },
+      status: ADMINISTRATION_STATUS.SCHEDULED,
+      scheduled_at: { $lte: addHours(filters.now, 1) },
+    })
+      .sort({ scheduled_at: 1 })
+      .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+      .populate('medication_id', 'generic_name brand_name')
+      .lean(),
+  ]);
+
+  return { bedAssignments, inpatientTasks, medicationDue };
+}
+
+async function fetchUnreadNotifications(actor = {}) {
+  const userId = actorUserId(actor);
+  if (!userId || !Types.ObjectId.isValid(String(userId))) return 0;
+  return Notification.countDocuments({
+    recipient_user_id: toObjectId(userId, 'user_id'),
+    read_at: null,
+    archived_at: null,
+  });
+}
+
+async function fetchNotificationActivity(actor = {}, limit = 10) {
+  const userId = actorUserId(actor);
+  if (!userId || !Types.ObjectId.isValid(String(userId))) return [];
+
+  return Notification.find({
+    recipient_user_id: toObjectId(userId, 'user_id'),
+    archived_at: null,
+  })
+    .sort({ created_at: -1 })
+    .limit(limit)
+    .select('title message notification_type event_type priority action_url read_at created_at')
+    .lean();
+}
+
+function buildMaps({ queueTickets = [], encounters = [], admissions = [], bedAssignments = [] }) {
+  const encountersById = new Map(encounters.map((encounter) => [String(normalizeId(encounter)), encounter]));
+  const queueByEncounter = new Map();
+  queueTickets.forEach((ticket) => {
+    const encounterId = normalizeId(ticket.encounter_id);
+    if (encounterId) queueByEncounter.set(encounterId, ticket);
+  });
+
+  const bedByAdmission = new Map();
+  bedAssignments.forEach((assignment) => {
+    const admissionId = normalizeId(assignment.admission_id);
+    if (!admissionId) return;
+    const bed = assignment.bed_id || {};
+    const room = bed.room_id || {};
+    bedByAdmission.set(admissionId, {
+      bed_id: normalizeId(bed),
+      bed_number: bed.bed_number || null,
+      room_id: normalizeId(room),
+      room_name: room.room_name || room.room_number || null,
+    });
+  });
+
+  const admissionsById = new Map(admissions.map((admission) => [String(normalizeId(admission)), admission]));
+  return { encountersById, queueByEncounter, bedByAdmission, admissionsById };
+}
+
+function buildVitalSummaries(vitals = [], encountersById = new Map()) {
+  const vitalEncounterIds = new Set();
+  const vitalQueueIds = new Set();
+  const latestByEncounter = new Map();
+  const latestByQueue = new Map();
+  const abnormal = [];
+
+  vitals.forEach((vital) => {
+    const encounterId = normalizeId(vital.encounter_id);
+    const queueTicketId = normalizeId(vital.queue_ticket_id);
+    if (encounterId) {
+      vitalEncounterIds.add(encounterId);
+      if (!latestByEncounter.has(encounterId)) latestByEncounter.set(encounterId, vital);
+    }
+    if (queueTicketId) {
+      vitalQueueIds.add(queueTicketId);
+      if (!latestByQueue.has(queueTicketId)) latestByQueue.set(queueTicketId, vital);
+    }
+
+    const { flags, overall } = normalizeVitalFlags(vital);
+    if (overall !== 'normal') {
+      const encounter = encountersById.get(encounterId) || vital.encounter_id || {};
+      const queueTicket = vital.queue_ticket_id && typeof vital.queue_ticket_id === 'object' ? vital.queue_ticket_id : {};
+      const appointment = vital.appointment_id && typeof vital.appointment_id === 'object' ? vital.appointment_id : {};
+      const patient = vital.patient_id && typeof vital.patient_id === 'object'
+        ? vital.patient_id
+        : encounter.patient_id || queueTicket.patient_id || appointment.patient_id;
+      abnormal.push({
+        vital_sign_id: normalizeId(vital),
+        encounter_id: encounterId,
+        queue_ticket_id: queueTicketId,
+        appointment_id: normalizeId(vital.appointment_id),
+        patient: patientDto(patient),
+        patient_id: normalizeId(patient),
+        patient_name: patient?.full_name || 'Chưa rõ bệnh nhân',
+        recorded_at: vital.recorded_at,
+        overall_severity: overall,
+        severity: overall,
+        abnormal_flags: flags,
+        message: getVitalAlertMessage(flags, vital),
+        requires_doctor_notification: vital.requires_doctor_notification ?? ['high', 'critical'].includes(overall),
+        acknowledged_at: vital.acknowledged_at || null,
+        doctor_notified_at: vital.doctor_notified_at || null,
+        values: {
+          temperature: vital.temperature ?? null,
+          heart_rate: vital.heart_rate ?? null,
+          respiratory_rate: vital.respiratory_rate ?? null,
+          systolic_bp: vital.systolic_bp ?? null,
+          diastolic_bp: vital.diastolic_bp ?? null,
+          spo2: vital.spo2 ?? null,
+        },
+      });
+    }
+  });
+
+  abnormal.sort((a, b) => {
+    const severityDiff = severityRank(b.severity) - severityRank(a.severity);
+    if (severityDiff) return severityDiff;
+    return new Date(b.recorded_at || 0).getTime() - new Date(a.recorded_at || 0).getTime();
+  });
+
+  return { vitalEncounterIds, vitalQueueIds, latestByEncounter, latestByQueue, abnormal };
+}
+
+function buildPendingVitals(queueTickets = [], encountersById = new Map(), vitalSummary = {}, filters = {}) {
+  const vitalEncounterIds = vitalSummary.vitalEncounterIds || new Set();
+  const vitalQueueIds = vitalSummary.vitalQueueIds || new Set();
+  return queueTickets
+    .filter((ticket) => OPEN_QUEUE_STATUSES.includes(ticket.status))
+    .filter((ticket) => {
+      const encounterId = normalizeId(ticket.encounter_id);
+      const queueTicketId = normalizeId(ticket);
+      return !vitalQueueIds.has(queueTicketId) && (!encounterId || !vitalEncounterIds.has(encounterId));
+    })
+    .map((ticket) => {
+      const encounterId = normalizeId(ticket.encounter_id);
+      const encounter = encounterId ? encountersById.get(encounterId) : null;
+      const waitingSince = ticket.checkin_time || ticket.created_at;
+      const waitingMinutes = minutesSince(waitingSince, filters.now);
+      return {
+        queue_ticket_id: normalizeId(ticket),
+        encounter_id: encounterId,
+        patient: patientDto(ticket.patient_id || encounter?.patient_id),
+        patient_id: normalizeId(ticket.patient_id || encounter?.patient_id),
+        patient_name: ticket.patient_id?.full_name || encounter?.patient_id?.full_name || 'Chưa rõ bệnh nhân',
+        queue_number: ticket.display_number || ticket.queue_number,
+        assigned_nurse_id: normalizeId(ticket.assigned_nurse_id || encounter?.assigned_nurse_id),
+        assigned_nurse_name: userName(ticket.assigned_nurse_id || encounter?.assigned_nurse_id),
+        waiting_since: waitingSince,
+        waiting_minutes: waitingMinutes,
+        priority: ticket.queue_type === 'vip' || ticket.queue_type === 'priority' || waitingMinutes >= 30 ? 'high' : 'medium',
+        status: ticket.nursing_stage || NURSING_WORKFLOW_STATUS.VITAL_PENDING,
+        actions: ['record_vital', 'create_nursing_note'],
+      };
+    });
+}
+
+function buildPreparationItems(orders = []) {
+  return orders.map((order) => {
+    const patient = patientDto(order.patient_id);
+    return {
+      order_id: normalizeId(order),
+      encounter_id: normalizeId(order.encounter_id),
+      patient,
+      patient_id: patient.patient_id,
+      patient_name: patient.patient_name,
+      order_type: order.order_type,
+      order_no: order.order_no,
+      status: order.status,
+      priority: normalizePriority(order.priority),
+      ordered_at: order.ordered_at,
+      reason: order.clinical_indication || `${order.order_type || 'Dịch vụ'} đang chờ chuẩn bị`,
+      actions: ['open_checklist', 'acknowledge_order', 'complete_preparation'],
+    };
+  });
+}
+
+function buildChecklistItems(checklists = []) {
+  return checklists.map((checklist) => {
+    const patient = patientDto(checklist.patient_id);
+    const totalItems = Array.isArray(checklist.checklist_items) ? checklist.checklist_items.length : 0;
+    const checkedItems = Array.isArray(checklist.checklist_items)
+      ? checklist.checklist_items.filter((item) => item.checked).length
+      : 0;
+
+    return {
+      checklist_id: normalizeId(checklist),
+      order_id: normalizeId(checklist.order_id),
+      encounter_id: normalizeId(checklist.encounter_id),
+      patient,
+      patient_id: patient.patient_id,
+      patient_name: patient.patient_name,
+      order_type: checklist.order_type,
+      order_no: checklist.order_id?.order_no || null,
+      status: checklist.status,
+      assigned_to: normalizeId(checklist.assigned_to),
+      assigned_to_name: userName(checklist.assigned_to),
+      progress: {
+        checked: checkedItems,
+        total: totalItems,
+        percent: totalItems ? Math.round((checkedItems / totalItems) * 100) : 0,
+      },
+      created_at: checklist.created_at,
+      reason: checklist.order_id?.clinical_indication || `${checklist.order_type || 'Dịch vụ'} đang chờ checklist`,
+      actions: ['open_checklist', 'complete_preparation'],
+    };
+  });
+}
+
+function buildQueueBoard(queueItems = []) {
+  const statusMap = {
+    waiting: [],
+    called: [],
+    recalled: [],
+    in_service: [],
+    skipped: [],
+    completed: [],
+    no_show: [],
+    transferred: [],
+  };
+
+  queueItems.forEach((item) => {
+    const key = item.status === QUEUE_STATUS.RECALLED ? 'recalled' : item.status;
+    if (statusMap[key]) statusMap[key].push(item);
+  });
+
+  return Object.fromEntries(
+    Object.entries(statusMap).map(([key, items]) => [
+      key,
+      items
+        .sort((a, b) => (b.waiting_minutes || 0) - (a.waiting_minutes || 0))
+        .slice(0, 8),
+    ]),
+  );
+}
+
+function buildTriagePanel(queueTickets = [], triageAssessments = [], filters = {}) {
+  const completedQueueIds = new Set(
+    triageAssessments
+      .filter((item) => item.status === 'completed')
+      .map((item) => normalizeId(item.queue_ticket_id))
+      .filter(Boolean),
+  );
+  const pendingItems = queueTickets
+    .filter((ticket) => OPEN_QUEUE_STATUSES.includes(ticket.status))
+    .filter((ticket) => !completedQueueIds.has(String(normalizeId(ticket))))
+    .filter((ticket) => ['waiting_nurse', 'triage_pending', 'not_started'].includes(ticket.nursing_stage || 'waiting_nurse'))
+    .map((ticket) => ({
+      queue_ticket_id: normalizeId(ticket),
+      encounter_id: normalizeId(ticket.encounter_id),
+      patient: patientDto(ticket.patient_id),
+      patient_id: normalizeId(ticket.patient_id),
+      patient_name: ticket.patient_id?.full_name || 'Chưa rõ bệnh nhân',
+      queue_number: ticket.display_number || ticket.queue_number,
+      reason: ticket.priority_reason || 'Chờ điều dưỡng phân loại',
+      waiting_since: ticket.checkin_time || ticket.created_at,
+      waiting_minutes: minutesSince(ticket.checkin_time || ticket.created_at, filters.now),
+      priority: ticket.queue_type === 'vip' || ticket.queue_type === 'priority' ? 'high' : 'medium',
+      actions: ['create_triage', 'record_vital'],
+    }))
+    .sort((a, b) => (b.waiting_minutes || 0) - (a.waiting_minutes || 0));
+
+  const inProgress = triageAssessments.filter((item) => ['draft', 'in_progress'].includes(item.status));
+  const completed = triageAssessments.filter((item) => item.status === 'completed');
+  const highPriority = triageAssessments.filter((item) => ['critical', 'high'].includes(item.priority));
+
+  return {
+    pending: pendingItems.length,
+    in_progress: inProgress.length,
+    completed: completed.length,
+    high_priority: highPriority.length,
+    pending_items: pendingItems.slice(0, 8),
+    recent_items: triageAssessments.slice(0, 8).map((item) => ({
+      triage_id: normalizeId(item),
+      patient: patientDto(item.patient_id),
+      patient_name: item.patient_id?.full_name || 'Chưa rõ bệnh nhân',
+      priority: item.priority,
+      triage_level: item.triage_level,
+      acuity_level: item.acuity_level,
+      status: item.status,
+      triage_at: item.triage_at || item.created_at,
+      triage_by_name: userName(item.triage_by),
+      chief_complaint: item.chief_complaint || item.symptoms || null,
+    })),
+  };
+}
+
+function buildActivityFeed({ notifications = [], priorityAlerts = [], queueItems = [], vitalSummary = {}, nursingTasks = [] }) {
+  const notificationItems = notifications.map((item) => ({
+    id: `notification_${normalizeId(item)}`,
+    type: item.notification_type || item.event_type || 'notification',
+    title: item.title,
+    message: item.message,
+    priority: normalizePriority(item.priority),
+    created_at: item.created_at,
+    read_at: item.read_at,
+  }));
+
+  const alertItems = priorityAlerts.slice(0, 5).map((item) => ({
+    id: `activity_${item.id}`,
+    type: item.type,
+    title: item.patient_name || 'Cảnh báo ưu tiên',
+    message: item.message,
+    priority: normalizePriority(item.severity),
+    created_at: item.created_at,
+  }));
+
+  const queueItemsFeed = queueItems
+    .filter((item) => [QUEUE_STATUS.CALLED, QUEUE_STATUS.RECALLED, QUEUE_STATUS.SKIPPED, QUEUE_STATUS.IN_SERVICE].includes(item.status))
+    .slice(0, 5)
+    .map((item) => ({
+      id: `queue_${item.queue_ticket_id}`,
+      type: 'queue',
+      title: `Queue ${item.queue_number}`,
+      message: `${item.patient_name} · ${item.status}`,
+      priority: item.status === QUEUE_STATUS.SKIPPED ? 'high' : 'normal',
+      created_at: item.called_time || item.service_start_time || item.skipped_at || item.checkin_time,
+    }));
+
+  const vitalItems = (vitalSummary.abnormal || []).slice(0, 5).map((item) => ({
+    id: `vital_${item.vital_sign_id}`,
+    type: 'vital',
+    title: item.patient_name,
+    message: item.message,
+    priority: normalizePriority(item.severity),
+    created_at: item.recorded_at,
+  }));
+
+  const taskItems = nursingTasks
+    .filter((task) => ['todo', 'in_progress'].includes(task.status))
+    .slice(0, 5)
+    .map((task) => ({
+      id: `task_${normalizeId(task)}`,
+      type: 'task',
+      title: task.title,
+      message: task.patient_id?.full_name || 'Task điều dưỡng',
+      priority: normalizePriority(task.priority),
+      created_at: task.created_at,
+    }));
+
+  return [...notificationItems, ...alertItems, ...queueItemsFeed, ...vitalItems, ...taskItems]
+    .filter((item) => item.created_at)
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .slice(0, 14);
+}
+
+function buildWorklist({
+  queueTickets,
+  emergencyCases,
+  abnormalVitals,
+  pendingVitals,
+  preparationItems,
+  nursingTasks,
+  inpatientTasks,
+  medicationDue,
+  maps,
+  filters,
+}) {
+  const items = [];
+
+  abnormalVitals.forEach((vital) => {
+    items.push(buildWorkItem({
+      id: `abnormal_vital_${vital.vital_sign_id}`,
+      type: 'abnormal_vital',
+      priority: normalizePriority(vital.severity),
+      patient: vital.patient,
+      encounterId: vital.encounter_id,
+      sourceType: 'vital_sign',
+      sourceId: vital.vital_sign_id,
+      reason: vital.message,
+      status: vital.doctor_notified_at ? 'doctor_notified' : 'needs_attention',
+      waitingSince: vital.recorded_at,
+      overdueMinutes: minutesSince(vital.recorded_at, filters.now),
+      flags: vital.abnormal_flags.map((flag) => flag.field),
+      actions: ['notify_doctor', 'acknowledge', 'open_patient'],
+      metadata: { severity: vital.severity, values: vital.values },
+    }));
+  });
+
+  emergencyCases.forEach((emergencyCase) => {
+    items.push(buildWorkItem({
+      id: `emergency_${normalizeId(emergencyCase)}`,
+      type: 'emergency',
+      priority: emergencyCase.priority === 'critical' ? 'critical' : 'high',
+      patient: emergencyCase.patient_id,
+      encounterId: normalizeId(emergencyCase.related_encounter_id),
+      sourceType: 'emergency_case',
+      sourceId: normalizeId(emergencyCase),
+      reason: emergencyCase.symptoms || emergencyCase.note || 'Ca cấp cứu đang mở',
+      status: emergencyCase.status,
+      location: emergencyCase.location_text || null,
+      assignedTo: emergencyCase.assigned_to_user_id,
+      waitingSince: emergencyCase.created_at,
+      overdueMinutes: emergencyCase.status === EMERGENCY_STATUS.CREATED ? minutesSince(emergencyCase.created_at, filters.now) : 0,
+      flags: ['emergency'],
+      actions: emergencyCase.status === EMERGENCY_STATUS.CREATED
+        ? ['acknowledge_emergency', 'open_case']
+        : ['dispatch_emergency', 'open_case'],
+      metadata: { case_code: emergencyCase.case_code },
+    }));
+  });
+
+  pendingVitals.forEach((item) => {
+    items.push(buildWorkItem({
+      id: `vital_pending_${item.queue_ticket_id || item.encounter_id}`,
+      type: 'vital_pending',
+      priority: item.priority,
+      patient: item.patient,
+      encounterId: item.encounter_id,
+      queueTicketId: item.queue_ticket_id,
+      sourceType: 'queue',
+      sourceId: item.queue_ticket_id,
+      reason: 'Bệnh nhân đã check-in, chưa có sinh hiệu trong lượt hiện tại',
+      status: 'pending',
+      assignedTo: item.assigned_nurse_id,
+      assignedToName: item.assigned_nurse_name,
+      waitingSince: item.waiting_since,
+      overdueMinutes: item.waiting_minutes > 15 ? item.waiting_minutes : 0,
+      flags: item.waiting_minutes > 15 ? ['waiting_over_15m'] : [],
+      actions: ['record_vital', 'create_nursing_note', 'mark_ready_for_doctor'],
+      metadata: { queue_number: item.queue_number },
+    }));
+  });
+
+  queueTickets
+    .filter((ticket) => OPEN_QUEUE_STATUSES.includes(ticket.status))
+    .filter((ticket) => ['waiting_nurse', 'triage_pending', 'not_started'].includes(ticket.nursing_stage || 'waiting_nurse'))
+    .forEach((ticket) => {
+      const waitingMinutes = minutesSince(ticket.checkin_time || ticket.created_at, filters.now);
+      items.push(buildWorkItem({
+        id: `waiting_nurse_${normalizeId(ticket)}`,
+        type: ticket.nursing_stage === 'triage_pending' ? 'triage_pending' : 'waiting_nurse',
+        priority: ticket.queue_type === 'vip' || ticket.queue_type === 'priority' || waitingMinutes >= 30 ? 'high' : 'medium',
+        patient: ticket.patient_id,
+        encounterId: normalizeId(ticket.encounter_id),
+        queueTicketId: normalizeId(ticket),
+        sourceType: 'queue',
+        sourceId: normalizeId(ticket),
+        reason: ticket.nursing_stage === 'triage_pending' ? 'Chờ điều dưỡng phân loại' : 'Bệnh nhân đang chờ điều dưỡng tiếp nhận',
+        status: ticket.status,
+        assignedTo: ticket.assigned_nurse_id,
+        assignedToName: userName(ticket.assigned_nurse_id),
+        waitingSince: ticket.checkin_time || ticket.created_at,
+        overdueMinutes: waitingMinutes > 20 ? waitingMinutes : 0,
+        flags: ticket.status === QUEUE_STATUS.SKIPPED ? ['skipped'] : [],
+        actions: ['create_triage', 'record_vital', 'open_patient'],
+        metadata: { queue_number: ticket.display_number || ticket.queue_number },
+      }));
+    });
+
+  preparationItems.forEach((item) => {
+    items.push(buildWorkItem({
+      id: `preparation_${item.order_id}`,
+      type: 'preparation_pending',
+      priority: item.priority,
+      patient: item.patient,
+      encounterId: item.encounter_id,
+      sourceType: 'order',
+      sourceId: item.order_id,
+      reason: item.reason,
+      status: item.status,
+      waitingSince: item.ordered_at,
+      overdueMinutes: minutesSince(item.ordered_at, filters.now) > 45 ? minutesSince(item.ordered_at, filters.now) : 0,
+      flags: [item.order_type],
+      actions: item.actions,
+      metadata: { order_no: item.order_no, order_type: item.order_type },
+    }));
+  });
+
+  [...nursingTasks.map((task) => taskDto(task, 'nursing_task', filters.now)), ...inpatientTasks.map((task) => taskDto(task, 'inpatient_task', filters.now))]
+    .filter((task) => task.status === 'overdue' || isOpenTask(task))
+    .forEach((task) => {
+      items.push(buildWorkItem({
+        id: task.id,
+        type: task.status === 'overdue' ? 'task_overdue' : 'task_due',
+        priority: task.priority,
+        patient: {
+          _id: task.patient_id,
+          patient_code: task.patient_code,
+          full_name: task.patient_name,
+        },
+        sourceType: task.source_type,
+        sourceId: task.source_id,
+        reason: task.reason,
+        status: task.status,
+        assignedTo: task.assigned_to,
+        waitingSince: task.due_at || task.waiting_since,
+        overdueMinutes: task.overdue_minutes,
+        flags: task.status === 'overdue' ? ['overdue'] : [],
+        actions: task.actions,
+      }));
+    });
+
+  medicationDue.forEach((medication) => {
+    const admission = maps.admissionsById.get(String(normalizeId(medication.admission_id)));
+    const bed = maps.bedByAdmission.get(String(normalizeId(medication.admission_id)));
+    const medicationName = medication.medication_id?.generic_name || medication.medication_id?.brand_name || 'Thuốc tại giường';
+    items.push(buildWorkItem({
+      id: `medication_due_${normalizeId(medication)}`,
+      type: isOverdue(medication.scheduled_at, filters.now) ? 'medication_overdue' : 'medication_due',
+      priority: isOverdue(medication.scheduled_at, filters.now) ? 'high' : 'medium',
+      patient: medication.patient_id || admission?.patient_id,
+      admissionId: normalizeId(medication.admission_id),
+      sourceType: 'medication_administration',
+      sourceId: normalizeId(medication),
+      reason: `${medicationName} đến giờ dùng`,
+      status: isOverdue(medication.scheduled_at, filters.now) ? 'overdue' : medication.status,
+      location: bed ? [bed.room_name, bed.bed_number].filter(Boolean).join(' · ') : null,
+      waitingSince: medication.scheduled_at,
+      overdueMinutes: isOverdue(medication.scheduled_at, filters.now) ? minutesSince(medication.scheduled_at, filters.now) : 0,
+      flags: ['medication'],
+      actions: ['administer_medication', 'hold_medication', 'open_patient'],
+    }));
+  });
+
+  return sortWorkItems(items);
+}
+
+function buildPriorityAlerts({ abnormalVitals, emergencyCases, queueTickets, nursingTasks, inpatientTasks, medicationDue, filters }) {
+  const alerts = [];
+
+  abnormalVitals.slice(0, 8).forEach((vital) => {
+    alerts.push({
+      id: `alert_vital_${vital.vital_sign_id}`,
+      type: 'abnormal_vital',
+      severity: vital.severity,
+      patient_id: vital.patient_id,
+      patient_name: vital.patient_name,
+      message: vital.message,
+      source_id: vital.vital_sign_id,
+      created_at: vital.recorded_at,
+      actions: ['acknowledge', 'notify_doctor', 'open_patient'],
+    });
+  });
+
+  emergencyCases.forEach((item) => {
+    alerts.push({
+      id: `alert_emergency_${normalizeId(item)}`,
+      type: 'emergency',
+      severity: item.priority === 'critical' ? 'critical' : 'high',
+      patient_id: normalizeId(item.patient_id),
+      patient_name: item.patient_id?.full_name || 'Chưa rõ bệnh nhân',
+      message: item.symptoms || item.note || `Ca ${item.case_code} đang mở`,
+      source_id: normalizeId(item),
+      created_at: item.created_at,
+      actions: item.status === EMERGENCY_STATUS.CREATED ? ['acknowledge', 'open_case'] : ['dispatch', 'open_case'],
+    });
+  });
+
+  queueTickets
+    .filter((ticket) => OPEN_QUEUE_STATUSES.includes(ticket.status))
+    .filter((ticket) => minutesSince(ticket.checkin_time || ticket.created_at, filters.now) >= 30 || ticket.status === QUEUE_STATUS.SKIPPED)
+    .forEach((ticket) => {
+      alerts.push({
+        id: `alert_queue_${normalizeId(ticket)}`,
+        type: ticket.status === QUEUE_STATUS.SKIPPED ? 'queue_skipped' : 'long_waiting',
+        severity: ticket.status === QUEUE_STATUS.SKIPPED ? 'high' : 'medium',
+        patient_id: normalizeId(ticket.patient_id),
+        patient_name: ticket.patient_id?.full_name || 'Chưa rõ bệnh nhân',
+        message: ticket.status === QUEUE_STATUS.SKIPPED
+          ? `Queue ${ticket.display_number || ticket.queue_number} bị skip`
+          : `Chờ ${minutesSince(ticket.checkin_time || ticket.created_at, filters.now)} phút`,
+        source_id: normalizeId(ticket),
+        created_at: ticket.checkin_time || ticket.created_at,
+        actions: ['recall_queue', 'open_patient'],
+      });
+    });
+
+  [...nursingTasks, ...inpatientTasks]
+    .filter((task) => isOpenTask(task) && isOverdue(task.due_at, filters.now))
+    .forEach((task) => {
+      alerts.push({
+        id: `alert_task_${normalizeId(task)}`,
+        type: 'task_overdue',
+        severity: 'high',
+        patient_id: normalizeId(task.patient_id),
+        patient_name: task.patient_id?.full_name || 'Chưa rõ bệnh nhân',
+        message: task.title || 'Task điều dưỡng quá hạn',
+        source_id: normalizeId(task),
+        created_at: task.due_at || task.created_at,
+        actions: ['complete_task', 'create_note', 'open_patient'],
+      });
+    });
+
+  medicationDue
+    .filter((medication) => isOverdue(medication.scheduled_at, filters.now))
+    .forEach((medication) => {
+      alerts.push({
+        id: `alert_med_${normalizeId(medication)}`,
+        type: 'medication_overdue',
+        severity: 'high',
+        patient_id: normalizeId(medication.patient_id),
+        patient_name: medication.patient_id?.full_name || 'Chưa rõ bệnh nhân',
+        message: 'Thuốc tại giường quá giờ',
+        source_id: normalizeId(medication),
+        created_at: medication.scheduled_at,
+        actions: ['administer_medication', 'open_patient'],
+      });
+    });
+
+  return alerts
+    .sort((a, b) => {
+      const severityDiff = severityRank(b.severity) - severityRank(a.severity);
+      if (severityDiff) return severityDiff;
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    })
+    .slice(0, 16);
+}
+
+async function assembleDashboard(query = {}, actor = {}) {
+  const filters = normalizeFilters(query, actor);
+  const [
+    department,
+    queueTickets,
+    orders,
+    emergencyCases,
+    admissions,
+    nursingTasks,
+    unreadNotifications,
+    notificationActivity,
+    triageAssessments,
+    preparationChecklists,
+  ] = await Promise.all([
+    filters.department_object_id
+      ? Department.findById(filters.department_object_id).select('department_code department_name').lean()
+      : null,
+    fetchQueueTickets(filters),
+    fetchOrders(filters),
+    fetchEmergencyCases(filters),
+    fetchAdmissions(filters),
+    fetchNursingTasks(filters),
+    fetchUnreadNotifications(actor),
+    fetchNotificationActivity(actor),
+    fetchTriageAssessments(filters),
+    fetchPreparationChecklists(filters),
+  ]);
+
+  const encounters = await fetchEncounters(filters, queueTickets);
+  const { bedAssignments, inpatientTasks, medicationDue } = await fetchInpatientData(filters, admissions);
+  const { recorded: vitalRecords, enteredInError: enteredInErrorVitals } = await fetchVitals(filters, encounters, queueTickets);
+  const maps = buildMaps({ queueTickets, encounters, admissions, bedAssignments });
+  const vitalSummary = buildVitalSummaries(vitalRecords, maps.encountersById);
+  const pendingVitals = buildPendingVitals(queueTickets, maps.encountersById, vitalSummary, filters);
+  const preparationItems = buildPreparationItems(orders);
+  const checklistItems = buildChecklistItems(preparationChecklists);
+  const queueItems = queueTickets.map((ticket) => formatQueueItem(ticket, filters));
+  const queueItemLimit = Math.min(Math.max(Number(query.queue_limit || query.limit || DEFAULT_LIMIT), 1), 500);
+  const queueBoard = buildQueueBoard(queueItems);
+  const triagePanel = buildTriagePanel(queueTickets, triageAssessments, filters);
+  const worklist = buildWorklist({
+    queueTickets,
+    emergencyCases,
+    abnormalVitals: vitalSummary.abnormal,
+    pendingVitals,
+    preparationItems,
+    nursingTasks,
+    inpatientTasks,
+    medicationDue,
+    maps,
+    filters,
+  });
+  const filteredWorklist = filterWorkItems(worklist, filters).slice(0, Math.min(Math.max(Number(query.limit || DEFAULT_LIMIT), 1), 200));
+  const priorityAlerts = buildPriorityAlerts({
+    abnormalVitals: vitalSummary.abnormal,
+    emergencyCases,
+    queueTickets,
+    nursingTasks,
+    inpatientTasks,
+    medicationDue,
+    filters,
+  });
+  const queueCounts = statusCounts(queueTickets);
+  const nursingStageCounts = statusCounts(queueTickets, 'nursing_stage');
+  const encounterNursingCounts = statusCounts(encounters, 'nursing_status');
+  const overdueNursingTasks = nursingTasks.filter((task) => isOpenTask(task) && isOverdue(task.due_at, filters.now));
+  const overdueInpatientTasks = inpatientTasks.filter((task) => isOpenTask(task) && isOverdue(task.due_at, filters.now));
+  const dueNursingTasks = nursingTasks.filter((task) => task.due_at && task.due_at >= filters.day_start && task.due_at <= filters.day_end);
+  const dueInpatientTasks = inpatientTasks.filter((task) => task.due_at && task.due_at >= filters.day_start && task.due_at <= filters.day_end);
+  const activeAdmissionsWithoutBed = admissions.filter((admission) => !maps.bedByAdmission.has(String(normalizeId(admission))));
+  const emergencyCounts = statusCounts(emergencyCases);
+  const slaWaitingItems = queueItems.filter((item) => OPEN_QUEUE_STATUSES.includes(item.status) && item.waiting_minutes >= NURSING_WAITING_SLA_MINUTES);
+
+  const checkedIn = queueTickets.filter((ticket) => ticket.checkin_time || OPEN_QUEUE_STATUSES.includes(ticket.status)).length;
+  const waitingNurse = (nursingStageCounts[NURSING_WORKFLOW_STATUS.WAITING_NURSE] || 0)
+    + (nursingStageCounts[NURSING_WORKFLOW_STATUS.NOT_STARTED] || 0);
+  const triagePending = (nursingStageCounts[NURSING_WORKFLOW_STATUS.TRIAGE_PENDING] || 0)
+    + (encounterNursingCounts[NURSING_WORKFLOW_STATUS.TRIAGE_PENDING] || 0);
+  const preparationPending = preparationItems.length
+    + (nursingStageCounts[NURSING_WORKFLOW_STATUS.PREPARATION_PENDING] || 0)
+    + (encounterNursingCounts[NURSING_WORKFLOW_STATUS.PREPARATION_PENDING] || 0);
+  const readyForDoctor = (nursingStageCounts[NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR] || 0)
+    + (encounterNursingCounts[NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR] || 0);
+  const activityFeed = buildActivityFeed({
+    notifications: notificationActivity,
+    priorityAlerts,
+    queueItems,
+    vitalSummary,
+    nursingTasks,
+  });
+
+  return {
+    meta: {
+      date: filters.date_key,
+      department_id: filters.department_id,
+      department_name: department?.department_name || null,
+      department_code: department?.department_code || null,
+      shift: filters.shift,
+      realtime_rooms: [
+        filters.department_id ? `department:${filters.department_id}` : null,
+        filters.department_id ? `nursing:department:${filters.department_id}` : null,
+        'role:nurse',
+      ].filter(Boolean),
+      generated_at: filters.now.toISOString(),
+    },
+    kpis: {
+      checked_in: checkedIn,
+      waiting_nurse: waitingNurse || queueCounts[QUEUE_STATUS.WAITING] || 0,
+      triage_pending: triagePending,
+      vital_pending: pendingVitals.length,
+      ready_for_doctor: readyForDoctor,
+      nursing_sla_waiting: slaWaitingItems.length,
+      abnormal_vitals: vitalSummary.abnormal.length,
+      preparation_pending: preparationPending,
+      tasks_due_today: dueNursingTasks.length + dueInpatientTasks.length,
+      tasks_overdue: overdueNursingTasks.length + overdueInpatientTasks.length,
+      open_emergency_cases: emergencyCases.length,
+      active_inpatients: admissions.length,
+      medication_due_now: medicationDue.length,
+    },
+    priority_alerts: priorityAlerts,
+    worklist: {
+      items: filteredWorklist,
+      summary: {
+        total: worklist.length,
+        critical: worklist.filter((item) => item.priority === 'critical').length,
+        high: worklist.filter((item) => item.priority === 'high').length,
+        overdue: worklist.filter((item) => item.status === 'overdue' || item.overdue_minutes > 0).length,
+      },
+    },
+    queue: {
+      total: queueTickets.length,
+      waiting: queueCounts[QUEUE_STATUS.WAITING] || 0,
+      called: (queueCounts[QUEUE_STATUS.CALLED] || 0) + (queueCounts[QUEUE_STATUS.RECALLED] || 0),
+      in_service: queueCounts[QUEUE_STATUS.IN_SERVICE] || 0,
+      skipped: queueCounts[QUEUE_STATUS.SKIPPED] || 0,
+      completed: queueCounts[QUEUE_STATUS.COMPLETED] || 0,
+      no_show: queueCounts[QUEUE_STATUS.NO_SHOW] || 0,
+      cancelled: queueCounts[QUEUE_STATUS.CANCELLED] || 0,
+      items: queueItems.slice(0, queueItemLimit),
+      board: queueBoard,
+      longest_waiting: queueItems
+        .filter((item) => OPEN_QUEUE_STATUSES.includes(item.status))
+        .sort((a, b) => (b.waiting_minutes || 0) - (a.waiting_minutes || 0))
+        .slice(0, 6),
+    },
+    triage: triagePanel,
+    vitals: {
+      pending: pendingVitals.length,
+      pending_items: pendingVitals.slice(0, 12),
+      recorded_today: vitalRecords.length,
+      abnormal: vitalSummary.abnormal.length,
+      abnormal_items: vitalSummary.abnormal.slice(0, 12),
+      entered_in_error: enteredInErrorVitals,
+      latest_by_encounter: Array.from(vitalSummary.latestByEncounter.values()).slice(0, 8),
+      latest_by_queue: Array.from(vitalSummary.latestByQueue.values()).slice(0, 12),
+    },
+    tasks: {
+      assigned_to_me: nursingTasks.filter((task) => actorUserId(actor) && sameId(task.assigned_to, actorUserId(actor))).length,
+      due_today: dueNursingTasks.length + dueInpatientTasks.length,
+      overdue: overdueNursingTasks.length + overdueInpatientTasks.length,
+      completed: nursingTasks.filter((task) => task.status === 'done').length + inpatientTasks.filter((task) => task.status === INPATIENT_TASK_STATUS.DONE).length,
+      items: [...nursingTasks.map((task) => taskDto(task, 'nursing_task', filters.now)), ...inpatientTasks.map((task) => taskDto(task, 'inpatient_task', filters.now))]
+        .sort((a, b) => new Date(a.due_at || 0).getTime() - new Date(b.due_at || 0).getTime())
+        .slice(0, 12),
+    },
+    emergency: {
+      open: emergencyCases.length,
+      new: emergencyCounts[EMERGENCY_STATUS.CREATED] || 0,
+      acknowledged: emergencyCounts[EMERGENCY_STATUS.ACKNOWLEDGED] || 0,
+      triaged: emergencyCounts[EMERGENCY_STATUS.TRIAGED] || 0,
+      dispatched: emergencyCounts[EMERGENCY_STATUS.DISPATCHED] || 0,
+      sla_breached: emergencyCases.filter((item) => item.status === EMERGENCY_STATUS.CREATED && minutesSince(item.created_at, filters.now) >= EMERGENCY_ACK_SLA_MINUTES).length,
+      items: emergencyCases.slice(0, 8),
+    },
+    inpatient: {
+      active_admissions: admissions.length,
+      pending_bed_assignment: activeAdmissionsWithoutBed.length,
+      medication_due_now: medicationDue.length,
+      medication_overdue: medicationDue.filter((item) => isOverdue(item.scheduled_at, filters.now)).length,
+      inpatient_tasks_overdue: overdueInpatientTasks.length,
+      admissions: admissions.slice(0, 8).map((admission) => {
+        const bed = maps.bedByAdmission.get(String(normalizeId(admission)));
+        return {
+          admission_id: normalizeId(admission),
+          admission_no: admission.admission_no,
+          patient: patientDto(admission.patient_id),
+          admitted_at: admission.admitted_at,
+          status: admission.status,
+          bed,
+        };
+      }),
+    },
+    service_preparation: {
+      pending: preparationItems.length + checklistItems.length,
+      lab: preparationItems.filter((item) => item.order_type === ORDER_TYPE.LAB).length,
+      imaging: preparationItems.filter((item) => item.order_type === ORDER_TYPE.IMAGING).length,
+      procedure: preparationItems.filter((item) => item.order_type === ORDER_TYPE.PROCEDURE).length,
+      checklist_pending: checklistItems.length,
+      items: [...checklistItems, ...preparationItems].slice(0, 10),
+    },
+    notifications: {
+      unread: unreadNotifications,
+      items: notificationActivity,
+    },
+    activity_feed: activityFeed,
+    filters: {
+      date: filters.date_key,
+      department_id: filters.department_id,
+      shift: filters.shift,
+      nurse_id: filters.nurse_id || null,
+      priority: filters.priority || null,
+      type: filters.type || null,
+      status: filters.status || null,
+      assigned_to: filters.assigned_to || null,
+    },
+  };
+}
+
+async function getOverview(query = {}, actor = {}) {
+  return assembleDashboard(query, actor);
+}
+
+async function getKpis(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  return {
+    meta: dashboard.meta,
+    kpis: dashboard.kpis,
+  };
+}
+
+async function getWorklist(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  return dashboard.worklist;
+}
+
+async function getPriorityAlerts(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  return {
+    items: dashboard.priority_alerts,
+    summary: {
+      total: dashboard.priority_alerts.length,
+      critical: dashboard.priority_alerts.filter((item) => item.severity === 'critical').length,
+      high: dashboard.priority_alerts.filter((item) => item.severity === 'high').length,
+    },
+  };
+}
+
+function workItemWaitingMinutes(item = {}, now = new Date()) {
+  return item.overdue_minutes || minutesSince(item.waiting_since, now);
+}
+
+function nursingSlaStatus(item = {}, now = new Date()) {
+  const waitingMinutes = workItemWaitingMinutes(item, now);
+  if (item.priority === 'critical' || item.status === 'overdue' || waitingMinutes >= 30) return 'breached';
+  if (item.priority === 'high' || waitingMinutes >= 15) return 'warning';
+  return 'normal';
+}
+
+function decoratePendingPatient(item = {}, now = new Date()) {
+  const waitingMinutes = workItemWaitingMinutes(item, now);
+  return {
+    ...item,
+    waiting_minutes: waitingMinutes,
+    sla_status: nursingSlaStatus(item, now),
+    sla_due_at: item.waiting_since
+      ? new Date(new Date(item.waiting_since).getTime() + (item.priority === 'critical' ? 5 : item.priority === 'high' ? 15 : 30) * 60000).toISOString()
+      : null,
+  };
+}
+
+function buildPriorityLane(items = [], now = new Date()) {
+  const decorated = items.map((item) => decoratePendingPatient(item, now));
+  return {
+    immediate: decorated
+      .filter((item) => ['critical', 'high'].includes(item.priority) || item.sla_status === 'breached')
+      .sort((a, b) => priorityRank(b.priority) - priorityRank(a.priority) || (b.waiting_minutes || 0) - (a.waiting_minutes || 0))
+      .slice(0, 6),
+    longest_waiting: decorated
+      .filter((item) => item.waiting_since)
+      .sort((a, b) => (b.waiting_minutes || 0) - (a.waiting_minutes || 0))
+      .slice(0, 6),
+    unassigned: decorated
+      .filter((item) => !item.assigned_to)
+      .slice(0, 8),
+    stat: decorated
+      .filter((item) => item.flags?.includes('stat') || item.metadata?.order_type === ORDER_TYPE.LAB || item.priority === 'critical')
+      .slice(0, 6),
+  };
+}
+
+function pendingPatientSummary(items = [], dashboard = {}, now = new Date()) {
+  return {
+    total: items.length,
+    critical: items.filter((item) => item.priority === 'critical').length,
+    high: items.filter((item) => item.priority === 'high').length,
+    triage_pending: items.filter((item) => item.type === 'triage_pending').length,
+    vital_pending: items.filter((item) => item.type === 'vital_pending').length,
+    abnormal_vitals: items.filter((item) => item.type === 'abnormal_vital').length,
+    preparation_pending: items.filter((item) => item.type === 'preparation_pending').length,
+    need_doctor: items.filter((item) => item.actions?.includes('notify_doctor')).length,
+    unassigned: items.filter((item) => !item.assigned_to).length,
+    sla_breached: items.filter((item) => nursingSlaStatus(item, now) === 'breached').length,
+    queue_waiting: dashboard.queue?.waiting || 0,
+  };
+}
+
+async function getPendingPatients(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard({ ...query, limit: query.limit || 160 }, actor);
+  const now = new Date(dashboard.meta.generated_at || Date.now());
+  const items = (dashboard.worklist.items || []).map((item) => decoratePendingPatient(item, now));
+  return {
+    meta: dashboard.meta,
+    summary: pendingPatientSummary(items, dashboard, now),
+    priority_lane: buildPriorityLane(items, now),
+    items,
+    activity_feed: dashboard.activity_feed,
+  };
+}
+
+async function getPendingPatientsSummary(query = {}, actor = {}) {
+  const payload = await getPendingPatients(query, actor);
+  return {
+    meta: payload.meta,
+    summary: payload.summary,
+  };
+}
+
+async function getPendingPatientsPriorityLane(query = {}, actor = {}) {
+  const payload = await getPendingPatients(query, actor);
+  return {
+    meta: payload.meta,
+    priority_lane: payload.priority_lane,
+  };
+}
+
+function defaultIntakeChecklist(payload = {}) {
+  return {
+    identity_verified: Boolean(payload.identity_verified),
+    appointment_verified: Boolean(payload.appointment_verified),
+    allergy_checked: Boolean(payload.allergy_checked),
+    reason_confirmed: Boolean(payload.reason_confirmed),
+    consent_checked: Boolean(payload.consent_checked),
+    vital_required: payload.vital_required !== undefined ? Boolean(payload.vital_required) : true,
+    triage_required: Boolean(payload.triage_required),
+    problem_reviewed: Boolean(payload.problem_reviewed),
+    medication_reviewed: Boolean(payload.medication_reviewed),
+  };
+}
+
+function intakeDto(intake = {}) {
+  if (!intake) return null;
+  return {
+    intake_id: normalizeId(intake),
+    queue_ticket_id: normalizeId(intake.queue_ticket_id),
+    appointment_id: normalizeId(intake.appointment_id),
+    encounter_id: normalizeId(intake.encounter_id),
+    patient: patientDto(intake.patient_id),
+    patient_id: normalizeId(intake.patient_id),
+    department_id: normalizeId(intake.department_id),
+    doctor_id: normalizeId(intake.doctor_id),
+    assigned_nurse_id: normalizeId(intake.assigned_nurse_id),
+    assigned_nurse_name: userName(intake.assigned_nurse_id),
+    status: intake.status,
+    started_at: intake.started_at,
+    completed_at: intake.completed_at,
+    checklist: intake.checklist || {},
+    note: intake.note || null,
+    created_at: intake.created_at,
+    updated_at: intake.updated_at,
+  };
+}
+
+async function getQueueTicketOrThrow(ticketId) {
+  const ticket = await QueueTicket.findById(ticketId)
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('doctor_id', 'full_name employee_code')
+    .populate('assigned_nurse_id', 'full_name employee_code')
+    .populate('department_id', 'department_name department_code');
+  if (!ticket) throw createError('Không tìm thấy queue ticket.', 404);
+  return ticket;
+}
+
+async function upsertIntakeForTicket(ticket, patch = {}, actor = {}) {
+  const now = new Date();
+  const userId = actorUserId(actor);
+  const setOnInsert = {
+    queue_ticket_id: ticket._id,
+    appointment_id: ticket.appointment_id,
+    encounter_id: ticket.encounter_id,
+    patient_id: ticket.patient_id?._id || ticket.patient_id,
+    department_id: ticket.department_id?._id || ticket.department_id,
+    doctor_id: ticket.doctor_id?._id || ticket.doctor_id,
+    status: 'waiting',
+    checklist: defaultIntakeChecklist({}),
+    created_by: userId,
+  };
+
+  return NursingIntake.findOneAndUpdate(
+    { queue_ticket_id: ticket._id },
+    {
+      $setOnInsert: setOnInsert,
+      $set: {
+        ...patch,
+        appointment_id: ticket.appointment_id,
+        encounter_id: ticket.encounter_id,
+        patient_id: ticket.patient_id?._id || ticket.patient_id,
+        department_id: ticket.department_id?._id || ticket.department_id,
+        doctor_id: ticket.doctor_id?._id || ticket.doctor_id,
+        updated_by: userId,
+        updated_at: now,
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  )
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('assigned_nurse_id', 'full_name employee_code')
+    .lean();
+}
+
+async function getIntakeDashboard(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard({ ...query, queue_limit: query.queue_limit || 240, limit: query.limit || 160 }, actor);
+  const now = new Date(dashboard.meta.generated_at || Date.now());
+  const queueItems = dashboard.queue.items || [];
+  const checkedInItems = queueItems.filter((item) => OPEN_QUEUE_STATUSES.includes(item.status) || item.checkin_time);
+  const readyItems = queueItems.filter((item) => item.nursing_stage === NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR);
+  return {
+    ...dashboard,
+    intake: {
+      summary: {
+        checked_in: checkedInItems.length,
+        waiting_nurse: checkedInItems.filter((item) => [NURSING_WORKFLOW_STATUS.WAITING_NURSE, NURSING_WORKFLOW_STATUS.NOT_STARTED].includes(item.nursing_stage)).length,
+        nurse_in_progress: checkedInItems.filter((item) => item.nursing_stage === NURSING_WORKFLOW_STATUS.NURSE_IN_PROGRESS).length,
+        triage_waiting: checkedInItems.filter((item) => item.nursing_stage === NURSING_WORKFLOW_STATUS.TRIAGE_PENDING).length,
+        triage_in_progress: checkedInItems.filter((item) => item.nursing_stage === NURSING_WORKFLOW_STATUS.TRIAGE_IN_PROGRESS).length,
+        vital_pending: dashboard.vitals.pending,
+        abnormal_vitals: dashboard.vitals.abnormal,
+        ready_for_doctor: readyItems.length,
+        sla_breached: checkedInItems.filter((item) => nursingSlaStatus({ ...item, waiting_since: item.checkin_time, priority: normalizePriority(item.queue_type) }, now) === 'breached').length,
+      },
+      checked_in_items: checkedInItems,
+      ready_items: readyItems,
+      triage_items: dashboard.triage.pending_items,
+      priority_lane: buildPriorityLane(dashboard.worklist.items || [], now),
+    },
+  };
+}
+
+async function getIntakeWorklist(query = {}, actor = {}) {
+  const payload = await getIntakeDashboard(query, actor);
+  return {
+    meta: payload.meta,
+    summary: payload.intake.summary,
+    items: payload.intake.checked_in_items,
+    lanes: {
+      waiting_nurse: payload.intake.checked_in_items.filter((item) => [NURSING_WORKFLOW_STATUS.WAITING_NURSE, NURSING_WORKFLOW_STATUS.NOT_STARTED].includes(item.nursing_stage)),
+      in_progress: payload.intake.checked_in_items.filter((item) => item.nursing_stage === NURSING_WORKFLOW_STATUS.NURSE_IN_PROGRESS),
+      vital_pending: payload.vitals.pending_items,
+      triage_pending: payload.triage.pending_items,
+      ready_for_doctor: payload.intake.ready_items,
+    },
+  };
+}
+
+async function getQueueContext(ticketId, actor = {}) {
+  const ticket = await QueueTicket.findById(ticketId)
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone date_of_birth')
+    .populate('doctor_id', 'full_name employee_code')
+    .populate('assigned_nurse_id', 'full_name employee_code')
+    .populate('department_id', 'department_name department_code')
+    .populate('appointment_id', 'appointment_time appointment_type reason source status checked_in_at')
+    .populate('encounter_id', 'encounter_code encounter_type status nursing_status start_time chief_reason attending_doctor_id')
+    .lean();
+  if (!ticket) throw createError('Không tìm thấy queue ticket.', 404);
+
+  const patientId = normalizeId(ticket.patient_id);
+  const [latestVital, latestTriage, intake, allergies, problems, notes, emergencyCase] = await Promise.all([
+    VitalSign.findOne({
+      status: { $ne: VITAL_SIGN_STATUS.ENTERED_IN_ERROR },
+      $or: [
+        { queue_ticket_id: ticket._id },
+        ticket.encounter_id ? { encounter_id: ticket.encounter_id?._id || ticket.encounter_id } : null,
+      ].filter(Boolean),
+    }).sort({ recorded_at: -1 }).lean(),
+    TriageAssessment.findOne({ queue_ticket_id: ticket._id, status: { $ne: 'entered_in_error' } })
+      .sort({ created_at: -1 })
+      .populate('triage_by', 'full_name employee_code')
+      .lean(),
+    NursingIntake.findOne({ queue_ticket_id: ticket._id })
+      .populate('assigned_nurse_id', 'full_name employee_code')
+      .lean(),
+    patientId ? Allergy.find({ patient_id: toObjectId(patientId, 'patient_id'), status: 'active' }).sort({ severity: -1, created_at: -1 }).limit(8).lean() : [],
+    patientId ? ProblemList.find({ patient_id: toObjectId(patientId, 'patient_id'), status: 'active' }).sort({ severity: -1, created_at: -1 }).limit(8).lean() : [],
+    ticket.encounter_id ? ClinicalNote.find({ encounter_id: ticket.encounter_id?._id || ticket.encounter_id, status: { $ne: 'cancelled' } }).sort({ created_at: -1 }).limit(5).lean() : [],
+    patientId ? EmergencyCase.findOne({ patient_id: toObjectId(patientId, 'patient_id'), status: { $in: OPEN_EMERGENCY_STATUSES } }).sort({ created_at: -1 }).lean() : null,
+  ]);
+
+  return {
+    queue_ticket: formatQueueItem(ticket, { now: new Date() }),
+    raw_queue_ticket: ticket,
+    appointment: ticket.appointment_id || null,
+    encounter: ticket.encounter_id || null,
+    patient: patientDto(ticket.patient_id),
+    doctor: ticket.doctor_id || null,
+    department: ticket.department_id || null,
+    latest_vital: latestVital,
+    latest_triage: latestTriage,
+    nursing_intake: intakeDto(intake),
+    allergies,
+    active_problems: problems,
+    latest_notes: notes,
+    emergency_case: emergencyCase,
+    risk_tags: buildRiskTags({ ticket, latestVital, latestTriage, allergies, problems, emergencyCase }),
+    available_actions: buildAvailableActions(ticket, latestVital, latestTriage, intake),
+  };
+}
+
+function buildRiskTags({ ticket = {}, latestVital = null, latestTriage = null, allergies = [], problems = [], emergencyCase = null }) {
+  const tags = [];
+  if (ticket.queue_type === 'vip') tags.push({ code: 'VIP', label: 'VIP', severity: 'high' });
+  if (ticket.queue_type === 'priority') tags.push({ code: 'PRIORITY', label: 'Ưu tiên', severity: 'high' });
+  if (Array.isArray(allergies) && allergies.length) tags.push({ code: 'ALLERGY', label: 'Có dị ứng', severity: 'high' });
+  if (Array.isArray(problems) && problems.length) tags.push({ code: 'PROBLEM', label: 'Bệnh nền active', severity: 'warning' });
+  if (latestVital?.overall_severity && latestVital.overall_severity !== 'normal') tags.push({ code: 'ABNORMAL_VITAL', label: 'Sinh hiệu bất thường', severity: latestVital.overall_severity });
+  if (latestTriage?.acuity_level && ['red', 'orange'].includes(latestTriage.acuity_level)) tags.push({ code: 'HIGH_ACUITY', label: 'Triage khẩn', severity: 'critical' });
+  if (emergencyCase) tags.push({ code: 'EMERGENCY', label: 'Có ca khẩn liên quan', severity: 'critical' });
+  return tags;
+}
+
+function buildAvailableActions(ticket = {}, latestVital = null, latestTriage = null, intake = null) {
+  const terminal = [QUEUE_STATUS.COMPLETED, QUEUE_STATUS.CANCELLED, QUEUE_STATUS.NO_SHOW].includes(ticket.status);
+  const hasVital = Boolean(latestVital);
+  const hasTriage = Boolean(latestTriage && latestTriage.status === 'completed');
+  return {
+    can_claim: !terminal && !ticket.assigned_nurse_id,
+    can_release: !terminal && Boolean(ticket.assigned_nurse_id),
+    can_start_intake: !terminal && [NURSING_WORKFLOW_STATUS.WAITING_NURSE, NURSING_WORKFLOW_STATUS.NOT_STARTED].includes(ticket.nursing_stage || NURSING_WORKFLOW_STATUS.WAITING_NURSE),
+    can_record_vital: !terminal,
+    can_start_triage: !terminal && !hasTriage,
+    can_complete_triage: !terminal && Boolean(latestTriage) && latestTriage.status !== 'completed',
+    can_mark_ready: !terminal && (hasVital || hasTriage || intake?.status === 'completed'),
+    can_transfer: !terminal && [QUEUE_STATUS.WAITING, QUEUE_STATUS.CALLED, QUEUE_STATUS.SKIPPED, QUEUE_STATUS.RECALLED].includes(ticket.status),
+    can_call: !terminal && [QUEUE_STATUS.WAITING, QUEUE_STATUS.SKIPPED, QUEUE_STATUS.RECALLED].includes(ticket.status),
+    can_start_service: [QUEUE_STATUS.CALLED, QUEUE_STATUS.RECALLED].includes(ticket.status),
+    record_vital_reason: !terminal ? null : 'Queue đã kết thúc.',
+    start_service_reason: [QUEUE_STATUS.CALLED, QUEUE_STATUS.RECALLED].includes(ticket.status) ? null : 'Queue chưa được gọi.',
+  };
+}
+
+async function claimQueueIntake(ticketId, actor = {}, requestMeta = {}) {
+  const ticket = await getQueueTicketOrThrow(ticketId);
+  const userId = actorUserId(actor);
+  ticket.assigned_nurse_id = toObjectId(userId, 'user_id');
+  ticket.assigned_nurse_at = new Date();
+  ticket.nursing_stage = NURSING_WORKFLOW_STATUS.NURSE_IN_PROGRESS;
+  ticket.nurse_started_at = ticket.nurse_started_at || new Date();
+  ticket.nursing_stage_updated_at = new Date();
+  ticket.nursing_stage_updated_by = userId;
+  ticket.updated_by = userId;
+  await ticket.save();
+
+  const intake = await upsertIntakeForTicket(ticket, {
+    assigned_nurse_id: toObjectId(userId, 'user_id'),
+    status: 'in_progress',
+    started_at: ticket.nurse_started_at,
+  }, actor);
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.intake.claim',
+    targetType: 'queue_ticket',
+    targetId: ticket._id,
+    status: 'success',
+    message: 'Điều dưỡng nhận tiếp nhận bệnh nhân.',
+    requestMeta,
+  });
+
+  return { queue_ticket_id: String(ticket._id), nursing_stage: ticket.nursing_stage, nursing_intake: intakeDto(intake) };
+}
+
+async function releaseQueueIntake(ticketId, actor = {}, requestMeta = {}) {
+  const ticket = await getQueueTicketOrThrow(ticketId);
+  ticket.assigned_nurse_id = undefined;
+  ticket.assigned_nurse_at = undefined;
+  ticket.nursing_stage = NURSING_WORKFLOW_STATUS.WAITING_NURSE;
+  ticket.nursing_stage_updated_at = new Date();
+  ticket.nursing_stage_updated_by = actorUserId(actor);
+  ticket.updated_by = actorUserId(actor);
+  await ticket.save();
+
+  const intake = await upsertIntakeForTicket(ticket, {
+    assigned_nurse_id: undefined,
+    status: 'waiting',
+    released_at: new Date(),
+  }, actor);
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.intake.release',
+    targetType: 'queue_ticket',
+    targetId: ticket._id,
+    status: 'success',
+    message: 'Điều dưỡng trả bệnh nhân về danh sách chờ.',
+    requestMeta,
+  });
+
+  return { queue_ticket_id: String(ticket._id), nursing_stage: ticket.nursing_stage, nursing_intake: intakeDto(intake) };
+}
+
+async function startQueueIntake(ticketId, actor = {}, requestMeta = {}) {
+  return claimQueueIntake(ticketId, actor, requestMeta);
+}
+
+async function completeQueueIntake(ticketId, payload = {}, actor = {}, requestMeta = {}) {
+  const ticket = await getQueueTicketOrThrow(ticketId);
+  const checklist = defaultIntakeChecklist(payload.checklist || payload);
+  const nextStage = checklist.triage_required
+    ? NURSING_WORKFLOW_STATUS.TRIAGE_PENDING
+    : checklist.vital_required && !ticket.latest_vital_sign_id
+      ? NURSING_WORKFLOW_STATUS.VITAL_PENDING
+      : NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR;
+
+  ticket.triage_required = checklist.triage_required;
+  ticket.vital_required = checklist.vital_required;
+  ticket.intake_checklist_completed = true;
+  ticket.nurse_completed_at = new Date();
+  ticket.nursing_stage = nextStage;
+  ticket.nursing_stage_updated_at = new Date();
+  ticket.nursing_stage_updated_by = actorUserId(actor);
+  if (nextStage === NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR) {
+    ticket.ready_for_doctor_at = new Date();
+    ticket.ready_for_doctor_by = actorUserId(actor);
+  }
+  ticket.updated_by = actorUserId(actor);
+  await ticket.save();
+
+  const intake = await upsertIntakeForTicket(ticket, {
+    assigned_nurse_id: ticket.assigned_nurse_id || (actorUserId(actor) ? toObjectId(actorUserId(actor), 'user_id') : undefined),
+    status: 'completed',
+    completed_at: ticket.nurse_completed_at,
+    checklist,
+    note: payload.note,
+  }, actor);
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.intake.complete',
+    targetType: 'queue_ticket',
+    targetId: ticket._id,
+    status: 'success',
+    message: 'Hoàn tất tiếp nhận điều dưỡng.',
+    requestMeta,
+    metadata: { next_stage: nextStage },
+  });
+
+  return { queue_ticket_id: String(ticket._id), nursing_stage: ticket.nursing_stage, nursing_intake: intakeDto(intake) };
+}
+
+function buildTaskBoardColumns(tasks = []) {
+  const columns = {
+    unassigned: [],
+    todo: [],
+    in_progress: [],
+    overdue: [],
+    waiting_doctor: [],
+    done: [],
+  };
+
+  tasks.forEach((task) => {
+    const key = task.status === 'overdue'
+      ? 'overdue'
+      : task.status === 'done'
+        ? 'done'
+        : task.status === 'in_progress'
+          ? 'in_progress'
+          : task.actions?.includes('notify_doctor') || task.status === 'waiting_doctor'
+            ? 'waiting_doctor'
+            : !task.assigned_to
+              ? 'unassigned'
+              : 'todo';
+    columns[key].push(task);
+  });
+
+  return columns;
+}
+
+function buildTaskTimeline(tasks = []) {
+  const buckets = new Map();
+  tasks.forEach((task) => {
+    const sourceDate = task.due_at || task.waiting_since;
+    if (!sourceDate) return;
+    const date = new Date(sourceDate);
+    if (Number.isNaN(date.getTime())) return;
+    const hour = date.getHours();
+    const key = `${String(hour).padStart(2, '0')}:00`;
+    const bucket = buckets.get(key) || {
+      hour: key,
+      total: 0,
+      overdue: 0,
+      completed: 0,
+      vital: 0,
+      preparation: 0,
+      emergency: 0,
+      items: [],
+    };
+    bucket.total += 1;
+    if (task.status === 'overdue') bucket.overdue += 1;
+    if (task.status === 'done') bucket.completed += 1;
+    if (task.type === 'vital') bucket.vital += 1;
+    if (task.type === 'preparation') bucket.preparation += 1;
+    if (task.type === 'emergency_response') bucket.emergency += 1;
+    bucket.items.push(task);
+    buckets.set(key, bucket);
+  });
+
+  return Array.from(buckets.values()).sort((a, b) => a.hour.localeCompare(b.hour));
+}
+
+async function getTasksBoard(query = {}, actor = {}) {
+  const [taskPayload, dashboard] = await Promise.all([
+    listTasks({ ...query, limit: query.limit || 200 }, actor, 'today'),
+    assembleDashboard({ ...query, limit: 80 }, actor),
+  ]);
+  const generatedTasks = (dashboard.worklist.items || [])
+    .filter((item) => ['vital_pending', 'triage_pending', 'preparation_pending', 'emergency', 'medication_due', 'medication_overdue'].includes(item.type))
+    .slice(0, 32)
+    .map((item) => {
+      const decorated = decoratePendingPatient(item, new Date(dashboard.meta.generated_at || Date.now()));
+      return {
+        id: `generated_${item.id}`,
+        source_type: decorated.source_type,
+        source_id: decorated.source_id,
+        patient_id: decorated.patient_id,
+        patient_code: decorated.patient_code,
+        patient_name: decorated.patient_name,
+        type: decorated.type === 'vital_pending' ? 'vital' : decorated.type === 'preparation_pending' ? 'preparation' : decorated.type,
+        title: decorated.type === 'vital_pending' ? 'Đo sinh hiệu' : decorated.reason,
+        reason: decorated.reason,
+        priority: decorated.priority,
+        status: decorated.sla_status === 'breached' || decorated.status === 'overdue' ? 'overdue' : 'todo',
+        due_at: decorated.sla_due_at || decorated.waiting_since,
+        waiting_since: decorated.waiting_since,
+        overdue_minutes: decorated.overdue_minutes || 0,
+        assigned_to: decorated.assigned_to,
+        assigned_to_name: decorated.assigned_to_name,
+        actions: decorated.actions,
+        metadata: decorated.metadata,
+      };
+    });
+  const tasks = [...taskPayload.items, ...generatedTasks]
+    .sort((a, b) => priorityRank(b.priority) - priorityRank(a.priority) || new Date(a.due_at || a.waiting_since || 0) - new Date(b.due_at || b.waiting_since || 0));
+
+  return {
+    meta: dashboard.meta,
+    summary: {
+      total: tasks.length,
+      mine: tasks.filter((task) => actorUserId(actor) && sameId(task.assigned_to, actorUserId(actor))).length,
+      unassigned: tasks.filter((task) => !task.assigned_to).length,
+      in_progress: tasks.filter((task) => task.status === 'in_progress').length,
+      overdue: tasks.filter((task) => task.status === 'overdue').length,
+      done: tasks.filter((task) => task.status === 'done').length,
+      waiting_doctor: tasks.filter((task) => task.status === 'waiting_doctor' || task.actions?.includes('notify_doctor')).length,
+      handover: tasks.filter((task) => task.type === 'handover').length,
+    },
+    columns: buildTaskBoardColumns(tasks),
+    timeline: buildTaskTimeline(tasks),
+    table: tasks,
+  };
+}
+
+async function getTaskDetail(taskId, actor = {}) {
+  const task = await NursingTask.findById(taskId)
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('assigned_to', 'full_name employee_code')
+    .populate('queue_ticket_id', 'queue_number display_number status nursing_stage checkin_time')
+    .lean();
+  if (!task) throw createError('Không tìm thấy task điều dưỡng.', 404);
+  return taskDto(task, 'nursing_task', new Date());
+}
+
+async function assignTaskToMe(taskId, actor = {}, requestMeta = {}) {
+  const userId = actorUserId(actor);
+  if (!userId) throw createError('Không xác định được điều dưỡng hiện tại.', 403);
+  const task = await NursingTask.findById(taskId);
+  if (!task) throw createError('Không tìm thấy task điều dưỡng.', 404);
+  task.assigned_to = toObjectId(userId, 'user_id');
+  task.updated_by = userId;
+  await task.save();
+  await recordAuditLog({
+    actor,
+    action: 'nursing.task.assign_to_me',
+    targetType: 'nursing_task',
+    targetId: task._id,
+    status: 'success',
+    message: 'Điều dưỡng nhận task.',
+    requestMeta,
+  });
+  return taskDto(task, 'nursing_task', new Date());
+}
+
+async function reopenTask(taskId, actor = {}, requestMeta = {}) {
+  const task = await NursingTask.findById(taskId);
+  if (!task) throw createError('Không tìm thấy task điều dưỡng.', 404);
+  task.status = 'todo';
+  task.completed_at = undefined;
+  task.completed_by = undefined;
+  task.cancelled_at = undefined;
+  task.cancelled_by = undefined;
+  task.updated_by = actorUserId(actor);
+  await task.save();
+  await recordAuditLog({
+    actor,
+    action: 'nursing.task.reopen',
+    targetType: 'nursing_task',
+    targetId: task._id,
+    status: 'success',
+    message: 'Mở lại task điều dưỡng.',
+    requestMeta,
+  });
+  return taskDto(task, 'nursing_task', new Date());
+}
+
+function normalizeAlert(alert = {}) {
+  const waitingMinutes = minutesSince(alert.created_at, new Date());
+  return {
+    ...alert,
+    status: alert.status || 'open',
+    waiting_minutes: waitingMinutes,
+    sla_status: alert.severity === 'critical' || alert.type?.includes('overdue') || waitingMinutes >= 30 ? 'breached' : waitingMinutes >= 15 ? 'warning' : 'normal',
+    source_type: alert.type,
+  };
+}
+
+function buildAlertTypeChart(alerts = []) {
+  return alerts.reduce((chart, alert) => {
+    const type = alert.type || 'system';
+    chart[type] = (chart[type] || 0) + 1;
+    return chart;
+  }, {});
+}
+
+async function getPriorityAlertCenter(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  const alerts = (dashboard.priority_alerts || []).map(normalizeAlert);
+  return {
+    meta: dashboard.meta,
+    summary: {
+      total: alerts.length,
+      critical: alerts.filter((alert) => alert.severity === 'critical').length,
+      high: alerts.filter((alert) => alert.severity === 'high').length,
+      unacknowledged: alerts.filter((alert) => !alert.acknowledged_at && alert.status !== 'resolved').length,
+      need_doctor: alerts.filter((alert) => alert.actions?.includes('notify_doctor')).length,
+      sla_breached: alerts.filter((alert) => alert.sla_status === 'breached').length,
+      resolved_today: alerts.filter((alert) => alert.status === 'resolved').length,
+    },
+    severity_heat: {
+      critical: alerts.filter((alert) => alert.severity === 'critical').length,
+      high: alerts.filter((alert) => alert.severity === 'high').length,
+      medium: alerts.filter((alert) => ['medium', 'warning'].includes(alert.severity)).length,
+    },
+    type_chart: buildAlertTypeChart(alerts),
+    items: alerts,
+    selected: alerts[0] || null,
+  };
+}
+
+async function getPriorityAlertSummary(query = {}, actor = {}) {
+  const payload = await getPriorityAlertCenter(query, actor);
+  return {
+    meta: payload.meta,
+    summary: payload.summary,
+    severity_heat: payload.severity_heat,
+    type_chart: payload.type_chart,
+  };
+}
+
+async function getPriorityAlertDetail(alertId, query = {}, actor = {}) {
+  const payload = await getPriorityAlertCenter(query, actor);
+  const alert = payload.items.find((item) => item.id === alertId);
+  if (!alert) throw createError('Không tìm thấy cảnh báo ưu tiên.', 404);
+  return {
+    alert,
+    patient_context: {
+      patient_id: alert.patient_id,
+      patient_name: alert.patient_name,
+      patient_code: alert.patient_code || null,
+    },
+    action_history: [],
+  };
+}
+
+async function updatePriorityAlertAction(alertId, action, payload = {}, actor = {}, requestMeta = {}) {
+  if (alertId.startsWith('alert_vital_')) {
+    const vitalId = alertId.replace('alert_vital_', '');
+    if (action === 'acknowledge') return acknowledgeVitalAlert(vitalId, actor, requestMeta);
+    if (action === 'notify_doctor') return notifyDoctorOfVital(vitalId, actor, requestMeta);
+  }
+
+  if (alertId.startsWith('alert_task_')) {
+    const taskId = alertId.replace('alert_task_', '');
+    if (action === 'assign_to_me') return assignTaskToMe(taskId, actor, requestMeta);
+    if (action === 'resolve') return updateTaskStatus(taskId, 'done', payload, actor, requestMeta);
+  }
+
+  await recordAuditLog({
+    actor,
+    action: `nursing.priority_alert.${action}`,
+    targetType: 'priority_alert',
+    targetId: alertId,
+    status: 'success',
+    message: 'Cập nhật cảnh báo ưu tiên tổng hợp.',
+    requestMeta,
+    metadata: payload,
+  });
+
+  return {
+    alert_id: alertId,
+    action,
+    status: 'accepted',
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function flattenQueueBoard(board = {}) {
+  return Object.values(board).flat();
+}
+
+function estimateClearTime(queueMetrics = {}, now = new Date()) {
+  const waiting = queueMetrics.waiting || 0;
+  const throughput = queueMetrics.throughput_per_hour || 1;
+  const minutes = Math.ceil((waiting / Math.max(throughput, 1)) * 60);
+  const date = new Date(now.getTime() + minutes * 60000);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function buildQueueMetrics(dashboard = {}) {
+  const now = new Date(dashboard.meta?.generated_at || Date.now());
+  const boardItems = flattenQueueBoard(dashboard.queue?.board || {});
+  const activeItems = boardItems.filter((item) => OPEN_QUEUE_STATUSES.includes(item.status));
+  const waitValues = activeItems.map((item) => item.waiting_minutes || 0);
+  const completed = dashboard.queue?.completed || 0;
+  const dayStart = new Date(dashboard.meta?.date || now);
+  const elapsedHours = Math.max((now.getTime() - dayStart.getTime()) / 3600000, 1);
+  const metrics = {
+    total: dashboard.queue?.total || 0,
+    waiting: dashboard.queue?.waiting || 0,
+    average_wait_minutes: waitValues.length ? Math.round(waitValues.reduce((sum, value) => sum + value, 0) / waitValues.length) : 0,
+    longest_wait_minutes: waitValues.length ? Math.max(...waitValues) : 0,
+    throughput_per_hour: Math.round((completed / elapsedHours) * 10) / 10,
+    no_show_rate: dashboard.queue?.total ? Math.round(((dashboard.queue.no_show || 0) / dashboard.queue.total) * 1000) / 10 : 0,
+    skip_rate: dashboard.queue?.total ? Math.round(((dashboard.queue.skipped || 0) / dashboard.queue.total) * 1000) / 10 : 0,
+    bottleneck_status: dashboard.kpis?.vital_pending >= dashboard.kpis?.triage_pending ? 'vital_pending' : 'triage_pending',
+    sla_breached: activeItems.filter((item) => (item.waiting_minutes || 0) >= NURSING_WAITING_SLA_MINUTES).length,
+  };
+  return {
+    ...metrics,
+    estimated_clear_time: estimateClearTime(metrics, now),
+  };
+}
+
+async function getNursingQueueBoard(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  const metrics = buildQueueMetrics(dashboard);
+  return {
+    meta: dashboard.meta,
+    summary: {
+      total: dashboard.queue.total,
+      waiting: dashboard.queue.waiting,
+      called: dashboard.queue.called,
+      in_service: dashboard.queue.in_service,
+      skipped: dashboard.queue.skipped,
+      completed: dashboard.queue.completed,
+      no_show: dashboard.queue.no_show,
+      recalled: dashboard.queue.board?.recalled?.length || 0,
+      transferred: dashboard.queue.board?.transferred?.length || 0,
+      sla_breached: metrics.sla_breached,
+    },
+    metrics,
+    board: dashboard.queue.board,
+    table: (dashboard.queue.items || flattenQueueBoard(dashboard.queue.board || []))
+      .sort((a, b) => (b.waiting_minutes || 0) - (a.waiting_minutes || 0)),
+    tv_display: {
+      calling: [...(dashboard.queue.board?.called || []), ...(dashboard.queue.board?.recalled || [])][0] || null,
+      next: dashboard.queue.board?.waiting?.slice(0, 5) || [],
+      in_service: dashboard.queue.board?.in_service?.slice(0, 3) || [],
+    },
+  };
+}
+
+async function getNursingQueueMetrics(query = {}, actor = {}) {
+  const payload = await getNursingQueueBoard(query, actor);
+  return {
+    meta: payload.meta,
+    summary: payload.summary,
+    metrics: payload.metrics,
+  };
+}
+
+function stripWorkItemId(workItemId = '', prefix) {
+  return String(workItemId).startsWith(prefix) ? String(workItemId).slice(prefix.length) : null;
+}
+
+async function assignQueueOrEncounter(sourceId, actor = {}, requestMeta = {}) {
+  const userId = actorUserId(actor);
+  if (!userId) throw createError('Không xác định được điều dưỡng hiện tại.', 403);
+
+  let ticket = null;
+  if (Types.ObjectId.isValid(sourceId)) {
+    ticket = await QueueTicket.findById(sourceId);
+  }
+
+  if (ticket) {
+    ticket.assigned_nurse_id = toObjectId(userId, 'user_id');
+    ticket.assigned_nurse_at = new Date();
+    ticket.updated_by = userId;
+    await ticket.save();
+    if (ticket.encounter_id) {
+      await Encounter.updateOne(
+        { _id: ticket.encounter_id },
+        {
+          $set: {
+            assigned_nurse_id: toObjectId(userId, 'user_id'),
+            assigned_nurse_at: new Date(),
+            updated_by: toObjectId(userId, 'user_id'),
+          },
+        },
+      );
+    }
+    await recordAuditLog({
+      actor,
+      action: 'nursing.work_item.assign_queue_to_me',
+      targetType: 'queue_ticket',
+      targetId: ticket._id,
+      status: 'success',
+      message: 'Điều dưỡng nhận xử lý queue ticket.',
+      requestMeta,
+    });
+    return {
+      source_type: 'queue_ticket',
+      source_id: String(ticket._id),
+      assigned_to: String(userId),
+      assigned_at: ticket.assigned_nurse_at,
+    };
+  }
+
+  const encounter = Types.ObjectId.isValid(sourceId) ? await Encounter.findById(sourceId) : null;
+  if (!encounter) throw createError('Không tìm thấy work item để nhận xử lý.', 404);
+  encounter.assigned_nurse_id = toObjectId(userId, 'user_id');
+  encounter.assigned_nurse_at = new Date();
+  encounter.updated_by = userId;
+  await encounter.save();
+  await recordAuditLog({
+    actor,
+    action: 'nursing.work_item.assign_encounter_to_me',
+    targetType: 'encounter',
+    targetId: encounter._id,
+    status: 'success',
+    message: 'Điều dưỡng nhận xử lý encounter.',
+    requestMeta,
+  });
+  return {
+    source_type: 'encounter',
+    source_id: String(encounter._id),
+    assigned_to: String(userId),
+    assigned_at: encounter.assigned_nurse_at,
+  };
+}
+
+async function createTaskFromVital(vitalId, actor = {}, requestMeta = {}) {
+  const userId = actorUserId(actor);
+  const vital = await VitalSign.findById(vitalId).populate('encounter_id', 'department_id patient_id').lean();
+  if (!vital) throw createError('Không tìm thấy sinh hiệu.', 404);
+  const departmentId = vital.encounter_id?.department_id || actorDepartmentId(actor);
+  if (!departmentId) throw createError('Không xác định được khoa/phòng cho task.', 400);
+  const task = await NursingTask.findOneAndUpdate(
+    { source_type: 'vital_sign', source_id: vital._id },
+    {
+      $setOnInsert: {
+        patient_id: vital.patient_id || vital.encounter_id?.patient_id,
+        encounter_id: vital.encounter_id?._id || vital.encounter_id,
+        department_id: departmentId,
+        title: 'Xử lý sinh hiệu bất thường',
+        description: 'Cần xác nhận sinh hiệu và báo bác sĩ nếu cần.',
+        task_type: 'vital',
+        priority: 'critical',
+        status: 'todo',
+        source_type: 'vital_sign',
+        source_id: vital._id,
+        created_by: userId,
+      },
+      $set: {
+        assigned_to: toObjectId(userId, 'user_id'),
+        updated_by: toObjectId(userId, 'user_id'),
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  );
+  await recordAuditLog({
+    actor,
+    action: 'nursing.work_item.assign_vital_to_me',
+    targetType: 'nursing_task',
+    targetId: task._id,
+    status: 'success',
+    message: 'Tạo/nhận task xử lý sinh hiệu bất thường.',
+    requestMeta,
+  });
+  return taskDto(task, 'nursing_task', new Date());
+}
+
+async function assignWorkItemToMe(workItemId, actor = {}, requestMeta = {}) {
+  const userId = actorUserId(actor);
+  if (!userId) throw createError('Không xác định được điều dưỡng hiện tại.', 403);
+
+  const nursingTaskId = stripWorkItemId(workItemId, 'nursing_task_');
+  if (nursingTaskId) return assignTaskToMe(nursingTaskId, actor, requestMeta);
+
+  const inpatientTaskId = stripWorkItemId(workItemId, 'inpatient_task_');
+  if (inpatientTaskId) {
+    const task = await InpatientTask.findById(inpatientTaskId);
+    if (!task) throw createError('Không tìm thấy task nội trú.', 404);
+    task.assigned_to = toObjectId(userId, 'user_id');
+    task.updated_by = userId;
+    await task.save();
+    return taskDto(task, 'inpatient_task', new Date());
+  }
+
+  const waitingTicketId = stripWorkItemId(workItemId, 'waiting_nurse_');
+  if (waitingTicketId) return assignQueueOrEncounter(waitingTicketId, actor, requestMeta);
+
+  const vitalPendingId = stripWorkItemId(workItemId, 'vital_pending_');
+  if (vitalPendingId) return assignQueueOrEncounter(vitalPendingId, actor, requestMeta);
+
+  const emergencyId = stripWorkItemId(workItemId, 'emergency_');
+  if (emergencyId) {
+    const emergencyCase = await EmergencyCase.findById(emergencyId);
+    if (!emergencyCase) throw createError('Không tìm thấy ca cấp cứu.', 404);
+    emergencyCase.assigned_to_user_id = toObjectId(userId, 'user_id');
+    emergencyCase.updated_by = userId;
+    await emergencyCase.save();
+    return { source_type: 'emergency_case', source_id: emergencyId, assigned_to: String(userId) };
+  }
+
+  const preparationOrderId = stripWorkItemId(workItemId, 'preparation_');
+  if (preparationOrderId) {
+    const checklist = await createPreparationFromOrder(preparationOrderId, { assigned_to: userId }, actor, requestMeta);
+    checklist.assigned_to = toObjectId(userId, 'user_id');
+    checklist.updated_by = userId;
+    await checklist.save();
+    return { source_type: 'service_preparation_checklist', source_id: String(checklist._id), assigned_to: String(userId) };
+  }
+
+  const abnormalVitalId = stripWorkItemId(workItemId, 'abnormal_vital_');
+  if (abnormalVitalId) return createTaskFromVital(abnormalVitalId, actor, requestMeta);
+
+  throw createError('Loại work item chưa hỗ trợ nhận xử lý.', 409);
+}
+
+async function completeWorkItem(workItemId, payload = {}, actor = {}, requestMeta = {}) {
+  const nursingTaskId = stripWorkItemId(workItemId, 'nursing_task_');
+  if (nursingTaskId) return updateTaskStatus(nursingTaskId, 'done', payload, actor, requestMeta);
+
+  const inpatientTaskId = stripWorkItemId(workItemId, 'inpatient_task_');
+  if (inpatientTaskId) {
+    const task = await InpatientTask.findById(inpatientTaskId);
+    if (!task) throw createError('Không tìm thấy task nội trú.', 404);
+    task.status = INPATIENT_TASK_STATUS.DONE;
+    task.completed_at = new Date();
+    task.completed_by = actorUserId(actor);
+    task.updated_by = actorUserId(actor);
+    await task.save();
+    return taskDto(task, 'inpatient_task', new Date());
+  }
+
+  const vitalPendingId = stripWorkItemId(workItemId, 'vital_pending_');
+  if (vitalPendingId) return markQueueStage(vitalPendingId, NURSING_WORKFLOW_STATUS.VITAL_DONE, actor, requestMeta);
+
+  const waitingTicketId = stripWorkItemId(workItemId, 'waiting_nurse_');
+  if (waitingTicketId) return markQueueStage(waitingTicketId, NURSING_WORKFLOW_STATUS.TRIAGE_DONE, actor, requestMeta);
+
+  const preparationOrderId = stripWorkItemId(workItemId, 'preparation_');
+  if (preparationOrderId) {
+    const checklist = await ServicePreparationChecklist.findOne({ order_id: toObjectId(preparationOrderId, 'order_id') });
+    if (!checklist) throw createError('Chưa có checklist chuẩn bị để hoàn tất.', 409);
+    return completePreparation(checklist._id, actor, requestMeta);
+  }
+
+  throw createError('Loại work item chưa hỗ trợ hoàn tất trực tiếp.', 409);
+}
+
+async function getPendingVitals(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  return {
+    items: dashboard.vitals.pending_items,
+    summary: {
+      pending: dashboard.vitals.pending,
+    },
+  };
+}
+
+async function getAbnormalVitals(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  return {
+    items: dashboard.vitals.abnormal_items,
+    summary: {
+      abnormal: dashboard.vitals.abnormal,
+      critical: dashboard.vitals.abnormal_items.filter((item) => item.severity === 'critical').length,
+      high: dashboard.vitals.abnormal_items.filter((item) => item.severity === 'high').length,
+    },
+  };
+}
+
+async function markQueueStage(ticketId, stage, actor = {}, requestMeta = {}) {
+  if (!NURSING_WORKFLOW_STATUSES.includes(stage)) throw createError('nursing_stage không hợp lệ.', 400);
+  const ticket = await QueueTicket.findById(ticketId);
+  if (!ticket) throw createError('Không tìm thấy queue ticket.', 404);
+
+  ticket.nursing_stage = stage;
+  ticket.nursing_stage_updated_at = new Date();
+  ticket.nursing_stage_updated_by = actorUserId(actor);
+  if (stage === NURSING_WORKFLOW_STATUS.NURSE_IN_PROGRESS) ticket.nurse_started_at = ticket.nurse_started_at || new Date();
+  if (stage === NURSING_WORKFLOW_STATUS.TRIAGE_IN_PROGRESS) ticket.triage_started_at = ticket.triage_started_at || new Date();
+  if (stage === NURSING_WORKFLOW_STATUS.TRIAGE_DONE) ticket.triage_completed_at = new Date();
+  if (stage === NURSING_WORKFLOW_STATUS.VITAL_DONE) ticket.vital_recorded_at = ticket.vital_recorded_at || new Date();
+  if (stage === NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR) {
+    ticket.ready_for_doctor_at = new Date();
+    ticket.ready_for_doctor_by = actorUserId(actor);
+  }
+  ticket.updated_by = actorUserId(actor);
+  await ticket.save();
+
+  if (ticket.encounter_id) {
+    await Encounter.updateOne(
+      { _id: ticket.encounter_id },
+      {
+        $set: {
+          nursing_status: stage,
+          nursing_status_updated_at: new Date(),
+          nursing_status_updated_by: actorUserId(actor),
+          ...(stage === NURSING_WORKFLOW_STATUS.NURSE_IN_PROGRESS ? { waiting_nurse_at: ticket.nurse_started_at || new Date() } : {}),
+          ...(stage === NURSING_WORKFLOW_STATUS.TRIAGE_IN_PROGRESS ? { triage_started_at: new Date() } : {}),
+          ...(stage === NURSING_WORKFLOW_STATUS.TRIAGE_DONE ? { triage_completed_at: new Date() } : {}),
+          ...(stage === NURSING_WORKFLOW_STATUS.VITAL_DONE ? { vital_recorded_at: new Date() } : {}),
+          ...(stage === NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR ? { ready_for_doctor_at: new Date() } : {}),
+        },
+      },
+    );
+  }
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.queue_stage.update',
+    targetType: 'queue_ticket',
+    targetId: ticket._id,
+    status: 'success',
+    message: 'Cập nhật nursing stage của queue ticket.',
+    requestMeta,
+    metadata: { nursing_stage: stage },
+  });
+
+  return {
+    queue_ticket_id: String(ticket._id),
+    nursing_stage: ticket.nursing_stage,
+    updated_at: ticket.updated_at,
+  };
+}
+
+async function markEncounterReadyForDoctor(encounterId, actor = {}, requestMeta = {}) {
+  const encounter = await Encounter.findById(encounterId);
+  if (!encounter) throw createError('Không tìm thấy encounter.', 404);
+
+  encounter.nursing_status = NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR;
+  encounter.nursing_status_updated_at = new Date();
+  encounter.nursing_status_updated_by = actorUserId(actor);
+  encounter.ready_for_doctor_at = new Date();
+  encounter.updated_by = actorUserId(actor);
+  await encounter.save();
+
+  await QueueTicket.updateOne(
+    { encounter_id: encounter._id },
+    {
+      $set: {
+        nursing_stage: NURSING_WORKFLOW_STATUS.READY_FOR_DOCTOR,
+        nursing_stage_updated_at: new Date(),
+        nursing_stage_updated_by: actorUserId(actor),
+        updated_by: actorUserId(actor),
+      },
+    },
+  );
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.encounter.ready_for_doctor',
+    targetType: 'encounter',
+    targetId: encounter._id,
+    status: 'success',
+    message: 'Đánh dấu encounter sẵn sàng gặp bác sĩ.',
+    requestMeta,
+  });
+
+  return {
+    encounter_id: String(encounter._id),
+    nursing_status: encounter.nursing_status,
+    ready_for_doctor_at: encounter.ready_for_doctor_at,
+  };
+}
+
+async function acknowledgeVitalAlert(vitalSignId, actor = {}, requestMeta = {}) {
+  const vital = await VitalSign.findById(vitalSignId);
+  if (!vital) throw createError('Không tìm thấy sinh hiệu.', 404);
+
+  const flags = buildAbnormalFlags(vital);
+  vital.abnormal_flags = flags;
+  vital.overall_severity = getOverallSeverity(flags);
+  vital.requires_doctor_notification = ['high', 'critical'].includes(vital.overall_severity);
+  vital.acknowledged_by = actorUserId(actor);
+  vital.acknowledged_at = new Date();
+  vital.updated_by = actorUserId(actor);
+  await vital.save();
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.vital_alert.acknowledge',
+    targetType: 'vital_sign',
+    targetId: vital._id,
+    status: 'success',
+    message: 'Điều dưỡng đã xác nhận cảnh báo sinh hiệu.',
+    requestMeta,
+  });
+
+  return {
+    vital_sign_id: String(vital._id),
+    acknowledged_at: vital.acknowledged_at,
+    overall_severity: vital.overall_severity,
+  };
+}
+
+async function notifyDoctorOfVital(vitalSignId, actor = {}, requestMeta = {}) {
+  const vital = await VitalSign.findById(vitalSignId);
+  if (!vital) throw createError('Không tìm thấy sinh hiệu.', 404);
+
+  const flags = buildAbnormalFlags(vital);
+  vital.abnormal_flags = flags;
+  vital.overall_severity = getOverallSeverity(flags);
+  vital.requires_doctor_notification = ['high', 'critical'].includes(vital.overall_severity);
+  vital.doctor_notified_by = actorUserId(actor);
+  vital.doctor_notified_at = new Date();
+  vital.updated_by = actorUserId(actor);
+  await vital.save();
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.vital_alert.notify_doctor',
+    targetType: 'vital_sign',
+    targetId: vital._id,
+    status: 'success',
+    message: 'Điều dưỡng đã báo bác sĩ về sinh hiệu bất thường.',
+    requestMeta,
+  });
+
+  return {
+    vital_sign_id: String(vital._id),
+    doctor_notified_at: vital.doctor_notified_at,
+    overall_severity: vital.overall_severity,
+  };
+}
+
+function buildTaskFilter(query = {}, actor = {}, mode = 'today') {
+  const filters = normalizeFilters(query, actor);
+  const filter = {};
+  addDepartmentFilter(filter, filters);
+  if (mode === 'my') filter.assigned_to = toObjectId(actorUserId(actor), 'user_id');
+  if (mode === 'overdue') {
+    filter.status = { $in: OPEN_TASK_STATUSES };
+    filter.due_at = { $lte: filters.now };
+  } else {
+    filter.$or = [
+      { due_at: { $gte: filters.day_start, $lte: filters.day_end } },
+      { status: { $in: OPEN_TASK_STATUSES }, due_at: { $lte: filters.now } },
+    ];
+  }
+  if (query.status) filter.status = query.status;
+  if (query.task_type) filter.task_type = query.task_type;
+  return { filter, filters };
+}
+
+async function listTasks(query = {}, actor = {}, mode = 'today') {
+  const { filter, filters } = buildTaskFilter(query, actor, mode);
+  const { page, limit, skip } = getPagination(query, 20, 100);
+  const [items, total] = await Promise.all([
+    NursingTask.find(filter)
+      .sort({ due_at: 1, priority: -1, created_at: 1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+      .populate('assigned_to', 'full_name employee_code')
+      .lean(),
+    NursingTask.countDocuments(filter),
+  ]);
+
+  return {
+    items: items.map((task) => taskDto(task, 'nursing_task', filters.now)),
+    pagination: buildPagination(page, limit, total),
+  };
+}
+
+async function createTask(payload = {}, actor = {}, requestMeta = {}) {
+  if (!payload.patient_id) throw createError('patient_id là bắt buộc.', 400);
+  if (!payload.department_id && !actorDepartmentId(actor)) throw createError('department_id là bắt buộc.', 400);
+  if (!payload.title) throw createError('title là bắt buộc.', 400);
+
+  const task = await NursingTask.create({
+    patient_id: toObjectId(payload.patient_id, 'patient_id'),
+    encounter_id: payload.encounter_id ? toObjectId(payload.encounter_id, 'encounter_id') : undefined,
+    admission_id: payload.admission_id ? toObjectId(payload.admission_id, 'admission_id') : undefined,
+    queue_ticket_id: payload.queue_ticket_id ? toObjectId(payload.queue_ticket_id, 'queue_ticket_id') : undefined,
+    department_id: toObjectId(payload.department_id || actorDepartmentId(actor), 'department_id'),
+    title: payload.title,
+    description: payload.description,
+    task_type: payload.task_type || 'other',
+    priority: payload.priority || 'medium',
+    status: payload.status || 'todo',
+    assigned_to: payload.assigned_to ? toObjectId(payload.assigned_to, 'assigned_to') : undefined,
+    assigned_role: payload.assigned_role,
+    due_at: payload.due_at ? parseDate(payload.due_at, 'due_at') : undefined,
+    source_type: payload.source_type,
+    source_id: payload.source_id ? toObjectId(payload.source_id, 'source_id') : undefined,
+    metadata: payload.metadata,
+    created_by: actorUserId(actor),
+  });
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.task.create',
+    targetType: 'nursing_task',
+    targetId: task._id,
+    status: 'success',
+    message: 'Tạo task điều dưỡng.',
+    requestMeta,
+  });
+
+  return taskDto(task, 'nursing_task', new Date());
+}
+
+async function updateTaskStatus(taskId, nextStatus, payload = {}, actor = {}, requestMeta = {}) {
+  const task = await NursingTask.findById(taskId);
+  if (!task) throw createError('Không tìm thấy task điều dưỡng.', 404);
+
+  task.status = nextStatus;
+  task.updated_by = actorUserId(actor);
+  if (nextStatus === 'in_progress') {
+    task.started_at = task.started_at || new Date();
+    task.started_by = actorUserId(actor);
+  }
+  if (nextStatus === 'done') {
+    task.completed_at = new Date();
+    task.completed_by = actorUserId(actor);
+  }
+  if (nextStatus === 'cancelled') {
+    task.cancelled_at = new Date();
+    task.cancelled_by = actorUserId(actor);
+    task.cancel_reason = payload.reason || payload.cancel_reason;
+  }
+  if (payload.escalation_reason) {
+    task.escalated_at = new Date();
+    task.escalated_by = actorUserId(actor);
+    task.escalation_reason = payload.escalation_reason;
+    task.priority = task.priority === 'critical' ? task.priority : 'high';
+  }
+  await task.save();
+
+  await recordAuditLog({
+    actor,
+    action: `nursing.task.${nextStatus}`,
+    targetType: 'nursing_task',
+    targetId: task._id,
+    status: 'success',
+    message: 'Cập nhật trạng thái task điều dưỡng.',
+    requestMeta,
+    metadata: { status: nextStatus },
+  });
+
+  return taskDto(task, 'nursing_task', new Date());
+}
+
+async function escalateTask(taskId, payload = {}, actor = {}, requestMeta = {}) {
+  const task = await NursingTask.findById(taskId);
+  if (!task) throw createError('Không tìm thấy task điều dưỡng.', 404);
+  task.escalated_at = new Date();
+  task.escalated_by = actorUserId(actor);
+  task.escalation_reason = payload.reason || payload.escalation_reason;
+  task.priority = task.priority === 'critical' ? task.priority : 'high';
+  task.updated_by = actorUserId(actor);
+  await task.save();
+  await recordAuditLog({
+    actor,
+    action: 'nursing.task.escalate',
+    targetType: 'nursing_task',
+    targetId: task._id,
+    status: 'success',
+    message: 'Escalate task điều dưỡng.',
+    requestMeta,
+  });
+  return taskDto(task, 'nursing_task', new Date());
+}
+
+function defaultChecklistItems(orderType) {
+  const common = [
+    { key: 'identify_patient', label: 'Xác nhận đúng bệnh nhân', required: true },
+  ];
+  const byType = {
+    lab: [
+      { key: 'fasting_check', label: 'Kiểm tra nhịn ăn nếu cần', required: false },
+      { key: 'tube_ready', label: 'Chuẩn bị ống lấy mẫu', required: true },
+      { key: 'label_sample', label: 'Dán nhãn mẫu', required: true },
+      { key: 'send_sample', label: 'Gửi mẫu', required: true },
+    ],
+    imaging: [
+      { key: 'indication_confirmed', label: 'Xác nhận chỉ định', required: true },
+      { key: 'contrast_allergy_check', label: 'Kiểm tra dị ứng thuốc cản quang', required: false },
+      { key: 'contraindication_check', label: 'Kiểm tra chống chỉ định', required: true },
+      { key: 'transfer_ready', label: 'Chuẩn bị chuyển bệnh nhân', required: true },
+    ],
+    procedure: [
+      { key: 'consent_check', label: 'Kiểm tra cam kết/đồng ý thủ thuật', required: true },
+      { key: 'pre_procedure_vitals', label: 'Kiểm tra sinh hiệu trước thủ thuật', required: true },
+      { key: 'equipment_ready', label: 'Chuẩn bị dụng cụ', required: true },
+      { key: 'handoff_ready', label: 'Bàn giao sang phòng thủ thuật', required: true },
+    ],
+  };
+  return [...common, ...(byType[orderType] || [
+    { key: 'preparation_done', label: 'Hoàn tất chuẩn bị dịch vụ', required: true },
+  ])];
+}
+
+async function getPendingTriage(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  return {
+    items: dashboard.triage.pending_items,
+    summary: {
+      pending: dashboard.triage.pending,
+      in_progress: dashboard.triage.in_progress,
+      completed: dashboard.triage.completed,
+      high_priority: dashboard.triage.high_priority,
+    },
+  };
+}
+
+async function createTriageAssessment(payload = {}, actor = {}, requestMeta = {}) {
+  if (!payload.patient_id) throw createError('patient_id là bắt buộc.', 400);
+  if (!payload.department_id && !actorDepartmentId(actor)) throw createError('department_id là bắt buộc.', 400);
+
+  const status = payload.status || 'draft';
+  const triage = await TriageAssessment.create({
+    patient_id: toObjectId(payload.patient_id, 'patient_id'),
+    appointment_id: payload.appointment_id ? toObjectId(payload.appointment_id, 'appointment_id') : undefined,
+    encounter_id: payload.encounter_id ? toObjectId(payload.encounter_id, 'encounter_id') : undefined,
+    queue_ticket_id: payload.queue_ticket_id ? toObjectId(payload.queue_ticket_id, 'queue_ticket_id') : undefined,
+    department_id: toObjectId(payload.department_id || actorDepartmentId(actor), 'department_id'),
+    doctor_id: payload.doctor_id ? toObjectId(payload.doctor_id, 'doctor_id') : undefined,
+    nurse_id: actorUserId(actor),
+    triage_by: actorUserId(actor),
+    triage_at: status === 'completed' ? new Date() : payload.triage_at ? parseDate(payload.triage_at, 'triage_at') : undefined,
+    chief_complaint: payload.chief_complaint,
+    symptom_onset_at: payload.symptom_onset_at ? parseDate(payload.symptom_onset_at, 'symptom_onset_at') : undefined,
+    symptoms: payload.symptoms,
+    pain_score: payload.pain_score,
+    consciousness: payload.consciousness,
+    consciousness_level: payload.consciousness_level,
+    breathing_status: payload.breathing_status,
+    circulation_status: payload.circulation_status,
+    mobility_status: payload.mobility_status,
+    acuity_level: payload.acuity_level || 'green',
+    priority_score: payload.priority_score,
+    red_flags: payload.red_flags,
+    triage_level: payload.triage_level || 'non_urgent',
+    priority: payload.priority || 'medium',
+    recommended_destination: payload.recommended_destination || 'doctor',
+    recommended_action: payload.recommended_action || 'normal_queue',
+    recommended_department_id: payload.recommended_department_id ? toObjectId(payload.recommended_department_id, 'recommended_department_id') : undefined,
+    recommended_doctor_id: payload.recommended_doctor_id ? toObjectId(payload.recommended_doctor_id, 'recommended_doctor_id') : undefined,
+    infectious_screening: payload.infectious_screening,
+    fall_risk_score: payload.fall_risk_score,
+    pregnancy_status: payload.pregnancy_status,
+    allergy_reviewed: payload.allergy_reviewed,
+    medication_reviewed: payload.medication_reviewed,
+    problem_reviewed: payload.problem_reviewed,
+    vital_sign_id: payload.vital_sign_id ? toObjectId(payload.vital_sign_id, 'vital_sign_id') : undefined,
+    vital_snapshot: payload.vital_snapshot,
+    status,
+    started_at: status === 'in_progress' ? new Date() : undefined,
+    completed_at: status === 'completed' ? new Date() : undefined,
+    completed_by: status === 'completed' ? actorUserId(actor) : undefined,
+    note: payload.note,
+    created_by: actorUserId(actor),
+  });
+
+  if (payload.queue_ticket_id) {
+    const stage = status === 'completed'
+      ? NURSING_WORKFLOW_STATUS.TRIAGE_DONE
+      : status === 'in_progress'
+        ? NURSING_WORKFLOW_STATUS.TRIAGE_IN_PROGRESS
+        : NURSING_WORKFLOW_STATUS.TRIAGE_PENDING;
+    await QueueTicket.updateOne(
+      { _id: triage.queue_ticket_id },
+      {
+        $set: {
+          triage_assessment_id: triage._id,
+          nursing_stage: stage,
+          triage_started_at: status === 'in_progress' ? new Date() : undefined,
+          triage_completed_at: status === 'completed' ? new Date() : undefined,
+          nursing_stage_updated_at: new Date(),
+          nursing_stage_updated_by: actorUserId(actor),
+          updated_by: actorUserId(actor),
+        },
+      },
+    );
+  }
+
+  if (status === 'completed' && payload.queue_ticket_id) {
+    await markQueueStage(payload.queue_ticket_id, NURSING_WORKFLOW_STATUS.TRIAGE_DONE, actor, requestMeta);
+  }
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.triage.create',
+    targetType: 'triage_assessment',
+    targetId: triage._id,
+    status: 'success',
+    message: 'Tạo phiếu triage điều dưỡng.',
+    requestMeta,
+  });
+
+  return triage;
+}
+
+async function completeTriageAssessment(triageId, payload = {}, actor = {}, requestMeta = {}) {
+  const triage = await TriageAssessment.findById(triageId);
+  if (!triage) throw createError('Không tìm thấy phiếu triage.', 404);
+
+  Object.entries({
+    chief_complaint: payload.chief_complaint,
+    symptoms: payload.symptoms,
+    pain_score: payload.pain_score,
+    consciousness: payload.consciousness,
+    consciousness_level: payload.consciousness_level,
+    breathing_status: payload.breathing_status,
+    circulation_status: payload.circulation_status,
+    mobility_status: payload.mobility_status,
+    acuity_level: payload.acuity_level,
+    priority_score: payload.priority_score,
+    red_flags: payload.red_flags,
+    triage_level: payload.triage_level,
+    priority: payload.priority,
+    recommended_destination: payload.recommended_destination,
+    recommended_action: payload.recommended_action,
+    infectious_screening: payload.infectious_screening,
+    fall_risk_score: payload.fall_risk_score,
+    pregnancy_status: payload.pregnancy_status,
+    allergy_reviewed: payload.allergy_reviewed,
+    medication_reviewed: payload.medication_reviewed,
+    problem_reviewed: payload.problem_reviewed,
+    vital_snapshot: payload.vital_snapshot,
+    note: payload.note,
+  }).forEach(([key, value]) => {
+    if (value !== undefined) triage[key] = value;
+  });
+  if (payload.vital_sign_id) triage.vital_sign_id = toObjectId(payload.vital_sign_id, 'vital_sign_id');
+  if (payload.recommended_department_id) triage.recommended_department_id = toObjectId(payload.recommended_department_id, 'recommended_department_id');
+  if (payload.recommended_doctor_id) triage.recommended_doctor_id = toObjectId(payload.recommended_doctor_id, 'recommended_doctor_id');
+
+  triage.status = 'completed';
+  triage.triage_by = actorUserId(actor);
+  triage.triage_at = new Date();
+  triage.completed_at = new Date();
+  triage.completed_by = actorUserId(actor);
+  triage.updated_by = actorUserId(actor);
+  await triage.save();
+
+  if (triage.queue_ticket_id) {
+    await markQueueStage(triage.queue_ticket_id, NURSING_WORKFLOW_STATUS.TRIAGE_DONE, actor, requestMeta);
+  }
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.triage.complete',
+    targetType: 'triage_assessment',
+    targetId: triage._id,
+    status: 'success',
+    message: 'Hoàn tất phiếu triage điều dưỡng.',
+    requestMeta,
+  });
+
+  return triage;
+}
+
+async function getTriageWorklist(query = {}, actor = {}) {
+  return getPendingTriage({ ...query, limit: query.limit || 160 }, actor);
+}
+
+async function getLatestTriageByQueue(ticketId, actor = {}) {
+  const ticket = await QueueTicket.findById(ticketId).lean();
+  if (!ticket) throw createError('Không tìm thấy queue ticket.', 404);
+  const triage = await TriageAssessment.findOne({ queue_ticket_id: ticket._id, status: { $ne: 'entered_in_error' } })
+    .sort({ created_at: -1 })
+    .populate('patient_id', 'patient_code full_name gender date_of_birth phone')
+    .populate('triage_by', 'full_name employee_code')
+    .lean();
+  return { queue_ticket_id: String(ticket._id), triage };
+}
+
+async function updateTriageAssessment(triageId, payload = {}, actor = {}, requestMeta = {}) {
+  const triage = await TriageAssessment.findById(triageId);
+  if (!triage) throw createError('Không tìm thấy phiếu triage.', 404);
+  if (['completed', 'cancelled', 'entered_in_error'].includes(triage.status)) {
+    throw createError('Phiếu triage đã khóa, không thể cập nhật trực tiếp.', 409);
+  }
+
+  [
+    'chief_complaint',
+    'symptoms',
+    'pain_score',
+    'consciousness',
+    'consciousness_level',
+    'breathing_status',
+    'circulation_status',
+    'mobility_status',
+    'acuity_level',
+    'priority_score',
+    'red_flags',
+    'triage_level',
+    'priority',
+    'recommended_destination',
+    'recommended_action',
+    'infectious_screening',
+    'fall_risk_score',
+    'pregnancy_status',
+    'allergy_reviewed',
+    'medication_reviewed',
+    'problem_reviewed',
+    'vital_snapshot',
+    'note',
+  ].forEach((key) => {
+    if (payload[key] !== undefined) triage[key] = payload[key];
+  });
+  if (payload.symptom_onset_at) triage.symptom_onset_at = parseDate(payload.symptom_onset_at, 'symptom_onset_at');
+  if (payload.vital_sign_id) triage.vital_sign_id = toObjectId(payload.vital_sign_id, 'vital_sign_id');
+  if (payload.recommended_department_id) triage.recommended_department_id = toObjectId(payload.recommended_department_id, 'recommended_department_id');
+  if (payload.recommended_doctor_id) triage.recommended_doctor_id = toObjectId(payload.recommended_doctor_id, 'recommended_doctor_id');
+  triage.updated_by = actorUserId(actor);
+  await triage.save();
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.triage.update',
+    targetType: 'triage_assessment',
+    targetId: triage._id,
+    status: 'success',
+    message: 'Cập nhật phiếu triage điều dưỡng.',
+    requestMeta,
+  });
+
+  return triage;
+}
+
+async function startTriageAssessment(triageId, actor = {}, requestMeta = {}) {
+  const triage = await TriageAssessment.findById(triageId);
+  if (!triage) throw createError('Không tìm thấy phiếu triage.', 404);
+  if (!['draft', 'in_progress'].includes(triage.status)) throw createError('Phiếu triage không thể bắt đầu.', 409);
+  triage.status = 'in_progress';
+  triage.started_at = triage.started_at || new Date();
+  triage.triage_by = actorUserId(actor);
+  triage.nurse_id = actorUserId(actor);
+  triage.updated_by = actorUserId(actor);
+  await triage.save();
+  if (triage.queue_ticket_id) {
+    await markQueueStage(triage.queue_ticket_id, NURSING_WORKFLOW_STATUS.TRIAGE_IN_PROGRESS, actor, requestMeta);
+  }
+  await recordAuditLog({
+    actor,
+    action: 'nursing.triage.start',
+    targetType: 'triage_assessment',
+    targetId: triage._id,
+    status: 'success',
+    message: 'Bắt đầu phiếu triage điều dưỡng.',
+    requestMeta,
+  });
+  return triage;
+}
+
+async function cancelTriageAssessment(triageId, payload = {}, actor = {}, requestMeta = {}) {
+  const triage = await TriageAssessment.findById(triageId);
+  if (!triage) throw createError('Không tìm thấy phiếu triage.', 404);
+  if (triage.status === 'completed') throw createError('Phiếu triage đã hoàn tất, không thể hủy.', 409);
+  triage.status = 'cancelled';
+  triage.cancelled_at = new Date();
+  triage.cancelled_by = actorUserId(actor);
+  triage.cancel_reason = payload.reason || payload.cancel_reason;
+  triage.updated_by = actorUserId(actor);
+  await triage.save();
+  await recordAuditLog({
+    actor,
+    action: 'nursing.triage.cancel',
+    targetType: 'triage_assessment',
+    targetId: triage._id,
+    status: 'success',
+    message: 'Hủy phiếu triage điều dưỡng.',
+    requestMeta,
+  });
+  return triage;
+}
+
+async function markTriageEnteredInError(triageId, payload = {}, actor = {}, requestMeta = {}) {
+  const triage = await TriageAssessment.findById(triageId);
+  if (!triage) throw createError('Không tìm thấy phiếu triage.', 404);
+  triage.status = 'entered_in_error';
+  triage.entered_in_error_by = actorUserId(actor);
+  triage.entered_in_error_at = new Date();
+  triage.entered_in_error_reason = payload.reason || payload.entered_in_error_reason;
+  triage.updated_by = actorUserId(actor);
+  await triage.save();
+  await recordAuditLog({
+    actor,
+    action: 'nursing.triage.entered_in_error',
+    targetType: 'triage_assessment',
+    targetId: triage._id,
+    status: 'success',
+    message: 'Đánh dấu phiếu triage nhập sai.',
+    requestMeta,
+  });
+  return triage;
+}
+
+async function getReadyForDoctor(query = {}, actor = {}) {
+  const dashboard = await getIntakeDashboard({ ...query, queue_limit: query.queue_limit || 300 }, actor);
+  const items = (dashboard.intake.ready_items || []).filter((item) => !query.doctor_id || sameId(item.doctor_id, query.doctor_id));
+  return {
+    meta: dashboard.meta,
+    summary: {
+      total: items.length,
+      priority: items.filter((item) => ['priority', 'vip'].includes(item.queue_type)).length,
+      called: items.filter((item) => [QUEUE_STATUS.CALLED, QUEUE_STATUS.RECALLED].includes(item.status)).length,
+      in_service: items.filter((item) => item.status === QUEUE_STATUS.IN_SERVICE).length,
+      waiting_after_ready: items.filter((item) => item.ready_for_doctor_at && minutesSince(item.ready_for_doctor_at, new Date()) >= 15).length,
+    },
+    items,
+  };
+}
+
+async function unmarkReadyForDoctor(ticketId, actor = {}, requestMeta = {}) {
+  const ticket = await getQueueTicketOrThrow(ticketId);
+  ticket.nursing_stage = NURSING_WORKFLOW_STATUS.TRIAGE_PENDING;
+  ticket.ready_for_doctor_at = undefined;
+  ticket.ready_for_doctor_by = undefined;
+  ticket.nursing_stage_updated_at = new Date();
+  ticket.nursing_stage_updated_by = actorUserId(actor);
+  ticket.updated_by = actorUserId(actor);
+  await ticket.save();
+  await recordAuditLog({
+    actor,
+    action: 'nursing.ready_for_doctor.revoke',
+    targetType: 'queue_ticket',
+    targetId: ticket._id,
+    status: 'success',
+    message: 'Thu hồi trạng thái sẵn sàng gặp bác sĩ.',
+    requestMeta,
+  });
+  return { queue_ticket_id: String(ticket._id), nursing_stage: ticket.nursing_stage };
+}
+
+async function notifyDoctorQueue(ticketId, payload = {}, actor = {}, requestMeta = {}) {
+  const ticket = await getQueueTicketOrThrow(ticketId);
+  const task = await NursingTask.findOneAndUpdate(
+    { source_type: 'queue_ticket', source_id: ticket._id, task_type: 'triage' },
+    {
+      $setOnInsert: {
+        patient_id: ticket.patient_id?._id || ticket.patient_id,
+        encounter_id: ticket.encounter_id,
+        queue_ticket_id: ticket._id,
+        department_id: ticket.department_id?._id || ticket.department_id,
+        title: 'Báo bác sĩ bệnh nhân đã sẵn sàng',
+        description: payload.message || 'Bệnh nhân đã hoàn tất tiếp nhận/triage và sẵn sàng vào phòng khám.',
+        task_type: 'triage',
+        priority: ticket.queue_type === 'normal' ? 'medium' : 'high',
+        status: 'todo',
+        source_type: 'queue_ticket',
+        source_id: ticket._id,
+        created_by: actorUserId(actor),
+      },
+      $set: {
+        assigned_to: ticket.doctor_id?._id || ticket.doctor_id,
+        updated_by: actorUserId(actor),
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  );
+  await recordAuditLog({
+    actor,
+    action: 'nursing.ready_for_doctor.notify_doctor',
+    targetType: 'queue_ticket',
+    targetId: ticket._id,
+    status: 'success',
+    message: 'Báo bác sĩ bệnh nhân đã sẵn sàng.',
+    requestMeta,
+  });
+  return taskDto(task, 'nursing_task', new Date());
+}
+
+async function getPendingPreparations(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  return {
+    items: dashboard.service_preparation.items,
+    summary: {
+      pending: dashboard.service_preparation.pending,
+      lab: dashboard.service_preparation.lab,
+      imaging: dashboard.service_preparation.imaging,
+      procedure: dashboard.service_preparation.procedure,
+      checklist_pending: dashboard.service_preparation.checklist_pending,
+    },
+  };
+}
+
+async function createPreparationFromOrder(orderId, payload = {}, actor = {}, requestMeta = {}) {
+  const order = await Order.findById(orderId).lean();
+  if (!order) throw createError('Không tìm thấy order.', 404);
+  if (!CHECKLIST_ORDER_TYPES.includes(order.order_type)) throw createError('Order này không cần checklist chuẩn bị.', 409);
+
+  const checklist = await ServicePreparationChecklist.findOneAndUpdate(
+    { order_id: order._id },
+    {
+      $setOnInsert: {
+        patient_id: order.patient_id,
+        encounter_id: order.encounter_id,
+        order_id: order._id,
+        order_type: order.order_type,
+        department_id: order.department_id || payload.department_id || actorDepartmentId(actor),
+        status: 'pending',
+        assigned_to: payload.assigned_to ? toObjectId(payload.assigned_to, 'assigned_to') : undefined,
+        checklist_items: payload.checklist_items || defaultChecklistItems(order.order_type),
+        created_by: actorUserId(actor),
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  );
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.preparation.create_from_order',
+    targetType: 'service_preparation_checklist',
+    targetId: checklist._id,
+    status: 'success',
+    message: 'Tạo checklist chuẩn bị dịch vụ từ order.',
+    requestMeta,
+  });
+
+  return checklist;
+}
+
+async function updatePreparationItem(checklistId, itemKey, payload = {}, actor = {}, requestMeta = {}) {
+  const checklist = await ServicePreparationChecklist.findById(checklistId);
+  if (!checklist) throw createError('Không tìm thấy checklist chuẩn bị.', 404);
+  const item = checklist.checklist_items.find((entry) => entry.key === itemKey);
+  if (!item) throw createError('Không tìm thấy mục checklist.', 404);
+
+  item.checked = Boolean(payload.checked);
+  item.checked_by = actorUserId(actor);
+  item.checked_at = item.checked ? new Date() : undefined;
+  item.note = payload.note ?? item.note;
+  checklist.status = checklist.checklist_items.some((entry) => entry.checked) ? 'in_progress' : 'pending';
+  checklist.updated_by = actorUserId(actor);
+  await checklist.save();
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.preparation.item_update',
+    targetType: 'service_preparation_checklist',
+    targetId: checklist._id,
+    status: 'success',
+    message: 'Cập nhật mục checklist chuẩn bị dịch vụ.',
+    requestMeta,
+    metadata: { item_key: itemKey, checked: item.checked },
+  });
+
+  return checklist;
+}
+
+async function completePreparation(checklistId, actor = {}, requestMeta = {}) {
+  const checklist = await ServicePreparationChecklist.findById(checklistId);
+  if (!checklist) throw createError('Không tìm thấy checklist chuẩn bị.', 404);
+
+  const missingRequired = checklist.checklist_items.filter((item) => item.required && !item.checked);
+  if (missingRequired.length) throw createError('Checklist còn mục bắt buộc chưa hoàn tất.', 409);
+
+  checklist.status = 'completed';
+  checklist.completed_by = actorUserId(actor);
+  checklist.completed_at = new Date();
+  checklist.updated_by = actorUserId(actor);
+  await checklist.save();
+
+  await recordAuditLog({
+    actor,
+    action: 'nursing.preparation.complete',
+    targetType: 'service_preparation_checklist',
+    targetId: checklist._id,
+    status: 'success',
+    message: 'Hoàn tất checklist chuẩn bị dịch vụ.',
+    requestMeta,
+  });
+
+  return checklist;
+}
+
+module.exports = {
+  getOverview,
+  getKpis,
+  getWorklist,
+  getPriorityAlerts,
+  getPendingPatients,
+  getPendingPatientsSummary,
+  getPendingPatientsPriorityLane,
+  getIntakeDashboard,
+  getIntakeWorklist,
+  getQueueContext,
+  claimQueueIntake,
+  releaseQueueIntake,
+  startQueueIntake,
+  completeQueueIntake,
+  assignWorkItemToMe,
+  completeWorkItem,
+  getPendingVitals,
+  getAbnormalVitals,
+  getTasksBoard,
+  getTaskDetail,
+  assignTaskToMe,
+  reopenTask,
+  getPriorityAlertCenter,
+  getPriorityAlertSummary,
+  getPriorityAlertDetail,
+  updatePriorityAlertAction,
+  getNursingQueueBoard,
+  getNursingQueueMetrics,
+  getPendingTriage,
+  getTriageWorklist,
+  getLatestTriageByQueue,
+  createTriageAssessment,
+  updateTriageAssessment,
+  startTriageAssessment,
+  completeTriageAssessment,
+  cancelTriageAssessment,
+  markTriageEnteredInError,
+  getReadyForDoctor,
+  unmarkReadyForDoctor,
+  notifyDoctorQueue,
+  getPendingPreparations,
+  createPreparationFromOrder,
+  updatePreparationItem,
+  completePreparation,
+  markQueueStage,
+  markEncounterReadyForDoctor,
+  acknowledgeVitalAlert,
+  notifyDoctorOfVital,
+  listTasks,
+  createTask,
+  startTask: (taskId, actor, requestMeta) => updateTaskStatus(taskId, 'in_progress', {}, actor, requestMeta),
+  completeTask: (taskId, payload, actor, requestMeta) => updateTaskStatus(taskId, 'done', payload, actor, requestMeta),
+  cancelTask: (taskId, payload, actor, requestMeta) => updateTaskStatus(taskId, 'cancelled', payload, actor, requestMeta),
+  escalateTask,
+};

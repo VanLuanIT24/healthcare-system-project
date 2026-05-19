@@ -1,12 +1,88 @@
 import React from 'react';
+import {
+  Activity,
+  ArrowRight,
+  Brain,
+  CalendarCheck,
+  CheckCircle2,
+  ClipboardCheck,
+  FileText,
+  HeartPulse,
+  Hospital,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  Users,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { MarketingPageShell } from './MarketingPageShell';
 
 const proofItems = [
-  'Hội đồng chuyên môn đa khoa',
-  'Quy trình theo chuẩn quốc tế',
-  'Hệ thống đặt lịch và hồ sơ số',
-  'Tư vấn liên tục trước và sau khám',
+  {
+    icon: ShieldCheck,
+    title: 'Hội đồng chuyên môn đa khoa',
+    description: 'Mọi ca cần phối hợp đều có bác sĩ đầu mối và tiêu chí hội chẩn rõ ràng.',
+  },
+  {
+    icon: ClipboardCheck,
+    title: 'Quy trình theo chuẩn quốc tế',
+    description: 'Tiếp nhận, khám, xét nghiệm và tái khám được chuẩn hóa thành một luồng.',
+  },
+  {
+    icon: FileText,
+    title: 'Đặt lịch và hồ sơ số',
+    description: 'Lịch hẹn, kết quả và chỉ định được lưu lại để người bệnh theo dõi liên tục.',
+  },
+  {
+    icon: HeartPulse,
+    title: 'Tư vấn trước và sau khám',
+    description: 'Đội ngũ điều phối luôn nhắc lịch, giải thích bước tiếp theo và hỗ trợ 24/7.',
+  },
+];
+
+const heroMetrics = [
+  { value: '12+', label: 'Năm vận hành', note: 'Mô hình chăm sóc gia đình hiện đại' },
+  { value: '50k+', label: 'Hồ sơ chăm sóc', note: 'Theo dõi xuyên suốt nhiều lần khám' },
+  { value: '98%', label: 'Hài lòng dịch vụ', note: 'Khảo sát sau khám và tái khám' },
+  { value: '24/7', label: 'Điều phối hỗ trợ', note: 'Hotline, cổng bệnh nhân, nhắc lịch' },
+];
+
+const insightCards = [
+  {
+    icon: Sparkles,
+    tone: 'is-blue',
+    title: 'Tầm nhìn',
+    description:
+      'Trở thành điểm đến y tế đáng tin cậy cho gia đình đô thị, nơi người bệnh được chủ động theo dõi sức khỏe bằng dữ liệu rõ ràng và tư vấn dễ hiểu.',
+  },
+  {
+    icon: HeartPulse,
+    tone: 'is-teal',
+    title: 'Sứ mệnh',
+    description:
+      'Rút ngắn khoảng cách giữa chuyên môn y khoa và trải nghiệm dịch vụ bằng quy trình đặt lịch nhanh, khám đúng nhu cầu và chăm sóc liên tục sau điều trị.',
+  },
+];
+
+const careJourney = [
+  {
+    icon: CalendarCheck,
+    title: 'Tiếp nhận thông minh',
+    description:
+      'Điều phối viên ghi nhận triệu chứng, tiền sử, lịch rảnh và ưu tiên để đề xuất chuyên khoa phù hợp.',
+  },
+  {
+    icon: Stethoscope,
+    title: 'Khám đúng trọng tâm',
+    description:
+      'Bác sĩ có hồ sơ trước buổi khám, giảm hỏi lặp lại và tập trung vào quyết định chuyên môn.',
+  },
+  {
+    icon: Activity,
+    title: 'Theo dõi chủ động',
+    description:
+      'Sau khám, hệ thống nhắc thuốc, lịch tái khám, xét nghiệm bổ sung và kênh hỗ trợ gia đình.',
+  },
 ];
 
 const doctorProfiles = [
@@ -39,28 +115,28 @@ const doctorProfiles = [
 const coreValues = [
   {
     index: '01',
-    icon: '✦',
+    icon: HeartPulse,
     title: 'Tận tâm',
     description:
       'Mỗi tiếp xúc đều bắt đầu bằng lắng nghe, giải thích rõ ràng và theo sát người bệnh đến khi ổn định.',
   },
   {
     index: '02',
-    icon: '◎',
+    icon: Brain,
     title: 'Chính xác',
     description:
       'Dữ liệu khám, xét nghiệm và chẩn đoán được kết nối để bác sĩ có quyết định nhanh và đáng tin cậy.',
   },
   {
     index: '03',
-    icon: '◈',
+    icon: ShieldCheck,
     title: 'Minh bạch',
     description:
       'Phác đồ, chi phí và lịch tái khám được trình bày rõ, giúp gia đình chủ động trong mọi quyết định.',
   },
   {
     index: '04',
-    icon: '✚',
+    icon: Users,
     title: 'Liên tục',
     description:
       'Chăm sóc không dừng lại sau buổi khám; đội ngũ điều phối luôn nhắc lịch và hỗ trợ sau điều trị.',
@@ -69,21 +145,25 @@ const coreValues = [
 
 const careCapabilities = [
   {
+    icon: CalendarCheck,
     title: 'Điều phối một cửa',
     description:
       'Người bệnh được hướng dẫn từ chọn chuyên khoa, chuẩn bị hồ sơ, đặt lịch xét nghiệm đến nhận kết quả sau khám.',
   },
   {
+    icon: Users,
     title: 'Hội chẩn liên khoa',
     description:
       'Các ca phức tạp được kết nối giữa bác sĩ nội, tim mạch, nhi, sản, chẩn đoán hình ảnh và điều dưỡng điều phối.',
   },
   {
+    icon: HeartPulse,
     title: 'Theo dõi sau khám',
     description:
       'Đội ngũ chăm sóc nhắc lịch tái khám, hướng dẫn dùng thuốc và hỗ trợ giải thích kết quả khi người bệnh cần.',
   },
   {
+    icon: FileText,
     title: 'Hồ sơ sức khỏe số',
     description:
       'Thông tin khám, xét nghiệm, đơn thuốc và lịch hẹn được lưu trữ rõ ràng để theo dõi liên tục qua nhiều lần khám.',
@@ -91,10 +171,10 @@ const careCapabilities = [
 ];
 
 const facilityHighlights = [
-  'Khu tiếp đón riêng cho đặt lịch trước',
-  'Phòng khám chuyên khoa kết nối xét nghiệm và hình ảnh',
-  'Không gian chờ yên tĩnh, giảm cảm giác quá tải',
-  'Kênh tư vấn trực tuyến cho gia đình bận rộn',
+  { icon: CalendarCheck, title: 'Khu tiếp đón riêng cho đặt lịch trước' },
+  { icon: Hospital, title: 'Phòng khám chuyên khoa kết nối xét nghiệm và hình ảnh' },
+  { icon: Sparkles, title: 'Không gian chờ yên tĩnh, giảm cảm giác quá tải' },
+  { icon: HeartPulse, title: 'Kênh tư vấn trực tuyến cho gia đình bận rộn' },
 ];
 
 const milestones = [
@@ -142,11 +222,27 @@ export function AboutPage() {
             </p>
             <div className="about-hero__actions">
               <Link to="/contact" className="about-hero__cta">
-                Đặt lịch tư vấn
+                <CalendarCheck size={19} strokeWidth={2.5} aria-hidden="true" />
+                <span>Đặt lịch tư vấn</span>
               </Link>
               <Link to="/specialties" className="about-hero__ghost">
-                Xem chuyên khoa
+                <Stethoscope size={19} strokeWidth={2.5} aria-hidden="true" />
+                <span>Xem chuyên khoa</span>
               </Link>
+            </div>
+            <div className="about-hero__trust-line" aria-label="Các điểm nổi bật của Healthcare Plus+">
+              <span>
+                <ShieldCheck size={16} strokeWidth={2.4} aria-hidden="true" />
+                Kiểm soát chất lượng
+              </span>
+              <span>
+                <FileText size={16} strokeWidth={2.4} aria-hidden="true" />
+                Hồ sơ số liên tục
+              </span>
+              <span>
+                <HeartPulse size={16} strokeWidth={2.4} aria-hidden="true" />
+                Điều phối 24/7
+              </span>
             </div>
           </div>
           <div className="about-hero__visual about-hero__visual--complete" aria-label="Đội ngũ bác sĩ Healthcare Plus+">
@@ -156,58 +252,89 @@ export function AboutPage() {
                 alt="Đội ngũ bác sĩ chuyên nghiệp"
               />
             </div>
+            <div className="about-hero__metric-stack" aria-hidden="true">
+              <article>
+                <strong>15'</strong>
+                <span>Điều phối lịch hẹn trung bình</span>
+              </article>
+              <article>
+                <strong>4.9</strong>
+                <span>Đánh giá trải nghiệm sau khám</span>
+              </article>
+            </div>
+            <div className="about-hero__visual-ribbon" aria-hidden="true">
+              <span>Connected care</span>
+              <strong>Doctor · Lab · Follow-up</strong>
+            </div>
             <div className="about-hero__glass-note">
-              <strong>International care desk</strong>
-              <span>Điều phối lịch khám, kết quả và tái khám trong một quy trình.</span>
+              <span className="about-hero__glass-icon">
+                <HeartPulse size={22} strokeWidth={2.4} aria-hidden="true" />
+              </span>
+              <div>
+                <strong>International care desk</strong>
+                <span>Điều phối lịch khám, kết quả và tái khám trong một quy trình.</span>
+              </div>
             </div>
           </div>
         </section>
 
         <section className="home-section about-metric-row">
-          <article>
-            <strong>12+</strong>
-            <span>Năm vận hành</span>
-          </article>
-          <article>
-            <strong>50k+</strong>
-            <span>Hồ sơ chăm sóc</span>
-          </article>
-          <article>
-            <strong>200+</strong>
-            <span>Bác sĩ & điều dưỡng</span>
-          </article>
-          <article>
-            <strong>98%</strong>
-            <span>Hài lòng dịch vụ</span>
-          </article>
+          {heroMetrics.map((item) => (
+            <article key={item.label}>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </article>
+          ))}
         </section>
 
         <section className="home-section about-proof-strip">
           {proofItems.map((item) => (
-            <article key={item}>
-              <span>✓</span>
-              <strong>{item}</strong>
+            <article key={item.title}>
+              <span>
+                <item.icon size={18} strokeWidth={2.5} aria-hidden="true" />
+              </span>
+              <div>
+                <strong>{item.title}</strong>
+                <p>{item.description}</p>
+              </div>
             </article>
           ))}
         </section>
 
         <section className="home-section about-insights about-insights--premium">
-          <article className="about-insight-card">
-            <span className="about-insight-card__icon">◎</span>
-            <h2>Tầm nhìn</h2>
+          {insightCards.map((item) => (
+            <article key={item.title} className="about-insight-card">
+              <span className={`about-insight-card__icon ${item.tone}`}>
+                <item.icon size={25} strokeWidth={2.35} aria-hidden="true" />
+              </span>
+              <h2>{item.title}</h2>
+              <p>{item.description}</p>
+            </article>
+          ))}
+        </section>
+
+        <section className="home-section about-care-system">
+          <div className="about-care-system__heading">
+            <span>Hệ điều phối chăm sóc</span>
+            <h2>Mỗi lần khám là một hành trình có người phụ trách, dữ liệu và bước tiếp theo</h2>
             <p>
-              Trở thành điểm đến y tế đáng tin cậy cho gia đình đô thị, nơi người bệnh được chủ
-              động theo dõi sức khỏe bằng dữ liệu rõ ràng và tư vấn dễ hiểu.
+              Healthcare Plus+ tổ chức trải nghiệm theo ba lớp: hiểu đúng nhu cầu, khám đúng
+              trọng tâm và theo dõi sau khám bằng lịch hẹn rõ ràng.
             </p>
-          </article>
-          <article className="about-insight-card">
-            <span className="about-insight-card__icon is-teal">✦</span>
-            <h2>Sứ mệnh</h2>
-            <p>
-              Rút ngắn khoảng cách giữa chuyên môn y khoa và trải nghiệm dịch vụ bằng quy trình
-              đặt lịch nhanh, khám đúng nhu cầu và chăm sóc liên tục sau điều trị.
-            </p>
-          </article>
+          </div>
+          <div className="about-care-system__board">
+            {careJourney.map((step, index) => (
+              <article key={step.title}>
+                <div className="about-care-system__topline">
+                  <span>{`0${index + 1}`}</span>
+                  <step.icon size={25} strokeWidth={2.3} aria-hidden="true" />
+                </div>
+                <h3>{step.title}</h3>
+                <p>{step.description}</p>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section className="home-section about-story">
@@ -243,7 +370,12 @@ export function AboutPage() {
           <div className="about-capabilities__grid">
             {careCapabilities.map((item, index) => (
               <article key={item.title} className="about-capability-card">
-                <strong>{`0${index + 1}`}</strong>
+                <div className="about-capability-card__head">
+                  <strong>{`0${index + 1}`}</strong>
+                  <span>
+                    <item.icon size={22} strokeWidth={2.35} aria-hidden="true" />
+                  </span>
+                </div>
                 <h3>{item.title}</h3>
                 <p>{item.description}</p>
               </article>
@@ -262,9 +394,11 @@ export function AboutPage() {
             </p>
             <div className="about-facilities__list">
               {facilityHighlights.map((item) => (
-                <article key={item}>
-                  <span>✓</span>
-                  <strong>{item}</strong>
+                <article key={item.title}>
+                  <span>
+                    <item.icon size={17} strokeWidth={2.5} aria-hidden="true" />
+                  </span>
+                  <strong>{item.title}</strong>
                 </article>
               ))}
             </div>
@@ -281,7 +415,9 @@ export function AboutPage() {
             {coreValues.map((item) => (
               <article key={item.index} className="about-value-card">
                 <span className="about-value-card__index">{item.index}</span>
-                <span className="about-value-card__icon">{item.icon}</span>
+                <span className="about-value-card__icon">
+                  <item.icon size={22} strokeWidth={2.45} aria-hidden="true" />
+                </span>
                 <h3>{item.title}</h3>
                 <p>{item.description}</p>
               </article>
@@ -296,7 +432,10 @@ export function AboutPage() {
               <h2>Đội ngũ bác sĩ dẫn dắt chất lượng điều trị</h2>
               <p>Hồ sơ chuyên môn rõ ràng, lịch khám minh bạch và phối hợp liên khoa khi cần.</p>
             </div>
-            <Link to="/doctors">Tất cả bác sĩ</Link>
+            <Link to="/doctors">
+              <span>Tất cả bác sĩ</span>
+              <ArrowRight size={18} strokeWidth={2.5} aria-hidden="true" />
+            </Link>
           </div>
           <div className="about-team__grid">
             {doctorProfiles.map((doctor) => (
@@ -313,8 +452,11 @@ export function AboutPage() {
                   <h3>{doctor.name}</h3>
                   <p>{doctor.focus}</p>
                   <div className="about-doctor-card__meta">
-                    <strong>4.9 ★</strong>
-                    <small>Có lịch trong tuần</small>
+                    <strong>4.9 / 5</strong>
+                    <small>
+                      <CheckCircle2 size={14} strokeWidth={2.6} aria-hidden="true" />
+                      Có lịch trong tuần
+                    </small>
                   </div>
                 </div>
               </article>
@@ -375,8 +517,14 @@ export function AboutPage() {
               với tình trạng sức khỏe hiện tại.
             </p>
             <div className="about-cta__actions">
-              <Link to="/contact">Đặt lịch hẹn ngay</Link>
-              <a href="tel:+8419008888">Gọi tư vấn: 1900 8888</a>
+              <Link to="/contact">
+                <CalendarCheck size={19} strokeWidth={2.5} aria-hidden="true" />
+                <span>Đặt lịch hẹn ngay</span>
+              </Link>
+              <a href="tel:+8419008888">
+                <HeartPulse size={19} strokeWidth={2.5} aria-hidden="true" />
+                <span>Gọi tư vấn: 1900 8888</span>
+              </a>
             </div>
           </div>
         </section>

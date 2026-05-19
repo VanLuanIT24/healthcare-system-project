@@ -498,6 +498,22 @@ async function createQueueTicket(payload, actor, requestMeta = {}, options = {})
   });
 
   const createdTicket = await QueueTicket.findById(ticketId).lean();
+  if (!payload.skip_service_preparation) {
+    try {
+      const nursingPreparationService = require('./nursing-preparation.service');
+      await nursingPreparationService.ensurePreExamPreparationForQueue(ticketId, actor, requestMeta);
+    } catch (error) {
+      await recordAuditLog({
+        actor,
+        action: 'nursing.pre_exam_preparation.auto_create_failed',
+        targetType: 'queue_ticket',
+        targetId: ticketId,
+        status: 'failure',
+        message: error.message || 'Không thể tự tạo ca chuẩn bị trước khám.',
+        requestMeta,
+      });
+    }
+  }
   await publishQueueEvent(REALTIME_EVENT_TYPE.QUEUE_TICKET_CREATED, createdTicket, {
     notification: {
       title: 'Bạn đã được thêm vào hàng chờ',

@@ -1,4 +1,4 @@
-const { EmergencyCase } = require('../models');
+const { EmergencyCase, EmergencyCaseEvent } = require('../models');
 const { EMERGENCY_STATUS, REALTIME_EVENT_TYPE } = require('../constants/statuses');
 const { ROLE_CODE } = require('../constants/permissions');
 const eventBus = require('../events/event-bus.service');
@@ -16,18 +16,36 @@ async function escalateOpenEmergencyCases({ limit = 50 } = {}) {
     status: EMERGENCY_STATUS.CREATED,
     created_at: { $lte: cutoff },
     $or: [
+      { escalated_at: null },
+      { escalated_at: { $exists: false } },
       { 'metadata.escalated_at': null },
       { 'metadata.escalated_at': { $exists: false } },
     ],
   }).sort({ created_at: 1 }).limit(Number(limit) || 50);
 
   for (const emergencyCase of cases) {
+    const escalatedAt = new Date();
+    emergencyCase.escalated_at = escalatedAt;
+    emergencyCase.escalation_level = Number(emergencyCase.escalation_level || 0) + 1;
+    emergencyCase.sla_status = 'escalated';
+    emergencyCase.sla_breached_at = emergencyCase.sla_breached_at || escalatedAt;
     emergencyCase.metadata = {
       ...(emergencyCase.metadata || {}),
-      escalated_at: new Date(),
+      escalated_at: escalatedAt,
       escalation_reason: `not_acknowledged_after_${ESCALATION_MINUTES}_minutes`,
     };
     await emergencyCase.save();
+    await EmergencyCaseEvent.create({
+      case_id: emergencyCase._id,
+      event_type: 'escalated',
+      from_status: emergencyCase.status,
+      to_status: emergencyCase.status,
+      note: `not_acknowledged_after_${ESCALATION_MINUTES}_minutes`,
+      payload: {
+        level: emergencyCase.escalation_level,
+        reason: `not_acknowledged_after_${ESCALATION_MINUTES}_minutes`,
+      },
+    });
     await eventBus.publishDomainEvent({
       eventType: REALTIME_EVENT_TYPE.EMERGENCY_ESCALATED,
       aggregateType: 'emergency_case',

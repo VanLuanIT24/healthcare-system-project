@@ -22,6 +22,8 @@
     "check:routes": "node src/scripts/check-route-guards.js",
     "check:data": "node src/scripts/check-data-consistency.js",
     "fix:data": "node src/scripts/fix-data-consistency.js",
+    "seed:vn": "node src/scripts/seed-vietnamese-demo-data.js",
+    "seed:vn:dry": "node src/scripts/seed-vietnamese-demo-data.js --dry-run",
     "audit:backend": "node src/scripts/audit-backend.js",
     "audit:backend:markdown": "node src/scripts/audit-backend.js --markdown",
     "check:guards": "node src/scripts/check-route-guards.js",

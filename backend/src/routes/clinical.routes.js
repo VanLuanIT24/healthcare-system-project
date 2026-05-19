@@ -52,6 +52,7 @@ router.post('/diagnoses/:diagnosisId/set-primary', authorize({ permissions: [PER
 router.post('/diagnoses/:diagnosisId/entered-in-error', authorize({ anyPermissions: [PERMISSION.DIAGNOSES.ENTERED_IN_ERROR, PERMISSION.DIAGNOSES.MANAGE] }), clinicalController.removeDiagnosis);
 router.post('/diagnoses/:diagnosisId/remove', authorize({ anyPermissions: [PERMISSION.DIAGNOSES.ENTERED_IN_ERROR, PERMISSION.DIAGNOSES.MANAGE] }), clinicalController.removeDiagnosis);
 
+router.post('/vital-signs/preview', authorize({ permissions: [PERMISSION.VITAL_SIGNS.CREATE] }), clinicalController.previewVitalSigns);
 router.post('/vital-signs', authorize({ permissions: [PERMISSION.VITAL_SIGNS.CREATE] }), clinicalController.recordVitalSigns);
 router.post('/encounters/:encounterId/vital-signs', authorize({ permissions: [PERMISSION.VITAL_SIGNS.CREATE] }), (req, res, next) => {
   req.body.encounter_id = req.params.encounterId;
@@ -59,8 +60,13 @@ router.post('/encounters/:encounterId/vital-signs', authorize({ permissions: [PE
 });
 router.get('/encounters/:encounterId/vital-signs', authorize({ anyPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.ENCOUNTERS.READ_OWN] }), clinicalController.listVitalSigns);
 router.get('/encounters/:encounterId/vital-signs/latest', authorize({ anyPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.ENCOUNTERS.READ_OWN] }), clinicalController.getLatestVitalSigns);
+router.get('/encounters/:encounterId/vital-signs/trends', authorize({ anyPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.ENCOUNTERS.READ_OWN] }), clinicalController.getEncounterVitalTrends);
+router.get('/patients/:patientId/vital-signs', authorize({ anyPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.PATIENTS.READ, PERMISSION.ENCOUNTERS.READ] }), clinicalController.listPatientVitalSigns);
+router.get('/patients/:patientId/vital-signs/trends', authorize({ anyPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.PATIENTS.READ, PERMISSION.ENCOUNTERS.READ] }), clinicalController.getPatientVitalTrends);
 router.get('/vital-signs/:vitalSignId', authorize({ anyPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.ENCOUNTERS.READ_OWN] }), clinicalController.getVitalSignDetail);
 router.patch('/vital-signs/:vitalSignId', authorize({ permissions: [PERMISSION.VITAL_SIGNS.UPDATE_OWN] }), clinicalController.updateVitalSigns);
+router.post('/vital-signs/:vitalSignId/correction-request', authorize({ anyPermissions: [PERMISSION.VITAL_SIGNS.UPDATE_OWN, PERMISSION.VITAL_SIGNS.ENTERED_IN_ERROR, PERMISSION.ENCOUNTERS.UPDATE_NURSING_STATUS] }), clinicalController.requestVitalSignCorrection);
+router.get('/vital-signs/:vitalSignId/change-history', authorize({ anyPermissions: [PERMISSION.VITAL_SIGNS.READ, PERMISSION.ENCOUNTERS.READ, PERMISSION.ENCOUNTERS.READ_OWN] }), clinicalController.getVitalSignChangeHistory);
 router.post('/vital-signs/:vitalSignId/entered-in-error', authorize({ permissions: [PERMISSION.VITAL_SIGNS.ENTERED_IN_ERROR] }), clinicalController.deleteVitalSignsRecord);
 router.post('/vital-signs/:vitalSignId/remove', authorize({ permissions: [PERMISSION.VITAL_SIGNS.ENTERED_IN_ERROR] }), clinicalController.deleteVitalSignsRecord);
 

@@ -1108,6 +1108,33 @@ async function createOrder(encounterId, payload, actor, requestMeta = {}) {
     },
   });
 
+  if (
+    createdOrderId
+    && [
+      ORDER_TYPE.LAB,
+      ORDER_TYPE.IMAGING,
+      ORDER_TYPE.PROCEDURE,
+      ORDER_TYPE.SERVICE,
+      ORDER_TYPE.NURSING,
+    ].includes(payload.order_type)
+    && !payload.skip_service_preparation
+  ) {
+    try {
+      const nursingPreparationService = require('./nursing-preparation.service');
+      await nursingPreparationService.ensurePreparationForOrder(createdOrderId, actor, requestMeta);
+    } catch (error) {
+      await recordAuditLog({
+        actor,
+        action: 'nursing.service_preparation.auto_create_failed',
+        targetType: 'order',
+        targetId: createdOrderId,
+        status: 'failure',
+        message: error.message || 'Không thể tự tạo ca chuẩn bị dịch vụ.',
+        requestMeta,
+      });
+    }
+  }
+
   return getOrderDetail(createdOrderId, actor);
 }
 

@@ -18,6 +18,22 @@ const ENCOUNTER_TYPE = {
 
 const ENCOUNTER_TYPES = Object.values(ENCOUNTER_TYPE);
 
+const NURSING_WORKFLOW_STATUS = {
+  NOT_STARTED: 'not_started',
+  WAITING_NURSE: 'waiting_nurse',
+  NURSE_IN_PROGRESS: 'nurse_in_progress',
+  TRIAGE_PENDING: 'triage_pending',
+  TRIAGE_IN_PROGRESS: 'triage_in_progress',
+  TRIAGE_DONE: 'triage_done',
+  VITAL_PENDING: 'vital_pending',
+  VITAL_DONE: 'vital_done',
+  PREPARATION_PENDING: 'preparation_pending',
+  READY_FOR_DOCTOR: 'ready_for_doctor',
+  COMPLETED: 'completed',
+};
+
+const NURSING_WORKFLOW_STATUSES = Object.values(NURSING_WORKFLOW_STATUS);
+
 const CONSULTATION_STATUS = {
   DRAFT: 'draft',
   IN_PROGRESS: 'in_progress',
@@ -127,6 +143,8 @@ module.exports = {
   ENCOUNTER_STATUSES,
   ENCOUNTER_TYPE,
   ENCOUNTER_TYPES,
+  NURSING_WORKFLOW_STATUS,
+  NURSING_WORKFLOW_STATUSES,
   CONSULTATION_STATUS,
   CONSULTATION_STATUSES,
   DIAGNOSIS_STATUS,
