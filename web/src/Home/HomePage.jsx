@@ -22,6 +22,20 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { MarketingFooter, MarketingHeader, useSiteLanguage } from './marketingChrome';
+
+const TUDONG_CHATBOX_SCRIPT_ID = 'tudong-chatbox-sdk';
+const TUDONG_CHATBOX_TOKEN = 'mr4BT-vGdxOdZa4D7Q2dQ';
+
+function initializeTuDongChatbox() {
+  if (typeof window === 'undefined') return;
+  if (window.__healthcareTuDongChatbox) return;
+  if (typeof window.TuDongChat !== 'function') return;
+
+  const chatbox = new window.TuDongChat(TUDONG_CHATBOX_TOKEN);
+  chatbox.initial();
+  window.__healthcareTuDongChatbox = chatbox;
+}
+
 export function HomePage() {
   const navigate = useNavigate();
   const storedAuth = readStoredAuth();
@@ -42,6 +56,29 @@ export function HomePage() {
     care: 0,
   });
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    if (window.__healthcareTuDongChatbox) return undefined;
+
+    let script = document.getElementById(TUDONG_CHATBOX_SCRIPT_ID);
+    const handleLoad = () => initializeTuDongChatbox();
+
+    if (!script) {
+      script = document.createElement('script');
+      script.id = TUDONG_CHATBOX_SCRIPT_ID;
+      script.src = 'https://app.tudongchat.com/js/chatbox.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+
+    script.addEventListener('load', handleLoad);
+    initializeTuDongChatbox();
+
+    return () => {
+      script.removeEventListener('load', handleLoad);
+    };
+  }, []);
 
   const copy = {
     en: {

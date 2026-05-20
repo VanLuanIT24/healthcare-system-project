@@ -34,6 +34,7 @@ module.exports = {
   softDeleteAttachment: wrap((req) => recordsService.softDeleteAttachment(req.params.attachmentId, req.body, req.auth, requestMeta(req)), 'Soft delete attachment thành công.'),
   restoreAttachment: wrap((req) => recordsService.restoreAttachment(req.params.attachmentId, req.auth, requestMeta(req)), 'Restore attachment thành công.'),
   releaseAttachmentToPatient: wrap((req) => recordsService.releaseAttachmentToPatient(req.params.attachmentId, req.auth, requestMeta(req)), 'Release attachment to patient thành công.'),
+  revokeAttachmentRelease: wrap((req) => recordsService.revokeAttachmentRelease(req.params.attachmentId, req.body, req.auth, requestMeta(req)), 'Thu hồi release attachment thành công.'),
   getMyAttachments: wrap((req) => recordsService.listPatientAttachments(req.auth.patientId || req.auth.patient_id, req.query, req.auth), 'Lấy attachments của tôi thành công.'),
 
   getPatientDocumentTimeline: wrap((req) => recordsService.getPatientDocumentTimeline(req.params.patientId, req.query, req.auth), 'Lấy document timeline thành công.'),

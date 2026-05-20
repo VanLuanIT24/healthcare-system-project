@@ -1,0 +1,986 @@
+.patient-lookup-page {
+  --lookup-bg: #f5f7fb;
+  --lookup-surface: #ffffff;
+  --lookup-soft: #f8fafc;
+  --lookup-border: #dce4ee;
+  --lookup-border-strong: #b9c6d6;
+  --lookup-text: #162033;
+  --lookup-muted: #657489;
+  --lookup-teal: #0f766e;
+  --lookup-blue: #2563eb;
+  --lookup-red: #dc2626;
+  --lookup-amber: #d97706;
+  --lookup-green: #16a34a;
+  --lookup-violet: #6d5bd0;
+  min-height: calc(100vh - 32px);
+  padding: 1rem;
+  background: var(--lookup-bg);
+  color: var(--lookup-text);
+}
+
+.patient-lookup-page,
+.patient-lookup-page * {
+  box-sizing: border-box;
+}
+
+.patient-lookup-page button,
+.patient-lookup-page input,
+.patient-lookup-page select {
+  font: inherit;
+}
+
+.patient-lookup-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--lookup-border);
+  border-left: 5px solid var(--lookup-teal);
+  border-radius: 8px;
+  background: var(--lookup-surface);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.patient-lookup-page-header.is-lab {
+  border-left-color: var(--lookup-teal);
+}
+
+.patient-lookup-page-header.is-imaging {
+  border-left-color: var(--lookup-blue);
+}
+
+.patient-lookup-page-header.is-procedure {
+  border-left-color: var(--lookup-amber);
+}
+
+.patient-lookup-page-header.is-summary {
+  border-left-color: var(--lookup-violet);
+}
+
+.patient-lookup-page-header > div:first-child > span,
+.patient-lookup-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--lookup-teal);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.patient-lookup-page-header h1 {
+  margin: 0.28rem 0 0;
+  font-size: clamp(1.42rem, 2vw, 2rem);
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.patient-lookup-page-header p {
+  max-width: 820px;
+  margin: 0.45rem 0 0;
+  color: var(--lookup-muted);
+  line-height: 1.5;
+}
+
+.patient-lookup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.patient-lookup-header-actions button,
+.patient-lookup-rail header button,
+.patient-lookup-row-actions button,
+.patient-lookup-pane-header button,
+.patient-lookup-toast button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--lookup-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--lookup-text);
+  cursor: pointer;
+  font-weight: 800;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.patient-lookup-header-actions button.primary {
+  border-color: var(--lookup-teal);
+  background: var(--lookup-teal);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(15, 118, 110, 0.2);
+}
+
+.patient-lookup-header-actions button:hover,
+.patient-lookup-rail header button:hover,
+.patient-lookup-row-actions button:hover,
+.patient-lookup-pane-header button:hover {
+  border-color: var(--lookup-border-strong);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.patient-lookup-shell {
+  display: grid;
+  grid-template-columns: 292px minmax(0, 1fr);
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+  align-items: start;
+}
+
+.patient-lookup-rail,
+.patient-lookup-identity,
+.patient-lookup-kpi,
+.patient-lookup-filters,
+.patient-lookup-encounters,
+.patient-lookup-matrix-pane,
+.patient-lookup-detail,
+.patient-lookup-side-panel {
+  border: 1px solid var(--lookup-border);
+  border-radius: 8px;
+  background: var(--lookup-surface);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.patient-lookup-rail {
+  position: sticky;
+  top: 1rem;
+  overflow: hidden;
+}
+
+.patient-lookup-rail header,
+.patient-lookup-encounters header,
+.patient-lookup-pane-header,
+.patient-lookup-side-panel header {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid var(--lookup-border);
+}
+
+.patient-lookup-rail header span,
+.patient-lookup-encounters header span,
+.patient-lookup-pane-header span,
+.patient-lookup-side-panel header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--lookup-muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.patient-lookup-rail header button,
+.patient-lookup-toast button {
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+}
+
+.patient-lookup-search {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.75rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--lookup-border);
+  border-radius: 8px;
+  background: var(--lookup-soft);
+  color: var(--lookup-muted);
+}
+
+.patient-lookup-search input,
+.patient-lookup-filters input,
+.patient-lookup-filters select {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--lookup-text);
+}
+
+.patient-lookup-search-results {
+  display: grid;
+  gap: 0.4rem;
+  max-height: calc(100vh - 250px);
+  overflow: auto;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.patient-lookup-search-results button {
+  width: 100%;
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 16px;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.patient-lookup-search-results button:hover,
+.patient-lookup-search-results button.is-active {
+  border-color: #b7e3dd;
+  background: #effbf8;
+}
+
+.patient-lookup-avatar,
+.patient-lookup-identity__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #ffffff;
+  background: var(--lookup-teal);
+}
+
+.patient-lookup-avatar {
+  width: 38px;
+  height: 38px;
+}
+
+.patient-lookup-search-results strong,
+.patient-lookup-search-results em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-lookup-search-results strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.patient-lookup-search-results em {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--lookup-muted);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.patient-lookup-rail-empty,
+.patient-lookup-muted {
+  color: var(--lookup-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.patient-lookup-rail-empty {
+  padding: 1rem;
+  text-align: center;
+}
+
+.patient-lookup-main {
+  min-width: 0;
+}
+
+.patient-lookup-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.patient-lookup-identity__main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.patient-lookup-identity__avatar {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+}
+
+.patient-lookup-identity h2 {
+  margin: 0.16rem 0 0;
+  font-size: 1.35rem;
+}
+
+.patient-lookup-identity p {
+  margin: 0.28rem 0 0;
+  color: var(--lookup-muted);
+}
+
+.patient-lookup-risk-badges,
+.patient-lookup-risk-stack,
+.patient-lookup-status-stack,
+.patient-lookup-action-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.patient-lookup-risk-badges span,
+.patient-lookup-risk-stack span,
+.patient-lookup-action-chips span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  border: 1px solid var(--lookup-border);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: var(--lookup-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.patient-lookup-risk-badges .is-critical,
+.patient-lookup-risk-stack .is-critical {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.patient-lookup-risk-badges .is-warning,
+.patient-lookup-risk-stack .is-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.patient-lookup-risk-badges .is-info {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.patient-lookup-risk-stack .is-danger {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.patient-lookup-risk-stack .is-success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.patient-lookup-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(132px, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.patient-lookup-kpi {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem;
+}
+
+.patient-lookup-kpi > span {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--lookup-teal);
+  background: #e8f6f4;
+}
+
+.patient-lookup-kpi.is-critical > span,
+.patient-lookup-kpi.is-danger > span {
+  color: var(--lookup-red);
+  background: #fee2e2;
+}
+
+.patient-lookup-kpi.is-warning > span,
+.patient-lookup-kpi.is-procedure > span {
+  color: var(--lookup-amber);
+  background: #fef3c7;
+}
+
+.patient-lookup-kpi.is-success > span {
+  color: var(--lookup-green);
+  background: #dcfce7;
+}
+
+.patient-lookup-kpi.is-review > span {
+  color: var(--lookup-violet);
+  background: #ede9fe;
+}
+
+.patient-lookup-kpi small {
+  display: block;
+  color: var(--lookup-muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.patient-lookup-kpi strong {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 1.35rem;
+}
+
+.patient-lookup-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(145px, 1fr)) minmax(220px, 1.5fr);
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+  padding: 0.75rem;
+}
+
+.patient-lookup-filters label {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--lookup-border);
+  border-radius: 8px;
+  background: var(--lookup-soft);
+  color: var(--lookup-muted);
+}
+
+.patient-lookup-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #be123c;
+  font-weight: 800;
+}
+
+.patient-lookup-encounters {
+  margin-top: 0.85rem;
+  overflow: hidden;
+}
+
+.patient-lookup-encounters > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 0.55rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+
+.patient-lookup-encounters button {
+  min-height: 82px;
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.7rem;
+  border: 1px solid var(--lookup-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.patient-lookup-encounters button.is-active,
+.patient-lookup-encounters button:hover {
+  border-color: #9bd7cf;
+  background: #effbf8;
+}
+
+.patient-lookup-encounters button span,
+.patient-lookup-encounters button em {
+  color: var(--lookup-muted);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.patient-lookup-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+  align-items: start;
+}
+
+.patient-lookup-matrix-pane {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.patient-lookup-pane-header > div:last-child {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.patient-lookup-table-shell {
+  max-height: calc(100vh - 530px);
+  overflow: auto;
+}
+
+.patient-lookup-table {
+  min-width: 1080px;
+}
+
+.patient-lookup-table__head,
+.patient-lookup-row {
+  display: grid;
+  grid-template-columns: 115px minmax(210px, 1.1fr) minmax(180px, 0.9fr) 118px 158px minmax(210px, 1fr) 230px;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.patient-lookup-table__head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 0.72rem 0.9rem;
+  border-bottom: 1px solid var(--lookup-border);
+  background: #f8fafc;
+  color: var(--lookup-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.patient-lookup-row {
+  width: 100%;
+  min-height: 94px;
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  border-bottom: 1px solid var(--lookup-border);
+  border-left: 4px solid transparent;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.patient-lookup-row:hover {
+  background: #f8fbfd;
+}
+
+.patient-lookup-row.is-selected {
+  border-left-color: var(--lookup-teal);
+  background: #effbf8;
+}
+
+.patient-lookup-module,
+.patient-lookup-status,
+.patient-lookup-sla {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.52rem;
+  border: 1px solid var(--lookup-border);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: var(--lookup-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.patient-lookup-module.is-lab {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.patient-lookup-module.is-imaging {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.patient-lookup-module.is-procedure {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.patient-lookup-sla.is-breached {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.patient-lookup-sla.is-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.patient-lookup-sla.is-normal {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.patient-lookup-status.is-completed,
+.patient-lookup-status.is-final,
+.patient-lookup-status.is-finalized,
+.patient-lookup-status.is-signed,
+.patient-lookup-status.is-amended {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.patient-lookup-status.is-cancelled,
+.patient-lookup-status.is-no-show {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.patient-lookup-status.is-in-progress,
+.patient-lookup-status.is-pending,
+.patient-lookup-status.is-draft {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.patient-lookup-service-cell {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.patient-lookup-service-cell strong,
+.patient-lookup-service-cell em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-lookup-service-cell em {
+  color: var(--lookup-muted);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.patient-lookup-row-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.patient-lookup-row-actions button {
+  min-height: 31px;
+  padding: 0 0.5rem;
+  font-size: 0.72rem;
+}
+
+.patient-lookup-detail {
+  position: sticky;
+  top: 1rem;
+  overflow: hidden;
+}
+
+.patient-lookup-detail.is-empty,
+.patient-lookup-empty {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  color: var(--lookup-muted);
+  text-align: center;
+}
+
+.patient-lookup-detail.is-empty strong,
+.patient-lookup-empty strong {
+  color: var(--lookup-text);
+}
+
+.patient-lookup-detail header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--lookup-border);
+}
+
+.patient-lookup-detail h2 {
+  margin: 0.55rem 0 0;
+  font-size: 1.1rem;
+  line-height: 1.3;
+}
+
+.patient-lookup-detail p {
+  margin: 0.35rem 0 0;
+  color: var(--lookup-muted);
+  line-height: 1.45;
+}
+
+.patient-lookup-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  padding: 1rem;
+}
+
+.patient-lookup-detail-grid > div,
+.patient-lookup-detail-section {
+  padding: 0.75rem;
+  border: 1px solid var(--lookup-border);
+  border-radius: 8px;
+  background: var(--lookup-soft);
+}
+
+.patient-lookup-detail-grid span {
+  display: block;
+  color: var(--lookup-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.patient-lookup-detail-grid strong {
+  display: block;
+  margin-top: 0.28rem;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.patient-lookup-detail-section {
+  margin: 0 1rem 1rem;
+}
+
+.patient-lookup-detail-section strong {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.patient-lookup-action-chips {
+  align-items: flex-start;
+}
+
+.patient-lookup-context-panels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.patient-lookup-side-panel {
+  overflow: hidden;
+}
+
+.patient-lookup-side-panel > div {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 300px;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.patient-lookup-alert-card,
+.patient-lookup-action-card,
+.patient-lookup-file-card,
+.patient-lookup-timeline-card {
+  position: relative;
+  min-height: 76px;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem;
+  border: 1px solid var(--lookup-border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.patient-lookup-alert-card {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.patient-lookup-action-card.is-critical {
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
+.patient-lookup-action-card.is-warning,
+.patient-lookup-action-card.is-high {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.patient-lookup-timeline-card {
+  padding-left: 1rem;
+}
+
+.patient-lookup-timeline-card i {
+  position: absolute;
+  left: 0.45rem;
+  top: 0.78rem;
+  width: 4px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--lookup-teal);
+}
+
+.patient-lookup-timeline-card i.is-imaging {
+  background: var(--lookup-blue);
+}
+
+.patient-lookup-timeline-card i.is-procedure {
+  background: var(--lookup-amber);
+}
+
+.patient-lookup-timeline-card i.is-records {
+  background: var(--lookup-violet);
+}
+
+.patient-lookup-side-panel article strong,
+.patient-lookup-side-panel article span,
+.patient-lookup-side-panel article em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-lookup-side-panel article span,
+.patient-lookup-side-panel article em {
+  color: var(--lookup-muted);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.patient-lookup-skeleton,
+.patient-lookup-skeleton.value {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eef2f7 0%, #f8fafc 50%, #eef2f7 100%);
+  background-size: 200% 100%;
+  animation: patient-lookup-shimmer 1.25s ease-in-out infinite;
+}
+
+.patient-lookup-skeleton.value {
+  width: 58px;
+  height: 24px;
+  margin-top: 0.25rem;
+}
+
+.patient-lookup-skeleton-stack {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.patient-lookup-skeleton-stack .patient-lookup-skeleton {
+  height: 70px;
+}
+
+.patient-lookup-toast {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 80;
+  max-width: min(420px, calc(100vw - 2rem));
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
+  font-weight: 850;
+}
+
+.patient-lookup-toast button {
+  border-color: #bbf7d0;
+}
+
+.is-spinning {
+  animation: patient-lookup-spin 850ms linear infinite;
+}
+
+@keyframes patient-lookup-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes patient-lookup-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 1500px) {
+  .patient-lookup-kpis {
+    grid-template-columns: repeat(4, minmax(132px, 1fr));
+  }
+
+  .patient-lookup-context-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .patient-lookup-shell,
+  .patient-lookup-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .patient-lookup-rail,
+  .patient-lookup-detail {
+    position: static;
+  }
+
+  .patient-lookup-search-results {
+    max-height: 280px;
+  }
+}
+
+@media (max-width: 860px) {
+  .patient-lookup-page {
+    padding: 0.75rem;
+  }
+
+  .patient-lookup-page-header,
+  .patient-lookup-identity {
+    display: grid;
+  }
+
+  .patient-lookup-kpis,
+  .patient-lookup-filters,
+  .patient-lookup-detail-grid,
+  .patient-lookup-context-panels,
+  .patient-lookup-encounters > div {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-lookup-header-actions button,
+  .patient-lookup-pane-header button {
+    flex: 1 1 160px;
+  }
+}

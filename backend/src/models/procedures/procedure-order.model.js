@@ -28,6 +28,12 @@ const procedureOrderSchema = new Schema(
     completed_by: { type: Schema.Types.ObjectId, ref: 'User' },
     completed_at: { type: Date },
     result_note: { type: String },
+    released_to_doctor: { type: Boolean, default: false },
+    released_to_doctor_at: { type: Date },
+    released_to_doctor_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    doctor_viewed_at: { type: Date },
+    doctor_acknowledged_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    doctor_acknowledged_at: { type: Date },
     cancelled_by: { type: Schema.Types.ObjectId, ref: 'User' },
     cancelled_at: { type: Date },
     cancel_reason: { type: String },
@@ -51,6 +57,9 @@ procedureOrderSchema.index({ status: 1 });
 procedureOrderSchema.index({ scheduled_start: 1 });
 procedureOrderSchema.index({ performed_start: 1 });
 procedureOrderSchema.index({ completed_at: 1 });
+procedureOrderSchema.index({ released_to_doctor: 1 });
+procedureOrderSchema.index({ released_to_doctor_at: 1 });
+procedureOrderSchema.index({ doctor_acknowledged_at: 1 });
 procedureOrderSchema.index({ cancelled_at: 1 });
 procedureOrderSchema.index({ no_show_at: 1 });
 procedureOrderSchema.index({ patient_id: 1, scheduled_start: 1 });

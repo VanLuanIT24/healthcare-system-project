@@ -1,5 +1,6 @@
 const appointmentJobs = require('./appointment.jobs');
 const documentJobs = require('./document.jobs');
+const diagnosticAlertSlaJob = require('./diagnostic-alert-sla.job');
 const emergencyJobs = require('./emergency.jobs');
 const insuranceJobs = require('./insurance.jobs');
 const inpatientJobs = require('./inpatient.jobs');
@@ -27,6 +28,7 @@ const JOB_NAMES = {
   CLEANUP_OLD_SESSIONS: 'cleanupOldSessions',
   ARCHIVE_OLD_NOTIFICATIONS: 'archiveOldNotifications',
   DETECT_OVERDUE_NURSING_TASKS: 'detectOverdueNursingTasks',
+  DIAGNOSTIC_ALERT_SLA_SWEEP: 'diagnosticAlertSlaSweep',
 };
 
 module.exports = {
@@ -39,6 +41,7 @@ module.exports = {
   dispatchNotificationDeliveries: notificationJobs.dispatchNotificationDeliveries,
   archiveOldNotifications: notificationJobs.archiveOldNotifications,
   detectOverdueNursingTasks: nursingTaskJobs.detectOverdueNursingTasks,
+  diagnosticAlertSlaSweep: diagnosticAlertSlaJob.runCriticalAckSlaJob,
   expirePaymentIntents: paymentJobs.expirePaymentIntents,
   expireQrTokens: async () => ({ status: 'not_required', message: 'QR verification checks expires_at directly; add cleanup if storage volume requires it.' }),
   sendAppointmentReminders: appointmentJobs.sendAppointmentReminders,

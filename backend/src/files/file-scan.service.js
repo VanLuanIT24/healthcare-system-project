@@ -14,6 +14,11 @@ function assertCleanForRelease(attachment = {}) {
     error.statusCode = 409;
     throw error;
   }
+  if (!['clean', 'skipped'].includes(attachment.scan_status)) {
+    const error = new Error('Attachment chưa scan sạch.');
+    error.statusCode = 409;
+    throw error;
+  }
   return true;
 }
 

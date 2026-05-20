@@ -50,6 +50,9 @@ const attachmentSchema = new Schema(
     released_to_patient: { type: Boolean, default: false },
     released_at: { type: Date },
     released_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    release_revoked_at: { type: Date },
+    release_revoked_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    release_revoke_reason: { type: String },
     signed_download_token_version: { type: Number, default: 1, min: 1 },
     signed_download_revoked_at: { type: Date },
     archived_by: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -84,6 +87,7 @@ attachmentSchema.index({ review_status: 1 });
 attachmentSchema.index({ visibility: 1 });
 attachmentSchema.index({ status: 1 });
 attachmentSchema.index({ released_to_patient: 1 });
+attachmentSchema.index({ release_revoked_at: 1 });
 attachmentSchema.index({ patient_id: 1, entity_type: 1, created_at: -1 });
 attachmentSchema.index({ patient_id: 1, created_at: -1 });
 attachmentSchema.index({ encounter_id: 1, created_at: -1 });

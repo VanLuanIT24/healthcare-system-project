@@ -35,6 +35,7 @@ const LAB_ORDER_STATUS = {
   COLLECTED: 'collected',
   RECEIVED: 'received',
   IN_PROGRESS: 'in_progress',
+  RECOLLECTION_REQUIRED: 'recollection_required',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
   REJECTED: 'rejected',
@@ -129,6 +130,16 @@ const PROCEDURE_STATUS = {
 
 const PROCEDURE_STATUSES = Object.values(PROCEDURE_STATUS);
 
+const PROCEDURE_RESULT_STATUS = {
+  DRAFT: 'draft',
+  PRELIMINARY: 'preliminary',
+  FINAL: 'final',
+  AMENDED: 'amended',
+  CANCELLED: 'cancelled',
+};
+
+const PROCEDURE_RESULT_STATUSES = Object.values(PROCEDURE_RESULT_STATUS);
+
 module.exports = {
   ORDER_TYPE,
   ORDER_TYPES,
@@ -154,4 +165,6 @@ module.exports = {
   IMAGING_REPORT_STATUSES,
   PROCEDURE_STATUS,
   PROCEDURE_STATUSES,
+  PROCEDURE_RESULT_STATUS,
+  PROCEDURE_RESULT_STATUSES,
 };

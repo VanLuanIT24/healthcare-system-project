@@ -1,6 +1,7 @@
 const {
   Admission,
   Attachment,
+  AttachmentAccessLog,
   Charge,
   Consultation,
   Diagnosis,
@@ -20,6 +21,7 @@ const {
   Payment,
   Prescription,
   ProcedureOrder,
+  Specimen,
   Department,
 } = require('../models');
 const { PERMISSION } = require('../constants/permissions');
@@ -40,6 +42,7 @@ const {
   PATIENT_STATUS,
   RECORD_TYPE,
   RELATIVE_STATUS,
+  DOCUMENT_REVIEW_STATUS,
 } = require('../constants/statuses');
 const path = require('path');
 const {
@@ -305,6 +308,31 @@ function sanitizeAttachment(attachment, { includeStorage = false } = {}) {
   const plain = typeof attachment.toObject === 'function' ? attachment.toObject() : { ...attachment };
   if (!includeStorage) delete plain.storage_path;
   return plain;
+}
+
+function attachmentActorIdentity(actor = {}) {
+  return {
+    actor_type: actorType(actor) || actor.actor_type || 'system',
+    actor_id: actor.userId || actor.user_id || actor.patientId || actor.patient_id || actor.relativeId || actor.relative_id || actor.actor_id,
+  };
+}
+
+async function recordAttachmentAccess({ attachment, actor = {}, action, result = 'success', requestMeta = {}, reason, metadata } = {}) {
+  if (!attachment?._id || !action) return null;
+  const identity = attachmentActorIdentity(actor);
+  return AttachmentAccessLog.create({
+    attachment_id: attachment._id,
+    patient_id: attachment.patient_id,
+    actor_type: identity.actor_type,
+    actor_id: identity.actor_id,
+    action,
+    result,
+    ip: requestMeta.ipAddress,
+    user_agent: requestMeta.userAgent,
+    reason,
+    metadata,
+    occurred_at: new Date(),
+  }).catch(() => null);
 }
 
 async function generateMedicalRecordNumber(options = {}) {
@@ -825,6 +853,19 @@ async function resolveEntityForAttachment(entityType, entityId, session = null) 
       if (!order) throw createError('Không tìm thấy order.', 404);
       return { ...base, patient_id: order.patient_id, encounter_id: order.encounter_id, order_id: order._id, admission_id: order.admission_id, department_id: order.department_id };
     }
+    case ATTACHMENT_ENTITY_TYPE.SPECIMEN: {
+      const specimen = await withSession(Specimen.findById(entityId).lean(), session);
+      if (!specimen) throw createError('Không tìm thấy specimen.', 404);
+      const labOrder = specimen.lab_order_id ? await withSession(LabOrder.findById(specimen.lab_order_id).lean(), session) : null;
+      const order = labOrder?.order_id ? await withSession(Order.findById(labOrder.order_id).lean(), session) : null;
+      return {
+        ...base,
+        patient_id: specimen.patient_id,
+        encounter_id: labOrder?.encounter_id,
+        order_id: labOrder?.order_id,
+        department_id: order?.department_id || undefined,
+      };
+    }
     case ATTACHMENT_ENTITY_TYPE.MEDICAL_RECORD: {
       const record = await withSession(MedicalRecord.findById(entityId).lean(), session);
       if (!record) throw createError('Không tìm thấy medical record.', 404);
@@ -901,7 +942,7 @@ async function resolveEntityForAttachment(entityType, entityId, session = null) 
 
 function uploadPermissionsForEntity(entityType) {
   const common = [PERMISSION.ATTACHMENTS.CREATE, PERMISSION.ATTACHMENTS.UPLOAD];
-  if ([ATTACHMENT_ENTITY_TYPE.LAB_RESULT].includes(entityType)) return [...common, PERMISSION.ATTACHMENTS.UPLOAD_LAB];
+  if ([ATTACHMENT_ENTITY_TYPE.LAB_RESULT, ATTACHMENT_ENTITY_TYPE.SPECIMEN].includes(entityType)) return [...common, PERMISSION.ATTACHMENTS.UPLOAD_LAB];
   if ([ATTACHMENT_ENTITY_TYPE.IMAGING_ORDER, ATTACHMENT_ENTITY_TYPE.IMAGING_REPORT].includes(entityType)) return [...common, PERMISSION.ATTACHMENTS.UPLOAD_IMAGING, PERMISSION.ATTACHMENTS.UPLOAD_IMAGING_REPORT];
   if (entityType === ATTACHMENT_ENTITY_TYPE.PROCEDURE_ORDER) return [...common, PERMISSION.ATTACHMENTS.UPLOAD_PROCEDURE];
   if ([ATTACHMENT_ENTITY_TYPE.INVOICE, ATTACHMENT_ENTITY_TYPE.PAYMENT, ATTACHMENT_ENTITY_TYPE.INSURANCE_CLAIM].includes(entityType)) return [...common, PERMISSION.ATTACHMENTS.UPLOAD_INSURANCE];
@@ -979,6 +1020,7 @@ async function assertAttachmentAccess(attachment, actor = {}, action = 'read') {
   if (action === 'release' && hasPermission(actor, PERMISSION.ATTACHMENTS.RELEASE_TO_PATIENT)) return true;
   if (hasAnyPermission(actor, [PERMISSION.ATTACHMENTS.READ, PERMISSION.ATTACHMENTS.READ_BY_ENTITY])) return true;
   const entityReadPermissions = {
+    [ATTACHMENT_ENTITY_TYPE.SPECIMEN]: [PERMISSION.ATTACHMENTS.READ_LAB],
     [ATTACHMENT_ENTITY_TYPE.LAB_RESULT]: [PERMISSION.ATTACHMENTS.READ_LAB],
     [ATTACHMENT_ENTITY_TYPE.IMAGING_ORDER]: [PERMISSION.ATTACHMENTS.READ_IMAGING],
     [ATTACHMENT_ENTITY_TYPE.IMAGING_REPORT]: [PERMISSION.ATTACHMENTS.READ_IMAGING],
@@ -1077,6 +1119,7 @@ async function downloadAttachment(attachmentId, actor = {}, requestMeta = {}) {
       $set: { last_downloaded_at: new Date() },
     },
   );
+  await recordAttachmentAccess({ attachment, actor, action: 'download', requestMeta });
   await recordAuditLog({ actor, action: 'attachments.download', targetType: 'attachment', targetId: attachment._id, status: 'success', message: 'Download attachment được ghi nhận.', requestMeta });
   return {
     attachment: sanitizeAttachment(attachment),
@@ -1153,6 +1196,7 @@ async function signedDownloadAttachment(attachmentId, token, requestMeta = {}) {
       $set: { last_downloaded_at: new Date() },
     },
   );
+  await recordAttachmentAccess({ attachment, actor: systemActor, action: 'signed_download', requestMeta });
   await recordAuditLog({
     actor: systemActor,
     action: 'attachments.signed_download',
@@ -1179,6 +1223,12 @@ async function getAttachmentsByEntity(entityType, entityId, query = {}, actor = 
   else assertStaffPermission(actor, [PERMISSION.ATTACHMENTS.READ, PERMISSION.ATTACHMENTS.READ_BY_ENTITY, PERMISSION.ATTACHMENTS.READ_CLINICAL, PERMISSION.ATTACHMENTS.READ_LAB, PERMISSION.ATTACHMENTS.READ_IMAGING, PERMISSION.ATTACHMENTS.READ_PROCEDURE, PERMISSION.ATTACHMENTS.READ_INSURANCE]);
   const filter = { entity_type: entityType, entity_id: entityId };
   filter.status = query.status || ATTACHMENT_STATUS.ACTIVE;
+  for (const field of ['category', 'scan_status', 'review_status']) {
+    if (query[field]) filter[field] = query[field];
+  }
+  if (query.released_to_patient !== undefined) {
+    filter.released_to_patient = String(query.released_to_patient).toLowerCase() === 'true';
+  }
   if (actorType(actor) === 'patient' || isRelativeActor(actor)) filter.released_to_patient = true;
   const attachments = await Attachment.find(filter).sort({ created_at: -1 }).lean();
   for (const attachment of attachments) {
@@ -1195,8 +1245,11 @@ async function listPatientAttachments(patientId, query = {}, actor = {}) {
   else assertStaffPermission(actor, [PERMISSION.ATTACHMENTS.READ, PERMISSION.ATTACHMENTS.READ_DEPARTMENT]);
   const { page, limit, skip } = getPagination(query);
   const filter = { patient_id: patientId };
-  for (const field of ['category', 'entity_type', 'status']) {
+  for (const field of ['category', 'entity_type', 'status', 'scan_status', 'review_status']) {
     if (query[field]) filter[field] = query[field];
+  }
+  if (query.released_to_patient !== undefined) {
+    filter.released_to_patient = String(query.released_to_patient).toLowerCase() === 'true';
   }
   if (!filter.status) filter.status = actorType(actor) === 'patient' ? ATTACHMENT_STATUS.ACTIVE : { $ne: ATTACHMENT_STATUS.DELETED };
   if (actorType(actor) === 'patient' || isRelativeActor(actor)) filter.released_to_patient = true;
@@ -1312,14 +1365,53 @@ async function releaseAttachmentToPatient(attachmentId, actor = {}, requestMeta 
   const entity = await resolveEntityForAttachment(attachment.entity_type, attachment.entity_id);
   await assertAttachmentEntityScope(entity, attachment, actor, 'release');
   if (attachment.status !== ATTACHMENT_STATUS.ACTIVE) throw createError('Chỉ attachment active mới được release.', 409);
+  fileScanService.assertCleanForRelease(attachment);
+  if (attachment.review_status === DOCUMENT_REVIEW_STATUS.REJECTED) {
+    throw createError('File đã bị reject review, không được release.', 409);
+  }
   attachment.released_to_patient = true;
   attachment.released_at = new Date();
   attachment.released_by = actor.userId;
+  attachment.release_revoked_at = undefined;
+  attachment.release_revoked_by = undefined;
+  attachment.release_revoke_reason = undefined;
   attachment.signed_download_token_version = Number(attachment.signed_download_token_version || 1) + 1;
   attachment.signed_download_revoked_at = new Date();
   attachment.updated_by = actor.userId;
   await attachment.save();
+  await recordAttachmentAccess({ attachment, actor, action: 'release', requestMeta });
   await recordAuditLog({ actor, action: 'attachments.release_to_patient', targetType: 'attachment', targetId: attachment._id, status: 'success', message: 'Release attachment to patient thành công.', requestMeta });
+  return getAttachmentDetail(attachment._id, actor);
+}
+
+async function revokeAttachmentRelease(attachmentId, payload = {}, actor = {}, requestMeta = {}) {
+  const reason = normalizeString(payload.reason || payload.revoke_reason || payload.release_revoke_reason);
+  if (!reason) throw createError('reason là bắt buộc khi thu hồi release.', 400);
+  const attachment = await Attachment.findById(attachmentId);
+  if (!attachment) throw createError('Không tìm thấy attachment.', 404);
+  await assertAttachmentAccess(attachment, actor, 'release');
+  const entity = await resolveEntityForAttachment(attachment.entity_type, attachment.entity_id);
+  await assertAttachmentEntityScope(entity, attachment, actor, 'release');
+  if (!attachment.released_to_patient) throw createError('Attachment chưa release.', 409);
+  attachment.released_to_patient = false;
+  attachment.release_revoked_at = new Date();
+  attachment.release_revoked_by = actor.userId;
+  attachment.release_revoke_reason = reason;
+  attachment.signed_download_token_version = Number(attachment.signed_download_token_version || 1) + 1;
+  attachment.signed_download_revoked_at = new Date();
+  attachment.updated_by = actor.userId;
+  await attachment.save();
+  await recordAttachmentAccess({ attachment, actor, action: 'revoke_release', requestMeta, reason });
+  await recordAuditLog({
+    actor,
+    action: 'attachments.revoke_release',
+    targetType: 'attachment',
+    targetId: attachment._id,
+    status: 'success',
+    message: 'Thu hồi release attachment khỏi patient portal.',
+    requestMeta,
+    metadata: { reason },
+  });
   return getAttachmentDetail(attachment._id, actor);
 }
 
@@ -1617,6 +1709,10 @@ module.exports = {
   restoreAttachment,
   // releaseAttachmentToPatient: Phát hành tệp đính kèm cho bệnh nhân xem.
   releaseAttachmentToPatient,
+  // revokeAttachmentRelease: Thu hồi phát hành tệp đính kèm khỏi patient portal.
+  revokeAttachmentRelease,
+  // recordAttachmentAccess: Ghi access log chi tiết cho attachment.
+  recordAttachmentAccess,
   // getPatientDocumentTimeline: Lấy dòng thời gian tài liệu của bệnh nhân.
   getPatientDocumentTimeline,
 };

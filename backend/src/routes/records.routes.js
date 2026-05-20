@@ -147,6 +147,7 @@ router.get('/attachments/:attachmentId', authorize({ anyPermissions: attachmentR
 router.post('/attachments/:attachmentId/archive', authorize({ anyPermissions: [PERMISSION.ATTACHMENTS.ARCHIVE] }), recordsController.archiveAttachment);
 router.post('/attachments/:attachmentId/restore', authorize({ anyPermissions: [PERMISSION.ATTACHMENTS.RESTORE] }), recordsController.restoreAttachment);
 router.post('/attachments/:attachmentId/release-to-patient', authorize({ anyPermissions: [PERMISSION.ATTACHMENTS.RELEASE_TO_PATIENT] }), recordsController.releaseAttachmentToPatient);
+router.post('/attachments/:attachmentId/revoke-release', authorize({ anyPermissions: [PERMISSION.ATTACHMENTS.RELEASE_TO_PATIENT] }), recordsController.revokeAttachmentRelease);
 router.delete('/attachments/:attachmentId', authorize({ anyPermissions: [PERMISSION.ATTACHMENTS.DELETE_SOFT] }), recordsController.softDeleteAttachment);
 router.post('/documents/:documentId/approve', authorize({ anyPermissions: [PERMISSION.DOCUMENTS.APPROVE, PERMISSION.DOCUMENTS.REVIEW] }), portalController.approvePatientDocument);
 router.post('/documents/:documentId/reject', authorize({ anyPermissions: [PERMISSION.DOCUMENTS.REJECT, PERMISSION.DOCUMENTS.REVIEW] }), portalController.rejectPatientDocument);

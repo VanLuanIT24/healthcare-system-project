@@ -38,12 +38,33 @@ const Specimen = require('./laboratory/specimen.model');
 const LabResult = require('./laboratory/lab-result.model');
 const LabResultItem = require('./laboratory/lab-result-item.model');
 const LabTestCatalog = require('./laboratory/lab-test-catalog.model');
+const LabResultCorrectionRequest = require('./laboratory/lab-result-correction-request.model');
+const LabSlaRule = require('./laboratory/lab-sla-rule.model');
+const SpecimenCustodyEvent = require('./laboratory/specimen-custody-event.model');
 
 const ImagingOrder = require('./imaging/imaging-order.model');
 const ImagingReport = require('./imaging/imaging-report.model');
 const ImagingModality = require('./imaging/imaging-modality.model');
+const ImagingRoom = require('./imaging/imaging-room.model');
+const ImagingEquipment = require('./imaging/imaging-equipment.model');
+const ImagingReportTemplate = require('./imaging/imaging-report-template.model');
+const ImagingReportCorrectionRequest = require('./imaging/imaging-report-correction-request.model');
 
 const ProcedureOrder = require('./procedures/procedure-order.model');
+const ProcedureResult = require('./procedures/procedure-result.model');
+
+const SpecimenTypeCatalog = require('./clinical-config/specimen-type-catalog.model');
+const ProcedureCatalog = require('./clinical-config/procedure-catalog.model');
+const ResultReportTemplate = require('./clinical-config/result-report-template.model');
+const EquipmentDowntime = require('./clinical-config/equipment-downtime.model');
+
+const DiagnosticAlert = require('./diagnostics/diagnostic-alert.model');
+
+const ClinicalOpsEscalation = require('./clinical-operations/clinical-ops-escalation.model');
+const ClinicalOpsSlaRule = require('./clinical-operations/clinical-ops-sla-rule.model');
+const ClinicalOpsSlaEvent = require('./clinical-operations/clinical-ops-sla-event.model');
+const ResultSignature = require('./clinical-operations/result-signature.model');
+const ResultDelivery = require('./clinical-operations/result-delivery.model');
 
 const MedicationMaster = require('./pharmacy/medication-master.model');
 const MedicationUnit = require('./pharmacy/medication-unit.model');
@@ -127,6 +148,9 @@ const InsuranceClaim = require('./billing/insurance-claim.model');
 
 const MedicalRecord = require('./records/medical-record.model');
 const Attachment = require('./records/attachment.model');
+const AttachmentAccessLog = require('./records/attachment-access-log.model');
+const RequiredDocumentRule = require('./records/required-document-rule.model');
+const MissingDocumentTask = require('./records/missing-document-task.model');
 const DocumentExportRequest = require('./records/document-export-request.model');
 const Notification = require('./notifications/notification.model');
 const NotificationDelivery = require('./notifications/notification-delivery.model');
@@ -195,10 +219,28 @@ module.exports = {
   LabResult,
   LabResultItem,
   LabTestCatalog,
+  LabResultCorrectionRequest,
+  LabSlaRule,
+  SpecimenCustodyEvent,
   ImagingOrder,
   ImagingReport,
   ImagingModality,
+  ImagingRoom,
+  ImagingEquipment,
+  ImagingReportTemplate,
+  ImagingReportCorrectionRequest,
   ProcedureOrder,
+  ProcedureResult,
+  SpecimenTypeCatalog,
+  ProcedureCatalog,
+  ResultReportTemplate,
+  EquipmentDowntime,
+  DiagnosticAlert,
+  ClinicalOpsEscalation,
+  ClinicalOpsSlaRule,
+  ClinicalOpsSlaEvent,
+  ResultSignature,
+  ResultDelivery,
   MedicationMaster,
   MedicationUnit,
   DosageForm,
@@ -278,6 +320,9 @@ module.exports = {
   InsuranceClaim,
   MedicalRecord,
   Attachment,
+  AttachmentAccessLog,
+  RequiredDocumentRule,
+  MissingDocumentTask,
   DocumentExportRequest,
   Notification,
   NotificationDelivery,

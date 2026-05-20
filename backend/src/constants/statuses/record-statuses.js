@@ -26,6 +26,7 @@ const ATTACHMENT_STATUS = {
   ACTIVE: 'active',
   ARCHIVED: 'archived',
   DELETED: 'deleted',
+  QUARANTINED: 'quarantined',
 };
 
 const ATTACHMENT_STATUSES = Object.values(ATTACHMENT_STATUS);
@@ -35,6 +36,7 @@ const ATTACHMENT_ENTITY_TYPE = {
   ENCOUNTER: 'encounter',
   MEDICAL_RECORD: 'medical_record',
   ORDER: 'order',
+  SPECIMEN: 'specimen',
   LAB_RESULT: 'lab_result',
   IMAGING_ORDER: 'imaging_order',
   IMAGING_REPORT: 'imaging_report',

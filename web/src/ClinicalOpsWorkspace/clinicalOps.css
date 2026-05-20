@@ -1,0 +1,1545 @@
+.clinical-ops-workspace,
+.clinical-ops-workspace * {
+  box-sizing: border-box;
+}
+
+.clinical-ops-workspace {
+  --ops-bg: #f6f8fb;
+  --ops-surface: #ffffff;
+  --ops-surface-2: #f9fbfd;
+  --ops-line: #dbe4ee;
+  --ops-line-strong: #c5d1df;
+  --ops-text: #12202f;
+  --ops-muted: #667789;
+  --ops-soft: #eef4f8;
+  --ops-teal: #087f8c;
+  --ops-teal-soft: #e8f7f8;
+  --ops-indigo: #3f5fa8;
+  --ops-indigo-soft: #eef3ff;
+  --ops-amber: #a46508;
+  --ops-amber-soft: #fff6df;
+  --ops-red: #b42318;
+  --ops-red-soft: #fff1f0;
+  --ops-green: #177245;
+  --ops-green-soft: #eaf8f0;
+  --ops-purple: #6941c6;
+  --ops-purple-soft: #f3f0ff;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--ops-bg);
+  color: var(--ops-text);
+}
+
+.clinical-ops-workspace button,
+.clinical-ops-workspace input,
+.clinical-ops-workspace select {
+  font: inherit;
+}
+
+.clinical-ops-workspace button {
+  cursor: pointer;
+}
+
+.clinical-ops-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--ops-line);
+  background: #102235;
+  color: #e9f0f7;
+  overflow: hidden;
+}
+
+.clinical-ops-sidebar__brand {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.clinical-ops-sidebar__brand-link {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.clinical-ops-sidebar__brand-mark {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: #183a52;
+  color: #8ee0dd;
+}
+
+.clinical-ops-sidebar__brand-copy,
+.clinical-ops-profile__copy,
+.clinical-ops-topbar__title,
+.clinical-ops-kpi__copy,
+.clinical-ops-patient-cell,
+.clinical-ops-order-cell,
+.clinical-ops-stage-cell,
+.clinical-ops-owner-cell {
+  min-width: 0;
+}
+
+.clinical-ops-sidebar__brand-copy strong,
+.clinical-ops-sidebar__brand-copy small,
+.clinical-ops-topbar__title strong,
+.clinical-ops-topbar__title span,
+.clinical-ops-profile__copy strong,
+.clinical-ops-profile__copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-ops-sidebar__brand-copy strong {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.clinical-ops-sidebar__brand-copy small {
+  margin-top: 3px;
+  color: #a9b8c8;
+  font-size: 12px;
+}
+
+.clinical-ops-sidebar__nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 10px;
+}
+
+.clinical-ops-nav-group {
+  margin-bottom: 7px;
+}
+
+.clinical-ops-nav-group__trigger,
+.clinical-ops-nav-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  color: #c8d4e0;
+  text-decoration: none;
+}
+
+.clinical-ops-nav-group__trigger {
+  gap: 10px;
+  padding: 0 10px;
+  background: transparent;
+  text-align: left;
+}
+
+.clinical-ops-nav-group__trigger span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.clinical-ops-nav-group__trigger svg:last-child {
+  transition: transform 0.18s ease;
+}
+
+.clinical-ops-nav-group.is-open .clinical-ops-nav-group__trigger svg:last-child {
+  transform: rotate(180deg);
+}
+
+.clinical-ops-nav-group.is-active > .clinical-ops-nav-group__trigger,
+.clinical-ops-nav-group__trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.clinical-ops-nav-group__children {
+  display: grid;
+  gap: 4px;
+  margin: 5px 0 0;
+}
+
+.clinical-ops-nav-link {
+  gap: 9px;
+  padding: 0 10px 0 30px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.clinical-ops-nav-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-ops-nav-link:hover,
+.clinical-ops-nav-link.is-active {
+  background: #e9f7f8;
+  color: #073d45;
+}
+
+.clinical-ops-sidebar__footer {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.clinical-ops-sidebar__alert,
+.clinical-ops-sidebar__collapse {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e9f0f7;
+  text-align: left;
+}
+
+.clinical-ops-sidebar__alert {
+  padding: 11px;
+}
+
+.clinical-ops-sidebar__alert strong,
+.clinical-ops-sidebar__alert small {
+  display: block;
+}
+
+.clinical-ops-sidebar__alert strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.clinical-ops-sidebar__alert small {
+  margin-top: 2px;
+  color: #a9b8c8;
+  font-size: 12px;
+}
+
+.clinical-ops-sidebar__collapse {
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 10px;
+  font-weight: 800;
+}
+
+.clinical-ops-sidebar__collapse .is-rotated,
+.clinical-ops-icon-button .is-spinning,
+.clinical-ops-refresh-button .is-spinning {
+  transform: rotate(180deg);
+}
+
+.clinical-ops-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.clinical-ops-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--ops-line);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+.clinical-ops-topbar__left,
+.clinical-ops-topbar__tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.clinical-ops-topbar__title span {
+  color: var(--ops-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.clinical-ops-topbar__title strong {
+  margin-top: 2px;
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.clinical-ops-topbar__menu {
+  display: none;
+}
+
+.clinical-ops-icon-button,
+.clinical-ops-topbar__quick,
+.clinical-ops-profile__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface);
+  color: var(--ops-text);
+}
+
+.clinical-ops-icon-button {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+}
+
+.clinical-ops-icon-button__dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: var(--ops-red);
+}
+
+.clinical-ops-topbar__quick {
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.clinical-ops-search {
+  position: relative;
+  width: min(320px, 32vw);
+  min-width: 210px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface);
+  color: var(--ops-muted);
+}
+
+.clinical-ops-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ops-text);
+}
+
+.clinical-ops-search > button {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ops-soft);
+  color: var(--ops-muted);
+}
+
+.clinical-ops-search__panel,
+.clinical-ops-dropdown__panel,
+.clinical-ops-profile__panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 30;
+  min-width: 260px;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface);
+  box-shadow: 0 20px 48px rgba(16, 34, 53, 0.18);
+}
+
+.clinical-ops-search__panel {
+  left: 0;
+  right: auto;
+  width: 360px;
+  overflow: hidden;
+}
+
+.clinical-ops-search__panel button,
+.clinical-ops-dropdown__panel button,
+.clinical-ops-profile__panel a,
+.clinical-ops-profile__panel button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ops-text);
+  text-align: left;
+  text-decoration: none;
+}
+
+.clinical-ops-search__panel button {
+  display: grid;
+  gap: 2px;
+  padding: 11px 13px;
+}
+
+.clinical-ops-search__panel button:hover,
+.clinical-ops-dropdown__panel button:hover,
+.clinical-ops-profile__panel a:hover,
+.clinical-ops-profile__panel button:hover {
+  background: var(--ops-surface-2);
+}
+
+.clinical-ops-search__panel span {
+  color: var(--ops-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.clinical-ops-search__panel strong {
+  font-size: 13px;
+}
+
+.clinical-ops-search__empty {
+  padding: 14px;
+  color: var(--ops-muted);
+  font-size: 13px;
+}
+
+.clinical-ops-dropdown,
+.clinical-ops-profile {
+  position: relative;
+}
+
+.clinical-ops-dropdown__panel {
+  overflow: hidden;
+}
+
+.clinical-ops-dropdown__panel header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px;
+  border-bottom: 1px solid var(--ops-line);
+}
+
+.clinical-ops-dropdown__panel header span {
+  color: var(--ops-teal);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.clinical-ops-dropdown__panel button {
+  padding: 12px 13px;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.clinical-ops-profile__trigger {
+  gap: 9px;
+  min-height: 40px;
+  padding: 3px 8px 3px 4px;
+}
+
+.clinical-ops-avatar {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: #173c52;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.clinical-ops-avatar--large {
+  width: 42px;
+  height: 42px;
+}
+
+.clinical-ops-profile__copy {
+  text-align: left;
+}
+
+.clinical-ops-profile__copy strong {
+  max-width: 150px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.clinical-ops-profile__copy small {
+  max-width: 150px;
+  margin-top: 1px;
+  color: var(--ops-muted);
+  font-size: 11px;
+}
+
+.clinical-ops-profile__panel {
+  overflow: hidden;
+}
+
+.clinical-ops-profile__summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px;
+  border-bottom: 1px solid var(--ops-line);
+}
+
+.clinical-ops-profile__summary strong,
+.clinical-ops-profile__summary span {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-ops-profile__summary span {
+  margin-top: 2px;
+  color: var(--ops-muted);
+  font-size: 12px;
+}
+
+.clinical-ops-profile__panel a,
+.clinical-ops-profile__panel button {
+  padding: 12px 13px;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.clinical-ops-content {
+  width: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.clinical-ops-page {
+  display: grid;
+  gap: 18px;
+}
+
+.clinical-ops-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 4px 0 2px;
+}
+
+.clinical-ops-page-header span {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: var(--ops-teal);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.clinical-ops-page-header h1 {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.clinical-ops-page-header p {
+  max-width: 760px;
+  margin: 9px 0 0;
+  color: var(--ops-muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.clinical-ops-page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.clinical-ops-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface);
+}
+
+.clinical-ops-filter-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface-2);
+  color: var(--ops-muted);
+}
+
+.clinical-ops-filter-bar input,
+.clinical-ops-filter-bar select {
+  min-width: 118px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ops-text);
+}
+
+.clinical-ops-filter-bar__search {
+  flex: 1;
+  min-width: 240px;
+}
+
+.clinical-ops-filter-bar__search input {
+  width: 100%;
+}
+
+.clinical-ops-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #bee3e5;
+  border-radius: 8px;
+  background: var(--ops-teal-soft);
+  color: #07525b;
+  font-weight: 850;
+}
+
+@keyframes clinicalOpsSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.clinical-ops-refresh-button .is-spinning,
+.clinical-ops-icon-button .is-spinning {
+  animation: clinicalOpsSpin 0.85s linear infinite;
+}
+
+.clinical-ops-critical-strip,
+.clinical-ops-kpi-grid,
+.clinical-ops-counter-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.clinical-ops-critical-strip button,
+.clinical-ops-kpi {
+  min-width: 0;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface);
+  color: var(--ops-text);
+  text-align: left;
+}
+
+.clinical-ops-critical-strip button {
+  padding: 14px;
+}
+
+.clinical-ops-critical-strip svg {
+  flex: 0 0 auto;
+}
+
+.clinical-ops-critical-strip span,
+.clinical-ops-kpi__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.clinical-ops-critical-strip small,
+.clinical-ops-kpi small {
+  overflow-wrap: anywhere;
+  color: var(--ops-muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.clinical-ops-critical-strip strong,
+.clinical-ops-kpi strong {
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.clinical-ops-critical-strip .is-stat,
+.clinical-ops-kpi.is-danger,
+.clinical-ops-kpi.is-critical {
+  border-color: #ffd2ce;
+  background: var(--ops-red-soft);
+}
+
+.clinical-ops-critical-strip .is-danger,
+.clinical-ops-critical-strip .is-warning {
+  border-color: #f8d28b;
+  background: var(--ops-amber-soft);
+}
+
+.clinical-ops-critical-strip .is-info,
+.clinical-ops-kpi.is-info,
+.clinical-ops-kpi.is-imaging {
+  border-color: #cfddff;
+  background: var(--ops-indigo-soft);
+}
+
+.clinical-ops-critical-strip .is-neutral,
+.clinical-ops-critical-strip .is-muted,
+.clinical-ops-kpi.is-neutral {
+  background: var(--ops-surface);
+}
+
+.clinical-ops-kpi {
+  position: relative;
+  justify-content: flex-start;
+  padding: 14px;
+}
+
+.clinical-ops-kpi__icon {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--ops-soft);
+  color: var(--ops-teal);
+}
+
+.clinical-ops-kpi em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ops-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.clinical-ops-kpi > svg {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--ops-muted);
+}
+
+.clinical-ops-kpi.is-lab {
+  border-color: #bfe8e8;
+  background: var(--ops-teal-soft);
+}
+
+.clinical-ops-kpi.is-procedure,
+.clinical-ops-kpi.is-warning {
+  border-color: #f8d28b;
+  background: var(--ops-amber-soft);
+}
+
+.clinical-ops-kpi.is-success {
+  border-color: #bfebd1;
+  background: var(--ops-green-soft);
+}
+
+.clinical-ops-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.clinical-ops-flow,
+.clinical-ops-panel,
+.clinical-ops-table-shell,
+.clinical-ops-lane,
+.clinical-ops-kanban__column {
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface);
+}
+
+.clinical-ops-flow {
+  padding: 15px;
+}
+
+.clinical-ops-flow header,
+.clinical-ops-panel__header,
+.clinical-ops-lane header,
+.clinical-ops-kanban__column header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.clinical-ops-flow header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 850;
+}
+
+.clinical-ops-flow__steps {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.clinical-ops-flow__step {
+  display: grid;
+  gap: 7px;
+}
+
+.clinical-ops-flow__step span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.clinical-ops-flow__step strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-ops-flow__step em {
+  color: var(--ops-muted);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.clinical-ops-flow__step i {
+  display: block;
+  height: 8px;
+  min-width: 5px;
+  border-radius: 999px;
+  background: var(--ops-teal);
+}
+
+.clinical-ops-flow.is-imaging .clinical-ops-flow__step i {
+  background: var(--ops-indigo);
+}
+
+.clinical-ops-flow.is-procedure .clinical-ops-flow__step i {
+  background: var(--ops-amber);
+}
+
+.clinical-ops-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 14px;
+}
+
+.clinical-ops-panel {
+  padding: 16px;
+}
+
+.clinical-ops-panel__header {
+  margin-bottom: 14px;
+}
+
+.clinical-ops-panel__header span {
+  color: var(--ops-muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.clinical-ops-panel__header h2 {
+  margin: 3px 0 0;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.clinical-ops-bottlenecks,
+.clinical-ops-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.clinical-ops-bottlenecks button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 62px;
+  padding: 12px;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface-2);
+  text-align: left;
+}
+
+.clinical-ops-bottlenecks button.is-high,
+.clinical-ops-bottlenecks button.is-critical {
+  border-color: #ffd2ce;
+  background: var(--ops-red-soft);
+}
+
+.clinical-ops-bottlenecks strong,
+.clinical-ops-bottlenecks em {
+  display: block;
+}
+
+.clinical-ops-bottlenecks em {
+  margin-top: 2px;
+  color: var(--ops-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.clinical-ops-bottlenecks b {
+  font-size: 22px;
+}
+
+.clinical-ops-timeline div {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 0 0 0 20px;
+}
+
+.clinical-ops-timeline div::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 18px;
+  bottom: -12px;
+  width: 1px;
+  background: var(--ops-line);
+}
+
+.clinical-ops-timeline div:last-child::before {
+  display: none;
+}
+
+.clinical-ops-timeline__dot {
+  position: absolute;
+  left: 1px;
+  top: 4px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--ops-teal);
+}
+
+.clinical-ops-timeline__dot.is-imaging {
+  background: var(--ops-indigo);
+}
+
+.clinical-ops-timeline__dot.is-procedure {
+  background: var(--ops-amber);
+}
+
+.clinical-ops-timeline small {
+  color: var(--ops-muted);
+}
+
+.clinical-ops-table-shell {
+  overflow: hidden;
+}
+
+.clinical-ops-table {
+  min-width: 1040px;
+}
+
+.clinical-ops-table__head,
+.clinical-ops-table__row {
+  display: grid;
+  grid-template-columns: 150px 118px minmax(220px, 1.35fr) minmax(180px, 1fr) minmax(190px, 1.05fr) minmax(150px, 0.8fr) 220px;
+  gap: 14px;
+  align-items: center;
+}
+
+.clinical-ops-table__head {
+  min-height: 43px;
+  padding: 0 16px;
+  background: var(--ops-surface-2);
+  color: var(--ops-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.clinical-ops-table__row {
+  min-height: 86px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--ops-line);
+}
+
+.clinical-ops-table__row:hover,
+.clinical-ops-critical-row:hover,
+.clinical-ops-review-row:hover {
+  background: #fbfdff;
+}
+
+.clinical-ops-table__priority,
+.clinical-ops-order-card__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.clinical-ops-patient-cell,
+.clinical-ops-order-cell,
+.clinical-ops-stage-cell,
+.clinical-ops-owner-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.clinical-ops-patient-cell strong,
+.clinical-ops-order-cell strong,
+.clinical-ops-owner-cell strong,
+.clinical-ops-critical-row__finding strong,
+.clinical-ops-review-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.clinical-ops-patient-cell span,
+.clinical-ops-order-cell span,
+.clinical-ops-stage-cell span,
+.clinical-ops-stage-cell em,
+.clinical-ops-owner-cell span,
+.clinical-ops-critical-row__finding span,
+.clinical-ops-review-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ops-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.clinical-ops-action-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.clinical-ops-action-row button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid #bee3e5;
+  border-radius: 7px;
+  background: var(--ops-teal-soft);
+  color: #07525b;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.clinical-ops-priority,
+.clinical-ops-module-badge,
+.clinical-ops-status,
+.clinical-ops-sla,
+.clinical-ops-critical-badge {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  gap: 5px;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.clinical-ops-priority.is-stat,
+.clinical-ops-critical-badge,
+.clinical-ops-sla.is-breached {
+  background: var(--ops-red-soft);
+  color: var(--ops-red);
+}
+
+.clinical-ops-priority.is-urgent,
+.clinical-ops-sla.is-warning {
+  background: var(--ops-amber-soft);
+  color: var(--ops-amber);
+}
+
+.clinical-ops-priority.is-routine,
+.clinical-ops-sla.is-normal,
+.clinical-ops-sla.is-completed {
+  background: var(--ops-green-soft);
+  color: var(--ops-green);
+}
+
+.clinical-ops-module-badge.is-lab {
+  background: var(--ops-teal-soft);
+  color: #07525b;
+}
+
+.clinical-ops-module-badge.is-imaging {
+  background: var(--ops-indigo-soft);
+  color: var(--ops-indigo);
+}
+
+.clinical-ops-module-badge.is-procedure {
+  background: var(--ops-amber-soft);
+  color: var(--ops-amber);
+}
+
+.clinical-ops-status {
+  background: var(--ops-soft);
+  color: var(--ops-muted);
+}
+
+.clinical-ops-status.is-final,
+.clinical-ops-status.is-completed {
+  background: var(--ops-green-soft);
+  color: var(--ops-green);
+}
+
+.clinical-ops-status.is-cancelled,
+.clinical-ops-status.is-rejected,
+.clinical-ops-status.is-no-show {
+  background: var(--ops-red-soft);
+  color: var(--ops-red);
+}
+
+.clinical-ops-status.is-in-progress,
+.clinical-ops-status.is-preliminary,
+.clinical-ops-status.is-draft {
+  background: var(--ops-indigo-soft);
+  color: var(--ops-indigo);
+}
+
+.clinical-ops-sla.is-muted {
+  background: var(--ops-soft);
+  color: var(--ops-muted);
+}
+
+.clinical-ops-lane-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(230px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.clinical-ops-lane {
+  min-width: 230px;
+  overflow: hidden;
+}
+
+.clinical-ops-lane header,
+.clinical-ops-kanban__column header {
+  min-height: 46px;
+  padding: 0 13px;
+  border-bottom: 1px solid var(--ops-line);
+  background: var(--ops-surface-2);
+}
+
+.clinical-ops-lane header strong,
+.clinical-ops-kanban__column header strong {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.clinical-ops-lane header span,
+.clinical-ops-kanban__column header span {
+  display: inline-grid;
+  min-width: 28px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: #e5edf5;
+  color: var(--ops-text);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.clinical-ops-lane__body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 420px;
+  padding: 11px;
+}
+
+.clinical-ops-order-card,
+.clinical-ops-kanban-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--ops-line);
+  border-radius: 8px;
+  background: var(--ops-surface);
+}
+
+.clinical-ops-order-card > strong,
+.clinical-ops-order-card > span,
+.clinical-ops-kanban-card > strong,
+.clinical-ops-kanban-card > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-ops-order-card > span,
+.clinical-ops-kanban-card > span {
+  color: var(--ops-muted);
+  font-size: 12px;
+}
+
+.clinical-ops-critical-table,
+.clinical-ops-review-table {
+  min-width: 980px;
+}
+
+.clinical-ops-critical-row,
+.clinical-ops-review-row {
+  display: grid;
+  align-items: center;
+  gap: 14px;
+  min-height: 82px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--ops-line);
+}
+
+.clinical-ops-critical-row:first-child,
+.clinical-ops-review-row:first-child {
+  border-top: 0;
+}
+
+.clinical-ops-critical-row {
+  grid-template-columns: 180px 118px minmax(220px, 1.25fr) minmax(220px, 1.15fr) 150px 220px;
+}
+
+.clinical-ops-critical-row > div:first-child,
+.clinical-ops-review-row > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.clinical-ops-review-row {
+  grid-template-columns: 180px minmax(220px, 1.25fr) minmax(180px, 1fr) minmax(150px, 0.75fr) 220px;
+}
+
+.clinical-ops-review-row__payload {
+  display: grid;
+  gap: 4px;
+}
+
+.clinical-ops-kanban {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(220px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.clinical-ops-kanban__column {
+  min-width: 220px;
+  overflow: hidden;
+}
+
+.clinical-ops-kanban__column > div {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 300px;
+  padding: 11px;
+}
+
+.clinical-ops-kanban-card > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.clinical-ops-widget-error {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid #ffd2ce;
+  border-radius: 8px;
+  background: var(--ops-red-soft);
+  color: var(--ops-red);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.clinical-ops-widget-error span {
+  flex: 1;
+}
+
+.clinical-ops-widget-error button {
+  border: 0;
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--ops-red);
+  font-weight: 850;
+  padding: 6px 9px;
+}
+
+.clinical-ops-empty {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 120px;
+  padding: 18px;
+  color: var(--ops-muted);
+  text-align: center;
+}
+
+.clinical-ops-empty strong {
+  color: var(--ops-text);
+}
+
+.clinical-ops-empty span {
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.clinical-ops-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 44px));
+  padding: 12px;
+  border: 1px solid #bfebd1;
+  border-radius: 8px;
+  background: var(--ops-green-soft);
+  color: var(--ops-green);
+  box-shadow: 0 18px 40px rgba(16, 34, 53, 0.16);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.clinical-ops-toast button {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--ops-green);
+}
+
+.clinical-ops-skeleton,
+.clinical-ops-mini-skeleton {
+  display: block;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #e9eef5 0%, #f7f9fc 50%, #e9eef5 100%);
+  background-size: 200% 100%;
+  animation: clinicalOpsShimmer 1.4s ease infinite;
+}
+
+.clinical-ops-skeleton {
+  height: 58px;
+}
+
+.clinical-ops-mini-skeleton {
+  width: 48px;
+  height: 22px;
+}
+
+.clinical-ops-skeleton--value {
+  width: 72px;
+  height: 28px;
+}
+
+.clinical-ops-skeleton-stack {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+@keyframes clinicalOpsShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.clinical-ops-workspace.is-sidebar-collapsed {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+
+.clinical-ops-workspace.is-sidebar-collapsed .clinical-ops-sidebar__brand {
+  padding-inline: 12px;
+}
+
+.clinical-ops-workspace.is-sidebar-collapsed .clinical-ops-nav-group__trigger,
+.clinical-ops-workspace.is-sidebar-collapsed .clinical-ops-nav-link {
+  justify-content: center;
+  padding: 0;
+}
+
+.clinical-ops-workspace.is-sidebar-collapsed .clinical-ops-nav-link span,
+.clinical-ops-workspace.is-sidebar-collapsed .clinical-ops-nav-group__trigger span {
+  display: none;
+}
+
+.clinical-ops-mobile-backdrop {
+  display: none;
+}
+
+@media (max-width: 1320px) {
+  .clinical-ops-critical-strip,
+  .clinical-ops-kpi-grid,
+  .clinical-ops-counter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .clinical-ops-flow-grid,
+  .clinical-ops-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clinical-ops-topbar__quick {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .clinical-ops-workspace,
+  .clinical-ops-workspace.is-sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .clinical-ops-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(300px, calc(100vw - 44px));
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .clinical-ops-workspace.is-mobile-sidebar-open .clinical-ops-sidebar {
+    transform: translateX(0);
+  }
+
+  .clinical-ops-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display: none;
+    background: rgba(16, 34, 53, 0.46);
+  }
+
+  .clinical-ops-workspace.is-mobile-sidebar-open .clinical-ops-mobile-backdrop {
+    display: block;
+  }
+
+  .clinical-ops-topbar {
+    padding: 0 14px;
+  }
+
+  .clinical-ops-topbar__menu {
+    display: inline-flex;
+  }
+
+  .clinical-ops-search {
+    width: 220px;
+    min-width: 180px;
+  }
+
+  .clinical-ops-profile__copy {
+    display: none;
+  }
+
+  .clinical-ops-content {
+    padding: 18px 14px;
+  }
+
+  .clinical-ops-page-header {
+    display: grid;
+    align-items: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .clinical-ops-topbar__tools {
+    gap: 8px;
+  }
+
+  .clinical-ops-search {
+    display: none;
+  }
+
+  .clinical-ops-critical-strip,
+  .clinical-ops-kpi-grid,
+  .clinical-ops-counter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clinical-ops-filter-bar {
+    display: grid;
+  }
+
+  .clinical-ops-filter-bar label,
+  .clinical-ops-refresh-button {
+    width: 100%;
+  }
+
+  .clinical-ops-filter-bar input,
+  .clinical-ops-filter-bar select {
+    width: 100%;
+  }
+
+  .clinical-ops-page-header h1 {
+    font-size: 27px;
+  }
+}
+
+.lab-content .clinical-ops-page {
+  max-width: 1680px;
+  margin: 0 auto;
+}

@@ -4414,6 +4414,20 @@
   --workspace-accent-ring: rgba(99, 102, 241, 0.13);
 }
 
+.staff-workspace-option--clinical-ops {
+  --workspace-accent: #087f8c;
+  --workspace-accent-strong: #102235;
+  --workspace-accent-soft: #e8f7f8;
+  --workspace-accent-chip: #edf9fa;
+  --workspace-accent-border: rgba(8, 127, 140, 0.36);
+  --workspace-accent-border-strong: rgba(8, 127, 140, 0.78);
+  --workspace-accent-ring: rgba(8, 127, 140, 0.14);
+}
+
+.staff-workspace-option--clinical-ops.is-selected {
+  background: #f7fcfd;
+}
+
 .staff-workspace-option--orange,
 .staff-workspace-option--amber {
   --workspace-accent: #f97316;

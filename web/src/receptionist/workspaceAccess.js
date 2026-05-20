@@ -154,10 +154,10 @@ const STAFF_WORKSPACE_DEFINITIONS = [
     description: 'Xử lý mẫu bệnh phẩm, kết quả xét nghiệm, chẩn đoán hình ảnh và thủ thuật cận lâm sàng.',
     workspaceLabel: 'Không gian cận lâm sàng',
     badge: 'Cận lâm sàng',
-    tone: 'indigo',
+    tone: 'clinical-ops',
     icon: 'flask',
-    path: '/lab/dashboard',
-    routePrefixes: ['/lab'],
+    path: '/clinical-ops/overview/dashboard',
+    routePrefixes: ['/lab', '/clinical-ops'],
     roles: ['super_admin', 'lab_technician', 'lab_manager', 'radiologist', 'imaging_technician', 'procedure_staff', 'doctor', 'nurse'],
     permissionsAny: [
       'specimens.read',

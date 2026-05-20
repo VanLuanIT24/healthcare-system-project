@@ -191,6 +191,7 @@ export const labMenuSections = [
     icon: ShieldAlert,
     defaultOpen: false,
     children: [
+      menuItem('alerts-command-center', 'Trung tâm cảnh báo', '/lab/alerts', ShieldAlert),
       menuItem('alerts-critical-unhandled', 'Kết quả nguy cấp chưa xử lý', '/lab/alerts/critical-unhandled', ShieldAlert),
       menuItem('alerts-critical-overdue', 'Kết quả nguy cấp quá hạn xác nhận', '/lab/alerts/critical-overdue-confirmation', Clock3),
       menuItem('alerts-rejected-specimens', 'Mẫu bị từ chối', '/lab/alerts/rejected-specimens', AlertTriangle),

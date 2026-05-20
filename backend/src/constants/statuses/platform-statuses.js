@@ -277,6 +277,12 @@ const APPROVAL_REQUEST_TYPE = {
   ROLE_PERMISSION_CHANGE: 'role_permission_change',
   MANUAL_STOCK_ADJUSTMENT: 'manual_stock_adjustment',
   INSURANCE_CLAIM_RESUBMIT: 'insurance_claim_resubmit',
+  LAB_RESULT_AMEND: 'lab_result_amend',
+  IMAGING_REPORT_AMEND: 'imaging_report_amend',
+  PROCEDURE_RESULT_AMEND: 'procedure_result_amend',
+  RESULT_ENTERED_IN_ERROR: 'result_entered_in_error',
+  RESULT_RELEASE_AFTER_AMEND: 'result_release_after_amend',
+  CRITICAL_RESULT_RELEASE: 'critical_result_release',
 };
 
 const APPROVAL_REQUEST_TYPES = Object.values(APPROVAL_REQUEST_TYPE);
@@ -466,6 +472,14 @@ const REALTIME_EVENT_TYPE = {
   PHARMACY_ALERT_ASSIGNED: 'pharmacy.alert.assigned',
   PHARMACY_ALERT_RESOLVED: 'pharmacy.alert.resolved',
   PHARMACY_ALERT_ESCALATED: 'pharmacy.alert.escalated',
+  DIAGNOSTIC_ALERT_CREATED: 'diagnostic_alert.created',
+  DIAGNOSTIC_ALERT_UPDATED: 'diagnostic_alert.updated',
+  DIAGNOSTIC_ALERT_ACKNOWLEDGED: 'diagnostic_alert.acknowledged',
+  DIAGNOSTIC_ALERT_ASSIGNED: 'diagnostic_alert.assigned',
+  DIAGNOSTIC_ALERT_ESCALATED: 'diagnostic_alert.escalated',
+  DIAGNOSTIC_ALERT_RESOLVED: 'diagnostic_alert.resolved',
+  DIAGNOSTIC_ALERT_DISMISSED: 'diagnostic_alert.dismissed',
+  DIAGNOSTIC_ALERT_SLA_BREACHED: 'diagnostic_alert.sla_breached',
   INVENTORY_OUT_OF_STOCK: 'inventory.out_of_stock',
   INVENTORY_BATCH_EXPIRED: 'inventory.batch_expired',
   INVENTORY_DISPENSE_SHORTAGE: 'inventory.dispense_shortage',

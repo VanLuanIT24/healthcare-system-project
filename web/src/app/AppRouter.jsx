@@ -49,6 +49,7 @@ import PatientPage from '../Patient Page';
 
 import BillingWorkspace from '../BillingWorkspace';
 import DoctorWorkspace from '../DoctorWorkspace';
+import ClinicalOpsWorkspace from '../ClinicalOpsWorkspace';
 import LabWorkspace from '../LabWorkspace';
 import NurseWorkspace from '../NurseWorkspace';
 import PharmacyWorkspace from '../PharmacyWorkspace';
@@ -176,6 +177,14 @@ export function AppRouter() {
           element={
             <StaffRoute requiredWorkspaceKey="nurse">
               <NurseWorkspace />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/clinical-ops/*"
+          element={
+            <StaffRoute requiredWorkspaceKey="lab">
+              <ClinicalOpsWorkspace />
             </StaffRoute>
           }
         />

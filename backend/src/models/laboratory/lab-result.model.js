@@ -17,9 +17,21 @@ const labResultSchema = new Schema(
     verified_by: { type: Schema.Types.ObjectId, ref: 'User' },
     verified_at: { type: Date },
     reported_at: { type: Date },
+    released_to_doctor: { type: Boolean, default: false },
+    released_to_doctor_at: { type: Date },
+    released_to_doctor_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    doctor_viewed_at: { type: Date },
+    doctor_acknowledged_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    doctor_acknowledged_at: { type: Date },
     released_to_patient: { type: Boolean, default: false },
     released_at: { type: Date },
     released_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    release_revoked_at: { type: Date },
+    release_revoked_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    release_revoke_reason: { type: String },
+    patient_viewed_at: { type: Date },
+    patient_downloaded_at: { type: Date },
+    patient_download_count: { type: Number, default: 0, min: 0 },
     is_critical: { type: Boolean, default: false },
     critical_notified_at: { type: Date },
     critical_acknowledged_by: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -60,8 +72,13 @@ labResultSchema.index(
 labResultSchema.index({ performed_by: 1 });
 labResultSchema.index({ verified_by: 1 });
 labResultSchema.index({ reported_at: 1 });
+labResultSchema.index({ released_to_doctor: 1 });
+labResultSchema.index({ released_to_doctor_at: 1 });
+labResultSchema.index({ doctor_acknowledged_at: 1 });
 labResultSchema.index({ released_to_patient: 1 });
 labResultSchema.index({ released_at: 1 });
+labResultSchema.index({ release_revoked_at: 1 });
+labResultSchema.index({ patient_viewed_at: 1 });
 labResultSchema.index({ is_critical: 1 });
 labResultSchema.index({ critical_acknowledged_at: 1 });
 labResultSchema.index({ status: 1 });
