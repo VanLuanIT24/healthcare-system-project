@@ -12,6 +12,8 @@ const invoiceItemSchema = new Schema(
     invoice_id: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true },
     charge_id: { type: Schema.Types.ObjectId, ref: 'Charge' },
     service_id: { type: Schema.Types.ObjectId, ref: 'ServiceCatalog' },
+    price_version_id: { type: Schema.Types.ObjectId, ref: 'ServicePriceVersion' },
+    price_source: { type: String, trim: true },
     charge_no: { type: String, trim: true },
     service_code: { type: String, trim: true },
     service_name: { type: String, trim: true },
@@ -30,6 +32,7 @@ const invoiceItemSchema = new Schema(
 invoiceItemSchema.index({ invoice_id: 1 });
 invoiceItemSchema.index({ charge_id: 1 });
 invoiceItemSchema.index({ service_id: 1 });
+invoiceItemSchema.index({ price_version_id: 1 });
 invoiceItemSchema.index({ charge_no: 1 });
 invoiceItemSchema.index({ service_code: 1 });
 invoiceItemSchema.index({ invoice_id: 1, display_order: 1 });

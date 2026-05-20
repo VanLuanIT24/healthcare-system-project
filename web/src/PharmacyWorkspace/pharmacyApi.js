@@ -7,13 +7,17 @@ import {
   notificationAPI,
   orderAPI,
   patientAPI,
+  preferenceAPI,
   pharmacyOverviewAPI,
   pharmacyReportAPI,
   prescriptionAPI,
   reportAPI,
+  request,
   unwrapData,
 } from '../utils/api';
 import { readStoredAuth } from '../lib/storage';
+
+export { getApiErrorMessage };
 
 export const PHARMACY_PERMISSIONS = {
   prescriptionsRead: ['PRESCRIPTIONS.READ', 'PRESCRIPTIONS.READ_DEPARTMENT', 'PRESCRIPTIONS.READ_OWN'],
@@ -508,6 +512,42 @@ export async function loadPharmacyOverviewData(filters = {}) {
     },
   };
 }
+
+export const pharmacyTopbarApi = {
+  bootstrap: (params) => request('/pharmacy/topbar/bootstrap', { params }),
+  search: (params) => request('/pharmacy/search', { params }),
+  dispenseQueue: (params) => request('/pharmacy/dispense-queue', { params }),
+  dispenseQueueSummary: (params) => request('/pharmacy/dispense-queue/summary', { params }),
+  alertSummary: (params) => request('/pharmacy/alert-summary', { params }),
+  notifications: (params) => notificationAPI.getMyNotifications(params),
+  markNotificationRead: (notificationId) => notificationAPI.markRead(notificationId),
+  markAllNotificationsRead: (params) => notificationAPI.markAllRead(params),
+  claimPrescription: (prescriptionId, body = {}) =>
+    request(`/pharmacy/prescriptions/${encodeURIComponent(prescriptionId)}/claim`, { method: 'POST', body }),
+  verifyPrescription: (prescriptionId, body = {}) =>
+    request(`/pharmacy/prescriptions/${encodeURIComponent(prescriptionId)}/verify`, { method: 'POST', body }),
+  assignDispense: (dispenseId, body = {}) =>
+    request(`/pharmacy/dispenses/${encodeURIComponent(dispenseId)}/assign`, { method: 'POST', body }),
+  startPreparation: (dispenseId, body = {}) =>
+    request(`/pharmacy/dispenses/${encodeURIComponent(dispenseId)}/start-preparation`, { method: 'POST', body }),
+  changeStage: (dispenseId, body = {}) =>
+    request(`/pharmacy/dispenses/${encodeURIComponent(dispenseId)}/change-stage`, { method: 'POST', body }),
+  lockDispense: (dispenseId, body = {}) =>
+    request(`/pharmacy/dispenses/${encodeURIComponent(dispenseId)}/lock`, { method: 'POST', body }),
+  createHold: (dispenseId, body = {}) =>
+    request(`/pharmacy/dispenses/${encodeURIComponent(dispenseId)}/holds`, { method: 'POST', body }),
+  printLabels: (dispenseId, body = {}) =>
+    request(`/pharmacy/dispenses/${encodeURIComponent(dispenseId)}/print-labels`, { method: 'POST', body }),
+  printInstructions: (dispenseId, body = {}) =>
+    request(`/pharmacy/dispenses/${encodeURIComponent(dispenseId)}/print-instructions`, { method: 'POST', body }),
+  completeDispense: (dispenseId, body = {}) =>
+    request(`/pharmacy/dispenses/${encodeURIComponent(dispenseId)}/complete`, { method: 'POST', body }),
+  workspaces: () => request('/workspaces/available'),
+  setCurrentWorkspace: (workspaceCode) =>
+    request('/preferences/me/current-workspace', { method: 'PATCH', body: { current_workspace: workspaceCode } }),
+  setDefaultStore: (storeId) =>
+    preferenceAPI.updateMe({ workspace_preferences: { pharmacy: { default_store_id: storeId } } }),
+};
 
 export async function loadPharmacyCommandDashboard(filters = {}) {
   const range = filters.date ? getDateRangeForDate(filters.date) : getRangeQuery(filters.range || 'today');

@@ -10,5 +10,6 @@ router.use(authorize({ actorTypes: ['staff', 'patient', 'patient_relative'] }));
 
 router.get('/me', userPreferenceController.getMyPreferences);
 router.patch('/me', userPreferenceController.updateMyPreferences);
+router.patch('/me/current-workspace', userPreferenceController.updateCurrentWorkspace);
 
 module.exports = router;

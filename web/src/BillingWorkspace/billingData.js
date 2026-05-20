@@ -116,7 +116,7 @@ export const billingMenuSections = [
       { id: 'receipts-print', label: 'In biên lai', to: '/billing/receipts/print', icon: ReceiptText },
       { id: 'receipts-reprint', label: 'In lại biên lai', to: '/billing/receipts/reprint', icon: FileCheck2 },
       { id: 'receipts-download', label: 'Tải biên lai', to: '/billing/receipts/download', icon: FileText },
-      { id: 'receipts-sent-patient', label: 'Biên lai đã gửi bệnh nhân', to: '/billing/receipts/sent-to-patient', icon: CheckCircle2 },
+      { id: 'receipts-patient-submitted', label: 'Biên lai bệnh nhân gửi', to: '/billing/receipts/patient-submitted', icon: CheckCircle2 },
       { id: 'receipts-history', label: 'Lịch sử biên lai', to: '/billing/receipts/history', icon: History },
     ],
   },
@@ -182,6 +182,7 @@ export const billingMenuSections = [
     icon: BarChart3,
     defaultOpen: false,
     children: [
+      { id: 'reports-overview', label: 'Tổng quan báo cáo', to: '/billing/reports/overview', icon: LayoutGrid },
       { id: 'reports-revenue', label: 'Doanh thu', to: '/billing/reports/revenue', icon: BarChart3 },
       { id: 'reports-debt', label: 'Công nợ', to: '/billing/reports/debt', icon: CircleDollarSign },
       { id: 'reports-payment-method', label: 'Theo phương thức thanh toán', to: '/billing/reports/payment-method', icon: CreditCard },

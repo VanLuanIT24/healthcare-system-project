@@ -1,4 +1,6 @@
 const imagingService = require('../services/imaging.service');
+const clinicalBillingService = require('../services/clinical-billing.service');
+const clinicalChargeService = require('../services/clinical-charge.service');
 const { controllerHandler: wrap, markLegacyControllerError, requestMeta, sendSuccess } = require('../common/controllers');
 
 module.exports = {
@@ -10,6 +12,7 @@ module.exports = {
 
   listImagingOrders: wrap((req) => imagingService.listImagingOrders(req.query, req.auth), 'Lấy danh sách imaging order thành công.'),
   getImagingOrderDetail: wrap((req) => imagingService.getImagingOrderDetail(req.params.imagingOrderId, req.auth), 'Lấy chi tiết imaging order thành công.'),
+  listImagingOrderCharges: wrap((req) => clinicalChargeService.listImagingOrderCharges(req.params.imagingOrderId, req.auth), 'Lấy charge chẩn đoán hình ảnh thành công.'),
   scheduleImagingOrder: wrap((req) => imagingService.scheduleImagingOrder(req.params.imagingOrderId, req.body, req.auth, requestMeta(req)), 'Schedule imaging order thành công.'),
   rescheduleImagingOrder: wrap((req) => imagingService.rescheduleImagingOrder(req.params.imagingOrderId, req.body, req.auth, requestMeta(req)), 'Reschedule imaging order thành công.'),
   assignImagingTechnician: wrap((req) => imagingService.assignImagingTechnician(req.params.imagingOrderId, req.body, req.auth, requestMeta(req)), 'Assign imaging technician thành công.'),
@@ -21,6 +24,7 @@ module.exports = {
   completeImagingOrder: wrap((req) => imagingService.completeImagingOrder(req.params.imagingOrderId, req.body, req.auth, requestMeta(req)), 'Complete imaging order thành công.'),
   cancelImagingOrder: wrap((req) => imagingService.cancelImagingOrder(req.params.imagingOrderId, req.body, req.auth, requestMeta(req)), 'Cancel imaging order thành công.'),
   markImagingOrderNoShow: wrap((req) => imagingService.markImagingOrderNoShow(req.params.imagingOrderId, req.body, req.auth, requestMeta(req)), 'Mark imaging order no_show thành công.'),
+  createImagingOrderCharge: wrap((req) => clinicalBillingService.createChargeForImagingOrder(req.params.imagingOrderId, req.body, req.auth, requestMeta(req)), 'Tạo charge chẩn đoán hình ảnh thành công.', 201),
 
   uploadImagingAttachment: wrap((req) => imagingService.uploadImagingAttachment(req.params.imagingOrderId, req.body, req.auth, requestMeta(req)), 'Upload imaging attachment thành công.', 201),
   listImagingAttachments: wrap((req) => imagingService.listImagingAttachments(req.params.imagingOrderId, req.auth), 'Lấy imaging attachments thành công.'),

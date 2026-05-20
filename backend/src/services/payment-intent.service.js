@@ -1,5 +1,8 @@
 const {
+  Admission,
+  Encounter,
   Invoice,
+  Patient,
   Payment,
   PaymentIntent,
 } = require('../models');
@@ -17,9 +20,10 @@ const {
   PAYMENT_STATUS,
   REALTIME_EVENT_TYPE,
 } = require('../constants/statuses');
-const { buildPagination, createError, getPagination, recordAuditLog } = require('./core.service');
+const { buildPagination, createError, escapeRegex, getPagination, recordAuditLog } = require('./core.service');
 const actorContext = require('../common/actors');
 const billingService = require('./billing.service');
+const receiptService = require('./receipt.service');
 const eventBus = require('../events/event-bus.service');
 const { isValidObjectId, toObjectId } = require('../common/helpers/object-id.helper');
 const paymentProviderRegistry = require('../payments/payment-provider.registry');
@@ -85,6 +89,10 @@ function normalizeDate(value, label) {
 
 function patientIdFromActor(actor = {}) {
   return actorContext.getPatientId(actor);
+}
+
+function actorDepartmentId(actor = {}) {
+  return actor.departmentId || actor.department_id || actor.user?.department_id || null;
 }
 
 function assertPatientOwnsInvoice(actor = {}, invoice = {}) {
@@ -252,12 +260,58 @@ function hasAnyPermission(actor = {}, permissions = []) {
   return permissions.some((permission) => hasPermission(actor, permission));
 }
 
+function hasGlobalPaymentIntentScope(actor = {}) {
+  return actorContext.isSystem(actor)
+    || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)
+    || hasPermission(actor, PERMISSION.REPORTS.READ_ALL)
+    || !actorDepartmentId(actor);
+}
+
+async function applyPaymentIntentDepartmentScope(filter = {}, actor = {}) {
+  if (actorContext.getActorType(actor) !== 'staff') return filter;
+  const requestedDepartmentId = filter.department_id;
+  delete filter.department_id;
+  const departmentId = hasGlobalPaymentIntentScope(actor) ? requestedDepartmentId : actorDepartmentId(actor);
+  if (!departmentId) return filter;
+  if (!hasGlobalPaymentIntentScope(actor) && requestedDepartmentId && toId(requestedDepartmentId) !== toId(departmentId)) {
+    throw createError('Bạn không có quyền xem payment intent ngoài khoa.', 403);
+  }
+  const [encounters, admissions] = await Promise.all([
+    Encounter.find({ department_id: departmentId }).select('_id').lean(),
+    Admission.find({ department_id: departmentId }).select('_id').lean(),
+  ]);
+  const encounterIds = encounters.map((encounter) => encounter._id);
+  const admissionIds = admissions.map((admission) => admission._id);
+  const invoiceScope = [];
+  if (encounterIds.length) invoiceScope.push({ encounter_id: { $in: encounterIds } });
+  if (admissionIds.length) invoiceScope.push({ admission_id: { $in: admissionIds } });
+  const scopedInvoices = invoiceScope.length
+    ? await Invoice.find({ $or: invoiceScope }).select('_id').lean()
+    : [];
+  const invoiceIds = scopedInvoices.map((invoice) => invoice._id);
+
+  if (filter.invoice_id) {
+    filter.invoice_id = invoiceIds.some((id) => toId(id) === toId(filter.invoice_id)) ? filter.invoice_id : { $in: [] };
+  } else {
+    filter.invoice_id = { $in: invoiceIds };
+  }
+  return filter;
+}
+
 function assertStaffCanConfirmBankTransfer(actor = {}) {
   if (actorContext.isSystem(actor)) return true;
   if (actorContext.getActorType(actor) !== 'staff') {
     throw createError('Chỉ cashier/admin mới được xác nhận chuyển khoản.', 403);
   }
-  if (!hasAnyPermission(actor, [PERMISSION.PAYMENTS.CREATE, PERMISSION.PAYMENTS.READ, PERMISSION.PAYMENTS.REFUND, PERMISSION.PAYMENT_RECONCILIATION.READ])) {
+  if (!hasAnyPermission(actor, [
+    PERMISSION.PAYMENTS.CREATE,
+    PERMISSION.PAYMENTS.READ,
+    PERMISSION.PAYMENTS.REFUND,
+    PERMISSION.PAYMENT_RECONCILIATION.READ,
+    PERMISSION.PAYMENT_RECONCILIATION.MATCH,
+    PERMISSION.PAYMENT_RECONCILIATION.APPROVE,
+    PERMISSION.PAYMENT_RECONCILIATION.REJECT,
+  ])) {
     throw createError('Tài khoản hiện tại không có quyền xác nhận chuyển khoản.', 403);
   }
   return true;
@@ -439,11 +493,91 @@ async function listPaymentIntents(query = {}, actor = {}) {
   const { page, limit, skip } = getPagination(query);
   const filter = {};
   if (actorContext.getActorType(actor) === 'patient') filter.patient_id = patientIdFromActor(actor);
-  for (const field of ['invoice_id', 'patient_id', 'provider', 'method', 'status']) {
+  if (query.department_id) filter.department_id = query.department_id;
+  for (const field of ['invoice_id', 'patient_id', 'provider', 'method', 'receiver_bank_bin']) {
     if (query[field] && (field !== 'patient_id' || actorContext.getActorType(actor) !== 'patient')) filter[field] = query[field];
   }
+  if (query.status) {
+    const statuses = String(query.status).split(',').map((item) => item.trim()).filter(Boolean);
+    filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
+  }
+  for (const field of ['intent_code', 'transaction_reference', 'provider_transaction_id', 'provider_order_id']) {
+    if (query[field]) filter[field] = { $regex: escapeRegex(query[field]), $options: 'i' };
+  }
+  if (query.manual_review_reason) filter.manual_review_reason = { $regex: escapeRegex(query.manual_review_reason), $options: 'i' };
+  for (const [field, minKey, maxKey] of [
+    ['amount', 'amount_min', 'amount_max'],
+    ['amount', 'min_amount', 'max_amount'],
+  ]) {
+    if (query[minKey] !== undefined && query[minKey] !== '') {
+      filter[field] = { ...(filter[field] || {}), $gte: normalizeMoney(query[minKey], minKey) };
+    }
+    if (query[maxKey] !== undefined && query[maxKey] !== '') {
+      filter[field] = { ...(filter[field] || {}), $lte: normalizeMoney(query[maxKey], maxKey) };
+    }
+  }
+  for (const [field, fromKey, toKey] of [
+    ['created_at', 'created_from', 'created_to'],
+    ['updated_at', 'updated_from', 'updated_to'],
+    ['expires_at', 'expires_from', 'expires_to'],
+    ['confirmed_at', 'confirmed_from', 'confirmed_to'],
+  ]) {
+    if (query[fromKey] || query[toKey]) {
+      filter[field] = { ...(filter[field] || {}) };
+      const from = normalizeDate(query[fromKey], fromKey);
+      const to = normalizeDate(query[toKey], toKey);
+      if (from) filter[field].$gte = from;
+      if (to) filter[field].$lte = to;
+    }
+  }
+  if (query.has_receipt_file === 'true') filter.receipt_image_url = { $exists: true, $ne: null };
+  if (query.has_receipt_file === 'false') {
+    filter.$or = [
+      ...(filter.$or || []),
+      { receipt_image_url: { $exists: false } },
+      { receipt_image_url: null },
+    ];
+  }
+  const keyword = normalizeString(query.keyword || query.q || query.search);
+  if (keyword) {
+    const pattern = escapeRegex(keyword);
+    const [patients, invoices] = await Promise.all([
+      Patient.find({
+        $or: [
+          { patient_code: { $regex: pattern, $options: 'i' } },
+          { full_name: { $regex: pattern, $options: 'i' } },
+          { phone: { $regex: pattern, $options: 'i' } },
+        ],
+      }).select('_id').limit(500).lean(),
+      Invoice.find({ invoice_no: { $regex: pattern, $options: 'i' } }).select('_id').limit(500).lean(),
+    ]);
+    filter.$and = [
+      ...(filter.$and || []),
+      {
+        $or: [
+          { intent_code: { $regex: pattern, $options: 'i' } },
+          { transaction_reference: { $regex: pattern, $options: 'i' } },
+          { provider_transaction_id: { $regex: pattern, $options: 'i' } },
+          { provider_order_id: { $regex: pattern, $options: 'i' } },
+          { payment_note: { $regex: pattern, $options: 'i' } },
+          { receiver_account_no: { $regex: pattern, $options: 'i' } },
+          { receiver_account_name: { $regex: pattern, $options: 'i' } },
+          ...(patients.length ? [{ patient_id: { $in: patients.map((patient) => patient._id) } }] : []),
+          ...(invoices.length ? [{ invoice_id: { $in: invoices.map((invoice) => invoice._id) } }] : []),
+        ],
+      },
+    ];
+  }
+  await applyPaymentIntentDepartmentScope(filter, actor);
   const [items, total] = await Promise.all([
-    PaymentIntent.find(filter).sort({ created_at: -1 }).skip(skip).limit(limit).lean(),
+    PaymentIntent.find(filter)
+      .sort({ updated_at: -1, created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('invoice_id', 'invoice_no status total_amount balance_due')
+      .populate('patient_id', 'patient_code full_name phone')
+      .populate('payment_id', 'payment_no status amount paid_at transaction_ref')
+      .lean(),
     PaymentIntent.countDocuments(filter),
   ]);
   return { items: items.map(serializePaymentIntent), pagination: buildPagination(page, limit, total) };
@@ -523,10 +657,27 @@ async function publishBankTransferConfirmedEvents(intent, payment, actor = {}) {
 }
 
 async function moveIntentToManualReview(intent, payload = {}, actor = {}, requestMeta = {}, reason) {
+  const receivedAmount = Number(payload.received_amount ?? payload.receivedAmount);
+  const hasReceivedAmount = Number.isFinite(receivedAmount);
+  const differenceAmount = hasReceivedAmount ? receivedAmount - Number(intent.amount || 0) : undefined;
   intent.status = PAYMENT_INTENT_STATUS.MANUAL_REVIEW;
   intent.manual_review_reason = reason;
+  intent.mismatch_type = normalizeString(payload.mismatch_type || payload.mismatchType)
+    || (hasReceivedAmount
+      ? (receivedAmount < intent.amount ? 'amount_short' : 'amount_over')
+      : 'other');
+  intent.expected_amount = intent.amount;
+  if (hasReceivedAmount) intent.received_amount = receivedAmount;
+  if (hasReceivedAmount) intent.difference_amount = differenceAmount;
+  intent.detected_reason = reason;
+  intent.review_status = 'open';
+  intent.review_assignee_id = payload.review_assignee_id || payload.reviewAssigneeId || intent.review_assignee_id;
   intent.metadata = withMergedIntentMetadata(intent, 'bank_transfer_review', bankTransferMetadata(payload, {
     reason,
+    mismatch_type: intent.mismatch_type,
+    expected_amount: intent.expected_amount,
+    received_amount: hasReceivedAmount ? receivedAmount : undefined,
+    difference_amount: hasReceivedAmount ? differenceAmount : undefined,
     reviewed_at: new Date(),
     reviewed_by: actor.userId || actor.user_id,
   }));
@@ -587,9 +738,19 @@ async function confirmBankTransfer(intentId, payload = {}, actor = {}, requestMe
     amount: receivedAmount,
     payment_method: PAYMENT_METHOD.BANK_TRANSFER,
     transaction_ref: transactionRef,
+    transaction_reference: intent.transaction_reference || transactionRef,
     payment_intent_id: intent._id,
+    provider: intent.provider,
+    method: intent.method,
     payment_provider: intent.provider,
     provider_transaction_id: transactionRef,
+    intent_code: intent.intent_code,
+    payment_note: intent.payment_note,
+    qr_image_url: intent.qr_image_url,
+    receipt_image_url: intent.receipt_image_url,
+    receipt_file_name: intent.receipt_file_name,
+    receipt_mime_type: intent.receipt_mime_type,
+    receipt_file_size: intent.receipt_file_size,
     idempotency_key: `manual_bank_transfer:${toId(intent._id)}:${transactionRef}`,
     paid_at: receivedAt,
     confirmed_by: actorUserId,
@@ -605,6 +766,12 @@ async function confirmBankTransfer(intentId, payload = {}, actor = {}, requestMe
   intent.confirmed_at = new Date();
   intent.failure_reason = undefined;
   intent.manual_review_reason = undefined;
+  intent.mismatch_type = undefined;
+  intent.expected_amount = undefined;
+  intent.received_amount = undefined;
+  intent.difference_amount = undefined;
+  intent.detected_reason = undefined;
+  intent.review_status = 'resolved';
   intent.metadata = withMergedIntentMetadata(intent, 'bank_transfer_confirmation', bankTransferMetadata(payload, {
     confirmed_at: intent.confirmed_at,
     confirmed_by: actorUserId,
@@ -708,6 +875,71 @@ async function rejectBankTransfer(intentId, payload = {}, actor = {}, requestMet
   return { payment_intent: intent.toObject() };
 }
 
+async function markManualReview(intentId, payload = {}, actor = {}, requestMeta = {}) {
+  assertStaffCanConfirmBankTransfer(actor);
+  assertManualPaymentsEnabled();
+  const reason = normalizeString(payload.reason || payload.manual_review_reason || payload.note);
+  if (!reason) throw createError('reason là bắt buộc.', 400);
+  const intent = await resolveManualIntent(intentId);
+  assertManualIntent(intent);
+
+  if ([PAYMENT_INTENT_STATUS.CONFIRMED, PAYMENT_INTENT_STATUS.PAID].includes(intent.status)) {
+    throw createError('Payment đã được xác nhận, không thể đưa vào manual review.', 409);
+  }
+  if ([PAYMENT_INTENT_STATUS.CANCELLED, PAYMENT_INTENT_STATUS.EXPIRED].includes(intent.status)) {
+    throw createError('Payment đã hết hạn/hủy, không thể đưa vào manual review.', 409);
+  }
+
+  const actorUserId = actor.userId || actor.user_id;
+  intent.status = PAYMENT_INTENT_STATUS.MANUAL_REVIEW;
+  intent.manual_review_reason = reason;
+  intent.failure_reason = payload.failure_reason ? normalizeString(payload.failure_reason) : intent.failure_reason;
+  intent.metadata = withMergedIntentMetadata(intent, 'manual_review', {
+    reason,
+    expected_amount: payload.expected_amount ?? payload.expectedAmount ?? intent.amount,
+    received_amount: payload.received_amount ?? payload.receivedAmount,
+    transaction_reference: normalizeString(payload.transaction_reference || payload.transactionReference || payload.transaction_ref || payload.transactionRef || intent.transaction_reference),
+    note: normalizeString(payload.note),
+    reviewed_at: new Date(),
+    reviewed_by: actorUserId,
+  });
+  intent.updated_by = actorUserId;
+  appendAuditLog(intent, 'manual_payment.manual_review', actor, intent.metadata.manual_review, reason);
+  await intent.save();
+
+  await Payment.updateOne(
+    { payment_intent_id: intent._id },
+    {
+      $set: {
+        status: PAYMENT_STATUS.PENDING_MANUAL_CONFIRMATION,
+        manual_reject_reason: reason,
+      },
+      $push: {
+        audit_logs: {
+          action: 'manual_payment.manual_review',
+          actor_type: actorContext.getActorType(actor) || actor.actorType,
+          actor_id: actorContext.getActorId(actor) || actorUserId,
+          at: new Date(),
+          reason,
+        },
+      },
+    },
+  ).catch(() => {});
+
+  await recordAuditLog({
+    actor,
+    action: 'manual_payment.manual_review',
+    targetType: 'payment_intent',
+    targetId: intent._id,
+    status: 'success',
+    message: 'Manual payment moved to review.',
+    requestMeta,
+    metadata: { reason },
+  });
+
+  return { payment_intent: serializePaymentIntent(intent) };
+}
+
 async function resolveManualIntent(paymentOrIntentId) {
   if (!isValidObjectId(paymentOrIntentId)) throw createError('payment id không hợp lệ.', 422);
   let intent = await PaymentIntent.findById(paymentOrIntentId);
@@ -806,6 +1038,41 @@ async function listManualPayments(query = {}, actor = {}) {
   if (query.provider) filter.provider = query.provider;
   if (query.invoice_id) filter.invoice_id = query.invoice_id;
   if (query.patient_id) filter.patient_id = query.patient_id;
+  if (query.department_id) filter.department_id = query.department_id;
+  if (query.transaction_reference || query.transaction_ref) {
+    filter.transaction_reference = new RegExp(escapeRegex(query.transaction_reference || query.transaction_ref), 'i');
+  }
+  if (query.manual_review_reason) {
+    filter.manual_review_reason = new RegExp(escapeRegex(query.manual_review_reason), 'i');
+  }
+  if (query.mismatch_type) filter.mismatch_type = query.mismatch_type;
+  if (query.review_status) filter.review_status = query.review_status;
+  if (query.has_receipt !== undefined || query.has_receipt_file !== undefined) {
+    const hasReceipt = String(query.has_receipt ?? query.has_receipt_file) === 'true';
+    filter.receipt_image_url = hasReceipt ? { $exists: true, $ne: '' } : { $in: [null, undefined, ''] };
+  }
+  const amountRange = {};
+  if (query.amount_min !== undefined) amountRange.$gte = Number(query.amount_min);
+  if (query.amount_max !== undefined) amountRange.$lte = Number(query.amount_max);
+  if (Object.keys(amountRange).length) filter.amount = amountRange;
+  const createdRange = {};
+  const fromAt = normalizeDate(query.from_at || query.date_from || query.created_from, 'from_at');
+  const toAt = normalizeDate(query.to_at || query.date_to || query.created_to, 'to_at');
+  if (fromAt) createdRange.$gte = fromAt;
+  if (toAt) createdRange.$lte = toAt;
+  if (Object.keys(createdRange).length) filter.created_at = createdRange;
+  const keyword = normalizeString(query.keyword || query.q || query.search);
+  if (keyword) {
+    const regex = new RegExp(escapeRegex(keyword), 'i');
+    filter.$or = [
+      { intent_code: regex },
+      { payment_note: regex },
+      { transaction_reference: regex },
+      { provider_transaction_id: regex },
+      { manual_review_reason: regex },
+    ];
+  }
+  await applyPaymentIntentDepartmentScope(filter, actor);
   const [items, total] = await Promise.all([
     PaymentIntent.find(filter)
       .sort({ updated_at: -1, created_at: -1 })
@@ -852,9 +1119,19 @@ async function confirmManualPayment(paymentOrIntentId, payload = {}, actor = {},
     amount: receivedAmount,
     payment_method: manualPaymentMethodForProvider(intent.provider),
     transaction_ref: transactionRef,
+    transaction_reference: intent.transaction_reference || transactionRef,
     payment_intent_id: intent._id,
+    provider: intent.provider,
+    method: intent.method,
     payment_provider: intent.provider,
     provider_transaction_id: transactionRef,
+    intent_code: intent.intent_code,
+    payment_note: intent.payment_note,
+    qr_image_url: intent.qr_image_url,
+    receipt_image_url: intent.receipt_image_url,
+    receipt_file_name: intent.receipt_file_name,
+    receipt_mime_type: intent.receipt_mime_type,
+    receipt_file_size: intent.receipt_file_size,
     idempotency_key: `manual_payment:${toId(intent._id)}:confirmed`,
     paid_at: paidAt,
     confirmed_by: actorUserId,
@@ -875,6 +1152,12 @@ async function confirmManualPayment(paymentOrIntentId, payload = {}, actor = {},
   intent.failure_reason = undefined;
   intent.manual_review_reason = undefined;
   intent.manual_reject_reason = undefined;
+  intent.mismatch_type = undefined;
+  intent.expected_amount = undefined;
+  intent.received_amount = undefined;
+  intent.difference_amount = undefined;
+  intent.detected_reason = undefined;
+  intent.review_status = 'resolved';
   intent.updated_by = actorUserId;
   appendAuditLog(intent, 'manual_payment.confirmed', actor, { payment_id: toId(paymentId), transaction_reference: transactionRef });
   await intent.save();
@@ -990,7 +1273,7 @@ async function refundManualPayment(paymentOrIntentId, payload = {}, actor = {}, 
 
   let payment = await Payment.findById(paymentId);
   if (!payment) throw createError('Không tìm thấy payment đã xác nhận.', 404);
-  if (![PAYMENT_STATUS.COMPLETED, PAYMENT_STATUS.CONFIRMED, PAYMENT_STATUS.REFUNDED].includes(payment.status)) {
+  if (![PAYMENT_STATUS.COMPLETED, PAYMENT_STATUS.REFUNDED].includes(payment.status)) {
     throw createError('Payment không ở trạng thái có thể ghi nhận hoàn tiền thủ công.', 409);
   }
 
@@ -1044,79 +1327,14 @@ function listAvailableProviders() {
 }
 
 async function getPaymentReceipt(paymentId, actor = {}, requestMeta = {}) {
-  const payment = await Payment.findById(paymentId).populate('invoice_id').lean();
-  if (!payment) throw createError('Không tìm thấy payment.', 404);
-  if (actorContext.getActorType(actor) === 'patient' && toId(payment.patient_id) !== toId(patientIdFromActor(actor))) {
-    throw createError('Bạn chỉ được xem receipt của chính mình.', 403);
-  }
-  await recordAuditLog({ actor, action: 'record.download', targetType: 'payment', targetId: payment._id, status: 'success', message: 'Xem receipt payment.', requestMeta });
-  await eventBus.publishDomainEvent({
-    eventType: REALTIME_EVENT_TYPE.RECEIPT_GENERATED,
-    aggregateType: 'payment',
-    aggregateId: payment._id,
-    recipientScope: {
-      patient_id: payment.patient_id,
-      recipients: [{ recipient_type: 'patient', recipient_id: payment.patient_id, patient_id: payment.patient_id }],
-    },
-    payload: {
-      payment_id: toId(payment._id),
-      invoice_id: toId(payment.invoice_id?._id || payment.invoice_id),
-      notification: {
-        title: 'Biên nhận đã sẵn sàng',
-        body: `Biên nhận ${payment.payment_no} đã được tạo.`,
-        priority: 'normal',
-      },
-    },
-  });
-  return {
-    payment,
-    receipt: {
-      receipt_no: payment.payment_no,
-      issued_at: new Date(),
-      receipt_url: `/billing/me/payments/${toId(payment._id)}/receipt`,
-    },
-  };
+  return receiptService.getReceiptByPayment(paymentId, actor, requestMeta);
 }
 
 async function requestRefund(paymentId, payload = {}, actor = {}, requestMeta = {}) {
-  const payment = await Payment.findById(paymentId);
-  if (!payment) throw createError('Không tìm thấy payment.', 404);
-  if (actorContext.getActorType(actor) === 'patient' && toId(payment.patient_id) !== toId(patientIdFromActor(actor))) {
-    throw createError('Bạn chỉ được yêu cầu refund payment của chính mình.', 403);
-  }
-  if (payment.status !== PAYMENT_STATUS.COMPLETED) throw createError('Chỉ payment completed mới được yêu cầu refund.', 409);
-  const amount = payload.refund_amount || payload.amount || payment.amount;
-  if (normalizeMoney(amount, 'refund_amount') > payment.amount) throw createError('refund_amount không được vượt payment amount.', 409);
-  payment.refund_status = 'requested';
-  payment.refund_amount = Number(amount);
-  payment.refund_reason = normalizeString(payload.reason || payload.refund_reason);
-  payment.refund_requested_by = {
-    actor_type: actorContext.getActorType(actor),
-    actor_id: actorContext.getActorId(actor),
-  };
-  payment.refund_requested_at = new Date();
-  await payment.save();
-  await recordAuditLog({ actor, action: 'payment.refund_requested', targetType: 'payment', targetId: payment._id, status: 'success', message: 'Yêu cầu refund payment.', requestMeta });
-  await eventBus.publishDomainEvent({
-    eventType: REALTIME_EVENT_TYPE.PAYMENT_REFUNDED,
-    aggregateType: 'payment',
-    aggregateId: payment._id,
-    recipientScope: {
-      patient_id: payment.patient_id,
-      recipients: [{ recipient_type: 'patient', recipient_id: payment.patient_id, patient_id: payment.patient_id }],
-    },
-    payload: {
-      payment_id: toId(payment._id),
-      refund_status: payment.refund_status,
-      refund_amount: payment.refund_amount,
-      notification: {
-        title: 'Đã ghi nhận yêu cầu hoàn tiền',
-        body: 'Yêu cầu hoàn tiền của bạn đã được gửi đến bộ phận thanh toán.',
-        priority: 'normal',
-      },
-    },
-  });
-  return payment.toObject();
+  return billingService.createRefundForPayment(paymentId, {
+    ...payload,
+    request_source: payload.request_source || 'patient_portal',
+  }, actor, requestMeta);
 }
 
 module.exports = {
@@ -1126,6 +1344,7 @@ module.exports = {
   listPaymentIntents,
   confirmBankTransfer,
   rejectBankTransfer,
+  markManualReview,
   submitManualReceipt,
   listManualPayments,
   confirmManualPayment,

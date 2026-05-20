@@ -8,6 +8,9 @@ import { ImagingWorklistPage } from './ImagingPages';
 import { ProcedureWorklistPage } from './ProcedurePages';
 import { ResultReviewPage } from './ResultReviewPages';
 import { ClinicalFilePage } from './ClinicalFilePages';
+import { ClinicalBillingPage } from './ClinicalBillingPages';
+import { ClinicalChargePage } from './ClinicalChargePages';
+import { ClinicalPaymentPage } from './ClinicalPaymentPages';
 import {
   ClinicalOpsDashboardPage,
   CriticalResultsPage,
@@ -116,6 +119,42 @@ export default function LabWorkspace() {
         <Route path="procedures/no-show" element={<ProcedureWorklistPage pageKey="noShow" />} />
         <Route path="procedures/files" element={<ProcedureWorklistPage pageKey="files" />} />
         <Route path="procedures/fees" element={<ProcedureWorklistPage pageKey="charges" />} />
+        <Route path="charges/dashboard" element={<ClinicalChargePage pageKey="dashboard" />} />
+        <Route path="charges/action-queue" element={<ClinicalChargePage pageKey="actionQueue" />} />
+        <Route path="charges/missing" element={<ClinicalChargePage pageKey="missing" />} />
+        <Route path="charges/by-order" element={<ClinicalChargePage pageKey="byOrder" />} />
+        <Route path="charges/lab" element={<ClinicalChargePage pageKey="lab" />} />
+        <Route path="charges/imaging" element={<ClinicalChargePage pageKey="imaging" />} />
+        <Route path="charges/procedure" element={<ClinicalChargePage pageKey="procedure" />} />
+        <Route path="charges/posted" element={<ClinicalChargePage pageKey="posted" />} />
+        <Route path="charges/unbilled" element={<ClinicalChargePage pageKey="unbilled" />} />
+        <Route path="charges/billed" element={<ClinicalChargePage pageKey="billed" />} />
+        <Route path="charges/exceptions" element={<ClinicalChargePage pageKey="exceptions" />} />
+        <Route path="charges/reconciliation" element={<ClinicalChargePage pageKey="reconciliation" />} />
+        <Route path="payments/dashboard" element={<ClinicalPaymentPage pageKey="dashboard" />} />
+        <Route path="payments/waiting-payment" element={<ClinicalPaymentPage pageKey="waiting" />} />
+        <Route path="payments/ready-to-perform" element={<ClinicalPaymentPage pageKey="ready" />} />
+        <Route path="payments/waiting-confirmation" element={<ClinicalPaymentPage pageKey="confirmation" />} />
+        <Route path="payments/manual-review" element={<ClinicalPaymentPage pageKey="manualReview" />} />
+        <Route path="payments/by-encounter" element={<ClinicalPaymentPage pageKey="byEncounter" />} />
+        <Route path="payments/by-order" element={<ClinicalPaymentPage pageKey="byOrder" />} />
+        <Route path="payments/errors" element={<ClinicalPaymentPage pageKey="errors" />} />
+        <Route path="payments/refund-void" element={<ClinicalPaymentPage pageKey="refundVoid" />} />
+        <Route path="billing/dashboard" element={<ClinicalBillingPage pageKey="dashboard" />} />
+        <Route path="billing/charge-candidates" element={<ClinicalBillingPage pageKey="chargeCandidates" />} />
+        <Route path="billing/charges" element={<ClinicalBillingPage pageKey="charges" />} />
+        <Route path="billing/unbilled-charges" element={<ClinicalBillingPage pageKey="unbilled" />} />
+        <Route path="billing/invoices/draft" element={<ClinicalBillingPage pageKey="draftInvoices" />} />
+        <Route path="billing/invoices/issued" element={<ClinicalBillingPage pageKey="issuedInvoices" />} />
+        <Route path="billing/invoices/unpaid" element={<ClinicalBillingPage pageKey="unpaidInvoices" />} />
+        <Route path="billing/invoices/partial" element={<ClinicalBillingPage pageKey="partialInvoices" />} />
+        <Route path="billing/invoices/paid" element={<ClinicalBillingPage pageKey="paidInvoices" />} />
+        <Route path="billing/exceptions" element={<ClinicalBillingPage pageKey="exceptions" />} />
+        <Route path="billing/by-encounter" element={<ClinicalBillingPage pageKey="encounterBilling" />} />
+        <Route path="billing/by-order" element={<ClinicalBillingPage pageKey="orderBilling" />} />
+        <Route path="billing/by-patient" element={<ClinicalBillingPage pageKey="patientBilling" />} />
+        <Route path="billing/reconciliation" element={<ClinicalBillingPage pageKey="reconciliation" />} />
+        <Route path="billing/adjustments" element={<ClinicalBillingPage pageKey="adjustments" />} />
         <Route path="settings/lab-test-catalog" element={<LabWorklistPage pageKey="catalog" />} />
         <Route path="approvals/lab" element={<ResultReviewPage pageKey="labPending" />} />
         <Route path="approvals/imaging-signature" element={<ResultReviewPage pageKey="imagingSigning" />} />

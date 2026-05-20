@@ -1,6 +1,7 @@
 const ApiError = require('../common/errors/api-error');
 const actorContext = require('../common/actors');
 const { UserPreference } = require('../models');
+const workspaceAccessService = require('./workspace-access.service');
 
 const DEFAULT_PREFERENCES = {
   language: 'vi',
@@ -13,6 +14,8 @@ const DEFAULT_PREFERENCES = {
     high_contrast: false,
     large_text: false,
   },
+  current_workspace: 'nursing',
+  workspace_preferences: {},
   critical_notifications_enabled: true,
 };
 
@@ -24,10 +27,14 @@ function preferenceActor(actor = {}) {
   return { actor_type: actorType, actor_id: actorId };
 }
 
-function sanitizePreferencePayload(payload = {}) {
+function sanitizePreferencePayload(payload = {}, actor = {}) {
   const output = {};
-  for (const field of ['language', 'timezone', 'date_format', 'notification_channels', 'quiet_hours', 'accessibility', 'default_patient_profile_id']) {
+  for (const field of ['language', 'timezone', 'date_format', 'notification_channels', 'quiet_hours', 'accessibility', 'default_patient_profile_id', 'workspace_preferences']) {
     if (payload[field] !== undefined) output[field] = payload[field];
+  }
+  if (payload.current_workspace !== undefined) {
+    const workspace = workspaceAccessService.assertWorkspaceAvailable(String(payload.current_workspace), actor);
+    output.current_workspace = workspace.code;
   }
   if (payload.critical_notifications_enabled === false) {
     throw ApiError.conflict('Không thể tắt hoàn toàn emergency/critical notifications.');
@@ -55,7 +62,7 @@ async function updatePreferences(payload = {}, actor = {}) {
   const preference = await UserPreference.findOneAndUpdate(
     identity,
     {
-      $set: sanitizePreferencePayload(payload),
+      $set: sanitizePreferencePayload(payload, actor),
       $setOnInsert: identity,
     },
     { new: true, upsert: true },
@@ -63,7 +70,26 @@ async function updatePreferences(payload = {}, actor = {}) {
   return { preferences: preference };
 }
 
+async function updateCurrentWorkspace(workspaceCode, actor = {}) {
+  const identity = preferenceActor(actor);
+  const workspace = workspaceAccessService.assertWorkspaceAvailable(String(workspaceCode || ''), actor);
+  const preference = await UserPreference.findOneAndUpdate(
+    identity,
+    {
+      $set: { current_workspace: workspace.code, critical_notifications_enabled: true },
+      $setOnInsert: identity,
+    },
+    { new: true, upsert: true },
+  ).lean();
+  return {
+    current_workspace: workspace.code,
+    route: workspace.route,
+    preferences: preference,
+  };
+}
+
 module.exports = {
   getPreferences,
   updatePreferences,
+  updateCurrentWorkspace,
 };

@@ -13,6 +13,7 @@ const paymentSchema = new Schema(
     invoice_id: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true },
     patient_id: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     payment_intent_id: { type: Schema.Types.ObjectId, ref: 'PaymentIntent' },
+    insurance_claim_id: { type: Schema.Types.ObjectId, ref: 'InsuranceClaim' },
     provider: { type: String, trim: true },
     method: { type: String, trim: true },
     payment_provider: { type: String, trim: true },
@@ -31,6 +32,14 @@ const paymentSchema = new Schema(
     receipt_file_size: { type: Number, min: 0 },
     transaction_reference: { type: String, trim: true },
     transaction_ref: { type: String, trim: true },
+    cash_received_amount: { type: Number, min: 0, validate: integerMoneyValidator },
+    cash_change_amount: { type: Number, min: 0, validate: integerMoneyValidator },
+    cashier_shift_id: { type: Schema.Types.ObjectId, ref: 'CashierShift' },
+    counter_id: { type: String, trim: true },
+    counter_code: { type: String, trim: true },
+    payment_source: { type: String, trim: true },
+    collection_note: { type: String },
+    receipt_print_requested: { type: Boolean, default: false },
     paid_at: { type: Date },
     received_by: { type: Schema.Types.ObjectId, ref: 'User' },
     confirmed_by: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -38,6 +47,10 @@ const paymentSchema = new Schema(
     voided_by: { type: Schema.Types.ObjectId, ref: 'User' },
     voided_at: { type: Date },
     void_reason: { type: String },
+    void_category: { type: String, trim: true },
+    void_type: { type: String, trim: true },
+    void_evidence_files: [{ type: Schema.Types.Mixed }],
+    void_notify_patient: { type: Boolean, default: false },
     refunded_by: { type: Schema.Types.ObjectId, ref: 'User' },
     refunded_at: { type: Date },
     refund_reason: { type: String },
@@ -69,6 +82,7 @@ const paymentSchema = new Schema(
 paymentSchema.index({ invoice_id: 1 });
 paymentSchema.index({ patient_id: 1 });
 paymentSchema.index({ payment_intent_id: 1 }, { unique: true, sparse: true });
+paymentSchema.index({ insurance_claim_id: 1 });
 paymentSchema.index({ provider: 1 });
 paymentSchema.index(
   { payment_provider: 1, provider_transaction_id: 1 },
@@ -78,6 +92,8 @@ paymentSchema.index({ idempotency_key: 1 }, { unique: true, sparse: true });
 paymentSchema.index({ payment_method: 1 });
 paymentSchema.index({ transaction_ref: 1 });
 paymentSchema.index({ transaction_reference: 1 });
+paymentSchema.index({ cashier_shift_id: 1 });
+paymentSchema.index({ counter_code: 1, paid_at: 1 });
 paymentSchema.index({ intent_code: 1 });
 paymentSchema.index({ paid_at: 1 });
 paymentSchema.index({ received_by: 1 });

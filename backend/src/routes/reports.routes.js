@@ -1,4 +1,5 @@
 const express = require('express');
+const billingReportRoutes = require('./billing-report.routes');
 const pharmacyReportRoutes = require('./pharmacy-report.routes');
 const reportsController = require('../controllers/reports.controller');
 const authenticate = require('../middleware/authenticate');
@@ -11,6 +12,7 @@ router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));
 
 router.use('/pharmacy', pharmacyReportRoutes);
+router.use('/billing', billingReportRoutes);
 
 router.get('/appointments', authorize({
   anyPermissions: [

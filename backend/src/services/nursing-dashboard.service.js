@@ -36,6 +36,7 @@ const {
   VITAL_SIGN_STATUS,
 } = require('../constants/statuses');
 const permissionService = require('./permission.service');
+const workspaceAccessService = require('./workspace-access.service');
 const {
   buildPagination,
   createError,
@@ -93,6 +94,24 @@ const OPEN_TASK_STATUSES = ['draft', 'assigned', 'accepted', 'todo', 'in_progres
 const DEFAULT_LIMIT = 80;
 const NURSING_WAITING_SLA_MINUTES = 30;
 const EMERGENCY_ACK_SLA_MINUTES = 5;
+const NURSING_COMMAND_MENUS = [
+  { id: 'dashboard', group: 'Tổng quan', label: 'Bảng điều khiển', route: '/nurse/dashboard', keywords: ['dashboard', 'tong quan'] },
+  { id: 'pending-processing', group: 'Tổng quan', label: 'Bệnh nhân chờ xử lý', route: '/nurse/overview/pending-processing', keywords: ['benh nhan', 'cho xu ly'] },
+  { id: 'priority-alerts', group: 'Tổng quan', label: 'Cảnh báo ưu tiên', route: '/nurse/overview/priority-alerts', keywords: ['canh bao', 'uu tien'] },
+  { id: 'vitals-waiting', group: 'Sinh hiệu và ghi nhận', label: 'Chờ đo sinh hiệu', route: '/nurse/vitals-records/waiting', keywords: ['sinh hieu', 'cho do'] },
+  { id: 'vitals-entry', group: 'Sinh hiệu và ghi nhận', label: 'Nhập sinh hiệu', route: '/nurse/vitals-records/entry', keywords: ['nhap sinh hieu', 'do sinh hieu'] },
+  { id: 'vitals-abnormal', group: 'Sinh hiệu và ghi nhận', label: 'Sinh hiệu bất thường', route: '/nurse/vitals-records/abnormal', keywords: ['bat thuong', 'critical', 'spo2'] },
+  { id: 'waiting-triage', group: 'Tiếp nhận và phân loại', label: 'Chờ phân loại', route: '/nurse/reception-triage/waiting-triage', keywords: ['triage', 'phan loai'] },
+  { id: 'ready-for-doctor', group: 'Tiếp nhận và phân loại', label: 'Sẵn sàng gặp bác sĩ', route: '/nurse/reception-triage/ready-for-doctor', keywords: ['bac si', 'ready'] },
+  { id: 'service-preparation', group: 'Chuẩn bị dịch vụ', label: 'Chờ chuẩn bị', route: '/nurse/service-preparation/waiting', keywords: ['chuan bi', 'cls'] },
+  { id: 'monitoring-alerts', group: 'Theo dõi và báo bác sĩ', label: 'Cảnh báo bất thường', route: '/nurse/monitoring-reporting/abnormal-alerts', keywords: ['theo doi', 'bao bac si'] },
+  { id: 'tasks-assigned', group: 'Nhiệm vụ và bàn giao', label: 'Nhiệm vụ được giao', route: '/nurse/tasks-handover/assigned', keywords: ['task', 'nhiem vu'] },
+  { id: 'tasks-overdue', group: 'Nhiệm vụ và bàn giao', label: 'Nhiệm vụ quá hạn', route: '/nurse/tasks-handover/overdue', keywords: ['qua han', 'overdue'] },
+  { id: 'shift-handover', group: 'Nhiệm vụ và bàn giao', label: 'Bàn giao ca', route: '/nurse/tasks-handover/shift-handover', keywords: ['ban giao', 'ca truc'] },
+  { id: 'inpatient-list', group: 'Nội trú', label: 'Danh sách nội trú', route: '/nurse/inpatient/list', keywords: ['noi tru', 'giuong'] },
+  { id: 'emergency-open', group: 'Cấp cứu', label: 'Ca khẩn đang mở', route: '/nurse/emergency/open-cases', keywords: ['cap cuu', 'khan'] },
+  { id: 'patient-profile', group: 'Tra cứu bệnh nhân', label: 'Hồ sơ bệnh nhân', route: '/nurse/patient-lookup/profile', keywords: ['ho so', 'patient'] },
+];
 
 function hasPermission(actor = {}, permissionCode) {
   return permissionService.hasPermission(actor.permissions || [], permissionCode);
@@ -1582,6 +1601,258 @@ async function getPriorityAlerts(query = {}, actor = {}) {
       critical: dashboard.priority_alerts.filter((item) => item.severity === 'critical').length,
       high: dashboard.priority_alerts.filter((item) => item.severity === 'high').length,
     },
+  };
+}
+
+function commandNormalize(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function commandMatches(item = {}, query = '') {
+  if (!query) return true;
+  const haystack = commandNormalize([
+    item.label,
+    item.title,
+    item.name,
+    item.patient_name,
+    item.patient_code,
+    item.queue_number,
+    item.group,
+    item.status,
+    item.type,
+    item.reason,
+    ...(item.keywords || []),
+  ].filter(Boolean).join(' '));
+  return haystack.includes(query);
+}
+
+function uniqueBy(items = [], keyFn) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = keyFn(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildShiftSummaryFromDashboard(dashboard = {}) {
+  const abnormal = Number(dashboard.vitals?.abnormal || 0);
+  const criticalVitals = (dashboard.vitals?.abnormal_items || []).filter((item) => item.severity === 'critical').length;
+  const priorityAlerts = dashboard.priority_alerts || [];
+  const overdueTasks = Number(dashboard.tasks?.overdue || 0);
+  const triagePending = Number(dashboard.triage?.pending || dashboard.kpis?.triage_pending || 0);
+  const postProcedure = Number(dashboard.service_preparation?.procedure || 0);
+  const handoffs = Number(dashboard.kpis?.handoffs_active || 0);
+  const needDoctor = priorityAlerts.filter((item) => item.actions?.includes('notify_doctor')).length
+    + (dashboard.vitals?.abnormal_items || []).filter((item) => item.requires_doctor_notification).length;
+  const critical = criticalVitals + priorityAlerts.filter((item) => item.severity === 'critical').length + Number(dashboard.emergency?.new || 0);
+  const high = priorityAlerts.filter((item) => item.severity === 'high').length + abnormal - criticalVitals;
+  const items = [
+    { code: 'abnormal_vitals', label: 'Sinh hiệu bất thường', count: abnormal, severity: criticalVitals ? 'critical' : 'high', route: '/nurse/vitals-records/abnormal' },
+    { code: 'urgent_cases', label: 'Ca cần báo khẩn', count: Number(dashboard.emergency?.open || 0), severity: dashboard.emergency?.sla_breached ? 'critical' : 'high', route: '/nurse/monitoring-reporting/urgent-cases' },
+    { code: 'overdue_tasks', label: 'Nhiệm vụ quá hạn', count: overdueTasks, severity: overdueTasks ? 'warning' : 'normal', route: '/nurse/tasks-handover/overdue' },
+    { code: 'triage_pending', label: 'Bệnh nhân chờ triage', count: triagePending, severity: triagePending >= 7 ? 'warning' : 'normal', route: '/nurse/reception-triage/waiting-triage' },
+    { code: 'post_procedure', label: 'Sau thủ thuật cần theo dõi', count: postProcedure, severity: postProcedure ? 'warning' : 'normal', route: '/nurse/monitoring-reporting/post-procedure' },
+    { code: 'handoffs_active', label: 'Chờ bàn giao ca', count: handoffs, severity: handoffs ? 'normal' : 'muted', route: '/nurse/tasks-handover/shift-handover' },
+    { code: 'need_doctor', label: 'Cần báo bác sĩ', count: needDoctor, severity: needDoctor ? 'high' : 'normal', route: '/nurse/monitoring-reporting/report-doctor' },
+  ];
+
+  return {
+    shift: dashboard.meta?.shift || 'all',
+    department: dashboard.meta?.department_name || null,
+    department_id: dashboard.meta?.department_id || null,
+    alert_total: abnormal + Number(dashboard.emergency?.open || 0) + overdueTasks,
+    critical,
+    high,
+    items,
+    last_updated_at: dashboard.meta?.generated_at || new Date().toISOString(),
+  };
+}
+
+function buildTopbarQuickActions(dashboard = {}) {
+  return [
+    {
+      code: 'record_vital',
+      label: 'Nhập sinh hiệu',
+      route: '/nurse/vitals-records/entry',
+      count: dashboard.vitals?.pending || 0,
+      tone: dashboard.vitals?.pending ? 'primary' : 'neutral',
+    },
+    {
+      code: 'abnormal_vitals',
+      label: 'Xem sinh hiệu bất thường',
+      route: '/nurse/vitals-records/abnormal',
+      count: dashboard.vitals?.abnormal || 0,
+      tone: dashboard.vitals?.abnormal ? 'danger' : 'neutral',
+    },
+    {
+      code: 'overdue_tasks',
+      label: 'Nhiệm vụ quá hạn',
+      route: '/nurse/tasks-handover/overdue',
+      count: dashboard.tasks?.overdue || 0,
+      tone: dashboard.tasks?.overdue ? 'warning' : 'neutral',
+    },
+    {
+      code: 'priority_alerts',
+      label: 'Cảnh báo ưu tiên',
+      route: '/nurse/overview/priority-alerts',
+      count: dashboard.priority_alerts?.length || 0,
+      tone: dashboard.priority_alerts?.length ? 'warning' : 'neutral',
+    },
+  ];
+}
+
+async function getShiftSummary(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard(query, actor);
+  return {
+    meta: dashboard.meta,
+    ...buildShiftSummaryFromDashboard(dashboard),
+  };
+}
+
+async function getTopbarBootstrap(query = {}, actor = {}) {
+  const dashboard = await assembleDashboard({ ...query, limit: query.limit || 80 }, actor);
+  const shiftSummary = buildShiftSummaryFromDashboard(dashboard);
+  const workspace = workspaceAccessService.getAvailableWorkspaces(actor, {
+    current_workspace: 'nursing',
+    badges: {
+      nursing: {
+        alerts: shiftSummary.alert_total,
+        tasks: dashboard.tasks?.due_today || 0,
+      },
+    },
+  });
+  return {
+    profile: {
+      user_id: actorUserId(actor),
+      actor_type: actor.actorType || actor.actor_type || 'staff',
+      display_name: actor.user?.full_name || actor.full_name || actor.name || null,
+      email: actor.user?.email || actor.email || null,
+      roles: actorRoles(actor),
+      department_id: actorDepartmentId(actor),
+      department_name: dashboard.meta?.department_name || null,
+      online_status: 'online',
+    },
+    workspace: {
+      current_workspace: 'nursing',
+      current_department_id: dashboard.meta?.department_id || actorDepartmentId(actor),
+      current_department_name: dashboard.meta?.department_name || null,
+      current_shift: dashboard.meta?.shift || 'all',
+      realtime_rooms: dashboard.meta?.realtime_rooms || [],
+      available_workspaces: workspace.available_workspaces,
+    },
+    permissions: actor.permissions || [],
+    counters: {
+      unread_notifications: dashboard.notifications?.unread || 0,
+      pending_vitals: dashboard.vitals?.pending || 0,
+      abnormal_vitals: dashboard.vitals?.abnormal || 0,
+      priority_alerts: dashboard.priority_alerts?.length || 0,
+      overdue_tasks: dashboard.tasks?.overdue || 0,
+      waiting_triage: dashboard.triage?.pending || 0,
+      open_emergency_cases: dashboard.emergency?.open || 0,
+    },
+    shift_summary: shiftSummary,
+    priority_alert_summary: {
+      total: dashboard.priority_alerts?.length || 0,
+      critical: dashboard.priority_alerts?.filter((item) => item.severity === 'critical').length || 0,
+      high: dashboard.priority_alerts?.filter((item) => item.severity === 'high').length || 0,
+    },
+    notification_preview: dashboard.notifications?.items || [],
+    quick_actions: buildTopbarQuickActions(dashboard),
+    meta: dashboard.meta,
+  };
+}
+
+async function search(query = {}, actor = {}) {
+  const q = commandNormalize(query.q || query.keyword || '');
+  const limit = Math.min(Math.max(Number(query.limit || 8), 1), 20);
+  const dashboard = await assembleDashboard({ ...query, limit: 200, queue_limit: 200 }, actor);
+  const patientSources = [
+    ...(dashboard.queue?.items || []),
+    ...(dashboard.vitals?.pending_items || []),
+    ...(dashboard.vitals?.abnormal_items || []),
+    ...(dashboard.worklist?.items || []),
+  ];
+  const patients = uniqueBy(patientSources.map((item) => ({
+    patient_id: item.patient_id || item.patient?.patient_id,
+    patient_code: item.patient_code || item.patient?.patient_code,
+    patient_name: item.patient_name || item.patient?.patient_name || item.title,
+    gender: item.patient?.gender || null,
+    age: item.patient?.age || null,
+    current_status: item.nursing_stage || item.status || item.type,
+    department_id: item.department_id || dashboard.meta?.department_id || null,
+    department_name: item.department_name || dashboard.meta?.department_name || null,
+    queue_ticket_id: item.queue_ticket_id || item.source_id || null,
+    encounter_id: item.encounter_id || null,
+    risk_chips: [
+      item.priority === 'critical' ? 'critical' : null,
+      item.priority === 'high' ? 'high' : null,
+      item.type?.includes('vital') ? 'sinh hiệu' : null,
+    ].filter(Boolean),
+    actions: ['open_patient', 'record_vital', 'create_task'],
+  })).filter((item) => item.patient_id || item.patient_name), (item) => item.patient_id || item.patient_name)
+    .filter((item) => commandMatches(item, q))
+    .slice(0, limit);
+
+  const queueItems = (dashboard.queue?.items || [])
+    .map((item) => ({
+      queue_ticket_id: item.queue_ticket_id,
+      queue_number: item.queue_number,
+      patient_name: item.patient_name,
+      patient_code: item.patient_code,
+      status: item.status,
+      nursing_stage: item.nursing_stage,
+      waiting_minutes: item.waiting_minutes,
+      route: '/nurse/overview/realtime-queue',
+    }))
+    .filter((item) => commandMatches(item, q))
+    .slice(0, limit);
+
+  const tasks = (dashboard.tasks?.items || [])
+    .map((item) => ({
+      task_id: item.task_id || item.source_id,
+      title: item.title,
+      patient_name: item.patient_name,
+      priority: item.priority,
+      status: item.status,
+      due_at: item.due_at,
+      route: item.status === 'overdue' ? '/nurse/tasks-handover/overdue' : '/nurse/tasks-handover/assigned',
+    }))
+    .filter((item) => commandMatches(item, q))
+    .slice(0, limit);
+
+  const alerts = (dashboard.priority_alerts || [])
+    .map((item) => ({
+      alert_id: item.id || item.source_id,
+      title: item.message || item.reason || item.type,
+      patient_name: item.patient_name,
+      severity: item.severity,
+      created_at: item.created_at,
+      route: item.type === 'abnormal_vital' ? '/nurse/vitals-records/abnormal' : '/nurse/overview/priority-alerts',
+    }))
+    .filter((item) => commandMatches(item, q))
+    .slice(0, limit);
+
+  const menus = NURSING_COMMAND_MENUS
+    .filter((item) => commandMatches(item, q))
+    .slice(0, limit);
+
+  return {
+    query: query.q || '',
+    groups: {
+      patients,
+      queue_items: queueItems,
+      tasks,
+      alerts,
+      menus,
+      quick_actions: buildTopbarQuickActions(dashboard).filter((item) => commandMatches(item, q)).slice(0, limit),
+    },
+    meta: dashboard.meta,
   };
 }
 
@@ -3353,6 +3624,9 @@ module.exports = {
   getKpis,
   getWorklist,
   getPriorityAlerts,
+  getTopbarBootstrap,
+  getShiftSummary,
+  search,
   getPendingPatients,
   getPendingPatientsSummary,
   getPendingPatientsPriorityLane,

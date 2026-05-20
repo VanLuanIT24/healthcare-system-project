@@ -4,15 +4,18 @@ const pharmacyInpatientMedicationController = require('../controllers/pharmacy-i
 const pharmacyOverviewController = require('../controllers/pharmacy-overview.controller');
 const pharmacyDispensingController = require('../controllers/pharmacy-dispensing.controller');
 const pharmacyAlertController = require('../controllers/pharmacy-alert.controller');
+const prescriptionController = require('../controllers/prescription.controller');
 const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
 const { validateObjectIdParam } = require('../common/validators');
+const { idempotencyRequired } = require('../common/middlewares/idempotency.middleware');
 
 const router = express.Router();
 
 router.param('alertId', validateObjectIdParam);
 router.param('workItemId', validateObjectIdParam);
+router.param('prescriptionId', validateObjectIdParam);
 router.param('dispenseId', validateObjectIdParam);
 router.param('holdId', validateObjectIdParam);
 router.param('returnId', validateObjectIdParam);
@@ -55,6 +58,12 @@ const pharmacyOperatePermissions = [
 
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));
+
+router.get('/topbar/bootstrap', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyOverviewController.getTopbarBootstrap);
+router.get('/search', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyOverviewController.searchWorkspace);
+router.get('/dispense-queue/summary', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyDispensingController.getQueueSummary);
+router.get('/dispense-queue', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyDispensingController.getQueue);
+router.get('/alert-summary', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyOverviewController.getAlertSummary);
 
 router.get('/prescription-workbench', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyOverviewController.getPrescriptionWorkbench);
 router.get('/prescription-risk-queue', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyOverviewController.getPrescriptionRiskQueue);
@@ -135,7 +144,29 @@ router.post('/stocktakes/:stocktakeId/cancel', authorize({ anyPermissions: [PERM
 router.get('/dispensing/queue', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyDispensingController.getQueue);
 router.get('/dispensing/queue-summary', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyDispensingController.getQueueSummary);
 router.get('/dispensing/analytics', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyDispensingController.getAnalytics);
+router.post('/prescriptions/:prescriptionId/verify', authorize({ permissions: [PERMISSION.PRESCRIPTIONS.VERIFY] }), prescriptionController.verifyPrescription);
+router.post('/prescriptions/:prescriptionId/claim', authorize({ anyPermissions: [PERMISSION.DISPENSES.CREATE, PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/pharmacy/prescriptions/:prescriptionId/claim' }), pharmacyOverviewController.claimPrescriptionForDispense);
+router.post('/prescriptions/:prescriptionId/dispenses', authorize({ permissions: [PERMISSION.DISPENSES.CREATE] }), idempotencyRequired({ route: '/api/pharmacy/prescriptions/:prescriptionId/dispenses' }), prescriptionController.createDispense);
+router.get('/dispenses/:dispenseId', authorize({ anyPermissions: pharmacyReadPermissions }), prescriptionController.getDispenseDetail);
 router.get('/dispenses/:dispenseId/timeline', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyDispensingController.getTimeline);
+router.post('/dispenses/:dispenseId/preview-completion-plan', authorize({ anyPermissions: [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.COMPLETE] }), prescriptionController.previewDispenseCompletionPlan);
+router.post('/dispenses/:dispenseId/assign', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.CREATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.assignDispense);
+router.post('/dispenses/:dispenseId/start-preparation', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.startPreparation);
+router.post('/dispenses/:dispenseId/change-stage', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.changeStage);
+router.post('/dispenses/:dispenseId/lock', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.lockDispense);
+router.post('/dispenses/:dispenseId/unlock', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.unlockDispense);
+router.get('/dispenses/:dispenseId/checklist', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), pharmacyDispensingController.getChecklist);
+router.patch('/dispenses/:dispenseId/checklist/:code', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.updateChecklistItem);
+router.post('/dispenses/:dispenseId/checklist/complete', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.COMPLETE] }), pharmacyDispensingController.completeChecklist);
+router.post('/dispenses/:dispenseId/holds', authorize({ anyPermissions: [PERMISSION.DISPENSES.UPDATE, PERMISSION.DISPENSES.CANCEL, PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/pharmacy/dispenses/:dispenseId/holds' }), pharmacyDispensingController.createHold);
+router.post('/dispenses/:dispenseId/return-preview', authorize({ anyPermissions: [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.RETURN] }), pharmacyDispensingController.previewReturn);
+router.post('/dispenses/:dispenseId/returns', authorize({ permissions: [PERMISSION.DISPENSES.RETURN] }), idempotencyRequired({ route: '/api/pharmacy/dispenses/:dispenseId/returns' }), pharmacyDispensingController.createReturn);
+router.get('/dispenses/:dispenseId/label-preview', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), pharmacyDispensingController.labelPreview);
+router.post('/dispenses/:dispenseId/print-labels', authorize({ anyPermissions: [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/pharmacy/dispenses/:dispenseId/print-labels' }), pharmacyDispensingController.printLabels);
+router.post('/dispenses/:dispenseId/print-instructions', authorize({ anyPermissions: [PERMISSION.DISPENSES.READ, PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/pharmacy/dispenses/:dispenseId/print-instructions' }), pharmacyDispensingController.printInstructions);
+router.get('/dispenses/:dispenseId/print-jobs', authorize({ permissions: [PERMISSION.DISPENSES.READ] }), pharmacyDispensingController.getDispensePrintJobs);
+router.post('/dispenses/:dispenseId/complete', authorize({ permissions: [PERMISSION.DISPENSES.COMPLETE] }), idempotencyRequired({ route: '/api/pharmacy/dispenses/:dispenseId/complete' }), prescriptionController.completeDispense);
+router.post('/dispenses/:dispenseId/cancel', authorize({ permissions: [PERMISSION.DISPENSES.CANCEL] }), prescriptionController.cancelDispense);
 
 router.get('/dispense-holds', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyDispensingController.listHolds);
 router.get('/dispense-holds/:holdId', authorize({ anyPermissions: pharmacyReadPermissions }), pharmacyDispensingController.getHoldDetail);

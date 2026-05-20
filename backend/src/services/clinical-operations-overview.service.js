@@ -5,12 +5,15 @@ const {
   Charge,
   ClinicalOpsEscalation,
   ClinicalOpsSlaRule,
+  ClinicalOpsWorkItemLock,
   ImagingOrder,
   ImagingReport,
   LabOrder,
   LabResult,
   LabResultItem,
+  Notification,
   Order,
+  Patient,
   ProcedureOrder,
   ResultSignature,
   Specimen,
@@ -33,6 +36,7 @@ const ApiError = require('../common/errors/api-error');
 const auditService = require('./audit.service');
 const laboratoryService = require('./laboratory.service');
 const imagingService = require('./imaging.service');
+const workspaceAccessService = require('./workspace-access.service');
 
 const ACTIVE_ATTACHMENT_STATUSES = [ATTACHMENT_STATUS.ACTIVE];
 const ACTIVE_CHARGE_EXCLUDED_STATUSES = [CHARGE_STATUS.VOIDED, CHARGE_STATUS.CANCELLED, CHARGE_STATUS.REFUNDED];
@@ -427,6 +431,46 @@ function attachEscalation(row, escalationMap) {
       escalated_to: (escalation.escalated_to || []).map((item) => person(item)).filter(Boolean),
     },
     warnings: [...(row.warnings || []), 'escalated'],
+  };
+}
+
+function formatWorkItemLock(lock) {
+  if (!lock) return null;
+  return {
+    id: toId(lock),
+    item_key: lock.item_key,
+    status: lock.status,
+    claimed_by: person(lock.claimed_by, 'Đang xử lý'),
+    claimed_at: lock.claimed_at,
+    lock_expires_at: lock.lock_expires_at,
+  };
+}
+
+async function loadActiveWorkItemLockMap(itemKeys = []) {
+  const keys = [...new Set((itemKeys || []).filter(Boolean))];
+  if (!keys.length) return new Map();
+  const now = new Date();
+  await ClinicalOpsWorkItemLock.updateMany(
+    { item_key: { $in: keys }, status: 'active', lock_expires_at: { $lte: now } },
+    { $set: { status: 'expired', updated_at: now } },
+  ).catch(() => {});
+  const rows = await ClinicalOpsWorkItemLock.find({
+    item_key: { $in: keys },
+    status: 'active',
+    lock_expires_at: { $gt: now },
+  })
+    .populate('claimed_by', 'full_name username employee_code department_id')
+    .lean();
+  return new Map(rows.map((row) => [row.item_key, row]));
+}
+
+function attachWorkItemLock(row, lockMap) {
+  const lock = lockMap.get(row.work_item_id);
+  if (!lock) return row;
+  return {
+    ...row,
+    lock: formatWorkItemLock(lock),
+    owner: person(lock.claimed_by, row.owner?.name || 'Đang xử lý') || row.owner,
   };
 }
 
@@ -1095,13 +1139,15 @@ async function getTodayWorklist(query = {}, actor = {}) {
       const rightDue = parseDate(right.sla?.due_at)?.getTime() || Number.MAX_SAFE_INTEGER;
       return leftDue - rightDue;
     });
+  const lockMap = await loadActiveWorkItemLockMap(filtered.map((row) => row.work_item_id));
+  const items = filtered.map((row) => attachWorkItemLock(row, lockMap));
   return {
     summary: {
       ...summarizeRows(filtered),
       sla_warning: filtered.filter((row) => row.sla?.state === 'warning').length,
       sla_breached: filtered.filter((row) => row.sla?.state === 'breached').length,
     },
-    items: filtered,
+    items,
   };
 }
 
@@ -1961,6 +2007,542 @@ async function getSidebar(query = {}, actor = {}) {
   };
 }
 
+const CLINICAL_OPS_QUICK_ACTIONS = [
+  { id: 'open_today_worklist', label: 'Worklist hôm nay', route: '/clinical-ops/overview/today-worklist', icon: 'ClipboardCheck' },
+  { id: 'open_stat_orders', label: 'STAT / Urgent', route: '/clinical-ops/overview/stat-urgent', icon: 'ShieldAlert' },
+  { id: 'open_critical_results', label: 'Critical results', route: '/clinical-ops/overview/critical-results', icon: 'Siren' },
+  { id: 'open_pending_approval', label: 'Chờ duyệt / ký', route: '/clinical-ops/overview/pending-approval', icon: 'BadgeCheck' },
+  { id: 'open_overdue_orders', label: 'Order quá SLA', route: '/clinical-ops/overview/overdue-orders', icon: 'TimerOff' },
+];
+
+const CLINICAL_OPS_SEARCH_MENUS = [
+  ...CLINICAL_OPS_QUICK_ACTIONS,
+  { id: 'specimens_receive', label: 'Nhận mẫu bệnh phẩm', route: '/clinical-ops/specimens/receive', icon: 'Microscope' },
+  { id: 'lab_result_entry', label: 'Nhập kết quả xét nghiệm', route: '/clinical-ops/tests/result-entry', icon: 'FileText' },
+  { id: 'imaging_schedule', label: 'Lịch chẩn đoán hình ảnh', route: '/clinical-ops/imaging/schedule', icon: 'ScanLine' },
+  { id: 'procedure_today', label: 'Thủ thuật hôm nay', route: '/clinical-ops/procedures/schedule', icon: 'Stethoscope' },
+  { id: 'charge_pending', label: 'Charge chưa tạo', route: '/clinical-ops/charges/pending', icon: 'WalletCards' },
+];
+
+function safeValue(result, fallback = null) {
+  return result?.status === 'fulfilled' ? result.value : fallback;
+}
+
+function scopeLabel(query = {}) {
+  const scope = normalizeScope(query.scope || 'all');
+  if (scope === 'mine') return 'Của tôi';
+  if (scope === 'department') return 'Theo khoa';
+  return 'Toàn bộ clinical ops';
+}
+
+function formatProfile(actor = {}) {
+  const user = actor.user || {};
+  return {
+    id: actor.userId || toId(user),
+    display_name: user.full_name || user.name || user.username || 'Clinical Operations',
+    email: user.email,
+    username: user.username,
+    roles: actor.roles || user.roles || [],
+    permissions: actor.permissions || [],
+    department_id: actor.departmentId || toId(user.department_id),
+    actor_type: actor.actorType || actor.actor_type || 'staff',
+  };
+}
+
+function buildTopbarCounters(worklist = {}, critical = {}, pendingApproval = {}, overdue = {}) {
+  const worklistItems = worklist.items || [];
+  const criticalItems = critical.items || [];
+  const pendingItems = pendingApproval.items || [];
+  const overdueItems = overdue.items || worklistItems.filter((row) => row.sla?.state === 'breached');
+  return {
+    today_worklist: Number(worklist.summary?.total || worklistItems.length || 0),
+    stat_orders: Number(worklist.summary?.stat || worklistItems.filter((row) => row.priority === ORDER_PRIORITY.STAT).length || 0),
+    urgent_orders: Number(worklist.summary?.urgent || worklistItems.filter((row) => row.priority === ORDER_PRIORITY.URGENT).length || 0),
+    orders_over_sla: Number(overdue.summary?.total_overdue || overdueItems.length || 0),
+    critical_results: Number(critical.summary?.unacknowledged || criticalItems.filter((row) => !row.acknowledged_at).length || 0),
+    pending_approval: Number(pendingApproval.summary?.total || pendingItems.length || 0),
+    specimens_waiting_receive: worklistItems.filter((row) => row.module === 'lab' && row.stage_code === 'waiting_receive').length,
+    imaging_reports_draft: worklistItems.filter((row) => row.module === 'imaging' && ['report_draft', 'report_preliminary'].includes(row.stage_code)).length,
+    procedures_scheduled: worklistItems.filter((row) => row.module === 'procedure' && row.status === 'scheduled').length,
+  };
+}
+
+async function buildSafetySummary(query = {}, worklist = {}, critical = {}, pendingApproval = {}, overdue = {}) {
+  const worklistItems = worklist.items || [];
+  const criticalItems = critical.items || [];
+  const pendingItems = pendingApproval.items || [];
+  const overdueItems = overdue.items || worklistItems.filter((row) => row.sla?.state === 'breached');
+  const range = buildDateRange(query, { defaultToday: true });
+  const specimenFilter = { status: SPECIMEN_STATUS.REJECTED };
+  applyDateFilter(specimenFilter, 'rejected_at', range);
+  const [rejectedSpecimens, enteredInError] = await Promise.all([
+    Specimen.countDocuments(specimenFilter).catch(() => 0),
+    Order.countDocuments({ status: 'entered_in_error', ...(range ? { entered_in_error_at: { $gte: range.start, $lte: range.end } } : {}) }).catch(() => 0),
+  ]);
+
+  const items = [
+    {
+      code: 'critical_lab',
+      label: 'Critical lab values',
+      count: criticalItems.filter((item) => item.module === 'lab' && !item.acknowledged_at).length,
+      severity: 'critical',
+      route: '/clinical-ops/lab/critical-results',
+    },
+    {
+      code: 'critical_imaging',
+      label: 'Critical imaging findings',
+      count: criticalItems.filter((item) => item.module === 'imaging' && !item.acknowledged_at).length,
+      severity: 'critical',
+      route: '/clinical-ops/imaging/critical-findings',
+    },
+    {
+      code: 'stat_sla_breached',
+      label: 'STAT order quá SLA',
+      count: overdueItems.filter((item) => item.priority === ORDER_PRIORITY.STAT).length,
+      severity: 'high',
+      route: '/clinical-ops/orders?priority=stat&sla=breached',
+    },
+    {
+      code: 'rejected_specimens',
+      label: 'Specimen bị từ chối',
+      count: rejectedSpecimens,
+      severity: 'high',
+      route: '/clinical-ops/specimens/rejected',
+    },
+    {
+      code: 'pending_signature',
+      label: 'Kết quả chờ ký > 30 phút',
+      count: pendingItems.length,
+      severity: pendingItems.length ? 'warning' : 'normal',
+      route: '/clinical-ops/results/pending-approval',
+    },
+    {
+      code: 'missing_consent',
+      label: 'Thủ thuật thiếu consent',
+      count: worklistItems.filter((item) => item.module === 'procedure' && item.missing?.includes('consent')).length,
+      severity: 'warning',
+      route: '/clinical-ops/procedures?missing=consent',
+    },
+    {
+      code: 'entered_in_error',
+      label: 'Order entered in error',
+      count: enteredInError,
+      severity: 'warning',
+      route: '/clinical-ops/orders/entry-errors',
+    },
+    {
+      code: 'pending_charge',
+      label: 'Charge chưa tạo',
+      count: worklistItems.filter((item) => item.module === 'procedure' && item.missing?.includes('charge')).length,
+      severity: 'warning',
+      route: '/clinical-ops/charges/pending',
+    },
+  ];
+
+  return {
+    critical_total: items.filter((item) => item.severity === 'critical').reduce((sum, item) => sum + item.count, 0),
+    sla_breached_total: overdueItems.length,
+    escalation_total: worklistItems.filter((item) => item.escalation).length,
+    items,
+    last_updated_at: new Date(),
+  };
+}
+
+function notificationRoute(notification = {}) {
+  return notification.action_url
+    || notification.data?.route
+    || notification.payload?.route
+    || notification.data?.action_url
+    || '/clinical-ops/alerts';
+}
+
+function formatNotification(notification = {}) {
+  return {
+    id: toId(notification),
+    title: notification.title,
+    message: notification.message || notification.body,
+    event_type: notification.event_type,
+    notification_type: notification.notification_type,
+    priority: notification.priority || 'normal',
+    read_at: notification.read_at,
+    created_at: notification.created_at,
+    patient_id: toId(notification.patient_id),
+    route: notificationRoute(notification),
+    data: notification.data || notification.payload || {},
+  };
+}
+
+async function getNotificationPreview(actor = {}, limit = 8) {
+  const userId = toId(actor.userId || actor.user?._id);
+  if (!userId || !mongoose.isValidObjectId(userId)) return [];
+  const rows = await Notification.find({
+    $or: [
+      { recipient_user_id: userId },
+      { recipient_actor_type: 'staff', recipient_actor_id: userId },
+      { recipient_id: userId },
+    ],
+    archived_at: null,
+  })
+    .sort({ read_at: 1, priority: 1, created_at: -1 })
+    .limit(limit)
+    .lean()
+    .catch(() => []);
+  return rows.map(formatNotification);
+}
+
+async function getWorklistSummary(query = {}, actor = {}) {
+  assertStaffRead(actor);
+  const [worklist, critical, pendingApproval, overdue] = await Promise.all([
+    getTodayWorklist({ ...query, limit: query.limit || 260 }, actor),
+    getCriticalResults({ ...query, limit: 180 }, actor),
+    getPendingApproval({ ...query, limit: 220 }, actor),
+    getOverdueOrders({ ...query, limit: 260 }, actor),
+  ]);
+  const safetySummary = await buildSafetySummary(query, worklist, critical, pendingApproval, overdue);
+  return {
+    counters: buildTopbarCounters(worklist, critical, pendingApproval, overdue),
+    safety_summary: safetySummary,
+    updated_at: new Date(),
+  };
+}
+
+async function getSafetySummary(query = {}, actor = {}) {
+  const summary = await getWorklistSummary(query, actor);
+  return summary.safety_summary;
+}
+
+async function getTopbarBootstrap(query = {}, actor = {}) {
+  assertStaffRead(actor);
+  const [sidebarResult, summaryResult, notificationResult] = await Promise.allSettled([
+    getSidebar(query, actor),
+    getWorklistSummary(query, actor),
+    getNotificationPreview(actor, 8),
+  ]);
+  const summary = safeValue(summaryResult, { counters: {}, safety_summary: {} });
+  const workspaceAccess = workspaceAccessService.getAvailableWorkspaces(actor, {
+    current_workspace: 'lab',
+    badges: {
+      lab: {
+        alerts: summary.safety_summary?.critical_total || 0,
+        tasks: summary.counters?.today_worklist || 0,
+      },
+    },
+  });
+  return {
+    profile: formatProfile(actor),
+    workspace: {
+      code: 'clinical_operations',
+      name: 'Cận lâm sàng & Thủ thuật',
+      scope: normalizeScope(query.scope || 'all'),
+      current_unit: scopeLabel(query),
+      realtime_status: 'connected',
+      workspace_switcher: workspaceAccess,
+    },
+    permissions: actor.permissions || [],
+    roles: actor.roles || [],
+    counters: summary.counters || {},
+    safety_summary: summary.safety_summary || {},
+    notification_preview: safeValue(notificationResult, []),
+    quick_actions: CLINICAL_OPS_QUICK_ACTIONS,
+    sidebar: safeValue(sidebarResult, null),
+    generated_at: new Date(),
+  };
+}
+
+function formatSearchPatient(row) {
+  return {
+    id: toId(row),
+    title: row.full_name,
+    subtitle: `${row.patient_code || 'BN'} · ${row.gender || 'unknown'}${row.phone ? ` · ${row.phone}` : ''}`,
+    route: `/clinical-ops/patient-lookup/by-patient?patient_id=${toId(row)}`,
+    chips: ['Bệnh nhân'],
+    actions: [
+      { label: 'Mở hồ sơ', action: 'open_patient', route: `/clinical-ops/patient-lookup/by-patient?patient_id=${toId(row)}` },
+      { label: 'Lịch sử CLS', action: 'open_clinical_summary', route: `/clinical-ops/patient-lookup/clinical-summary?patient_id=${toId(row)}` },
+    ],
+  };
+}
+
+function formatSearchOrder(row) {
+  return {
+    id: toId(row),
+    title: row.order_no || row.lab_order_no || row.imaging_order_no || row.procedure_order_no,
+    subtitle: `${row.order_type || row.module || 'order'} · ${row.priority || 'routine'} · ${row.status || 'open'}`,
+    route: `/clinical-ops/orders/timeline?order_id=${toId(row.order_id || row)}`,
+    chips: [row.priority, row.status].filter(Boolean),
+    actions: [
+      { label: 'Mở order', action: 'open_order', route: `/clinical-ops/orders/timeline?order_id=${toId(row.order_id || row)}` },
+      { label: 'Timeline', action: 'open_timeline', route: `/clinical-ops/orders/timeline?order_id=${toId(row.order_id || row)}` },
+      { label: 'Tạo charge', action: 'create_charge', route: `/clinical-ops/charges/pending?order_id=${toId(row.order_id || row)}` },
+    ],
+  };
+}
+
+function formatSearchSpecimen(row) {
+  return {
+    id: toId(row),
+    title: row.specimen_no || row.barcode || row.barcode_value,
+    subtitle: `${row.specimen_type || 'Specimen'} · ${row.status || 'planned'}${row.container_type ? ` · ${row.container_type}` : ''}`,
+    route: `/clinical-ops/specimens?specimen_id=${toId(row)}`,
+    chips: [row.status, row.need_recollection ? 'Cần lấy lại' : null].filter(Boolean),
+    actions: [
+      { label: 'Nhận mẫu', action: 'receive_specimen', route: `/clinical-ops/specimens/receive?specimen_id=${toId(row)}` },
+      { label: 'Từ chối', action: 'reject_specimen', route: `/clinical-ops/specimens/reject?specimen_id=${toId(row)}` },
+      { label: 'Timeline', action: 'open_timeline', route: `/clinical-ops/orders/timeline?lab_order_id=${toId(row.lab_order_id)}` },
+    ],
+  };
+}
+
+function formatSearchResult(row, module) {
+  const number = row.result_no || row.report_no;
+  return {
+    id: toId(row),
+    title: number,
+    subtitle: `${module === 'lab' ? 'Lab result' : 'Imaging report'} · ${row.status || 'draft'}${row.is_critical ? ' · Critical' : ''}`,
+    route: module === 'lab'
+      ? `/clinical-ops/tests/approved-results?result_id=${toId(row)}`
+      : `/clinical-ops/imaging/reports?report_id=${toId(row)}`,
+    chips: [row.status, row.is_critical ? 'critical' : null].filter(Boolean),
+    actions: [
+      { label: 'Mở kết quả', action: 'open_result' },
+      { label: 'Finalize', action: 'finalize' },
+      { label: 'Acknowledge critical', action: 'acknowledge_critical' },
+    ],
+  };
+}
+
+function searchMenuItems(q = '') {
+  const needle = normalizeTextForSearch(q);
+  return CLINICAL_OPS_SEARCH_MENUS
+    .filter((item) => !needle || normalizeTextForSearch(`${item.label} ${item.id}`).includes(needle))
+    .slice(0, 8)
+    .map((item) => ({
+      id: item.id,
+      title: item.label,
+      subtitle: 'Menu Clinical Operations',
+      route: item.route,
+      icon: item.icon,
+      actions: [{ label: 'Mở', action: 'open_menu', route: item.route }],
+    }));
+}
+
+function normalizeTextForSearch(value) {
+  return normalizeString(value).toLowerCase();
+}
+
+async function searchClinicalOps(query = {}, actor = {}) {
+  assertStaffRead(actor);
+  const q = normalizeString(query.q || query.search);
+  const limit = limitFromQuery(query, 6, 20);
+  const regex = q ? new RegExp(escapeRegex(q), 'i') : null;
+  if (!regex) {
+    return {
+      orders: [],
+      patients: [],
+      specimens: [],
+      lab_results: [],
+      imaging_reports: [],
+      procedure_orders: [],
+      attachments: [],
+      menus: searchMenuItems(''),
+      quick_actions: CLINICAL_OPS_QUICK_ACTIONS,
+    };
+  }
+
+  const canSearchPatients = hasAnyPermission(actor, [
+    PERMISSION.SYSTEM.FULL_ACCESS,
+    PERMISSION.PATIENTS.READ,
+    PERMISSION.PATIENTS.READ_LIMITED,
+    PERMISSION.PATIENTS.SEARCH,
+  ]) || hasRole(actor, ROLE_CODE.SUPER_ADMIN);
+
+  const [
+    orders,
+    patients,
+    specimens,
+    labOrders,
+    imagingOrders,
+    procedureOrders,
+    labResults,
+    imagingReports,
+    attachments,
+  ] = await Promise.all([
+    Order.find({ $or: [{ order_no: regex }, { order_type: regex }, { clinical_indication: regex }, { status: regex }] })
+      .sort({ ordered_at: -1, created_at: -1 })
+      .limit(limit)
+      .lean()
+      .catch(() => []),
+    canSearchPatients
+      ? Patient.find({
+        is_deleted: { $ne: true },
+        $or: [{ patient_code: regex }, { full_name: regex }, { phone: regex }, { national_id: regex }, { insurance_number: regex }],
+      }).sort({ updated_at: -1 }).limit(limit).lean().catch(() => [])
+      : Promise.resolve([]),
+    Specimen.find({ $or: [{ specimen_no: regex }, { barcode: regex }, { barcode_value: regex }, { specimen_type: regex }, { status: regex }] })
+      .sort({ updated_at: -1, created_at: -1 })
+      .limit(limit)
+      .lean()
+      .catch(() => []),
+    LabOrder.find({ $or: [{ lab_order_no: regex }, { test_code: regex }, { test_name: regex }, { status: regex }] })
+      .sort({ ordered_at: -1, created_at: -1 })
+      .limit(limit)
+      .lean()
+      .catch(() => []),
+    ImagingOrder.find({ $or: [{ imaging_order_no: regex }, { modality: regex }, { body_part: regex }, { status: regex }] })
+      .sort({ ordered_at: -1, created_at: -1 })
+      .limit(limit)
+      .lean()
+      .catch(() => []),
+    ProcedureOrder.find({ $or: [{ procedure_order_no: regex }, { procedure_code: regex }, { procedure_name: regex }, { status: regex }] })
+      .sort({ scheduled_start: -1, created_at: -1 })
+      .limit(limit)
+      .lean()
+      .catch(() => []),
+    LabResult.find({ $or: [{ result_no: regex }, { status: regex }, { interpretation: regex }, { notes: regex }] })
+      .sort({ reported_at: -1, created_at: -1 })
+      .limit(limit)
+      .lean()
+      .catch(() => []),
+    ImagingReport.find({ $or: [{ report_no: regex }, { status: regex }, { findings: regex }, { impression: regex }, { critical_finding: regex }] })
+      .sort({ reported_at: -1, created_at: -1 })
+      .limit(limit)
+      .lean()
+      .catch(() => []),
+    Attachment.find({ $or: [{ file_name: regex }, { original_name: regex }, { title: regex }, { category: regex }] })
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .lean()
+      .catch(() => []),
+  ]);
+
+  return {
+    orders: [
+      ...orders.map((row) => ({ ...formatSearchOrder(row), subtitle: `Order mẹ · ${row.order_type} · ${row.priority || 'routine'} · ${row.status}` })),
+      ...labOrders.map((row) => ({ ...formatSearchOrder(row), subtitle: `Xét nghiệm · ${row.test_name || row.test_code} · ${row.status}` })),
+      ...imagingOrders.map((row) => ({ ...formatSearchOrder(row), subtitle: `CĐHA · ${row.modality} ${row.body_part || ''} · ${row.status}` })),
+    ].slice(0, limit * 3),
+    patients: patients.map(formatSearchPatient),
+    specimens: specimens.map(formatSearchSpecimen),
+    lab_results: labResults.map((row) => formatSearchResult(row, 'lab')),
+    imaging_reports: imagingReports.map((row) => formatSearchResult(row, 'imaging')),
+    procedure_orders: procedureOrders.map((row) => ({
+      ...formatSearchOrder(row),
+      subtitle: `Thủ thuật · ${row.procedure_name || row.procedure_code} · ${row.status}`,
+      route: `/clinical-ops/procedures/orders?procedure_order_id=${toId(row)}`,
+      actions: [
+        { label: 'Lên lịch', action: 'schedule', route: `/clinical-ops/procedures/schedule?procedure_order_id=${toId(row)}` },
+        { label: 'Bắt đầu', action: 'start', route: `/clinical-ops/procedures/in-progress?procedure_order_id=${toId(row)}` },
+        { label: 'Tạo charge', action: 'create_charge', route: `/clinical-ops/procedures/fees?procedure_order_id=${toId(row)}` },
+      ],
+    })),
+    attachments: attachments.map((row) => ({
+      id: toId(row),
+      title: row.file_name || row.original_name || row.title || 'Tệp kết quả',
+      subtitle: `${row.category || 'attachment'} · ${row.status || 'active'}`,
+      route: `/clinical-ops/result-files?attachment_id=${toId(row)}`,
+      chips: [row.category, row.scan_status, row.review_status].filter(Boolean),
+      actions: [{ label: 'Mở tệp', action: 'open_attachment', route: `/clinical-ops/result-files?attachment_id=${toId(row)}` }],
+    })),
+    menus: searchMenuItems(q),
+    quick_actions: CLINICAL_OPS_QUICK_ACTIONS,
+  };
+}
+
+function parseWorkItemKey(rawItemId, payload = {}) {
+  const itemKey = decodeURIComponent(normalizeString(rawItemId || payload.item_id || payload.work_item_id));
+  const [rawType, rawEntityId] = itemKey.includes(':') ? itemKey.split(':') : [payload.item_type, itemKey];
+  const itemType = normalizeString(rawType);
+  const entityId = toObjectId(rawEntityId, 'itemId');
+  const moduleByType = {
+    order: 'orders',
+    lab_order: 'lab',
+    specimen: 'lab',
+    lab_result: 'lab',
+    imaging_order: 'imaging',
+    imaging_report: 'imaging',
+    procedure_order: 'procedure',
+  };
+  const module = moduleByType[itemType];
+  if (!module) throw ApiError.badRequest('Loại work item không hợp lệ.');
+  return {
+    item_key: `${itemType}:${String(entityId)}`,
+    item_type: itemType,
+    entity_id: entityId,
+    module,
+  };
+}
+
+async function claimWorklistItem(itemId, payload = {}, actor = {}, requestMeta = {}) {
+  assertStaffRead(actor);
+  const descriptor = parseWorkItemKey(itemId, payload);
+  const now = new Date();
+  const ttlMinutes = Math.min(Math.max(Number(payload.lock_minutes || payload.ttl_minutes || 20), 5), 240);
+  const lockExpiresAt = new Date(now.getTime() + ttlMinutes * 60000);
+  await ClinicalOpsWorkItemLock.updateMany(
+    { item_key: descriptor.item_key, status: 'active', lock_expires_at: { $lte: now } },
+    { $set: { status: 'expired', updated_by: actor.userId } },
+  );
+
+  const active = await ClinicalOpsWorkItemLock.findOne({ item_key: descriptor.item_key, status: 'active' }).populate('claimed_by', 'full_name username employee_code');
+  if (active && toId(active.claimed_by) !== toId(actor.userId)) {
+    throw ApiError.conflict('Work item đang được người khác nhận xử lý.');
+  }
+  const lock = active || new ClinicalOpsWorkItemLock({
+    ...descriptor,
+    claimed_by: actor.userId,
+    claimed_at: now,
+    created_by: actor.userId,
+  });
+  lock.lock_expires_at = lockExpiresAt;
+  lock.status = 'active';
+  lock.metadata = {
+    ...(lock.metadata || {}),
+    note: payload.note,
+    claimed_from: payload.source || 'clinical_ops_command_bar',
+  };
+  lock.updated_by = actor.userId;
+  await lock.save();
+  await lock.populate('claimed_by', 'full_name username employee_code department_id');
+  await auditService.recordAuditLog({
+    actor,
+    action: 'clinical_ops.worklist.claim',
+    targetType: 'clinical_ops_work_item_lock',
+    targetId: lock._id,
+    status: 'success',
+    message: 'Nhận xử lý work item clinical operations.',
+    requestMeta,
+    metadata: descriptor,
+  }).catch(() => {});
+  return { lock: formatWorkItemLock(lock.toObject ? lock.toObject() : lock), item: descriptor };
+}
+
+async function releaseWorklistItem(itemId, payload = {}, actor = {}, requestMeta = {}) {
+  assertStaffRead(actor);
+  const descriptor = parseWorkItemKey(itemId, payload);
+  const lock = await ClinicalOpsWorkItemLock.findOne({ item_key: descriptor.item_key, status: 'active' });
+  if (!lock) throw ApiError.notFound('Không có lock đang hoạt động cho work item này.');
+  if (toId(lock.claimed_by) !== toId(actor.userId) && !hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS])) {
+    throw ApiError.forbidden('Bạn không phải người đang giữ work item này.');
+  }
+  lock.status = 'released';
+  lock.released_by = actor.userId;
+  lock.released_at = new Date();
+  lock.release_reason = normalizeString(payload.reason || payload.note);
+  lock.updated_by = actor.userId;
+  await lock.save();
+  await auditService.recordAuditLog({
+    actor,
+    action: 'clinical_ops.worklist.release',
+    targetType: 'clinical_ops_work_item_lock',
+    targetId: lock._id,
+    status: 'success',
+    message: 'Release work item clinical operations.',
+    requestMeta,
+    metadata: descriptor,
+  }).catch(() => {});
+  return { lock: formatWorkItemLock(lock.toObject()), item: descriptor };
+}
+
 async function createEscalation(payload = {}, actor = {}, requestMeta = {}) {
   assertStaffRead(actor);
   const entityType = normalizeString(payload.entity_type);
@@ -2117,6 +2699,12 @@ async function revokeSignature(signatureId, payload = {}, actor = {}, requestMet
 }
 
 module.exports = {
+  getTopbarBootstrap,
+  getWorklistSummary,
+  getSafetySummary,
+  searchClinicalOps,
+  claimWorklistItem,
+  releaseWorklistItem,
   getDashboard,
   getTodayWorklist,
   getStatUrgent,

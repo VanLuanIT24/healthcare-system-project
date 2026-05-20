@@ -23,6 +23,8 @@ const userPreferenceSchema = new Schema(
       high_contrast: { type: Boolean, default: false },
       large_text: { type: Boolean, default: false },
     },
+    current_workspace: { type: String, trim: true, default: 'nursing' },
+    workspace_preferences: { type: Schema.Types.Mixed, default: {} },
     default_patient_profile_id: { type: Schema.Types.ObjectId, ref: 'Patient' },
     critical_notifications_enabled: { type: Boolean, default: true, required: true },
   },

@@ -50,6 +50,26 @@ const paymentIntentSchema = new Schema(
     cancelled_at: { type: Date },
     failure_reason: { type: String },
     manual_review_reason: { type: String },
+    mismatch_type: {
+      type: String,
+      enum: [
+        'amount_short',
+        'amount_over',
+        'wrong_note',
+        'wrong_invoice',
+        'wrong_patient',
+        'duplicate_reference',
+        'expired_intent',
+        'missing_bank_transaction',
+        'other',
+      ],
+    },
+    expected_amount: { type: Number, min: 0, validate: integerMoneyValidator },
+    received_amount: { type: Number, min: 0, validate: integerMoneyValidator },
+    difference_amount: { type: Number, validate: integerMoneyValidator },
+    detected_reason: { type: String, trim: true },
+    review_status: { type: String, enum: ['open', 'assigned', 'resolved', 'rejected'] },
+    review_assignee_id: { type: Schema.Types.ObjectId, ref: 'User' },
     manual_confirmed_by: { type: Schema.Types.ObjectId, ref: 'User' },
     manual_confirmed_at: { type: Date },
     manual_rejected_by: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -83,5 +103,7 @@ paymentIntentSchema.index({ confirmed_at: 1 });
 paymentIntentSchema.index({ manual_confirmed_at: 1 });
 paymentIntentSchema.index({ manual_rejected_at: 1 });
 paymentIntentSchema.index({ transaction_reference: 1 });
+paymentIntentSchema.index({ mismatch_type: 1, status: 1 });
+paymentIntentSchema.index({ review_status: 1, updated_at: -1 });
 
 module.exports = model('PaymentIntent', paymentIntentSchema);

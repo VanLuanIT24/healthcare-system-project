@@ -4,6 +4,7 @@ const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
 const { validateObjectIdParam } = require('../common/validators');
+const { idempotencyRequired } = require('../common/middlewares/idempotency.middleware');
 
 const router = express.Router();
 
@@ -27,6 +28,13 @@ const imagingReadPermissions = [
   PERMISSION.ORDERS.READ,
   PERMISSION.ORDERS.READ_OWN,
   PERMISSION.ORDERS.READ_DEPARTMENT,
+];
+
+const imagingChargeCreatePermissions = [
+  PERMISSION.ORDERS.CREATE_CHARGE,
+  PERMISSION.CHARGES.CREATE,
+  PERMISSION.CHARGES.REQUEST_CREATE,
+  PERMISSION.CHARGES.MANAGE,
 ];
 
 router.use(authenticate);
@@ -76,6 +84,7 @@ router.post('/files/:attachmentId/restore', authorize({ anyPermissions: [PERMISS
 router.get('/orders', authorize({ anyPermissions: imagingReadPermissions }), imagingController.listImagingOrders);
 router.get('/orders/:imagingOrderId', authorize({ anyPermissions: imagingReadPermissions }), imagingController.getImagingOrderDetail);
 router.get('/orders/:imagingOrderId/timeline', authorize({ anyPermissions: imagingReadPermissions }), imagingController.getImagingTimeline);
+router.get('/orders/:imagingOrderId/charges', authorize({ anyPermissions: [...imagingReadPermissions, PERMISSION.CHARGES.READ, PERMISSION.CHARGES.MANAGE] }), imagingController.listImagingOrderCharges);
 router.post('/orders/:imagingOrderId/schedule', authorize({ anyPermissions: [PERMISSION.IMAGING_ORDERS.UPDATE_STATUS, PERMISSION.ORDERS.ACKNOWLEDGE] }), imagingController.scheduleImagingOrder);
 router.post('/orders/:imagingOrderId/reschedule', authorize({ anyPermissions: [PERMISSION.IMAGING_ORDERS.UPDATE_STATUS, PERMISSION.ORDERS.ACKNOWLEDGE] }), imagingController.rescheduleImagingOrder);
 router.post('/orders/:imagingOrderId/assign-technician', authorize({ anyPermissions: [PERMISSION.IMAGING_ORDERS.UPDATE_STATUS, PERMISSION.ORDERS.ACKNOWLEDGE] }), imagingController.assignImagingTechnician);
@@ -87,6 +96,7 @@ router.post('/orders/:imagingOrderId/start', authorize({ anyPermissions: [PERMIS
 router.post('/orders/:imagingOrderId/complete', authorize({ anyPermissions: [PERMISSION.IMAGING_ORDERS.COMPLETE, PERMISSION.ORDERS.START] }), imagingController.completeImagingOrder);
 router.post('/orders/:imagingOrderId/cancel', authorize({ anyPermissions: [PERMISSION.IMAGING_ORDERS.CANCEL_BY_POLICY, PERMISSION.ORDERS.CANCEL] }), imagingController.cancelImagingOrder);
 router.post('/orders/:imagingOrderId/no-show', authorize({ anyPermissions: [PERMISSION.IMAGING_ORDERS.CANCEL_BY_POLICY, PERMISSION.IMAGING_ORDERS.UPDATE_STATUS] }), imagingController.markImagingOrderNoShow);
+router.post('/orders/:imagingOrderId/charge', authorize({ anyPermissions: imagingChargeCreatePermissions }), idempotencyRequired({ route: '/api/imaging/orders/:imagingOrderId/charge' }), imagingController.createImagingOrderCharge);
 
 router.get('/orders/:imagingOrderId/attachments', authorize({ anyPermissions: [PERMISSION.ATTACHMENTS.READ_IMAGING, PERMISSION.ATTACHMENTS.READ, ...imagingReadPermissions] }), imagingController.listImagingAttachments);
 router.post('/orders/:imagingOrderId/attachments', authorize({ anyPermissions: [PERMISSION.ATTACHMENTS.UPLOAD_IMAGING, PERMISSION.ATTACHMENTS.UPLOAD_IMAGING_REPORT, PERMISSION.ATTACHMENTS.UPLOAD] }), imagingController.uploadImagingAttachment);

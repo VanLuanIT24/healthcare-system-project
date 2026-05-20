@@ -128,6 +128,19 @@ export const nurseDashboardApi = {
     unwrapData(await request('/nursing/vitals/abnormal', { params })),
 };
 
+export const nurseTopbarApi = {
+  bootstrap: async (params = {}) =>
+    unwrapData(await request('/nursing/topbar/bootstrap', { params })),
+  search: async (params = {}) =>
+    unwrapData(await request('/nursing/search', { params })),
+  shiftSummary: async (params = {}) =>
+    unwrapData(await request('/nursing/shift-summary', { params })),
+  availableWorkspaces: async () =>
+    unwrapData(await request('/workspaces/available')),
+  setCurrentWorkspace: async (workspace) =>
+    unwrapData(await request('/preferences/me/current-workspace', { method: 'PATCH', body: { current_workspace: workspace } })),
+};
+
 export const nurseOperationsApi = {
   getIntakeDashboard: async (params = {}) =>
     normalizeQueueBoardPayload(await getQueueBoardPayload(params)),

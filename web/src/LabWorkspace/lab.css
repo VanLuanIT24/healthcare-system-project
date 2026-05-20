@@ -3180,3 +3180,1962 @@
     grid-template-columns: 1fr;
   }
 }
+
+.clinical-billing-page,
+.clinical-billing-page * {
+  box-sizing: border-box;
+}
+
+.clinical-billing-page {
+  --cb-surface: #ffffff;
+  --cb-soft: #f8fafc;
+  --cb-line: #dce4ec;
+  --cb-line-strong: #c8d5df;
+  --cb-text: #132236;
+  --cb-muted: #637587;
+  --cb-teal: #0f766e;
+  --cb-blue: #2563eb;
+  --cb-green: #15803d;
+  --cb-amber: #b76e00;
+  --cb-red: #b42318;
+  display: grid;
+  gap: 16px;
+  max-width: 1760px;
+  margin: 0 auto;
+  color: var(--cb-text);
+}
+
+.clinical-billing-page button,
+.clinical-billing-page input,
+.clinical-billing-page select {
+  font: inherit;
+}
+
+.clinical-billing-page button {
+  cursor: pointer;
+}
+
+.clinical-billing-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.clinical-billing-header span,
+.clinical-billing-panel header span,
+.clinical-billing-adjustment header span {
+  color: var(--cb-teal);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.clinical-billing-header h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(27px, 3vw, 40px);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.clinical-billing-header p {
+  max-width: 820px;
+  margin: 0;
+  color: var(--cb-muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.clinical-billing-header__actions,
+.clinical-billing-row-actions,
+.clinical-billing-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.clinical-billing-header__actions button,
+.clinical-billing-row-actions button,
+.clinical-billing-refresh,
+.clinical-billing-pagination button,
+.clinical-billing-error button,
+.clinical-billing-toast button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--cb-text);
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.clinical-billing-header__actions button:first-child,
+.clinical-billing-refresh,
+.clinical-billing-row-actions button:first-child {
+  border-color: #b8e4dd;
+  background: #e7f6f3;
+  color: #075e58;
+}
+
+.clinical-billing-header__actions button:disabled,
+.clinical-billing-row-actions button:disabled,
+.clinical-billing-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.clinical-billing-kpis {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.clinical-billing-kpi {
+  min-width: 0;
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: var(--cb-surface);
+}
+
+.clinical-billing-kpi svg {
+  flex: 0 0 auto;
+  color: var(--cb-teal);
+}
+
+.clinical-billing-kpi span {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.clinical-billing-kpi small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cb-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.clinical-billing-kpi strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.clinical-billing-kpi.is-success {
+  border-color: #bfebd1;
+  background: #eaf8f0;
+}
+
+.clinical-billing-kpi.is-success svg { color: var(--cb-green); }
+
+.clinical-billing-kpi.is-warning {
+  border-color: #f7d999;
+  background: #fff7df;
+}
+
+.clinical-billing-kpi.is-warning svg { color: var(--cb-amber); }
+
+.clinical-billing-kpi.is-info {
+  border-color: #cfe0ff;
+  background: #edf4ff;
+}
+
+.clinical-billing-kpi.is-info svg { color: var(--cb-blue); }
+
+.clinical-billing-kpi.is-danger {
+  border-color: #ffd2ce;
+  background: #fff1f0;
+}
+
+.clinical-billing-kpi.is-danger svg { color: var(--cb-red); }
+
+.clinical-billing-panel,
+.clinical-billing-adjustment {
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.clinical-billing-panel--service {
+  padding: 14px;
+}
+
+.clinical-billing-panel header,
+.clinical-billing-adjustment header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.clinical-billing-panel header strong,
+.clinical-billing-adjustment header strong {
+  font-size: 18px;
+}
+
+.clinical-billing-bars {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.clinical-billing-bars article {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: var(--cb-soft);
+}
+
+.clinical-billing-bars article > div,
+.clinical-billing-bars strong,
+.clinical-billing-bars span {
+  min-width: 0;
+}
+
+.clinical-billing-bars strong,
+.clinical-billing-bars span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-billing-bars span {
+  margin-top: 3px;
+  color: var(--cb-muted);
+  font-size: 12px;
+}
+
+.clinical-billing-bars b {
+  font-size: 16px;
+}
+
+.clinical-billing-bars i {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0f766e, #2563eb);
+}
+
+.clinical-billing-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.clinical-billing-filters label {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: var(--cb-soft);
+  color: var(--cb-muted);
+}
+
+.clinical-billing-filters input,
+.clinical-billing-filters select {
+  min-width: 128px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--cb-text);
+}
+
+.clinical-billing-search {
+  flex: 1;
+  min-width: min(360px, 100%);
+}
+
+.clinical-billing-search input {
+  width: 100%;
+}
+
+.clinical-billing-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(370px, 450px);
+  align-items: start;
+  gap: 14px;
+}
+
+.clinical-billing-table-shell {
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.clinical-billing-table {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+}
+
+.clinical-billing-table th {
+  height: 42px;
+  padding: 0 13px;
+  background: var(--cb-soft);
+  color: var(--cb-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.clinical-billing-table td {
+  height: 78px;
+  padding: 12px 13px;
+  border-top: 1px solid var(--cb-line);
+  vertical-align: middle;
+}
+
+.clinical-billing-table tr:hover {
+  background: #fbfdff;
+}
+
+.clinical-billing-table td > strong,
+.clinical-billing-table td > small,
+.clinical-billing-link-cell strong,
+.clinical-billing-link-cell span {
+  display: block;
+  max-width: 270px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-billing-table td > strong,
+.clinical-billing-link-cell strong {
+  color: var(--cb-text);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.clinical-billing-table td > small,
+.clinical-billing-link-cell span {
+  margin-top: 3px;
+  color: var(--cb-muted);
+  font-size: 12px;
+}
+
+.clinical-billing-link-cell {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.clinical-billing-row-actions button {
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.clinical-billing-badge {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.clinical-billing-badge.is-paid,
+.clinical-billing-badge.is-completed,
+.clinical-billing-badge.is-success,
+.clinical-billing-badge.is-posted {
+  background: #eaf8f0;
+  color: var(--cb-green);
+}
+
+.clinical-billing-badge.is-issued,
+.clinical-billing-badge.is-billed,
+.clinical-billing-badge.is-info,
+.clinical-billing-badge.is-in-progress,
+.clinical-billing-badge.is-acknowledged {
+  background: #edf4ff;
+  color: var(--cb-blue);
+}
+
+.clinical-billing-badge.is-draft,
+.clinical-billing-badge.is-pending,
+.clinical-billing-badge.is-warning,
+.clinical-billing-badge.is-ordered {
+  background: #fff7df;
+  color: var(--cb-amber);
+}
+
+.clinical-billing-badge.is-danger,
+.clinical-billing-badge.is-voided,
+.clinical-billing-badge.is-cancelled,
+.clinical-billing-badge.is-refunded,
+.clinical-billing-badge.is-entered-in-error {
+  background: #fff1f0;
+  color: var(--cb-red);
+}
+
+.clinical-billing-ok,
+.clinical-billing-warn,
+.clinical-billing-muted {
+  display: inline-block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.clinical-billing-ok { color: var(--cb-green); }
+.clinical-billing-warn { color: var(--cb-amber); }
+.clinical-billing-muted { color: var(--cb-muted); }
+
+.clinical-billing-drawer {
+  position: sticky;
+  top: 94px;
+  max-height: calc(100vh - 112px);
+  overflow: hidden;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.clinical-billing-drawer.is-empty {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 22px;
+  color: var(--cb-muted);
+  text-align: center;
+}
+
+.clinical-billing-drawer.is-empty strong {
+  color: var(--cb-text);
+}
+
+.clinical-billing-drawer.is-empty span {
+  max-width: 320px;
+  line-height: 1.45;
+}
+
+.clinical-billing-drawer > header {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--cb-line);
+  background: var(--cb-soft);
+}
+
+.clinical-billing-drawer > header span {
+  display: block;
+  color: var(--cb-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.clinical-billing-drawer > header strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+}
+
+.clinical-billing-drawer > header button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--cb-muted);
+}
+
+.clinical-billing-drawer__body {
+  max-height: calc(100vh - 172px);
+  overflow: auto;
+  padding: 13px;
+  display: grid;
+  gap: 12px;
+}
+
+.clinical-billing-drawer__loading {
+  padding: 18px;
+  color: var(--cb-muted);
+  font-weight: 800;
+}
+
+.clinical-billing-drawer section,
+.clinical-billing-adjustment {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.clinical-billing-drawer h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.clinical-billing-drawer p,
+.clinical-billing-adjustment p {
+  margin: 0;
+  color: var(--cb-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.clinical-billing-money-grid,
+.clinical-billing-trace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.clinical-billing-money-grid span,
+.clinical-billing-trace-grid span {
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  padding: 9px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: var(--cb-soft);
+}
+
+.clinical-billing-money-grid small,
+.clinical-billing-trace-grid small {
+  color: var(--cb-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.clinical-billing-money-grid strong,
+.clinical-billing-trace-grid strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-billing-timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.clinical-billing-timeline article {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 10px 10px 10px 24px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: var(--cb-soft);
+}
+
+.clinical-billing-timeline i {
+  position: absolute;
+  left: 9px;
+  top: 15px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--cb-teal);
+}
+
+.clinical-billing-timeline strong,
+.clinical-billing-timeline span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-billing-timeline strong {
+  font-size: 13px;
+}
+
+.clinical-billing-timeline span {
+  color: var(--cb-muted);
+  font-size: 12px;
+}
+
+.clinical-billing-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--cb-line);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: #ffffff;
+  color: var(--cb-muted);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.clinical-billing-empty {
+  min-height: 190px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 22px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--cb-muted);
+  text-align: center;
+}
+
+.clinical-billing-empty strong {
+  color: var(--cb-text);
+}
+
+.clinical-billing-empty span {
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.clinical-billing-error,
+.clinical-billing-toast {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.clinical-billing-error {
+  padding: 11px 12px;
+  border: 1px solid #ffd2ce;
+  background: #fff1f0;
+  color: var(--cb-red);
+}
+
+.clinical-billing-error span,
+.clinical-billing-toast span {
+  flex: 1;
+}
+
+.clinical-billing-error button,
+.clinical-billing-toast button {
+  min-height: 30px;
+  padding: 0 9px;
+  background: #ffffff;
+}
+
+.clinical-billing-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 120;
+  max-width: min(460px, calc(100vw - 44px));
+  padding: 12px;
+  border: 1px solid #bfebd1;
+  background: #eaf8f0;
+  color: var(--cb-green);
+  box-shadow: 0 18px 40px rgba(16, 34, 53, 0.16);
+}
+
+.clinical-billing-toast button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  color: var(--cb-green);
+}
+
+.clinical-billing-adjustment {
+  margin-bottom: -2px;
+}
+
+.clinical-billing-adjustment__steps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.clinical-billing-adjustment__steps article {
+  display: grid;
+  gap: 8px;
+  min-height: 76px;
+  padding: 10px;
+  border: 1px solid var(--cb-line);
+  border-radius: 8px;
+  background: var(--cb-soft);
+}
+
+.clinical-billing-adjustment__steps b {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e7f6f3;
+  color: var(--cb-teal);
+}
+
+.clinical-billing-adjustment__steps span {
+  color: var(--cb-text);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
+@keyframes clinicalBillingSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.clinical-billing-refresh .is-spinning {
+  animation: clinicalBillingSpin 0.85s linear infinite;
+}
+
+@media (max-width: 1460px) {
+  .clinical-billing-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .clinical-billing-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .clinical-billing-drawer {
+    position: static;
+    max-height: none;
+  }
+
+  .clinical-billing-drawer__body {
+    max-height: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .clinical-billing-header {
+    display: grid;
+  }
+
+  .clinical-billing-header__actions {
+    justify-content: flex-start;
+  }
+
+  .clinical-billing-bars,
+  .clinical-billing-adjustment__steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .clinical-billing-kpis,
+  .clinical-billing-bars,
+  .clinical-billing-money-grid,
+  .clinical-billing-trace-grid,
+  .clinical-billing-adjustment__steps {
+    grid-template-columns: 1fr;
+  }
+
+  .clinical-billing-filters {
+    display: grid;
+  }
+
+  .clinical-billing-filters label,
+  .clinical-billing-refresh {
+    width: 100%;
+  }
+
+  .clinical-billing-filters input,
+  .clinical-billing-filters select {
+    width: 100%;
+  }
+
+  .clinical-billing-header h1 {
+    font-size: 28px;
+  }
+}
+
+.clinical-charge-page {
+  min-height: 100%;
+  color: #172033;
+  display: grid;
+  gap: 18px;
+}
+
+.clinical-charge-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 22px;
+  border: 1px solid #dce4ef;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef7f4 100%);
+  border-radius: 8px;
+}
+
+.clinical-charge-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #dff4ec;
+  color: #0d6a50;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.clinical-charge-header h1 {
+  margin: 10px 0 6px;
+  font-size: 28px;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.clinical-charge-header p {
+  margin: 0;
+  max-width: 760px;
+  color: #5c6b7d;
+  line-height: 1.55;
+}
+
+.clinical-charge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.clinical-charge-actions button,
+.clinical-charge-row-actions button,
+.clinical-charge-pagination button,
+.clinical-charge-error button {
+  min-height: 36px;
+  border: 1px solid #cbd8e7;
+  background: #fff;
+  color: #24364b;
+  border-radius: 8px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.clinical-charge-actions button:first-child {
+  background: #103c55;
+  border-color: #103c55;
+  color: #fff;
+}
+
+.clinical-charge-actions button:disabled,
+.clinical-charge-row-actions button:disabled,
+.clinical-charge-pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.clinical-charge-filterbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) repeat(5, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dce4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.clinical-charge-filterbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d9e3ef;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #f8fafc;
+}
+
+.clinical-charge-filterbar input,
+.clinical-charge-filterbar select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #213247;
+  font-weight: 700;
+}
+
+.clinical-charge-search {
+  background: #fff;
+}
+
+.clinical-charge-kpis,
+.clinical-charge-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.clinical-charge-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.clinical-charge-kpi {
+  display: flex;
+  gap: 12px;
+  min-height: 104px;
+  padding: 16px;
+  border: 1px solid #dce4ef;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(31, 51, 75, 0.05);
+}
+
+.clinical-charge-kpi.danger {
+  border-color: #f2c4c4;
+  background: #fff8f8;
+}
+
+.clinical-charge-kpi.warning {
+  border-color: #f1ddb7;
+  background: #fffaf0;
+}
+
+.clinical-charge-kpi.success {
+  border-color: #bfe3cf;
+  background: #f4fbf7;
+}
+
+.clinical-charge-kpi-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #e7f2fb;
+  color: #174c72;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.clinical-charge-kpi span,
+.clinical-charge-kpi small {
+  display: block;
+  color: #667587;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clinical-charge-kpi strong {
+  display: block;
+  margin: 5px 0;
+  font-size: 25px;
+  line-height: 1.1;
+  letter-spacing: 0;
+  color: #172033;
+}
+
+.clinical-charge-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+}
+
+.clinical-charge-panel {
+  border: 1px solid #dce4ef;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.clinical-charge-panel-title,
+.clinical-charge-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.clinical-charge-panel-title h2 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: 0;
+}
+
+.clinical-charge-panel-title span {
+  color: #0d6a50;
+  font-weight: 900;
+}
+
+.clinical-charge-module-list,
+.clinical-charge-exception-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.clinical-charge-module-row,
+.clinical-charge-exception-card {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(120px, 1.2fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e0e7f0;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.clinical-charge-module-row strong,
+.clinical-charge-module-row span,
+.clinical-charge-table strong,
+.clinical-charge-table span {
+  display: block;
+}
+
+.clinical-charge-module-row span,
+.clinical-charge-table span {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clinical-charge-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8eef6;
+  overflow: hidden;
+}
+
+.clinical-charge-progress i {
+  display: block;
+  height: 100%;
+  background: #178466;
+  border-radius: inherit;
+}
+
+.clinical-charge-exception-card {
+  grid-template-columns: auto 1fr auto;
+}
+
+.clinical-charge-exception-card.danger {
+  border-color: #f2c4c4;
+  background: #fff8f8;
+}
+
+.clinical-charge-exception-card.warning {
+  border-color: #f1ddb7;
+  background: #fffaf0;
+}
+
+.clinical-charge-table-wrap {
+  overflow: auto;
+  border: 1px solid #dce4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.clinical-charge-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1060px;
+}
+
+.clinical-charge-table th {
+  position: sticky;
+  top: 0;
+  background: #f5f8fc;
+  color: #506175;
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  padding: 12px;
+  border-bottom: 1px solid #dce4ef;
+  z-index: 1;
+}
+
+.clinical-charge-table td {
+  padding: 12px;
+  border-bottom: 1px solid #edf2f7;
+  vertical-align: top;
+  color: #25364a;
+}
+
+.clinical-charge-table tr {
+  cursor: pointer;
+}
+
+.clinical-charge-table tbody tr:hover {
+  background: #f8fbff;
+}
+
+.clinical-charge-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clinical-charge-row-actions button {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.clinical-charge-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #e8eef6;
+  color: #395067;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.clinical-charge-badge.lab,
+.clinical-charge-badge.success,
+.clinical-charge-badge.paid,
+.clinical-charge-badge.resolved {
+  background: #ddf4ea;
+  color: #0f6c51;
+}
+
+.clinical-charge-badge.imaging,
+.clinical-charge-badge.info,
+.clinical-charge-badge.draft {
+  background: #e4f0ff;
+  color: #205f99;
+}
+
+.clinical-charge-badge.procedure,
+.clinical-charge-badge.warning,
+.clinical-charge-badge.needs-review,
+.clinical-charge-badge.posted {
+  background: #fff1d9;
+  color: #8a5900;
+}
+
+.clinical-charge-badge.danger,
+.clinical-charge-badge.voided,
+.clinical-charge-badge.cancelled,
+.clinical-charge-badge.rejected {
+  background: #ffe1e1;
+  color: #a52b2b;
+}
+
+.clinical-charge-badge.billed {
+  background: #e8e3ff;
+  color: #5341a6;
+}
+
+.clinical-charge-empty,
+.clinical-charge-loading,
+.clinical-charge-error,
+.clinical-charge-empty-mini {
+  min-height: 240px;
+  border: 1px dashed #cbd8e7;
+  border-radius: 8px;
+  background: #fbfdff;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  color: #607083;
+  text-align: center;
+}
+
+.clinical-charge-error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #9a2f2f;
+  background: #fff8f8;
+}
+
+.clinical-charge-empty strong {
+  color: #26384d;
+}
+
+.clinical-charge-pagination {
+  justify-content: flex-end;
+}
+
+.clinical-charge-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(520px, 100vw);
+  height: 100vh;
+  background: #fff;
+  border-left: 1px solid #dce4ef;
+  box-shadow: -24px 0 50px rgba(15, 34, 55, 0.18);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+}
+
+.clinical-charge-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid #e1e8f1;
+}
+
+.clinical-charge-drawer-head span {
+  color: #0d6a50;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.clinical-charge-drawer-head h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.clinical-charge-drawer-head button,
+.clinical-charge-toast button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d5dfeb;
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.clinical-charge-drawer-body {
+  padding: 16px;
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+}
+
+.clinical-charge-drawer-body section {
+  border: 1px solid #e0e7f0;
+  border-radius: 8px;
+  padding: 13px;
+  background: #fbfdff;
+}
+
+.clinical-charge-drawer-body h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.clinical-charge-mini-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 0;
+  border-top: 1px solid #e8eef5;
+}
+
+.clinical-charge-mini-row:first-of-type {
+  border-top: 0;
+}
+
+.clinical-charge-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.clinical-charge-timeline div {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.clinical-charge-timeline i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #178466;
+}
+
+.clinical-charge-timeline span {
+  color: #6b7a8c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clinical-charge-drawer-loading {
+  padding: 24px;
+  color: #637286;
+}
+
+.clinical-charge-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 80;
+  min-width: min(360px, calc(100vw - 44px));
+  border: 1px solid #cfe2d6;
+  background: #f4fbf7;
+  color: #164d3d;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  box-shadow: 0 18px 40px rgba(16, 42, 67, 0.16);
+  font-weight: 800;
+}
+
+@media (max-width: 1180px) {
+  .clinical-charge-header {
+    display: grid;
+  }
+
+  .clinical-charge-actions {
+    justify-content: flex-start;
+  }
+
+  .clinical-charge-filterbar,
+  .clinical-charge-kpis,
+  .clinical-charge-strip,
+  .clinical-charge-dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .clinical-charge-header,
+  .clinical-charge-panel {
+    padding: 14px;
+  }
+
+  .clinical-charge-header h1 {
+    font-size: 22px;
+  }
+
+  .clinical-charge-filterbar,
+  .clinical-charge-kpis,
+  .clinical-charge-strip,
+  .clinical-charge-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clinical-charge-actions button {
+    flex: 1 1 140px;
+  }
+}
+
+.clinical-payment-page {
+  min-height: 100%;
+  color: #172033;
+  display: grid;
+  gap: 18px;
+}
+
+.clinical-payment-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 22px;
+  border: 1px solid #dce4ef;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+  border-radius: 8px;
+}
+
+.clinical-payment-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #e4f0ff;
+  color: #205f99;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.clinical-payment-header h1 {
+  margin: 10px 0 6px;
+  font-size: 28px;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.clinical-payment-header p {
+  margin: 0;
+  max-width: 760px;
+  color: #5c6b7d;
+  line-height: 1.55;
+}
+
+.clinical-payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.clinical-payment-actions button,
+.clinical-payment-row-actions button,
+.clinical-payment-pagination button,
+.clinical-payment-error button {
+  min-height: 36px;
+  border: 1px solid #cbd8e7;
+  background: #fff;
+  color: #24364b;
+  border-radius: 8px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.clinical-payment-actions button:first-child {
+  background: #103c55;
+  border-color: #103c55;
+  color: #fff;
+}
+
+.clinical-payment-actions button:disabled,
+.clinical-payment-pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.clinical-payment-filterbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) repeat(5, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dce4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.clinical-payment-filterbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d9e3ef;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #f8fafc;
+}
+
+.clinical-payment-filterbar input,
+.clinical-payment-filterbar select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #213247;
+  font-weight: 700;
+}
+
+.clinical-payment-search {
+  background: #fff;
+}
+
+.clinical-payment-kpis,
+.clinical-payment-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.clinical-payment-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.clinical-payment-kpi {
+  display: flex;
+  gap: 12px;
+  min-height: 104px;
+  padding: 16px;
+  border: 1px solid #dce4ef;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(31, 51, 75, 0.05);
+}
+
+.clinical-payment-kpi i {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #e7f2fb;
+  color: #174c72;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.clinical-payment-kpi.danger {
+  border-color: #f2c4c4;
+  background: #fff8f8;
+}
+
+.clinical-payment-kpi.warning {
+  border-color: #f1ddb7;
+  background: #fffaf0;
+}
+
+.clinical-payment-kpi.success {
+  border-color: #bfe3cf;
+  background: #f4fbf7;
+}
+
+.clinical-payment-kpi span,
+.clinical-payment-kpi small {
+  display: block;
+  color: #667587;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clinical-payment-kpi strong {
+  display: block;
+  margin: 5px 0;
+  font-size: 25px;
+  line-height: 1.1;
+  letter-spacing: 0;
+  color: #172033;
+}
+
+.clinical-payment-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+}
+
+.clinical-payment-panel {
+  border: 1px solid #dce4ef;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.clinical-payment-panel-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.clinical-payment-panel-title h2 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: 0;
+}
+
+.clinical-payment-panel-title span {
+  color: #205f99;
+  font-weight: 900;
+}
+
+.clinical-payment-module-list,
+.clinical-payment-queue-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.clinical-payment-module-row,
+.clinical-payment-queue-stack button {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(120px, 1.2fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e0e7f0;
+  border-radius: 8px;
+  background: #fbfdff;
+  text-align: left;
+}
+
+.clinical-payment-module-row strong,
+.clinical-payment-module-row span,
+.clinical-payment-table strong,
+.clinical-payment-table span {
+  display: block;
+}
+
+.clinical-payment-module-row span,
+.clinical-payment-table span {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clinical-payment-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8eef6;
+  overflow: hidden;
+}
+
+.clinical-payment-progress i {
+  display: block;
+  height: 100%;
+  background: #226ca7;
+  border-radius: inherit;
+}
+
+.clinical-payment-table-wrap {
+  overflow: auto;
+  border: 1px solid #dce4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.clinical-payment-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1180px;
+}
+
+.clinical-payment-table th {
+  position: sticky;
+  top: 0;
+  background: #f5f8fc;
+  color: #506175;
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  padding: 12px;
+  border-bottom: 1px solid #dce4ef;
+  z-index: 1;
+}
+
+.clinical-payment-table td {
+  padding: 12px;
+  border-bottom: 1px solid #edf2f7;
+  vertical-align: top;
+  color: #25364a;
+}
+
+.clinical-payment-table tr {
+  cursor: pointer;
+}
+
+.clinical-payment-table tbody tr:hover {
+  background: #f8fbff;
+}
+
+.clinical-payment-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clinical-payment-row-actions button {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.clinical-payment-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #e8eef6;
+  color: #395067;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.clinical-payment-badge.success {
+  background: #ddf4ea;
+  color: #0f6c51;
+}
+
+.clinical-payment-badge.warning {
+  background: #fff1d9;
+  color: #8a5900;
+}
+
+.clinical-payment-badge.danger {
+  background: #ffe1e1;
+  color: #a52b2b;
+}
+
+.clinical-payment-badge.lab {
+  background: #ddf4ea;
+  color: #0f6c51;
+}
+
+.clinical-payment-badge.imaging {
+  background: #e4f0ff;
+  color: #205f99;
+}
+
+.clinical-payment-badge.procedure {
+  background: #fff1d9;
+  color: #8a5900;
+}
+
+.clinical-payment-empty,
+.clinical-payment-loading,
+.clinical-payment-error,
+.clinical-payment-empty-mini {
+  min-height: 240px;
+  border: 1px dashed #cbd8e7;
+  border-radius: 8px;
+  background: #fbfdff;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  color: #607083;
+  text-align: center;
+}
+
+.clinical-payment-error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #9a2f2f;
+  background: #fff8f8;
+}
+
+.clinical-payment-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.clinical-payment-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(540px, 100vw);
+  height: 100vh;
+  background: #fff;
+  border-left: 1px solid #dce4ef;
+  box-shadow: -24px 0 50px rgba(15, 34, 55, 0.18);
+  z-index: 62;
+  display: flex;
+  flex-direction: column;
+}
+
+.clinical-payment-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid #e1e8f1;
+}
+
+.clinical-payment-drawer-head span {
+  color: #205f99;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.clinical-payment-drawer-head h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.clinical-payment-drawer-head button,
+.clinical-payment-toast button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d5dfeb;
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.clinical-payment-drawer-body {
+  padding: 16px;
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+}
+
+.clinical-payment-drawer-body section {
+  border: 1px solid #e0e7f0;
+  border-radius: 8px;
+  padding: 13px;
+  background: #fbfdff;
+}
+
+.clinical-payment-drawer-body h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.clinical-payment-money-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.clinical-payment-money-grid span,
+.clinical-payment-mini-row {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 8px;
+  padding: 9px;
+}
+
+.clinical-payment-money-grid strong,
+.clinical-payment-mini-row strong,
+.clinical-payment-mini-row span {
+  display: block;
+}
+
+.clinical-payment-mini-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.clinical-payment-qr {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  border: 1px solid #dce4ef;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+.clinical-payment-drawer-loading {
+  padding: 24px;
+  color: #637286;
+}
+
+.clinical-payment-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 82;
+  min-width: min(360px, calc(100vw - 44px));
+  border: 1px solid #cfdced;
+  background: #f4f8ff;
+  color: #1e4f7d;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  box-shadow: 0 18px 40px rgba(16, 42, 67, 0.16);
+  font-weight: 800;
+}
+
+@media (max-width: 1180px) {
+  .clinical-payment-header {
+    display: grid;
+  }
+
+  .clinical-payment-actions {
+    justify-content: flex-start;
+  }
+
+  .clinical-payment-filterbar,
+  .clinical-payment-kpis,
+  .clinical-payment-strip,
+  .clinical-payment-dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .clinical-payment-header,
+  .clinical-payment-panel {
+    padding: 14px;
+  }
+
+  .clinical-payment-header h1 {
+    font-size: 22px;
+  }
+
+  .clinical-payment-filterbar,
+  .clinical-payment-kpis,
+  .clinical-payment-strip,
+  .clinical-payment-dashboard-grid,
+  .clinical-payment-money-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clinical-payment-actions button {
+    flex: 1 1 140px;
+  }
+}

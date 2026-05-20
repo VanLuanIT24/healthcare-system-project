@@ -5,8 +5,10 @@ const {
   INSURANCE_VERIFICATION_STATUS,
   REALTIME_EVENT_TYPE,
 } = require('../constants/statuses');
+const { PERMISSION } = require('../constants/permissions');
 const { buildPagination, createError, getPagination, recordAuditLog } = require('./core.service');
 const actorContext = require('../common/actors');
+const permissionChecker = require('../common/permissions');
 const eventBus = require('../events/event-bus.service');
 
 function toId(value) {
@@ -27,6 +29,23 @@ function patientId(actor = {}) {
 
 function requireStaff(actor = {}) {
   if (actorContext.getActorType(actor) !== 'staff') throw createError('Chỉ nhân sự được thao tác bảo hiểm này.', 403);
+}
+
+function requireStaffPermission(actor = {}, permissions = []) {
+  if (actorContext.isSystem(actor)) return true;
+  requireStaff(actor);
+  if (!permissionChecker.hasAnyPermission(actor, permissions)) {
+    throw createError('Tài khoản hiện tại không có quyền thực hiện thao tác bảo hiểm này.', 403);
+  }
+  return true;
+}
+
+function normalizeCoveragePercent(value) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue < 0 || numberValue > 100) {
+    throw createError('coverage_percent phải từ 0 đến 100.', 400);
+  }
+  return numberValue;
 }
 
 async function assertPatientExists(id) {
@@ -124,7 +143,7 @@ async function attachMyInsurancePolicyCard(policyId, payload = {}, actor = {}, r
 }
 
 async function verifyInsurancePolicy(policyId, payload = {}, actor = {}, requestMeta = {}) {
-  requireStaff(actor);
+  requireStaffPermission(actor, [PERMISSION.INSURANCE_POLICIES.VERIFY, PERMISSION.INSURANCE_POLICIES.UPDATE]);
   const policy = await InsurancePolicy.findById(policyId);
   if (!policy) throw createError('Không tìm thấy insurance policy.', 404);
   policy.verification_status = INSURANCE_VERIFICATION_STATUS.VERIFIED;
@@ -132,7 +151,7 @@ async function verifyInsurancePolicy(policyId, payload = {}, actor = {}, request
   policy.reviewed_by = actor.userId;
   policy.reviewed_at = new Date();
   policy.rejection_reason = undefined;
-  if (payload.coverage_percent !== undefined) policy.coverage_percent = payload.coverage_percent;
+  if (payload.coverage_percent !== undefined) policy.coverage_percent = normalizeCoveragePercent(payload.coverage_percent);
   await policy.save();
   await recordAuditLog({ actor, action: 'insurance_policy.verify', targetType: 'insurance_policy', targetId: policy._id, status: 'success', message: 'Verify insurance policy.', requestMeta });
   await eventBus.publishDomainEvent({
@@ -157,7 +176,7 @@ async function verifyInsurancePolicy(policyId, payload = {}, actor = {}, request
 }
 
 async function rejectInsurancePolicy(policyId, payload = {}, actor = {}, requestMeta = {}) {
-  requireStaff(actor);
+  requireStaffPermission(actor, [PERMISSION.INSURANCE_POLICIES.REJECT, PERMISSION.INSURANCE_POLICIES.UPDATE]);
   const policy = await InsurancePolicy.findById(policyId);
   if (!policy) throw createError('Không tìm thấy insurance policy.', 404);
   policy.verification_status = INSURANCE_VERIFICATION_STATUS.REJECTED;

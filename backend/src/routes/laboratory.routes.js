@@ -4,6 +4,7 @@ const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const { PERMISSION } = require('../constants/permissions');
 const { validateObjectIdParam } = require('../common/validators');
+const { idempotencyRequired } = require('../common/middlewares/idempotency.middleware');
 
 const router = express.Router();
 
@@ -27,6 +28,13 @@ const labReadPermissions = [
   PERMISSION.ORDERS.READ,
   PERMISSION.ORDERS.READ_OWN,
   PERMISSION.ORDERS.READ_DEPARTMENT,
+];
+
+const labChargeCreatePermissions = [
+  PERMISSION.ORDERS.CREATE_CHARGE,
+  PERMISSION.CHARGES.CREATE,
+  PERMISSION.CHARGES.REQUEST_CREATE,
+  PERMISSION.CHARGES.MANAGE,
 ];
 
 router.use(authenticate);
@@ -65,8 +73,10 @@ router.post('/result-corrections/:correctionId/cancel', authorize({ anyPermissio
 
 router.get('/orders', authorize({ anyPermissions: labReadPermissions }), laboratoryController.listLabOrders);
 router.get('/orders/:labOrderId', authorize({ anyPermissions: labReadPermissions }), laboratoryController.getLabOrderDetail);
+router.get('/orders/:labOrderId/charges', authorize({ anyPermissions: [...labReadPermissions, PERMISSION.CHARGES.READ, PERMISSION.CHARGES.MANAGE] }), laboratoryController.listLabOrderCharges);
 router.post('/orders/:labOrderId/acknowledge', authorize({ anyPermissions: [PERMISSION.LAB_ORDERS.ACKNOWLEDGE, PERMISSION.ORDERS.ACKNOWLEDGE] }), laboratoryController.acknowledgeLabOrder);
 router.post('/orders/:labOrderId/cancel', authorize({ anyPermissions: [PERMISSION.LAB_ORDERS.CANCEL, PERMISSION.ORDERS.CANCEL] }), laboratoryController.cancelLabOrder);
+router.post('/orders/:labOrderId/charge', authorize({ anyPermissions: labChargeCreatePermissions }), idempotencyRequired({ route: '/api/laboratory/orders/:labOrderId/charge' }), laboratoryController.createLabOrderCharge);
 router.post('/orders/:labOrderId/print-labels', authorize({ anyPermissions: [PERMISSION.SPECIMENS.READ, PERMISSION.SPECIMENS.CREATE, PERMISSION.LAB_ORDERS.COLLECT] }), laboratoryController.printLabOrderLabels);
 
 router.post('/orders/:labOrderId/specimens', authorize({ anyPermissions: [PERMISSION.SPECIMENS.CREATE, PERMISSION.LAB_ORDERS.COLLECT] }), laboratoryController.createSpecimen);

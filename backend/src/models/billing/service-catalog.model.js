@@ -22,6 +22,16 @@ const serviceCatalogSchema = new Schema(
     effective_from: { type: Date },
     effective_to: { type: Date },
     status: { type: String, enum: SERVICE_STATUSES, default: SERVICE_STATUS.ACTIVE, required: true },
+    version_group_id: { type: Schema.Types.ObjectId },
+    version_no: { type: Number, default: 1, min: 1 },
+    parent_service_id: { type: Schema.Types.ObjectId, ref: 'ServiceCatalog' },
+    replaced_by_service_id: { type: Schema.Types.ObjectId, ref: 'ServiceCatalog' },
+    retired_at: { type: Date },
+    retired_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    retire_reason: { type: String, trim: true },
+    reactivated_at: { type: Date },
+    reactivated_by: { type: Schema.Types.ObjectId, ref: 'User' },
+    reactivate_reason: { type: String, trim: true },
     ...auditFields(),
     ...softDeleteFields(),
   },
@@ -34,5 +44,7 @@ serviceCatalogSchema.index({ service_type: 1 });
 serviceCatalogSchema.index({ department_id: 1 });
 serviceCatalogSchema.index({ status: 1 });
 serviceCatalogSchema.index({ service_type: 1, status: 1 });
+serviceCatalogSchema.index({ version_group_id: 1, version_no: -1 });
+serviceCatalogSchema.index({ effective_to: 1, status: 1 });
 
 module.exports = model('ServiceCatalog', serviceCatalogSchema);

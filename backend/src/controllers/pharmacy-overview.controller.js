@@ -1,7 +1,13 @@
 const pharmacyOverviewService = require('../services/pharmacy-overview.service');
+const pharmacyTopbarService = require('../services/pharmacy-topbar.service');
 const { controllerHandler: wrap, requestMeta } = require('../common/controllers');
 
 module.exports = {
+  getTopbarBootstrap: wrap((req) => pharmacyTopbarService.getTopbarBootstrap(req.query, req.auth), 'Lấy bootstrap topbar nhà thuốc thành công.'),
+  searchWorkspace: wrap((req) => pharmacyTopbarService.search(req.query, req.auth), 'Tìm kiếm workspace nhà thuốc thành công.'),
+  getAlertSummary: wrap((req) => pharmacyTopbarService.getAlertSummary(req.query, req.auth), 'Lấy tóm tắt cảnh báo ca dược thành công.'),
+  claimPrescriptionForDispense: wrap((req) => pharmacyTopbarService.claimPrescriptionForDispense(req.params.prescriptionId, req.body, req.auth, requestMeta(req)), 'Nhận xử lý đơn cấp phát thành công.'),
+
   getDashboard: wrap((req) => pharmacyOverviewService.getDashboard(req.query, req.auth), 'Lấy dashboard nhà thuốc thành công.'),
   getPrescriptionWorkbench: wrap((req) => pharmacyOverviewService.getPrescriptionWorkbench(req.query, req.auth), 'Lấy prescription workbench thành công.'),
   getPrescriptionRiskQueue: wrap((req) => pharmacyOverviewService.getPrescriptionRiskQueue(req.query, req.auth), 'Lấy prescription risk queue thành công.'),

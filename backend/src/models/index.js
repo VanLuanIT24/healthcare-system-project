@@ -63,6 +63,7 @@ const DiagnosticAlert = require('./diagnostics/diagnostic-alert.model');
 const ClinicalOpsEscalation = require('./clinical-operations/clinical-ops-escalation.model');
 const ClinicalOpsSlaRule = require('./clinical-operations/clinical-ops-sla-rule.model');
 const ClinicalOpsSlaEvent = require('./clinical-operations/clinical-ops-sla-event.model');
+const ClinicalOpsWorkItemLock = require('./clinical-operations/clinical-ops-work-item-lock.model');
 const ResultSignature = require('./clinical-operations/result-signature.model');
 const ResultDelivery = require('./clinical-operations/result-delivery.model');
 
@@ -138,13 +139,27 @@ const PostProcedureObservation = require('./nursing/post-procedure-observation.m
 const MedicationReactionObservation = require('./nursing/medication-reaction-observation.model');
 
 const ServiceCatalog = require('./billing/service-catalog.model');
+const ServicePriceVersion = require('./billing/service-price-version.model');
 const Charge = require('./billing/charge.model');
 const Invoice = require('./billing/invoice.model');
 const InvoiceItem = require('./billing/invoice-item.model');
 const Payment = require('./billing/payment.model');
+const PaymentRefund = require('./billing/payment-refund.model');
 const PaymentIntent = require('./billing/payment-intent.model');
+const BankStatementTransaction = require('./billing/bank-statement-transaction.model');
+const ReconciliationBatch = require('./billing/reconciliation-batch.model');
+const ReconciliationMatch = require('./billing/reconciliation-match.model');
+const ReconciliationRule = require('./billing/reconciliation-rule.model');
+const ReconciliationException = require('./billing/reconciliation-exception.model');
+const SettlementBatch = require('./billing/settlement-batch.model');
+const ProviderWebhookEvent = require('./billing/provider-webhook-event.model');
+const ClinicalPaymentOverride = require('./billing/clinical-payment-override.model');
 const InsurancePolicy = require('./billing/insurance-policy.model');
 const InsuranceClaim = require('./billing/insurance-claim.model');
+const CashierShift = require('./billing/cashier-shift.model');
+const CashDrawerMovement = require('./billing/cash-drawer-movement.model');
+const Receipt = require('./billing/receipt.model');
+const ReceiptPrintLog = require('./billing/receipt-print-log.model');
 
 const MedicalRecord = require('./records/medical-record.model');
 const Attachment = require('./records/attachment.model');
@@ -239,6 +254,7 @@ module.exports = {
   ClinicalOpsEscalation,
   ClinicalOpsSlaRule,
   ClinicalOpsSlaEvent,
+  ClinicalOpsWorkItemLock,
   ResultSignature,
   ResultDelivery,
   MedicationMaster,
@@ -311,13 +327,27 @@ module.exports = {
   PostProcedureObservation,
   MedicationReactionObservation,
   ServiceCatalog,
+  ServicePriceVersion,
   Charge,
   Invoice,
   InvoiceItem,
   Payment,
+  PaymentRefund,
   PaymentIntent,
+  BankStatementTransaction,
+  ReconciliationBatch,
+  ReconciliationMatch,
+  ReconciliationRule,
+  ReconciliationException,
+  SettlementBatch,
+  ProviderWebhookEvent,
+  ClinicalPaymentOverride,
   InsurancePolicy,
   InsuranceClaim,
+  CashierShift,
+  CashDrawerMovement,
+  Receipt,
+  ReceiptPrintLog,
   MedicalRecord,
   Attachment,
   AttachmentAccessLog,

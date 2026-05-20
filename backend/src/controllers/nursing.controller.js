@@ -408,6 +408,18 @@ module.exports = {
     (req) => nursingDashboardService.getPriorityAlerts(req.query, req.auth),
     'Lấy cảnh báo ưu tiên điều dưỡng thành công.',
   ),
+  getTopbarBootstrap: wrap(
+    (req) => nursingDashboardService.getTopbarBootstrap(req.query, req.auth),
+    'Lấy bootstrap topbar điều dưỡng thành công.',
+  ),
+  search: wrap(
+    (req) => nursingDashboardService.search(req.query, req.auth),
+    'Tìm kiếm command điều dưỡng thành công.',
+  ),
+  getShiftSummary: wrap(
+    (req) => nursingDashboardService.getShiftSummary(req.query, req.auth),
+    'Lấy tóm tắt ca trực điều dưỡng thành công.',
+  ),
   getPendingPatients: wrap(
     (req) => nursingDashboardService.getPendingPatients(req.query, req.auth),
     'Lấy danh sách bệnh nhân chờ xử lý thành công.',

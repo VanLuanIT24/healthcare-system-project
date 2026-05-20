@@ -1,4 +1,6 @@
 const laboratoryService = require('../services/laboratory.service');
+const clinicalBillingService = require('../services/clinical-billing.service');
+const clinicalChargeService = require('../services/clinical-charge.service');
 const recordsService = require('../services/records.service');
 const { controllerHandler: wrap, markLegacyControllerError, requestMeta, sendSuccess } = require('../common/controllers');
 const { ATTACHMENT_ENTITY_TYPE } = require('../constants/statuses');
@@ -6,8 +8,10 @@ const { ATTACHMENT_ENTITY_TYPE } = require('../constants/statuses');
 module.exports = {
   listLabOrders: wrap((req) => laboratoryService.listLabOrders(req.query, req.auth), 'Lấy danh sách lab order thành công.'),
   getLabOrderDetail: wrap((req) => laboratoryService.getLabOrderDetail(req.params.labOrderId, req.auth), 'Lấy chi tiết lab order thành công.'),
+  listLabOrderCharges: wrap((req) => clinicalChargeService.listLabOrderCharges(req.params.labOrderId, req.auth), 'Lấy charge xét nghiệm thành công.'),
   acknowledgeLabOrder: wrap((req) => laboratoryService.acknowledgeLabOrder(req.params.labOrderId, req.auth, requestMeta(req)), 'Acknowledge lab order thành công.'),
   cancelLabOrder: wrap((req) => laboratoryService.cancelLabOrder(req.params.labOrderId, req.body, req.auth, requestMeta(req)), 'Hủy lab order thành công.'),
+  createLabOrderCharge: wrap((req) => clinicalBillingService.createChargeForLabOrder(req.params.labOrderId, req.body, req.auth, requestMeta(req)), 'Tạo charge xét nghiệm thành công.', 201),
 
   createSpecimen: wrap((req) => laboratoryService.createSpecimen(req.params.labOrderId, req.body, req.auth, requestMeta(req)), 'Tạo specimen thành công.', 201),
   collectLabOrderSpecimen: wrap((req) => laboratoryService.collectSpecimen(req.params.labOrderId, req.body, req.auth, requestMeta(req)), 'Collect specimen thành công.'),

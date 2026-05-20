@@ -401,6 +401,136 @@ function RoleAwareMenuRenderer({ sidebar, collapsed, onNavigate }) {
   );
 }
 
+const WORKLIST_TABS = [
+  ['all', 'Tất cả'],
+  ['stat', 'STAT / Urgent'],
+  ['lab', 'Xét nghiệm'],
+  ['specimen', 'Mẫu bệnh phẩm'],
+  ['imaging', 'CĐHA'],
+  ['procedure', 'Thủ thuật'],
+  ['pending', 'Chờ duyệt / ký'],
+  ['overdue', 'Quá SLA'],
+  ['critical', 'Critical'],
+];
+
+const NOTIFICATION_TABS = [
+  ['all', 'Tất cả'],
+  ['critical', 'Critical'],
+  ['stat', 'STAT / Urgent'],
+  ['sla', 'Quá SLA'],
+  ['specimen', 'Mẫu bệnh phẩm'],
+  ['approval', 'Chờ duyệt'],
+  ['imaging', 'CĐHA'],
+  ['procedure', 'Thủ thuật'],
+  ['system', 'Hệ thống'],
+];
+
+const SEARCH_GROUP_LABELS = {
+  orders: 'Order',
+  patients: 'Bệnh nhân',
+  specimens: 'Specimen',
+  lab_results: 'Lab result',
+  imaging_reports: 'Imaging report',
+  procedure_orders: 'Thủ thuật',
+  attachments: 'Tệp',
+  menus: 'Menu',
+  quick_actions: 'Quick actions',
+};
+
+function toNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatCompactNumber(value) {
+  const number = toNumber(value);
+  if (number >= 1000) return `${Math.round(number / 100) / 10}k`;
+  return String(number);
+}
+
+function relativeTime(value) {
+  if (!value) return 'chưa đồng bộ';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'chưa đồng bộ';
+  const seconds = Math.max(1, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s trước`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} phút trước`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  return `${Math.round(hours / 24)} ngày trước`;
+}
+
+function routeForWorkItem(item = {}) {
+  if (item.module === 'lab') return '/clinical-ops/tests/orders';
+  if (item.module === 'imaging') return '/clinical-ops/imaging/orders';
+  if (item.module === 'procedure') return '/clinical-ops/procedures/orders';
+  return '/clinical-ops/orders/timeline';
+}
+
+function labelForWorkItem(item = {}) {
+  return item.order_no
+    || item.lab_order_no
+    || item.imaging_order_no
+    || item.procedure_order_no
+    || item.title
+    || item.entity_id
+    || 'Work item';
+}
+
+function worklistItemMatchesTab(item = {}, tab = 'all') {
+  if (tab === 'all') return true;
+  if (tab === 'stat') return ['stat', 'urgent'].includes(item.priority);
+  if (tab === 'lab') return item.module === 'lab';
+  if (tab === 'specimen') return item.module === 'lab' && ['waiting_collection', 'waiting_receive', 'waiting_process', 'specimen_rejected'].includes(item.stage_code);
+  if (tab === 'imaging') return item.module === 'imaging';
+  if (tab === 'procedure') return item.module === 'procedure';
+  if (tab === 'pending') return ['result_preliminary', 'report_draft', 'report_preliminary', 'technical_completed'].includes(item.stage_code);
+  if (tab === 'overdue') return item.sla?.state === 'breached';
+  if (tab === 'critical') return item.warnings?.includes('critical_unacknowledged');
+  return true;
+}
+
+function notificationMatchesTab(item = {}, tab = 'all') {
+  const text = normalizeText(`${item.title} ${item.message} ${item.event_type} ${item.notification_type}`);
+  if (tab === 'all') return true;
+  if (tab === 'critical') return item.priority === 'critical' || text.includes('critical');
+  if (tab === 'stat') return text.includes('stat') || text.includes('urgent');
+  if (tab === 'sla') return text.includes('sla') || text.includes('overdue') || text.includes('qua han');
+  if (tab === 'specimen') return text.includes('specimen') || text.includes('mau');
+  if (tab === 'approval') return text.includes('approval') || text.includes('duyet') || text.includes('ky');
+  if (tab === 'imaging') return text.includes('imaging') || text.includes('cdha');
+  if (tab === 'procedure') return text.includes('procedure') || text.includes('thu thuat');
+  if (tab === 'system') return text.includes('system') || item.notification_type === 'system';
+  return true;
+}
+
+function fallbackSearchGroups(menuItems = [], query = '') {
+  const needle = normalizeText(query);
+  const menus = menuItems
+    .filter((item) => !needle || normalizeText(`${item.label} ${item.sectionLabel}`).includes(needle))
+    .slice(0, 12)
+    .map((item) => ({
+      id: item.id,
+      title: item.label,
+      subtitle: item.sectionLabel,
+      route: item.path,
+      actions: [{ label: 'Mở', route: item.path }],
+    }));
+  return [{ key: 'menus', label: SEARCH_GROUP_LABELS.menus, items: menus }];
+}
+
+function searchGroupsFromPayload(payload, menuItems, query) {
+  if (!payload) return fallbackSearchGroups(menuItems, query);
+  return Object.entries(SEARCH_GROUP_LABELS)
+    .map(([key, label]) => ({
+      key,
+      label,
+      items: Array.isArray(payload[key]) ? payload[key] : [],
+    }))
+    .filter((group) => group.items.length);
+}
+
 export function ClinicalOpsShell({ children }) {
   const auth = readStoredAuth();
   const navigate = useNavigate();
@@ -414,50 +544,87 @@ export function ClinicalOpsShell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchPayload, setSearchPayload] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [refreshingSidebar, setRefreshingSidebar] = useState(false);
+  const [notificationTab, setNotificationTab] = useState('all');
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('connected');
+  const [topbar, setTopbar] = useState(null);
+  const [worklistOpen, setWorklistOpen] = useState(false);
+  const [worklistTab, setWorklistTab] = useState('all');
+  const [worklist, setWorklist] = useState({ summary: {}, items: [] });
+  const [worklistLoading, setWorklistLoading] = useState(false);
+  const [safetyOpen, setSafetyOpen] = useState(false);
+  const [workItemBusy, setWorkItemBusy] = useState('');
 
   const menuItems = useMemo(() => flattenSidebar(sidebar), [sidebar]);
   const pageMeta = menuItems.find((item) => item.path === location.pathname) || getClinicalOpsPageMeta(location.pathname);
-  const displayName = getStaffActorName(auth);
-  const roleLabel = auth?.user?.roles?.includes('lab_manager')
+  const profile = topbar?.profile;
+  const displayName = profile?.display_name || getStaffActorName(auth);
+  const roleCodes = profile?.roles || auth?.user?.roles || [];
+  const roleLabel = roleCodes?.includes('lab_manager')
     ? 'Điều phối cận lâm sàng'
-    : auth?.user?.roles?.includes('radiologist')
+    : roleCodes?.includes('radiologist')
       ? 'Bác sĩ CĐHA'
-      : auth?.user?.roles?.includes('procedure_staff')
+      : roleCodes?.includes('procedure_staff')
         ? 'Nhân sự thủ thuật'
         : 'Clinical Operations';
+  const counters = topbar?.counters || {};
+  const safetySummary = topbar?.safety_summary || {};
+  const notifications = topbar?.notification_preview || [];
+  const workspace = topbar?.workspace || {};
+  const workspaceSwitcher = workspace?.workspace_switcher?.available_workspaces || [];
+  const searchGroups = useMemo(
+    () => searchGroupsFromPayload(searchPayload, menuItems, searchQuery),
+    [searchPayload, menuItems, searchQuery],
+  );
+  const visibleWorklistItems = useMemo(
+    () => (worklist.items || []).filter((item) => worklistItemMatchesTab(item, worklistTab)).slice(0, 80),
+    [worklist.items, worklistTab],
+  );
+  const visibleNotifications = useMemo(
+    () => notifications.filter((item) => notificationMatchesTab(item, notificationTab)).slice(0, 12),
+    [notifications, notificationTab],
+  );
+  const alertTotal = toNumber(safetySummary.critical_total) + toNumber(safetySummary.sla_breached_total) + toNumber(safetySummary.escalation_total);
 
-  const searchResults = useMemo(() => {
-    const query = normalizeText(searchQuery);
-    if (!query) return menuItems.slice(0, 8);
-    return menuItems
-      .filter((item) => normalizeText(`${item.label} ${item.sectionLabel}`).includes(query))
-      .slice(0, 10);
-  }, [menuItems, searchQuery]);
-
-  async function loadSidebar() {
-    setRefreshingSidebar(true);
+  async function syncCommandBar({ silent = false } = {}) {
+    if (!silent) setSyncing(true);
     try {
-      if (isSuperAdminAuth(auth)) {
-        setSidebar(FALLBACK_SIDEBAR);
-        return;
-      }
-      const payload = await clinicalOpsAPI.sidebar();
-      if (payload?.sections?.length) {
-        const apiLooksNarrow = payload.role_scope === 'all' && payload.sections.length < FALLBACK_SIDEBAR.sections.length;
-        setSidebar(apiLooksNarrow ? FALLBACK_SIDEBAR : payload);
+      const payload = await clinicalOpsAPI.topbarBootstrap({ scope: 'all' });
+      setTopbar(payload);
+      setSyncStatus('connected');
+      setLastSyncedAt(new Date());
+      if (payload?.sidebar?.sections?.length) {
+        const apiLooksNarrow = payload.sidebar.role_scope === 'all' && payload.sidebar.sections.length < FALLBACK_SIDEBAR.sections.length;
+        setSidebar(apiLooksNarrow || isSuperAdminAuth(auth) ? FALLBACK_SIDEBAR : payload.sidebar);
       }
     } catch (error) {
-      setSidebar(FALLBACK_SIDEBAR);
+      setSyncStatus('degraded');
+      if (!topbar) {
+        setTopbar({
+          workspace: {
+            code: 'clinical_operations',
+            name: 'Cận lâm sàng & Thủ thuật',
+            current_unit: 'Toàn bộ clinical ops',
+            scope: 'all',
+          },
+          counters: {},
+          safety_summary: {},
+          notification_preview: [],
+          quick_actions: [],
+        });
+      }
     } finally {
-      setRefreshingSidebar(false);
+      if (!silent) setSyncing(false);
     }
   }
 
   useEffect(() => {
-    loadSidebar();
+    syncCommandBar({ silent: true });
   }, []);
 
   useEffect(() => {
@@ -471,6 +638,57 @@ export function ClinicalOpsShell({ children }) {
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+      if (event.key === 'Escape') {
+        setSearchOpen(false);
+        setWorklistOpen(false);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const timer = window.setTimeout(async () => {
+      const query = searchQuery.trim();
+      if (!query) {
+        setSearchPayload(null);
+        return;
+      }
+      setSearchLoading(true);
+      try {
+        setSearchPayload(await clinicalOpsAPI.search({ q: query, scope: 'all', limit: 8 }));
+      } catch (error) {
+        setSearchPayload(null);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [searchOpen, searchQuery]);
+
+  async function openWorklistDrawer(nextTab = worklistTab) {
+    setWorklistOpen(true);
+    setWorklistTab(nextTab);
+    setWorklistLoading(true);
+    try {
+      const payload = await clinicalOpsAPI.worklistToday({ scope: 'all', limit: 320 });
+      setWorklist(payload || { summary: {}, items: [] });
+      setLastSyncedAt(new Date());
+    } catch (error) {
+      setWorklist((current) => current || { summary: {}, items: [] });
+      setSyncStatus('degraded');
+    } finally {
+      setWorklistLoading(false);
+    }
+  }
+
   function closeMobile() {
     setMobileOpen(false);
   }
@@ -483,7 +701,35 @@ export function ClinicalOpsShell({ children }) {
   function navigateFromSearch(path) {
     setSearchQuery('');
     setSearchOpen(false);
-    navigate(path);
+    if (path) navigate(path);
+  }
+
+  async function claimItem(item) {
+    if (!item?.work_item_id) return;
+    setWorkItemBusy(item.work_item_id);
+    try {
+      await clinicalOpsAPI.claimWorklistItem(item.work_item_id, { source: 'clinical_ops_command_bar' });
+      await openWorklistDrawer(worklistTab);
+      await syncCommandBar({ silent: true });
+    } catch (error) {
+      setSyncStatus('degraded');
+    } finally {
+      setWorkItemBusy('');
+    }
+  }
+
+  async function releaseItem(item) {
+    if (!item?.work_item_id) return;
+    setWorkItemBusy(item.work_item_id);
+    try {
+      await clinicalOpsAPI.releaseWorklistItem(item.work_item_id, { reason: 'release_from_command_bar' });
+      await openWorklistDrawer(worklistTab);
+      await syncCommandBar({ silent: true });
+    } catch (error) {
+      setSyncStatus('degraded');
+    } finally {
+      setWorkItemBusy('');
+    }
   }
 
   return (
@@ -507,13 +753,30 @@ export function ClinicalOpsShell({ children }) {
 
         <div className="clinical-ops-sidebar__footer">
           {!collapsed ? (
-            <button type="button" className="clinical-ops-sidebar__alert" onClick={() => navigate('/clinical-ops/overview/critical-results')}>
+            <button type="button" className="clinical-ops-sidebar__alert" onClick={() => setSafetyOpen((current) => !current)}>
               <Siren size={17} strokeWidth={2.2} />
               <span>
                 <strong>Critical safety center</strong>
-                <small>Critical, SLA, escalation</small>
+                <small>{formatCompactNumber(alertTotal)} critical · SLA · escalation</small>
               </span>
             </button>
+          ) : null}
+          {safetyOpen && !collapsed ? (
+            <div className="clinical-safety-panel">
+              <header>
+                <strong>Critical safety center</strong>
+                <small>{relativeTime(safetySummary.last_updated_at || lastSyncedAt)}</small>
+              </header>
+              {(safetySummary.items || []).map((item) => (
+                <button key={item.code} type="button" onClick={() => navigate(item.route)}>
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.severity}</small>
+                  </span>
+                  <b>{formatCompactNumber(item.count)}</b>
+                </button>
+              ))}
+            </div>
           ) : null}
 
           <button
@@ -544,6 +807,15 @@ export function ClinicalOpsShell({ children }) {
             <div className="clinical-ops-topbar__title">
               <span>{pageMeta.sectionLabel || 'Tổng quan'}</span>
               <strong>{pageMeta.label}</strong>
+              <small>
+                Scope: {workspace.current_unit || 'Toàn viện'} · Hôm nay · {syncStatus === 'connected' ? 'Realtime connected' : 'Realtime degraded'}
+              </small>
+              <div className="clinical-ops-scope-filters" aria-label="Bộ lọc nhanh Clinical Operations">
+                <button type="button" onClick={() => openWorklistDrawer('all')}>Hôm nay</button>
+                <button type="button" onClick={() => openWorklistDrawer('stat')}>STAT</button>
+                <button type="button" onClick={() => openWorklistDrawer('overdue')}>Quá SLA</button>
+                <button type="button" onClick={() => openWorklistDrawer('critical')}>Critical</button>
+              </div>
             </div>
           </div>
 
@@ -554,9 +826,10 @@ export function ClinicalOpsShell({ children }) {
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 onFocus={() => setSearchOpen(true)}
-                placeholder="Tìm màn hình vận hành"
-                aria-label="Tìm màn hình vận hành"
+                placeholder="Tìm order, BN, specimen, kết quả, report..."
+                aria-label="Tìm order, bệnh nhân, specimen, kết quả, report, thủ thuật"
               />
+              <kbd>Ctrl K</kbd>
               {searchQuery ? (
                 <button type="button" aria-label="Xóa tìm kiếm" onClick={() => setSearchQuery('')}>
                   <X size={15} strokeWidth={2.2} />
@@ -564,21 +837,36 @@ export function ClinicalOpsShell({ children }) {
               ) : null}
 
               {searchOpen ? (
-                <div className="clinical-ops-search__panel">
-                  {searchResults.map((item) => (
-                    <button key={item.id} type="button" onClick={() => navigateFromSearch(item.path)}>
-                      <span>{item.sectionLabel}</span>
-                      <strong>{item.label}</strong>
-                    </button>
-                  ))}
-                  {!searchResults.length ? <div className="clinical-ops-search__empty">Không tìm thấy màn hình phù hợp.</div> : null}
+                <div className="clinical-ops-search__panel clinical-command-palette">
+                  <header>
+                    <strong>Clinical Ops Search</strong>
+                    <small>{searchLoading ? 'Đang tìm...' : 'Order · BN · specimen · result · report · menu'}</small>
+                  </header>
+                  <div className="clinical-command-palette__body">
+                    {searchGroups.map((group) => (
+                      <section key={group.key}>
+                        <span>{group.label}</span>
+                        {group.items.map((item) => (
+                          <button key={`${group.key}-${item.id || item.route || item.title}`} type="button" onClick={() => navigateFromSearch(item.route || item.actions?.[0]?.route)}>
+                            <strong>{item.title || item.label}</strong>
+                            <small>{item.subtitle || item.description || group.label}</small>
+                            {item.chips?.length ? (
+                              <em>{item.chips.slice(0, 3).join(' · ')}</em>
+                            ) : null}
+                          </button>
+                        ))}
+                      </section>
+                    ))}
+                    {!searchGroups.some((group) => group.items.length) ? <div className="clinical-ops-search__empty">Không tìm thấy dữ liệu phù hợp.</div> : null}
+                  </div>
                 </div>
               ) : null}
             </div>
 
-            <button type="button" className="clinical-ops-topbar__quick" onClick={() => navigate('/clinical-ops/overview/today-worklist')}>
+            <button type="button" className="clinical-ops-topbar__quick" onClick={() => openWorklistDrawer('all')}>
               <ClipboardCheck size={18} strokeWidth={2.25} />
               <span>Worklist hôm nay</span>
+              <strong>{formatCompactNumber(counters.today_worklist)}</strong>
             </button>
 
             <div className="clinical-ops-dropdown" ref={notificationRef}>
@@ -590,35 +878,52 @@ export function ClinicalOpsShell({ children }) {
                 onClick={() => setNotificationsOpen((current) => !current)}
               >
                 <Bell size={19} strokeWidth={2.2} />
-                <span className="clinical-ops-icon-button__dot" />
+                {notifications.some((item) => !item.read_at) ? <span className="clinical-ops-icon-button__dot" /> : null}
               </button>
               {notificationsOpen ? (
-                <div className="clinical-ops-dropdown__panel">
+                <div className="clinical-ops-dropdown__panel clinical-notification-center">
                   <header>
-                    <strong>Cảnh báo vận hành</strong>
-                    <span>Realtime</span>
+                    <strong>Thông báo vận hành</strong>
+                    <span>{notifications.filter((item) => !item.read_at).length} chưa đọc</span>
                   </header>
-                  {[
-                    ['Critical results', '/clinical-ops/overview/critical-results', Siren],
-                    ['STAT / Urgent', '/clinical-ops/overview/stat-urgent', ShieldAlert],
-                    ['Order quá hạn', '/clinical-ops/overview/overdue-orders', TimerOff],
-                  ].map(([label, path, Icon]) => (
-                    <button key={path} type="button" onClick={() => navigate(path)}>
-                      <Icon size={16} strokeWidth={2.2} />
-                      <span>{label}</span>
-                    </button>
-                  ))}
+                  <div className="clinical-notification-tabs">
+                    {NOTIFICATION_TABS.map(([key, label]) => (
+                      <button key={key} type="button" className={notificationTab === key ? 'is-active' : ''} onClick={() => setNotificationTab(key)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="clinical-notification-list">
+                    {visibleNotifications.map((item) => (
+                      <article key={item.id} className={`clinical-notification-card is-${item.priority || 'normal'}`}>
+                        <span className="clinical-notification-card__icon"><Siren size={15} strokeWidth={2.2} /></span>
+                        <div>
+                          <strong>{item.title}</strong>
+                          <p>{item.message}</p>
+                          <small>{relativeTime(item.created_at)} · {item.priority || 'normal'}</small>
+                          <div>
+                            <button type="button" onClick={() => navigate(item.route || '/clinical-ops/alerts')}>Mở liên quan</button>
+                            <button type="button" onClick={() => openWorklistDrawer(item.priority === 'critical' ? 'critical' : 'all')}>Worklist</button>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                    {!visibleNotifications.length ? (
+                      <div className="clinical-ops-search__empty">Chưa có thông báo trong nhóm này.</div>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </div>
 
             <button
               type="button"
-              className="clinical-ops-icon-button"
-              aria-label="Làm mới cấu hình sidebar"
-              onClick={loadSidebar}
+              className={`clinical-ops-icon-button clinical-sync-status is-${syncStatus}`}
+              aria-label="Đồng bộ Clinical Operations"
+              title={syncStatus === 'connected' ? `Đã đồng bộ ${relativeTime(lastSyncedAt)}` : 'Mất realtime, bấm để đồng bộ lại'}
+              onClick={() => syncCommandBar()}
             >
-              <RefreshCw className={refreshingSidebar ? 'is-spinning' : ''} size={18} strokeWidth={2.2} />
+              <RefreshCw className={syncing ? 'is-spinning' : ''} size={18} strokeWidth={2.2} />
             </button>
 
             <div className="clinical-ops-profile" ref={profileRef}>
@@ -643,8 +948,30 @@ export function ClinicalOpsShell({ children }) {
                     <span className="clinical-ops-avatar clinical-ops-avatar--large">{getInitials(displayName)}</span>
                     <div>
                       <strong>{displayName}</strong>
-                      <span>{auth?.user?.email || auth?.user?.username || 'Tài khoản nhân sự'}</span>
+                      <span>{profile?.email || auth?.user?.email || auth?.user?.username || 'Tài khoản nhân sự'}</span>
                     </div>
+                  </div>
+                  <div className="clinical-profile-context">
+                    <span>Workspace: Clinical Operations</span>
+                    <span>Scope: {workspace.current_unit || 'Toàn viện'}</span>
+                    <span>Vai trò: {roleLabel}</span>
+                    <span>Realtime: {syncStatus === 'connected' ? 'Online' : 'Degraded'}</span>
+                  </div>
+                  <Link to="/staff/account" onClick={() => setProfileOpen(false)}>
+                    <UserRound size={16} strokeWidth={2.2} />
+                    Hồ sơ của tôi
+                  </Link>
+                  <Link to="/staff/security" onClick={() => setProfileOpen(false)}>
+                    <ShieldAlert size={16} strokeWidth={2.2} />
+                    Tài khoản & bảo mật
+                  </Link>
+                  <div className="clinical-workspace-switcher">
+                    <span>Chọn không gian khác</span>
+                    {workspaceSwitcher.slice(0, 8).map((item) => (
+                      <Link key={item.code} to={item.route || '/staff/select-workspace'} onClick={() => setProfileOpen(false)}>
+                        {item.name}
+                      </Link>
+                    ))}
                   </div>
                   <Link to="/staff/select-workspace" onClick={() => setProfileOpen(false)}>
                     <UserRound size={16} strokeWidth={2.2} />
@@ -662,6 +989,73 @@ export function ClinicalOpsShell({ children }) {
 
         <div className="clinical-ops-content">{children}</div>
       </section>
+
+      {worklistOpen ? (
+        <div className="clinical-worklist-drawer" role="dialog" aria-modal="true" aria-label="Worklist hôm nay">
+          <div className="clinical-worklist-drawer__backdrop" onClick={() => setWorklistOpen(false)} />
+          <aside>
+            <header>
+              <div>
+                <span>Clinical worklist</span>
+                <strong>Worklist hôm nay</strong>
+                <small>{worklistLoading ? 'Đang đồng bộ...' : `${formatCompactNumber(worklist.summary?.total || visibleWorklistItems.length)} việc · ${relativeTime(lastSyncedAt)}`}</small>
+              </div>
+              <button type="button" className="clinical-ops-icon-button" aria-label="Đóng worklist" onClick={() => setWorklistOpen(false)}>
+                <X size={18} strokeWidth={2.2} />
+              </button>
+            </header>
+            <div className="clinical-worklist-drawer__tabs">
+              {WORKLIST_TABS.map(([key, label]) => (
+                <button key={key} type="button" className={worklistTab === key ? 'is-active' : ''} onClick={() => setWorklistTab(key)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="clinical-worklist-drawer__list">
+              {visibleWorklistItems.map((item) => (
+                <article key={item.work_item_id || item.entity_id} className={`clinical-worklist-item is-${item.priority || 'routine'}`}>
+                  <div className="clinical-worklist-item__main">
+                    <div>
+                      <span>{item.module || 'ops'} · {item.priority || 'routine'} · {item.stage_label || item.status}</span>
+                      <strong>{labelForWorkItem(item)}</strong>
+                      <p>
+                        {item.patient?.full_name || 'Chưa có BN'} · {item.department?.department_name || item.encounter?.encounter_code || 'Clinical Ops'}
+                      </p>
+                    </div>
+                    <b className={`clinical-worklist-item__sla is-${item.sla?.state || 'normal'}`}>
+                      {item.sla?.state === 'breached'
+                        ? `Quá ${item.sla?.breached_minutes || 0}p`
+                        : item.sla?.remaining_minutes !== undefined
+                          ? `${item.sla.remaining_minutes}p`
+                          : 'SLA'}
+                    </b>
+                  </div>
+                  {item.warnings?.length || item.missing?.length ? (
+                    <div className="clinical-worklist-item__chips">
+                      {[...(item.warnings || []), ...(item.missing || [])].slice(0, 5).map((chip) => <span key={chip}>{chip}</span>)}
+                    </div>
+                  ) : null}
+                  {item.lock ? (
+                    <small className="clinical-worklist-item__lock">Đang xử lý bởi {item.lock.claimed_by?.name || 'nhân sự khác'}</small>
+                  ) : null}
+                  <div className="clinical-worklist-item__actions">
+                    {item.lock ? (
+                      <button type="button" disabled={workItemBusy === item.work_item_id} onClick={() => releaseItem(item)}>Release</button>
+                    ) : (
+                      <button type="button" disabled={workItemBusy === item.work_item_id} onClick={() => claimItem(item)}>Nhận xử lý</button>
+                    )}
+                    <button type="button" onClick={() => navigate(routeForWorkItem(item))}>Mở order</button>
+                    <button type="button" onClick={() => navigate(`/clinical-ops/orders/timeline?item=${encodeURIComponent(item.work_item_id || item.entity_id || '')}`)}>Timeline</button>
+                  </div>
+                </article>
+              ))}
+              {!visibleWorklistItems.length ? (
+                <div className="clinical-worklist-empty">Không có work item trong tab này.</div>
+              ) : null}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </main>
   );
 }

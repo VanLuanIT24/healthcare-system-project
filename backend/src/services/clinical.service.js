@@ -33,6 +33,7 @@ const {
   PROBLEM_SEVERITIES,
   PROBLEM_SEVERITY,
   PROBLEM_STATUS,
+  REALTIME_EVENT_TYPE,
   VITAL_SIGN_STATUS,
 } = require('../constants/statuses');
 const {
@@ -47,6 +48,7 @@ const permissionService = require('./permission.service');
 const vitalAssessmentService = require('./vital-sign-assessment.service');
 const vitalCorrectionService = require('./vital-correction.service');
 const { isValidObjectId } = require('../common/helpers/object-id.helper');
+const eventBus = require('../events/event-bus.service');
 
 const CLINICAL_EDITABLE_ENCOUNTER_STATUSES = [
   ENCOUNTER_STATUS.ARRIVED,
@@ -1151,6 +1153,91 @@ function validateVitalSignsPayload(payload = {}) {
   return normalized;
 }
 
+async function publishVitalSignRecordedEvent(vitalSignDoc, context = {}, actor = {}, requestMeta = {}) {
+  const vitalSign = vitalSignDoc?.toObject ? vitalSignDoc.toObject() : vitalSignDoc;
+  if (!vitalSign?._id) return null;
+
+  const severity = vitalSign.overall_severity || vitalSign.severity || 'normal';
+  const isCritical = severity === 'critical';
+  const isAbnormal = severity && severity !== 'normal';
+  const eventType = isCritical
+    ? REALTIME_EVENT_TYPE.VITAL_SIGN_CRITICAL
+    : isAbnormal
+      ? REALTIME_EVENT_TYPE.VITAL_SIGN_ABNORMAL
+      : REALTIME_EVENT_TYPE.VITAL_SIGN_RECORDED;
+  const actorId = actorUserId(actor);
+  const patientId = vitalSign.patient_id || context.patient_id;
+  const departmentId = context.department_id || actorDepartmentId(actor);
+  const queueTicketId = vitalSign.queue_ticket_id || context.queue_ticket_id;
+  const encounterId = vitalSign.encounter_id || context.encounter_id;
+  const flags = Array.isArray(vitalSign.abnormal_flags) ? vitalSign.abnormal_flags : [];
+  const flagText = flags
+    .slice(0, 3)
+    .map((flag) => flag.message || flag.field)
+    .filter(Boolean)
+    .join(' · ');
+  const rooms = [
+    actorId ? `user:${actorId}` : null,
+    patientId ? `patient:${patientId}` : null,
+    departmentId ? `department:${departmentId}` : null,
+    queueTicketId ? `queue:${queueTicketId}` : null,
+    'role:nurse',
+  ].filter(Boolean);
+
+  try {
+    return await eventBus.publishDomainEvent({
+      eventType,
+      aggregateType: 'vital_sign',
+      aggregateId: vitalSign._id,
+      actor: {
+        actor_type: actorType(actor) || 'staff',
+        actor_id: actorId,
+      },
+      recipientScope: {
+        rooms,
+        user_id: isAbnormal && actorId ? actorId : undefined,
+      },
+      requestId: requestMeta.requestId || requestMeta.request_id,
+      idempotencyKey: `${eventType}:${vitalSign._id}`,
+      payload: {
+        vital_sign_id: String(vitalSign._id),
+        patient_id: patientId ? String(patientId) : null,
+        encounter_id: encounterId ? String(encounterId) : null,
+        queue_ticket_id: queueTicketId ? String(queueTicketId) : null,
+        appointment_id: vitalSign.appointment_id ? String(vitalSign.appointment_id) : null,
+        department_id: departmentId ? String(departmentId) : null,
+        recorded_by: actorId ? String(actorId) : null,
+        recorded_at: vitalSign.recorded_at,
+        severity,
+        abnormal_flags: flags,
+        requires_recheck: Boolean(vitalSign.requires_recheck),
+        suggested_recheck_minutes: vitalSign.suggested_recheck_minutes || null,
+        doctor_notification_required: Boolean(vitalSign.doctor_notification_required || vitalSign.requires_doctor_notification),
+        values: {
+          temperature: vitalSign.temperature ?? null,
+          heart_rate: vitalSign.heart_rate ?? null,
+          respiratory_rate: vitalSign.respiratory_rate ?? null,
+          systolic_bp: vitalSign.systolic_bp ?? null,
+          diastolic_bp: vitalSign.diastolic_bp ?? null,
+          spo2: vitalSign.spo2 ?? null,
+          pain_score: vitalSign.pain_score ?? null,
+          gcs_total: vitalSign.gcs_total ?? null,
+        },
+        notify: isAbnormal ? {
+          title: isCritical ? 'Sinh hiệu nguy kịch' : 'Sinh hiệu bất thường',
+          body: flagText || 'Có chỉ số sinh hiệu cần điều dưỡng xem lại.',
+          priority: isCritical ? 'critical' : 'high',
+          action_url: `/nurse/vitals-records/abnormal?vital=${vitalSign._id}`,
+          dedupe_key: `vital_sign:${vitalSign._id}:${eventType}`,
+        } : undefined,
+      },
+    });
+  } catch (error) {
+    console.warn(`Không thể publish realtime vital sign event: ${error.message}`);
+    return null;
+  }
+}
+
 async function recordVitalSigns(payload, actor, requestMeta = {}) {
   assertActorUser(actor);
   const normalized = validateVitalSignsPayload(payload);
@@ -1229,6 +1316,8 @@ async function recordVitalSigns(payload, actor, requestMeta = {}) {
       encounter_id: context.encounter_id ? String(context.encounter_id) : null,
     },
   });
+
+  await publishVitalSignRecordedEvent(vitalSign, context, actor, requestMeta);
   return getVitalSignDetail(vitalSign._id, actor);
 }
 

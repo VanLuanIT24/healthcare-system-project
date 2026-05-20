@@ -5,6 +5,13 @@ function unwrap(response) {
 }
 
 export const clinicalOpsAPI = {
+  topbarBootstrap: (params) => request('/clinical-ops/topbar/bootstrap', { params }).then(unwrap),
+  worklistToday: (params) => request('/clinical-ops/worklist/today', { params }).then(unwrap),
+  worklistSummary: (params) => request('/clinical-ops/worklist/summary', { params }).then(unwrap),
+  safetySummary: (params) => request('/clinical-ops/safety-summary', { params }).then(unwrap),
+  search: (params) => request('/clinical-ops/search', { params }).then(unwrap),
+  claimWorklistItem: (itemId, body) => request(`/clinical-ops/worklist/${encodeURIComponent(itemId)}/claim`, { method: 'POST', body }).then(unwrap),
+  releaseWorklistItem: (itemId, body) => request(`/clinical-ops/worklist/${encodeURIComponent(itemId)}/release`, { method: 'POST', body }).then(unwrap),
   sidebar: (params) => request('/clinical-operations/sidebar', { params }).then(unwrap),
   dashboard: (params) => request('/clinical-operations/overview/dashboard', { params }).then(unwrap),
   todayWorklist: (params) => request('/clinical-operations/overview/today-worklist', { params }).then(unwrap),

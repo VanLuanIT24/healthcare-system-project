@@ -2,6 +2,30 @@ const clinicalOperationsOverviewService = require('../services/clinical-operatio
 const { controllerHandler: wrap, requestMeta } = require('../common/controllers');
 
 module.exports = {
+  getTopbarBootstrap: wrap(
+    (req) => clinicalOperationsOverviewService.getTopbarBootstrap(req.query, req.auth),
+    'Bootstrap Clinical Command Bar thành công.',
+  ),
+  getWorklistSummary: wrap(
+    (req) => clinicalOperationsOverviewService.getWorklistSummary(req.query, req.auth),
+    'Lấy summary worklist clinical operations thành công.',
+  ),
+  getSafetySummary: wrap(
+    (req) => clinicalOperationsOverviewService.getSafetySummary(req.query, req.auth),
+    'Lấy safety summary clinical operations thành công.',
+  ),
+  searchClinicalOps: wrap(
+    (req) => clinicalOperationsOverviewService.searchClinicalOps(req.query, req.auth),
+    'Tìm kiếm Clinical Operations thành công.',
+  ),
+  claimWorklistItem: wrap(
+    (req) => clinicalOperationsOverviewService.claimWorklistItem(req.params.itemId, req.body, req.auth, requestMeta(req)),
+    'Nhận xử lý work item thành công.',
+  ),
+  releaseWorklistItem: wrap(
+    (req) => clinicalOperationsOverviewService.releaseWorklistItem(req.params.itemId, req.body, req.auth, requestMeta(req)),
+    'Release work item thành công.',
+  ),
   getDashboard: wrap(
     (req) => clinicalOperationsOverviewService.getDashboard(req.query, req.auth),
     'Lấy dashboard clinical operations thành công.',

@@ -180,6 +180,10 @@ router.post('/post-procedure/:procedureOrderId/create-emergency', authorize({ an
 router.get('/post-medication', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.listPostMedication);
 router.post('/post-medication/:administrationId/reactions', authorize({ anyPermissions: nursingWritePermissions }), nursingController.addMedicationReaction);
 
+router.get('/topbar/bootstrap', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getTopbarBootstrap);
+router.get('/search', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.search);
+router.get('/shift-summary', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getShiftSummary);
+
 router.get('/dashboard/overview', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getDashboardOverview);
 router.get('/dashboard/kpis', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getDashboardKpis);
 router.get('/dashboard/worklist', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getDashboardWorklist);

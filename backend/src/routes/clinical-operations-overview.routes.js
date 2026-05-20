@@ -46,6 +46,14 @@ const escalationWritePermissions = [
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));
 
+router.get('/topbar/bootstrap', authorize({ anyPermissions: overviewReadPermissions }), clinicalOperationsOverviewController.getTopbarBootstrap);
+router.get('/worklist/today', authorize({ anyPermissions: overviewReadPermissions }), clinicalOperationsOverviewController.getTodayWorklist);
+router.get('/worklist/summary', authorize({ anyPermissions: overviewReadPermissions }), clinicalOperationsOverviewController.getWorklistSummary);
+router.get('/safety-summary', authorize({ anyPermissions: overviewReadPermissions }), clinicalOperationsOverviewController.getSafetySummary);
+router.get('/search', authorize({ anyPermissions: overviewReadPermissions }), clinicalOperationsOverviewController.searchClinicalOps);
+router.post('/worklist/:itemId/claim', authorize({ anyPermissions: escalationWritePermissions }), clinicalOperationsOverviewController.claimWorklistItem);
+router.post('/worklist/:itemId/release', authorize({ anyPermissions: escalationWritePermissions }), clinicalOperationsOverviewController.releaseWorklistItem);
+
 router.get('/sidebar', authorize({ anyPermissions: overviewReadPermissions }), clinicalOperationsOverviewController.getSidebar);
 
 router.get('/overview/dashboard', authorize({ anyPermissions: overviewReadPermissions }), clinicalOperationsOverviewController.getDashboard);

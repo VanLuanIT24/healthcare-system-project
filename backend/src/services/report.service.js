@@ -601,6 +601,10 @@ async function getRevenueReport(query = {}, actor = {}) {
   addObjectIdFilter(invoiceMatch, 'patient_id', filters.patient_id, 'patient_id');
   addObjectIdFilter(chargeMatch, 'patient_id', filters.patient_id, 'patient_id');
   const effectiveDepartmentId = await applyRevenueDepartmentScope(paymentMatch, invoiceMatch, chargeMatch, filters, actor);
+  const refundDateMatch = {};
+  const voidDateMatch = {};
+  applyDateRange(refundDateMatch, 'refunded_at', filters);
+  applyDateRange(voidDateMatch, 'voided_at', filters);
 
   const [paymentTotals, paymentByMethod, revenueByDay, invoiceTotals, invoiceByStatus, chargeTotals, revenueByDepartment, revenueByServiceType, refundTotals] = await Promise.all([
     Payment.aggregate([
@@ -654,8 +658,16 @@ async function getRevenueReport(query = {}, actor = {}) {
     Payment.aggregate([
       {
         $match: {
-          status: { $in: [PAYMENT_STATUS.REFUNDED, PAYMENT_STATUS.VOIDED] },
-          paid_at: paymentMatch.paid_at,
+          $or: [
+            {
+              status: PAYMENT_STATUS.REFUNDED,
+              ...(refundDateMatch.refunded_at ? { refunded_at: refundDateMatch.refunded_at } : {}),
+            },
+            {
+              status: PAYMENT_STATUS.VOIDED,
+              ...(voidDateMatch.voided_at ? { voided_at: voidDateMatch.voided_at } : {}),
+            },
+          ],
           ...(paymentMatch.invoice_id ? { invoice_id: paymentMatch.invoice_id } : {}),
           ...(paymentMatch.patient_id ? { patient_id: paymentMatch.patient_id } : {}),
         },
@@ -1207,8 +1219,15 @@ async function getBillingDashboard(actor = {}) {
   const filters = normalizeReportFilters({ date: new Date().toISOString() });
   const paymentMatch = { status: PAYMENT_STATUS.COMPLETED };
   const invoiceIssuedMatch = { status: { $in: [INVOICE_STATUS.ISSUED, INVOICE_STATUS.PARTIALLY_PAID, INVOICE_STATUS.PAID] } };
+  const chargeScopeMatch = {};
   applyDateRange(paymentMatch, 'paid_at', filters);
   applyDateRange(invoiceIssuedMatch, 'issued_at', filters);
+  await applyRevenueDepartmentScope(paymentMatch, invoiceIssuedMatch, chargeScopeMatch, filters, actor);
+  const unpaidMatch = {
+    status: { $in: [INVOICE_STATUS.ISSUED, INVOICE_STATUS.PARTIALLY_PAID] },
+    balance_due: { $gt: 0 },
+    ...(invoiceIssuedMatch.encounter_id ? { encounter_id: invoiceIssuedMatch.encounter_id } : {}),
+  };
 
   const [paymentTotals, invoiceTotals, unpaidTotals, paymentByMethod, recentPayments] = await Promise.all([
     Payment.aggregate([
@@ -1220,7 +1239,7 @@ async function getBillingDashboard(actor = {}) {
       { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$total_amount' } } },
     ]),
     Invoice.aggregate([
-      { $match: { status: { $in: [INVOICE_STATUS.ISSUED, INVOICE_STATUS.PARTIALLY_PAID] }, balance_due: { $gt: 0 } } },
+      { $match: unpaidMatch },
       { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$balance_due' } } },
     ]),
     Payment.aggregate([

@@ -57,6 +57,8 @@ const PERMISSION_MODULE = {
   CHARGES: 'charges',
   INVOICES: 'invoices',
   PAYMENTS: 'payments',
+  PAYMENT_RECONCILIATION: 'payment_reconciliation',
+  RECEIPTS: 'receipts',
   INSURANCE_POLICIES: 'insurance_policies',
   INSURANCE_CLAIMS: 'insurance_claims',
   MEDICAL_RECORDS: 'medical_records',

@@ -986,10 +986,21 @@ async function createChargeForOrder(order, service, payload = {}, actor, session
 
   const quantity = Number(payload.quantity || 1);
   if (quantity <= 0) throw createError('quantity tính phí phải lớn hơn 0.');
-  const unitPrice = Number(service.unit_price || 0);
+  const canOverridePrice = hasAnyPermission(actor, [
+    PERMISSION.CHARGES.UPDATE,
+    PERMISSION.CHARGES.MANAGE,
+    PERMISSION.SYSTEM.FULL_ACCESS,
+  ]);
+  const unitPrice = payload.unit_price !== undefined && canOverridePrice
+    ? Number(payload.unit_price || 0)
+    : Number(service.unit_price || 0);
   const discountAmount = Number(payload.discount_amount || 0);
   const taxAmount = Number(payload.tax_amount || 0);
   const totalAmount = Math.max((quantity * unitPrice) - discountAmount + taxAmount, 0);
+  const status = payload.status || (payload.post_immediately === false ? CHARGE_STATUS.PENDING : CHARGE_STATUS.POSTED);
+  if (![CHARGE_STATUS.PENDING, CHARGE_STATUS.DRAFT, CHARGE_STATUS.POSTED].includes(status)) {
+    throw createError('Charge mới từ order chỉ được tạo ở pending/draft/posted.', 409);
+  }
   const chargeNo = payload.charge_no || await generateChargeNumber({ session });
   let charge;
   try {
@@ -1009,9 +1020,12 @@ async function createChargeForOrder(order, service, payload = {}, actor, session
       tax_amount: taxAmount,
       total_amount: totalAmount,
       charged_at: new Date(),
-      posted_by: actor?.userId,
-      posted_at: new Date(),
-      status: CHARGE_STATUS.POSTED,
+      posted_by: status === CHARGE_STATUS.POSTED ? actor?.userId : undefined,
+      posted_at: status === CHARGE_STATUS.POSTED ? new Date() : undefined,
+      status,
+      review_status: payload.review_status,
+      review_reason: payload.review_reason,
+      review_notes: payload.review_notes || payload.override_reason,
       created_by: actor?.userId,
       updated_by: actor?.userId,
     }], sessionOptions(session));
