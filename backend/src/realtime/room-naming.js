@@ -58,6 +58,11 @@ function paymentIntentRoom(intentId) {
   return id ? `payment_intent:${id}` : null;
 }
 
+function systemRoom(systemKey) {
+  const id = normalizeId(systemKey);
+  return id ? `system:${id}` : null;
+}
+
 function addRooms(rooms, values, mapper) {
   const list = Array.isArray(values) ? values : [values];
   list.forEach((value) => {
@@ -84,6 +89,7 @@ function buildRoomsFromScope(scope = {}) {
   addRooms(rooms, scope.queue_id || scope.queueId || scope.queue_ticket_id || scope.queueTicketId, queueRoom);
   addRooms(rooms, scope.emergency_case_id || scope.emergencyCaseId || scope.case_id || scope.caseId, emergencyRoom);
   addRooms(rooms, scope.payment_intent_id || scope.paymentIntentId, paymentIntentRoom);
+  addRooms(rooms, scope.system || scope.system_room || scope.systemRoom || scope.system_rooms || scope.systemRooms, systemRoom);
 
   const actors = scope.actors || scope.actor || [];
   (Array.isArray(actors) ? actors : [actors]).filter(Boolean).forEach((actor) => {
@@ -107,5 +113,6 @@ module.exports = {
   queueRoom,
   emergencyRoom,
   paymentIntentRoom,
+  systemRoom,
   buildRoomsFromScope,
 };

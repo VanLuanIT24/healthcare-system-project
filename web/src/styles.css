@@ -3,6 +3,8 @@
 @import './styles/home.css';
 @import './styles/info.css';
 @import './styles/admin.css';
+@import './styles/admin-control-plane.css';
+@import './styles/command-center.css';
 @import './styles/scheduling.css';
 @import './styles/reception.css';
 

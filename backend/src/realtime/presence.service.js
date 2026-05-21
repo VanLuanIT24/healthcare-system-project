@@ -86,11 +86,17 @@ function getPresence(actorType, actorId) {
   return serializePresence(presenceByActor.get(keyFor(actorType, actorId)));
 }
 
+function getAllPresence() {
+  pruneExpired();
+  return [...presenceByActor.values()].map(serializePresence).filter(Boolean);
+}
+
 module.exports = {
   markOnline,
   touch,
   markOffline,
   isOnline,
   getPresence,
+  getAllPresence,
   pruneExpired,
 };

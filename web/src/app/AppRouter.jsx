@@ -8,6 +8,7 @@ import { RegisterPage } from '../auth/pages/RegisterPage';
 import { ForgotPasswordPage } from '../auth/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '../auth/pages/ResetPasswordPage';
 import { StaffLoginPage } from '../auth/pages/StaffLoginPage';
+import { CommandCenterPage } from '../admin/command-center/CommandCenterPage';
 import { AdminOverviewPage } from '../admin/pages/AdminOverviewPage';
 import { AdminLayout } from '../admin/components/AdminLayout';
 import { StaffListPage } from '../admin/staff/pages/StaffListPage';
@@ -310,7 +311,17 @@ export function AppRouter() {
             </StaffRoute>
           }
         >
-          <Route index element={<Navigate to="/admin/overview" replace />} />
+          <Route index element={<Navigate to="/admin/command-center" replace />} />
+          <Route path="command-center" element={<CommandCenterPage view="dashboard" />} />
+          <Route path="command-center/health" element={<CommandCenterPage view="health" />} />
+          <Route path="command-center/tasks" element={<CommandCenterPage view="tasks" />} />
+          <Route path="command-center/system-alerts" element={<CommandCenterPage view="systemAlerts" />} />
+          <Route path="command-center/security-alerts" element={<CommandCenterPage view="securityAlerts" />} />
+          <Route path="command-center/recent-activity" element={<CommandCenterPage view="recentActivity" />} />
+          <Route path="command-center/sessions" element={<CommandCenterPage view="sessions" />} />
+          <Route path="command-center/workers" element={<CommandCenterPage view="workers" />} />
+          <Route path="command-center/realtime" element={<CommandCenterPage view="realtime" />} />
+          <Route path="command-center/workspace-map" element={<CommandCenterPage view="workspaceMap" />} />
           <Route path="overview" element={<AdminOverviewPage />} />
           <Route path="staff" element={<StaffListPage />} />
           <Route path="staff/create" element={<StaffCreatePage />} />

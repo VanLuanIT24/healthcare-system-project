@@ -1,4 +1,5 @@
 const express = require('express');
+const adminCommandCenterRoutes = require('./admin-command-center.routes');
 const adminController = require('../controllers/admin.controller');
 const paymentIntentController = require('../controllers/payment-intent.controller');
 const authenticate = require('../middleware/authenticate');
@@ -15,6 +16,7 @@ router.param('paymentId', validateObjectIdParam);
 
 router.get('/settings/public', adminController.getPublicSettings);
 router.get('/doctors', adminController.getDoctorsList);
+router.use('/command-center', adminCommandCenterRoutes);
 
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));

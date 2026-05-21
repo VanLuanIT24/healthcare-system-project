@@ -3,6 +3,18 @@ const PERMISSION = {
     FULL_ACCESS: 'system.full_access',
     HEALTH_READ: 'system.health.read',
   },
+  COMMAND_CENTER: {
+    READ: 'command_center.read',
+    MANAGE: 'command_center.manage',
+    EXPORT: 'command_center.export',
+    VIEW_SECURITY: 'command_center.view_security',
+    VIEW_OPS: 'command_center.view_ops',
+    RETRY_OPS: 'command_center.retry_ops',
+    MANAGE_ALERTS: 'command_center.manage_alerts',
+    FORCE_LOGOUT: 'command_center.force_logout',
+    MAINTENANCE: 'command_center.maintenance',
+    VIEW_WORKSPACE_MAP: 'command_center.view_workspace_map',
+  },
   SETTINGS: {
     READ: 'settings.read',
     READ_PUBLIC: 'settings.public.read',
