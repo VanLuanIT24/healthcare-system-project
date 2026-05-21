@@ -44,9 +44,13 @@ const PHARMACY_REPORT_TYPE = {
   INVENTORY_MOVEMENT: 'inventory_movement',
   DISPENSING: 'dispensing',
   EXPIRING_STOCK: 'expiring_stock',
+  EXPIRED_RECALLED_BATCHES: 'expired_recalled_batches',
   LOW_STOCK: 'low_stock',
+  STOCKOUT_RISK: 'stockout_risk',
+  PRESCRIPTIONS: 'prescriptions',
   INVENTORY_VALUATION: 'inventory_valuation',
   HIGH_USAGE: 'high_usage_medications',
+  TURNOVER: 'turnover',
   WASTE_DISPOSAL: 'waste_disposal',
 };
 
@@ -125,6 +129,11 @@ function round(value, digits = 2) {
 
 function percentage(part, total) {
   return total ? round((normalizeNumber(part) / normalizeNumber(total)) * 100, 2) : 0;
+}
+
+function average(values = []) {
+  const valid = values.map((value) => normalizeNumber(value, null)).filter((value) => value !== null && Number.isFinite(value));
+  return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : 0;
 }
 
 function addDays(date, days) {
@@ -874,6 +883,95 @@ async function getLowStockReport(query = {}, actor = {}) {
   };
 }
 
+async function getStockoutRiskReport(query = {}, actor = {}) {
+  assertPharmacyReportPermission(actor, PERMISSION.PHARMACY_REPORTS?.LOW_STOCK_READ, PERMISSION.REPORTS.LOW_STOCK_READ);
+  const lowStock = await getLowStockReport({ ...query, limit: Math.min(Number(query.limit || 300), 1000) }, actor);
+  const filters = normalizeFilters(query);
+  const rows = (lowStock.items || []).map((row) => {
+    const daysRemaining = row.days_of_stock_remaining === null || row.days_of_stock_remaining === undefined
+      ? null
+      : normalizeNumber(row.days_of_stock_remaining);
+    const avgDailyUsage = normalizeNumber(row.avg_daily_usage_7d || row.avg_daily_usage_30d);
+    const currentOnHand = normalizeNumber(row.current_on_hand);
+    const pendingDemand = normalizeNumber(row.pending_dispense_quantity);
+    const projected7dDemand = avgDailyUsage * 7 + pendingDemand;
+    const projected14dDemand = avgDailyUsage * 14 + pendingDemand;
+    const projected30dDemand = avgDailyUsage * 30 + pendingDemand;
+    let riskLevel = 'watch';
+    if (currentOnHand <= 0 || pendingDemand > currentOnHand || (daysRemaining !== null && daysRemaining <= 3)) riskLevel = 'critical';
+    else if (daysRemaining !== null && daysRemaining <= 7) riskLevel = 'high';
+    else if (daysRemaining !== null && daysRemaining <= 14) riskLevel = 'medium';
+    return {
+      ...row,
+      avg_daily_usage: round(avgDailyUsage, 2),
+      projected_7d_demand: round(projected7dDemand, 2),
+      projected_14d_demand: round(projected14dDemand, 2),
+      projected_30d_demand: round(projected30dDemand, 2),
+      forecast_shortage_7d: round(Math.max(projected7dDemand - currentOnHand, 0), 2),
+      forecast_shortage_14d: round(Math.max(projected14dDemand - currentOnHand, 0), 2),
+      forecast_shortage_30d: round(Math.max(projected30dDemand - currentOnHand, 0), 2),
+      risk_level: riskLevel,
+      stockout_eta_days: daysRemaining,
+      suggested_action: riskLevel === 'critical'
+        ? 'Tao reorder khan va uu tien cap phat FEFO'
+        : riskLevel === 'high'
+          ? 'Tao de xuat nhap trong 7 ngay'
+          : 'Theo doi va gom vao ke hoach mua hang',
+    };
+  }).sort((a, b) => {
+    const rank = { critical: 4, high: 3, medium: 2, watch: 1 };
+    return (rank[b.risk_level] || 0) - (rank[a.risk_level] || 0)
+      || normalizeNumber(b.forecast_shortage_7d) - normalizeNumber(a.forecast_shortage_7d);
+  });
+
+  const summary = rows.reduce((output, row) => {
+    output.risk_medication_count += 1;
+    if (row.risk_level === 'critical') output.critical_stockout_count += 1;
+    if (row.risk_level === 'high') output.high_stockout_count += 1;
+    if (row.risk_level === 'medium') output.medium_stockout_count += 1;
+    if (normalizeNumber(row.forecast_shortage_7d) > 0) output.forecast_stockout_7d_count += 1;
+    if (normalizeNumber(row.forecast_shortage_14d) > 0) output.forecast_stockout_14d_count += 1;
+    if (normalizeNumber(row.forecast_shortage_30d) > 0) output.forecast_stockout_30d_count += 1;
+    output.total_forecast_shortage_7d += normalizeNumber(row.forecast_shortage_7d);
+    output.total_forecast_shortage_14d += normalizeNumber(row.forecast_shortage_14d);
+    output.total_forecast_shortage_30d += normalizeNumber(row.forecast_shortage_30d);
+    output.total_suggested_reorder_quantity += normalizeNumber(row.suggested_reorder_quantity);
+    return output;
+  }, {
+    risk_medication_count: 0,
+    critical_stockout_count: 0,
+    high_stockout_count: 0,
+    medium_stockout_count: 0,
+    forecast_stockout_7d_count: 0,
+    forecast_stockout_14d_count: 0,
+    forecast_stockout_30d_count: 0,
+    total_forecast_shortage_7d: 0,
+    total_forecast_shortage_14d: 0,
+    total_forecast_shortage_30d: 0,
+    total_suggested_reorder_quantity: 0,
+  });
+  const { items, pagination } = paginateRows(rows, query);
+
+  return {
+    summary: Object.fromEntries(Object.entries(summary).map(([key, value]) => [key, round(value, 2)])),
+    breakdowns: {
+      by_risk_level: ['critical', 'high', 'medium', 'watch'].map((riskLevel) => ({
+        risk_level: riskLevel,
+        count: rows.filter((row) => row.risk_level === riskLevel).length,
+      })),
+      forecast_windows: [
+        { window: '7d', count: summary.forecast_stockout_7d_count, shortage_quantity: round(summary.total_forecast_shortage_7d, 2) },
+        { window: '14d', count: summary.forecast_stockout_14d_count, shortage_quantity: round(summary.total_forecast_shortage_14d, 2) },
+        { window: '30d', count: summary.forecast_stockout_30d_count, shortage_quantity: round(summary.total_forecast_shortage_30d, 2) },
+      ],
+    },
+    items,
+    pagination,
+    filters: serializeFilters(filters),
+    backend_todo: ['GET /api/reports/pharmacy/stockout-risk should include supplier lead time, pending purchase orders and budget constraints for procurement planning.'],
+  };
+}
+
 async function getInventoryValuationReport(query = {}, actor = {}) {
   assertPharmacyReportPermission(actor, PERMISSION.PHARMACY_REPORTS?.INVENTORY_VALUATION_READ);
   const filters = normalizeFilters(query);
@@ -1535,6 +1633,340 @@ async function getWasteDisposalReport(query = {}, actor = {}) {
   };
 }
 
+async function getExpiredRecalledBatchesReport(query = {}, actor = {}) {
+  assertPharmacyReportPermission(actor, PERMISSION.PHARMACY_REPORTS?.EXPIRING_STOCK_READ, PERMISSION.PHARMACY_REPORTS?.WASTE_DISPOSAL_READ);
+  const filters = normalizeFilters(query);
+  const medications = await MedicationMaster.find(buildMedicationQuery(filters))
+    .select('medication_code generic_name brand_name strength dosage_form route_default unit sale_price min_stock_level status')
+    .lean();
+  const medicationIds = medications.map((item) => item._id);
+  const medicationMap = new Map(medications.map((item) => [String(item._id), item]));
+  const batchQuery = buildBatchQuery(filters, medicationIds);
+  if (!batchQuery) {
+    return { summary: {}, items: [], pagination: buildPagination(1, Number(query.limit || 30), 0), filters: serializeFilters(filters) };
+  }
+  const now = new Date();
+  batchQuery.$or = [
+    { status: { $in: [STOCK_BATCH_STATUS.EXPIRED, STOCK_BATCH_STATUS.RECALLED] } },
+    { expiry_date: { $lt: now }, quantity_on_hand: { $gt: 0 } },
+  ];
+
+  const allBatches = await StockBatch.find(batchQuery)
+    .sort({ status: 1, expiry_date: 1, quantity_on_hand: -1 })
+    .lean();
+  const batches = filters.search ? allBatches.filter((batch) => batchMatchesSearch(batch, filters.search)) : allBatches;
+  const batchIds = batches.map((batch) => batch._id);
+  const [impactRows, wasteRows] = await Promise.all([
+    batchIds.length
+      ? DispenseItem.aggregate([
+        { $match: { stock_batch_id: { $in: batchIds } } },
+        { $group: { _id: '$stock_batch_id', dispense_count: { $addToSet: '$dispense_id' }, patient_count: { $sum: 0 }, quantity: { $sum: '$quantity' } } },
+      ])
+      : [],
+    batchIds.length
+      ? InventoryTransaction.aggregate([
+        { $match: { stock_batch_id: { $in: batchIds }, transaction_type: { $in: WASTE_TRANSACTION_TYPES } } },
+        { $group: { _id: '$stock_batch_id', disposal_quantity: { $sum: '$quantity' }, disposal_value: { $sum: { $multiply: ['$quantity', { $ifNull: ['$unit_cost', 0] }] } } } },
+      ])
+      : [],
+  ]);
+  const impactMap = new Map(impactRows.map((row) => [String(row._id), row]));
+  const wasteMap = new Map(wasteRows.map((row) => [String(row._id), row]));
+  const rows = batches.map((batch) => {
+    const medication = medicationMap.get(String(batch.medication_id)) || {};
+    const risk = getBatchRisk(batch, now);
+    const impact = impactMap.get(String(batch._id)) || {};
+    const waste = wasteMap.get(String(batch._id)) || {};
+    const valueImpact = normalizeNumber(batch.quantity_on_hand) * normalizeNumber(batch.unit_cost);
+    const status = batch.status === STOCK_BATCH_STATUS.RECALLED ? STOCK_BATCH_STATUS.RECALLED : STOCK_BATCH_STATUS.EXPIRED;
+    return {
+      ...toMedicationPayload(medication),
+      batch_id: String(batch._id),
+      batch_no: batch.batch_no,
+      lot_no: batch.lot_no,
+      supplier_name: batch.supplier_name || null,
+      storage_location: batch.storage_location || null,
+      quantity_on_hand: round(batch.quantity_on_hand, 2),
+      unit_cost: normalizeNumber(batch.unit_cost),
+      value_impact: round(valueImpact, 0),
+      expiry_date: batch.expiry_date,
+      status,
+      recall_reason: batch.recall_reason || null,
+      recall_reference_no: batch.recall_reference_no || null,
+      recall_resolution_status: batch.recall_resolution_status || null,
+      recall_impact_dispenses: impact.dispense_count?.length || 0,
+      recall_impact_quantity: round(impact.quantity, 2),
+      disposal_quantity: round(waste.disposal_quantity, 2),
+      disposal_value: round(waste.disposal_value, 0),
+      disposal_status: waste.disposal_quantity ? 'posted' : 'pending',
+      ...risk,
+    };
+  });
+
+  const summary = rows.reduce((output, row) => {
+    if (row.status === STOCK_BATCH_STATUS.EXPIRED) {
+      output.expired_batch_count += 1;
+      output.expired_quantity += row.quantity_on_hand;
+      output.expired_value += row.value_impact;
+    }
+    if (row.status === STOCK_BATCH_STATUS.RECALLED) {
+      output.recalled_batch_count += 1;
+      output.recalled_quantity += row.quantity_on_hand;
+      output.recalled_value += row.value_impact;
+      output.recall_impact_dispenses += row.recall_impact_dispenses;
+    }
+    if (row.disposal_status === 'pending') output.disposal_pending += 1;
+    if (row.disposal_status === 'posted') output.disposal_posted += 1;
+    return output;
+  }, {
+    expired_batch_count: 0,
+    recalled_batch_count: 0,
+    expired_quantity: 0,
+    recalled_quantity: 0,
+    expired_value: 0,
+    recalled_value: 0,
+    disposal_pending: 0,
+    disposal_posted: 0,
+    recall_impact_dispenses: 0,
+  });
+  const byMedication = new Map();
+  rows.forEach((row) => {
+    const key = row.medication_id || row.medication_name;
+    if (!byMedication.has(key)) byMedication.set(key, { medication_id: row.medication_id, medication_name: row.medication_name, count: 0, quantity: 0, value: 0 });
+    const item = byMedication.get(key);
+    item.count += 1;
+    item.quantity += row.quantity_on_hand;
+    item.value += row.value_impact;
+  });
+  const { items, pagination } = paginateRows(rows, query);
+  return {
+    summary: Object.fromEntries(Object.entries(summary).map(([key, value]) => [key, round(value, key.includes('value') ? 0 : 2)])),
+    breakdowns: {
+      by_medication: [...byMedication.values()].map((row) => ({ ...row, quantity: round(row.quantity, 2), value: round(row.value, 0) })).sort((a, b) => b.value - a.value),
+      by_status: [
+        { status: STOCK_BATCH_STATUS.EXPIRED, count: summary.expired_batch_count, value: round(summary.expired_value, 0) },
+        { status: STOCK_BATCH_STATUS.RECALLED, count: summary.recalled_batch_count, value: round(summary.recalled_value, 0) },
+      ],
+    },
+    items,
+    pagination,
+    filters: serializeFilters(filters),
+  };
+}
+
+async function getPrescriptionPharmacyReport(query = {}, actor = {}) {
+  assertPharmacyReportPermission(actor, PERMISSION.PRESCRIPTIONS.READ);
+  const filters = normalizeFilters(query);
+  const match = {};
+  applyDateRange(match, 'prescribed_at', filters);
+  if (filters.doctor_id) match.prescribed_by = filters.doctor_id;
+  if (filters.raw.status) match.status = filters.raw.status;
+  if (filters.search) match.prescription_no = { $regex: escapeRegex(filters.search), $options: 'i' };
+  const { page, limit, skip } = getPagination(query, 30, 200);
+
+  const [prescriptions, total, statusRows, byDoctorRows, itemsRows, dispenses] = await Promise.all([
+    Prescription.find(match)
+      .sort({ prescribed_at: -1, created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('patient_id', 'patient_code full_name phone')
+      .populate('encounter_id', 'encounter_code department_id status start_time')
+      .populate('prescribed_by verified_by', 'full_name username employee_code')
+      .lean(),
+    Prescription.countDocuments(match),
+    Prescription.aggregate([{ $match: match }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+    Prescription.aggregate([{ $match: match }, { $group: { _id: '$prescribed_by', count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 12 }]),
+    PrescriptionItem.aggregate([
+      {
+        $lookup: {
+          from: 'prescriptions',
+          localField: 'prescription_id',
+          foreignField: '_id',
+          as: 'prescription',
+        },
+      },
+      { $unwind: '$prescription' },
+      { $match: prefixMongoCondition(match, 'prescription.') },
+      { $group: { _id: '$medication_id', item_count: { $sum: 1 }, quantity: { $sum: '$quantity' }, dispensed_quantity: { $sum: '$dispensed_quantity' } } },
+      { $sort: { item_count: -1 } },
+      { $limit: 20 },
+    ]),
+    Dispense.find({}).select('prescription_id status').lean(),
+  ]);
+  const prescriptionIds = prescriptions.map((item) => item._id);
+  const medicationIds = itemsRows.map((row) => row._id).filter(Boolean);
+  const doctorIds = byDoctorRows.map((row) => row._id).filter(Boolean);
+  const [lineCounts, medications, doctors] = await Promise.all([
+    prescriptionIds.length
+      ? PrescriptionItem.aggregate([
+        { $match: { prescription_id: { $in: prescriptionIds } } },
+        { $group: { _id: '$prescription_id', item_count: { $sum: 1 }, quantity: { $sum: '$quantity' }, dispensed_quantity: { $sum: '$dispensed_quantity' } } },
+      ])
+      : [],
+    medicationIds.length ? MedicationMaster.find({ _id: { $in: medicationIds } }).select('medication_code generic_name brand_name strength unit').lean() : [],
+    doctorIds.length ? User.find({ _id: { $in: doctorIds } }).select('full_name username employee_code').lean() : [],
+  ]);
+  const lineMap = new Map(lineCounts.map((row) => [String(row._id), row]));
+  const medicationMap = new Map(medications.map((row) => [String(row._id), row]));
+  const doctorMap = new Map(doctors.map((row) => [String(row._id), row]));
+  const dispenseMap = new Map();
+  dispenses.forEach((dispense) => {
+    const key = String(dispense.prescription_id);
+    if (!dispenseMap.has(key)) dispenseMap.set(key, []);
+    dispenseMap.get(key).push(dispense);
+  });
+  const rows = prescriptions.map((prescription) => {
+    const line = lineMap.get(String(prescription._id)) || {};
+    const relatedDispenses = dispenseMap.get(String(prescription._id)) || [];
+    return {
+      prescription_id: String(prescription._id),
+      prescription_no: prescription.prescription_no,
+      patient_id: prescription.patient_id?._id ? String(prescription.patient_id._id) : null,
+      patient_code: prescription.patient_id?.patient_code || null,
+      patient_name: prescription.patient_id?.full_name || null,
+      encounter_id: prescription.encounter_id?._id ? String(prescription.encounter_id._id) : null,
+      encounter_code: prescription.encounter_id?.encounter_code || null,
+      doctor_id: prescription.prescribed_by?._id ? String(prescription.prescribed_by._id) : null,
+      doctor_name: prescription.prescribed_by?.full_name || prescription.prescribed_by?.username || null,
+      department_id: prescription.encounter_id?.department_id ? String(prescription.encounter_id.department_id) : null,
+      status: prescription.status,
+      prescribed_at: prescription.prescribed_at,
+      verified_at: prescription.verified_at,
+      item_count: line.item_count || 0,
+      total_quantity: round(line.quantity, 2),
+      dispensed_quantity: round(line.dispensed_quantity, 2),
+      dispense_status: relatedDispenses.some((item) => item.status === DISPENSE_STATUS.DISPENSED) ? 'dispensed' : (relatedDispenses[0]?.status || prescription.status),
+      risk_flags: [],
+    };
+  }).filter((row) => !filters.department_id || row.department_id === String(filters.department_id));
+  const statusMap = new Map(statusRows.map((row) => [row._id, row.count]));
+  return {
+    summary: {
+      prescription_count: total,
+      draft_count: statusMap.get(PRESCRIPTION_STATUS.DRAFT) || 0,
+      active_count: statusMap.get(PRESCRIPTION_STATUS.ACTIVE) || 0,
+      verified_count: statusMap.get(PRESCRIPTION_STATUS.VERIFIED) || 0,
+      partially_dispensed_count: statusMap.get(PRESCRIPTION_STATUS.PARTIALLY_DISPENSED) || 0,
+      fully_dispensed_count: statusMap.get(PRESCRIPTION_STATUS.FULLY_DISPENSED) || 0,
+      cancelled_count: statusMap.get(PRESCRIPTION_STATUS.CANCELLED) || 0,
+      completed_count: statusMap.get(PRESCRIPTION_STATUS.COMPLETED) || 0,
+      waiting_dispense_count: rows.filter((row) => ['active', 'verified', 'partially_dispensed'].includes(row.status)).length,
+      risk_allergy_count: 0,
+      risk_interaction_count: 0,
+      risk_duplicate_count: 0,
+    },
+    breakdowns: {
+      by_status: statusRows.map((row) => ({ status: row._id || 'unknown', count: row.count })),
+      by_doctor: byDoctorRows.map((row) => {
+        const doctor = row._id ? doctorMap.get(String(row._id)) : null;
+        return { doctor_id: row._id ? String(row._id) : null, doctor_name: doctor?.full_name || doctor?.username || 'Không rõ', count: row.count };
+      }),
+      by_medication: itemsRows.map((row) => {
+        const medication = medicationMap.get(String(row._id)) || {};
+        return { ...toMedicationPayload(medication), item_count: row.item_count, quantity: round(row.quantity, 2), dispensed_quantity: round(row.dispensed_quantity, 2) };
+      }),
+      risk_breakdown: [
+        { risk: 'allergy', count: 0 },
+        { risk: 'interaction', count: 0 },
+        { risk: 'duplicate', count: 0 },
+      ],
+    },
+    items: rows,
+    pagination: buildPagination(page, limit, total),
+    filters: serializeFilters(filters),
+    backend_todo: ['GET /api/reports/pharmacy/prescriptions should persist risk flags for allergy, interaction, duplicate medication and stock shortage by prescription.'],
+  };
+}
+
+async function getInventoryTurnoverReport(query = {}, actor = {}) {
+  assertPharmacyReportPermission(actor, PERMISSION.PHARMACY_REPORTS?.HIGH_USAGE_READ, PERMISSION.PHARMACY_REPORTS?.INVENTORY_VALUATION_READ);
+  const filters = normalizeFilters(query);
+  const [highUsage, valuation, lowStock] = await Promise.all([
+    getHighUsageMedicationReport({ ...query, limit: 300 }, actor),
+    getInventoryValuationReport({ ...query, limit: 500 }, actor),
+    getLowStockReport({ ...query, limit: 300 }, actor),
+  ]);
+  const valuationMap = new Map((valuation.by_medication || []).map((row) => [String(row.medication_id), row]));
+  const lowStockMap = new Map((lowStock.items || []).map((row) => [String(row.medication_id), row]));
+  const days = Math.max(Math.ceil(((filters.date_to || new Date()) - (filters.date_from || addDays(new Date(), -29))) / MS_PER_DAY), 1);
+  const rows = (highUsage.items || []).map((row) => {
+    const valueRow = valuationMap.get(String(row.medication_id)) || {};
+    const low = lowStockMap.get(String(row.medication_id)) || {};
+    const averageInventoryValue = normalizeNumber(valueRow.inventory_value || row.current_on_hand * row.sale_price);
+    const turnoverRatio = averageInventoryValue > 0 ? normalizeNumber(row.estimated_value) / averageInventoryValue : 0;
+    const daysInventoryOnHand = turnoverRatio > 0 ? days / turnoverRatio : null;
+    let movementClass = 'normal_moving';
+    if (row.days_remaining !== null && row.days_remaining <= 7) movementClass = 'fast_moving';
+    if (turnoverRatio < 0.1 && averageInventoryValue > 0) movementClass = 'slow_moving';
+    if (!normalizeNumber(row.dispensed_quantity) && averageInventoryValue > 0) movementClass = 'dead_stock';
+    if (normalizeNumber(row.trend_percent) >= 80) movementClass = 'abnormal_increase';
+    return {
+      ...row,
+      opening_value: round(averageInventoryValue, 0),
+      closing_value: round(averageInventoryValue, 0),
+      average_inventory_value: round(averageInventoryValue, 0),
+      dispense_value: round(row.estimated_value, 0),
+      turnover_ratio: round(turnoverRatio, 3),
+      days_inventory_on_hand: daysInventoryOnHand === null ? null : round(daysInventoryOnHand, 1),
+      movement_class: movementClass,
+      suggested_action: movementClass === 'fast_moving' || low.severity === 'critical'
+        ? 'Ưu tiên reorder và theo dõi stockout'
+        : movementClass === 'slow_moving' || movementClass === 'dead_stock'
+          ? 'Giảm nhập, rà soát chuyển kho/FEFO'
+          : 'Theo dõi định kỳ',
+    };
+  });
+  const noUsageValueRows = (valuation.by_medication || [])
+    .filter((row) => !rows.some((item) => String(item.medication_id) === String(row.medication_id)) && normalizeNumber(row.inventory_value) > 0)
+    .slice(0, 100)
+    .map((row, index) => ({
+      ...row,
+      rank: rows.length + index + 1,
+      dispensed_quantity: 0,
+      estimated_value: 0,
+      current_on_hand: row.total_on_hand,
+      avg_daily_usage: 0,
+      days_remaining: null,
+      trend_percent: 0,
+      severity: 'watch',
+      average_inventory_value: round(row.inventory_value, 0),
+      dispense_value: 0,
+      turnover_ratio: 0,
+      days_inventory_on_hand: null,
+      movement_class: 'dead_stock',
+      suggested_action: 'Rà soát tồn chậm/dead stock',
+    }));
+  const allRows = [...rows, ...noUsageValueRows].sort((a, b) => normalizeNumber(b.dispense_value) - normalizeNumber(a.dispense_value));
+  const { items, pagination } = paginateRows(allRows, query);
+  const totalDispenseValue = allRows.reduce((sum, row) => sum + normalizeNumber(row.dispense_value), 0);
+  const averageInventoryValue = allRows.reduce((sum, row) => sum + normalizeNumber(row.average_inventory_value), 0);
+  const turnoverRatio = averageInventoryValue > 0 ? totalDispenseValue / averageInventoryValue : 0;
+  return {
+    summary: {
+      total_dispensed_quantity: round(allRows.reduce((sum, row) => sum + normalizeNumber(row.dispensed_quantity), 0), 2),
+      total_dispense_value: round(totalDispenseValue, 0),
+      medication_count: allRows.length,
+      abnormal_increase_count: allRows.filter((row) => row.movement_class === 'abnormal_increase').length,
+      average_days_remaining: round(average(allRows.map((row) => row.days_remaining).filter((value) => value !== null)), 1),
+      slow_moving_count: allRows.filter((row) => row.movement_class === 'slow_moving').length,
+      fast_moving_count: allRows.filter((row) => row.movement_class === 'fast_moving').length,
+      dead_stock_count: allRows.filter((row) => row.movement_class === 'dead_stock').length,
+      estimated_turnover_ratio: round(turnoverRatio, 3),
+      estimated_days_inventory_on_hand: turnoverRatio > 0 ? round(days / turnoverRatio, 1) : null,
+    },
+    items,
+    breakdowns: {
+      movement_class: ['fast_moving', 'normal_moving', 'slow_moving', 'dead_stock', 'abnormal_increase'].map((key) => ({
+        movement_class: key,
+        count: allRows.filter((row) => row.movement_class === key).length,
+      })),
+    },
+    pagination,
+    filters: serializeFilters(filters),
+    backend_todo: ['GET /api/reports/pharmacy/turnover should use COGS, opening/closing inventory snapshots and supplier/warehouse dimensions for audited inventory turnover.'],
+  };
+}
+
 async function getPharmacyDashboardReport(query = {}, actor = {}) {
   assertPharmacyReportPermission(actor, PERMISSION.PHARMACY_REPORTS?.DASHBOARD_READ);
   const filters = normalizeFilters(query, { defaultRange: query.range || '30d' });
@@ -1670,12 +2102,20 @@ const REPORT_HANDLERS = {
   dispensed_medications: getDispensingReport,
   [PHARMACY_REPORT_TYPE.EXPIRING_STOCK]: getExpiringStockReport,
   expiring_medications: getExpiringStockReport,
+  [PHARMACY_REPORT_TYPE.EXPIRED_RECALLED_BATCHES]: getExpiredRecalledBatchesReport,
+  'expired-recalled-batches': getExpiredRecalledBatchesReport,
   [PHARMACY_REPORT_TYPE.LOW_STOCK]: getLowStockReport,
   below_minimum_stock: getLowStockReport,
+  [PHARMACY_REPORT_TYPE.STOCKOUT_RISK]: getStockoutRiskReport,
+  'stockout-risk': getStockoutRiskReport,
+  [PHARMACY_REPORT_TYPE.PRESCRIPTIONS]: getPrescriptionPharmacyReport,
+  prescription_analytics: getPrescriptionPharmacyReport,
   [PHARMACY_REPORT_TYPE.INVENTORY_VALUATION]: getInventoryValuationReport,
   stock_value: getInventoryValuationReport,
   [PHARMACY_REPORT_TYPE.HIGH_USAGE]: getHighUsageMedicationReport,
   high_usage: getHighUsageMedicationReport,
+  [PHARMACY_REPORT_TYPE.TURNOVER]: getInventoryTurnoverReport,
+  inventory_turnover: getInventoryTurnoverReport,
   [PHARMACY_REPORT_TYPE.WASTE_DISPOSAL]: getWasteDisposalReport,
   loss_waste: getWasteDisposalReport,
 };
@@ -1774,9 +2214,13 @@ module.exports = {
   getInventoryMovementReport,
   getDispensingReport,
   getExpiringStockReport,
+  getExpiredRecalledBatchesReport,
   getLowStockReport,
+  getStockoutRiskReport,
+  getPrescriptionPharmacyReport,
   getInventoryValuationReport,
   getHighUsageMedicationReport,
+  getInventoryTurnoverReport,
   getWasteDisposalReport,
   exportPharmacyReport,
   getExportHistory,

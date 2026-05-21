@@ -634,7 +634,7 @@ async function registerPatient(payload = {}, requestMeta = {}) {
 }
 
 async function loginPatient(payload = {}, requestMeta = {}) {
-  const identifier = payload.login || payload.username || payload.identifier;
+  const identifier = payload.login || payload.username || payload.identifier || payload.email || payload.phone;
   const password = payload.password;
 
   if (!identifier || !password) {

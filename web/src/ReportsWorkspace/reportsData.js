@@ -136,7 +136,7 @@ export const reportsMenuSections = [
     defaultOpen: false,
     children: [
       { id: 'inpatient-admission', label: 'Nhập viện', to: '/reports/inpatient-emergency/admissions', icon: ClipboardList },
-      { id: 'inpatient-discharge', label: 'Xuất viện', to: '/reports/inpatient-emergency/discharge', icon: CheckCircle2 },
+      { id: 'inpatient-discharge', label: 'Xuất viện', to: '/reports/inpatient-emergency/discharges', icon: CheckCircle2 },
       { id: 'inpatient-bed-occupancy', label: 'Công suất giường', to: '/reports/inpatient-emergency/bed-occupancy', icon: Activity },
       { id: 'inpatient-bed-turnover', label: 'Vòng quay giường', to: '/reports/inpatient-emergency/bed-turnover', icon: ArrowLeftRight },
       { id: 'inpatient-length-of-stay', label: 'Thời gian nằm viện', to: '/reports/inpatient-emergency/length-of-stay', icon: Clock3 },
@@ -154,12 +154,12 @@ export const reportsMenuSections = [
     children: [
       { id: 'quality-dashboard', label: 'Bảng điều khiển chất lượng', to: '/reports/quality-risk/dashboard', icon: LayoutGrid },
       { id: 'quality-critical-alerts', label: 'Cảnh báo nguy cấp', to: '/reports/quality-risk/critical-alerts', icon: AlertTriangle },
-      { id: 'quality-break-glass', label: 'Báo cáo truy cập khẩn cấp', to: '/reports/quality-risk/break-glass-report', icon: ShieldAlert },
-      { id: 'quality-audit-sensitive', label: 'Kiểm toán truy cập nhạy cảm', to: '/reports/quality-risk/audit-sensitive-access', icon: ClipboardCheck },
-      { id: 'quality-login-security', label: 'Kiểm toán đăng nhập và bảo mật', to: '/reports/quality-risk/login-security-audit', icon: ShieldAlert },
+      { id: 'quality-break-glass', label: 'Báo cáo truy cập khẩn cấp', to: '/reports/quality-risk/break-glass', icon: ShieldAlert },
+      { id: 'quality-audit-sensitive', label: 'Kiểm toán truy cập nhạy cảm', to: '/reports/quality-risk/sensitive-access', icon: ClipboardCheck },
+      { id: 'quality-login-security', label: 'Kiểm toán đăng nhập và bảo mật', to: '/reports/quality-risk/security-audit', icon: ShieldAlert },
       { id: 'quality-support-tickets', label: 'Phiếu hỗ trợ', to: '/reports/quality-risk/support-tickets', icon: ClipboardList },
-      { id: 'quality-complaint-rating', label: 'Khiếu nại / đánh giá', to: '/reports/quality-risk/complaint-rating', icon: Bell },
-      { id: 'quality-service-commitment', label: 'Cam kết mức dịch vụ', to: '/reports/quality-risk/service-commitment', icon: Clock3 },
+      { id: 'quality-complaint-rating', label: 'Khiếu nại / đánh giá', to: '/reports/quality-risk/complaints-ratings', icon: Bell },
+      { id: 'quality-service-commitment', label: 'Cam kết mức dịch vụ', to: '/reports/quality-risk/sla', icon: Clock3 },
       { id: 'quality-job-failure', label: 'Lỗi tác vụ nền', to: '/reports/quality-risk/job-failure', icon: AlertTriangle },
       { id: 'quality-notification-delivery', label: 'Gửi thông báo', to: '/reports/quality-risk/notification-delivery', icon: Bell },
     ],
@@ -213,6 +213,149 @@ export const reportsMenuSections = [
   },
 ];
 
+reportsMenuSections[0].label = 'Tổng quan điều hành';
+reportsMenuSections[0].children = [
+  { id: 'overview-dashboard', label: 'Dashboard tổng quan', to: '/reports/overview/dashboard', icon: LayoutGrid },
+  { id: 'overview-today-metrics', label: 'KPI hôm nay', to: '/reports/overview/kpi-today', icon: BarChart3 },
+  { id: 'overview-period-metrics', label: 'KPI tuần / tháng', to: '/reports/overview/kpi-period', icon: CalendarDays },
+  { id: 'overview-previous-comparison', label: 'So sánh kỳ trước', to: '/reports/overview/comparison', icon: ArrowLeftRight },
+  { id: 'overview-abnormal-alerts', label: 'Cảnh báo bất thường', to: '/reports/overview/anomaly-alerts', icon: AlertTriangle },
+  { id: 'overview-key-trends', label: 'Xu hướng chính', to: '/reports/overview/trends', icon: Activity },
+  { id: 'overview-attention-items', label: 'Việc cần chú ý', to: '/reports/overview/action-items', icon: ClipboardCheck },
+];
+
+reportsMenuSections[1].label = 'Vận hành khám bệnh';
+reportsMenuSections[1].children = [
+  { id: 'operations-visits', label: 'Lượt khám / Encounter', to: '/reports/operations/encounters', icon: Stethoscope },
+  { id: 'operations-appointments', label: 'Lịch hẹn', to: '/reports/operations/appointments', icon: CalendarDays },
+  { id: 'operations-checkin', label: 'Check-in', to: '/reports/operations/check-in', icon: CheckCircle2 },
+  { id: 'operations-queue', label: 'Queue', to: '/reports/operations/queue', icon: Users },
+  { id: 'operations-no-show', label: 'No-show', to: '/reports/operations/no-show', icon: AlertTriangle },
+  { id: 'operations-waiting-time', label: 'Thời gian chờ', to: '/reports/operations/wait-time', icon: Clock3 },
+  { id: 'operations-department-load', label: 'Tải khoa / phòng', to: '/reports/operations/department-load', icon: Activity },
+  { id: 'operations-slot-efficiency', label: 'Hiệu suất slot', to: '/reports/operations/slot-efficiency', icon: BarChart3 },
+  { id: 'operations-patient-flow', label: 'Luồng bệnh nhân', to: '/reports/operations/patient-flow', icon: ArrowLeftRight },
+];
+
+reportsMenuSections[2].label = 'Khoa & Bác sĩ';
+reportsMenuSections[2].children = [
+  { id: 'department-performance', label: 'Hiệu suất khoa', to: '/reports/departments-doctors/department-performance', icon: BarChart3 },
+  { id: 'department-load', label: 'Tải khoa', to: '/reports/departments-doctors/department-load', icon: Activity },
+  { id: 'department-appointments', label: 'Lịch hẹn theo khoa', to: '/reports/departments-doctors/department-appointments', icon: CalendarDays },
+  { id: 'department-queue', label: 'Queue theo khoa', to: '/reports/departments-doctors/department-queue', icon: ClipboardList },
+  { id: 'department-revenue', label: 'Doanh thu theo khoa', to: '/reports/departments-doctors/department-revenue', icon: WalletCards },
+  { id: 'department-staff', label: 'Nhân sự theo khoa', to: '/reports/departments-doctors/department-staff', icon: Users },
+  { id: 'doctor-performance', label: 'Hiệu suất bác sĩ', to: '/reports/departments-doctors/doctor-performance', icon: Stethoscope },
+  { id: 'doctor-utilization', label: 'Utilization bác sĩ', to: '/reports/departments-doctors/doctor-utilization', icon: BarChart3 },
+  { id: 'doctor-no-show', label: 'No-show theo bác sĩ', to: '/reports/departments-doctors/doctor-no-show', icon: AlertTriangle },
+  { id: 'doctor-follow-up', label: 'Follow-up', to: '/reports/departments-doctors/follow-up', icon: History },
+  { id: 'doctor-personal-report', label: 'Báo cáo cá nhân', to: '/reports/departments-doctors/personal-report', icon: FileText },
+];
+
+reportsMenuSections[3].label = 'Tài chính / Viện phí';
+reportsMenuSections[3].children = [
+  { id: 'finance-dashboard', label: 'Dashboard tài chính', to: '/reports/finance/dashboard', icon: LayoutGrid },
+  { id: 'finance-revenue', label: 'Doanh thu', to: '/reports/finance/revenue', icon: BarChart3 },
+  { id: 'finance-ar', label: 'Công nợ', to: '/reports/finance/accounts-receivable', icon: WalletCards },
+  { id: 'finance-ar-aging', label: 'Aging công nợ', to: '/reports/finance/ar-aging', icon: Clock3 },
+  { id: 'finance-invoices', label: 'Hóa đơn', to: '/reports/finance/invoices', icon: ReceiptText },
+  { id: 'finance-payments', label: 'Thanh toán', to: '/reports/finance/payments', icon: CreditCard },
+  { id: 'finance-payment-methods', label: 'Payment method', to: '/reports/finance/payment-methods', icon: CreditCard },
+  { id: 'finance-refund-void', label: 'Refund / void', to: '/reports/finance/refund-void', icon: ArrowLeftRight },
+  { id: 'finance-reconciliation', label: 'Đối soát', to: '/reports/finance/reconciliation', icon: ClipboardCheck },
+  { id: 'finance-insurance', label: 'Bảo hiểm', to: '/reports/finance/insurance', icon: ShieldAlert },
+];
+
+reportsMenuSections[4].label = 'Cận lâm sàng & Thủ thuật';
+reportsMenuSections[4].children = [
+  { id: 'diagnostics-overview', label: 'Tổng quan cận lâm sàng', to: '/reports/diagnostics/overview', icon: LayoutGrid },
+  { id: 'diagnostics-lab-orders', label: 'Lab orders', to: '/reports/diagnostics/lab-orders', icon: FlaskConical },
+  { id: 'diagnostics-lab-tat', label: 'Lab turnaround time', to: '/reports/diagnostics/lab-turnaround-time', icon: Clock3 },
+  { id: 'diagnostics-specimens', label: 'Specimen report', to: '/reports/diagnostics/specimens', icon: ClipboardList },
+  { id: 'diagnostics-imaging-orders', label: 'Imaging orders', to: '/reports/diagnostics/imaging-orders', icon: ScanLine },
+  { id: 'diagnostics-imaging-tat', label: 'Imaging turnaround time', to: '/reports/diagnostics/imaging-turnaround-time', icon: Clock3 },
+  { id: 'diagnostics-report-pending', label: 'Report pending', to: '/reports/diagnostics/report-pending', icon: ClipboardCheck },
+  { id: 'diagnostics-critical-results', label: 'Critical results', to: '/reports/diagnostics/critical-results', icon: ShieldAlert },
+  { id: 'diagnostics-procedure-orders', label: 'Procedure orders', to: '/reports/diagnostics/procedure-orders', icon: ClipboardList },
+  { id: 'diagnostics-overdue-orders', label: 'Order quá hạn', to: '/reports/diagnostics/overdue-orders', icon: AlertTriangle },
+];
+
+reportsMenuSections[5].label = 'Nhà thuốc & Kho dược';
+reportsMenuSections[5].children = [
+  { id: 'pharmacy-dashboard', label: 'Dashboard kho dược', to: '/reports/pharmacy/dashboard', icon: LayoutGrid },
+  { id: 'pharmacy-inventory', label: 'Tồn kho', to: '/reports/pharmacy/inventory', icon: PackageCheck },
+  { id: 'pharmacy-movement', label: 'Nhập xuất tồn', to: '/reports/pharmacy/movement', icon: ArrowLeftRight },
+  { id: 'pharmacy-low-stock', label: 'Low stock', to: '/reports/pharmacy/low-stock', icon: AlertTriangle },
+  { id: 'pharmacy-expiring-batches', label: 'Expiring batches', to: '/reports/pharmacy/expiring-batches', icon: Clock3 },
+  { id: 'pharmacy-expired-recalled', label: 'Expired / recalled batches', to: '/reports/pharmacy/expired-recalled-batches', icon: ShieldAlert },
+  { id: 'pharmacy-dispensing', label: 'Cấp phát thuốc', to: '/reports/pharmacy/dispensing', icon: PackageCheck },
+  { id: 'pharmacy-prescriptions', label: 'Đơn thuốc', to: '/reports/pharmacy/prescriptions', icon: ClipboardList },
+  { id: 'pharmacy-inventory-value', label: 'Giá trị tồn kho', to: '/reports/pharmacy/inventory-value', icon: WalletCards },
+  { id: 'pharmacy-turnover', label: 'Vòng quay tồn kho', to: '/reports/pharmacy/turnover', icon: Activity },
+];
+
+reportsMenuSections[6].label = 'Nội trú & Cấp cứu';
+reportsMenuSections[6].children = [
+  { id: 'inpatient-admissions', label: 'Admission', to: '/reports/inpatient-emergency/admissions', icon: ClipboardList },
+  { id: 'inpatient-discharges', label: 'Discharge', to: '/reports/inpatient-emergency/discharges', icon: CheckCircle2 },
+  { id: 'inpatient-bed-occupancy', label: 'Bed occupancy', to: '/reports/inpatient-emergency/bed-occupancy', icon: Activity },
+  { id: 'inpatient-bed-turnover', label: 'Bed turnover', to: '/reports/inpatient-emergency/bed-turnover', icon: ArrowLeftRight },
+  { id: 'inpatient-los', label: 'Length of stay', to: '/reports/inpatient-emergency/length-of-stay', icon: Clock3 },
+  { id: 'inpatient-tasks', label: 'Inpatient task', to: '/reports/inpatient-emergency/inpatient-tasks', icon: ClipboardCheck },
+  { id: 'emergency-cases', label: 'Emergency cases', to: '/reports/inpatient-emergency/emergency-cases', icon: ShieldAlert },
+  { id: 'emergency-response-time', label: 'Response time', to: '/reports/inpatient-emergency/response-time', icon: Clock3 },
+  { id: 'emergency-resolution', label: 'Case resolution', to: '/reports/inpatient-emergency/case-resolution', icon: CheckCircle2 },
+];
+
+reportsMenuSections[7].label = 'Chất lượng / Rủi ro';
+reportsMenuSections[7].children = [
+  { id: 'quality-dashboard', label: 'Dashboard chất lượng', to: '/reports/quality-risk/dashboard', icon: LayoutGrid },
+  { id: 'quality-critical-alerts', label: 'Critical alerts', to: '/reports/quality-risk/critical-alerts', icon: AlertTriangle },
+  { id: 'quality-break-glass', label: 'Break-glass report', to: '/reports/quality-risk/break-glass', icon: ShieldAlert },
+  { id: 'quality-sensitive-access', label: 'Sensitive access', to: '/reports/quality-risk/sensitive-access', icon: ClipboardCheck },
+  { id: 'quality-security-audit', label: 'Security audit', to: '/reports/quality-risk/security-audit', icon: ShieldAlert },
+  { id: 'quality-support-tickets', label: 'Support tickets', to: '/reports/quality-risk/support-tickets', icon: ClipboardList },
+  { id: 'quality-complaints-ratings', label: 'Complaint / rating', to: '/reports/quality-risk/complaints-ratings', icon: Bell },
+  { id: 'quality-sla', label: 'SLA', to: '/reports/quality-risk/sla', icon: Clock3 },
+  { id: 'quality-job-failure', label: 'Job failure', to: '/reports/quality-risk/job-failure', icon: AlertTriangle },
+  { id: 'quality-notification-delivery', label: 'Notification delivery', to: '/reports/quality-risk/notification-delivery', icon: Bell },
+];
+
+reportsMenuSections[8].label = 'Hồ sơ & Tài liệu';
+reportsMenuSections[8].children = [
+  { id: 'records-medical', label: 'Hồ sơ bệnh án', to: '/reports/records-documents/medical-records', icon: FileText },
+  { id: 'records-finalized', label: 'Hồ sơ đã finalize', to: '/reports/records-documents/finalized-records', icon: CheckCircle2 },
+  { id: 'records-released', label: 'Hồ sơ đã release', to: '/reports/records-documents/released-records', icon: FileText },
+  { id: 'records-void-archive', label: 'Hồ sơ void / archive', to: '/reports/records-documents/void-archive', icon: AlertTriangle },
+  { id: 'records-attachments', label: 'Attachment report', to: '/reports/records-documents/attachments', icon: ClipboardList },
+  { id: 'records-exports', label: 'Export hồ sơ', to: '/reports/records-documents/exports', icon: FileText },
+  { id: 'records-timeline', label: 'Document timeline', to: '/reports/records-documents/timeline', icon: History },
+];
+
+reportsMenuSections[9].label = 'Báo cáo tùy chỉnh';
+reportsMenuSections[9].children = [
+  { id: 'custom-builder', label: 'Report builder', to: '/reports/custom/builder', icon: ClipboardCheck },
+  { id: 'custom-datasets', label: 'Dataset', to: '/reports/custom/datasets', icon: ClipboardList },
+  { id: 'custom-filters', label: 'Bộ lọc', to: '/reports/custom/filters', icon: ClipboardList },
+  { id: 'custom-columns', label: 'Cột hiển thị', to: '/reports/custom/columns', icon: FileText },
+  { id: 'custom-charts', label: 'Biểu đồ', to: '/reports/custom/charts', icon: BarChart3 },
+  { id: 'custom-my-reports', label: 'Báo cáo của tôi', to: '/reports/custom/my-reports', icon: FileText },
+  { id: 'custom-shared', label: 'Báo cáo dùng chung', to: '/reports/custom/shared', icon: Users },
+  { id: 'custom-pinned', label: 'Báo cáo được ghim', to: '/reports/custom/pinned', icon: CheckCircle2 },
+];
+
+reportsMenuSections[10].label = 'Xuất báo cáo';
+reportsMenuSections[10].children = [
+  { id: 'export-csv', label: 'Export CSV', to: '/reports/exports/csv', icon: FileText },
+  { id: 'export-excel', label: 'Export Excel', to: '/reports/exports/excel', icon: FileText },
+  { id: 'export-pdf', label: 'Export PDF', to: '/reports/exports/pdf', icon: FileText },
+  { id: 'export-history', label: 'Lịch sử export', to: '/reports/exports/history', icon: History },
+  { id: 'export-processing', label: 'Export đang xử lý', to: '/reports/exports/processing', icon: Clock3 },
+  { id: 'export-failed', label: 'Export thất bại', to: '/reports/exports/failed', icon: AlertTriangle },
+  { id: 'export-schedules', label: 'Lịch gửi định kỳ', to: '/reports/exports/schedules', icon: CalendarDays },
+  { id: 'export-saved', label: 'Báo cáo đã lưu', to: '/reports/exports/saved', icon: FileText },
+];
+
 export function flattenReportsMenu(sections = reportsMenuSections) {
   return sections.flatMap((section) =>
     (section.children || []).map((item) => ({
@@ -223,8 +366,8 @@ export function flattenReportsMenu(sections = reportsMenuSections) {
   );
 }
 
-export function getReportsPageMeta(pathname = '/reports/dashboard') {
-  const normalizedPath = pathname === '/reports' ? '/reports/dashboard' : pathname;
+export function getReportsPageMeta(pathname = '/reports/overview/dashboard') {
+  const normalizedPath = pathname === '/reports' ? '/reports/overview/dashboard' : pathname;
   const item = flattenReportsMenu().find((entry) => entry.to === normalizedPath);
 
   return item || {

@@ -1,9 +1,16 @@
 const crypto = require('crypto');
+const path = require('path');
 const mongoose = require('mongoose');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 const models = require('../models');
 const { hashPassword } = require('../common/auth/password-hash');
+const pharmacyOverviewCoverage = require('./pharmacy-overview-coverage');
 
-const BASE_COUNT = 12;
+const BASE_COUNT = 60;
+const NURSE_WORKSPACE_COUNT = 96;
+const DOCTOR_COUNT = 12;
+const NURSE_COVERAGE_OFFSET = 1000;
+const NURSE_COVERAGE_COUNT = 72;
 const SEED_NAMESPACE = 'healthcare-vietnamese-demo-2026-05';
 const DRY_RUN = process.argv.includes('--dry-run');
 const SKIPPED_MODELS = new Set([
@@ -14,9 +21,13 @@ const SKIPPED_MODELS = new Set([
   'IdempotencyRecord',
   'JobRunLog',
   'EventOutbox',
+  'BreakGlassAccess',
+]);
+const RESET_BEFORE_UPSERT_MODELS = new Set([
+  'ServicePreparationChecklist',
 ]);
 
-const DAY_OFFSETS = [-24, -18, -12, -7, -3, -1, 0, 1, 3, 7, 14, 24];
+const DAY_OFFSETS = [-30, -21, -14, -10, -7, -3, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 7, 14, 24];
 
 const departmentSeeds = [
   ['KCC', 'Khoa Cấp cứu', 'clinical', 'Tầng trệt, khu tiếp nhận cấp cứu 24/7'],
@@ -83,7 +94,7 @@ const staffProfiles = [
 ];
 
 const patientProfiles = [
-  ['Nguyễn Văn An', 'male', '1984-03-12', '12 Nguyễn Trãi, phường Bến Thành, Quận 1, TP. Hồ Chí Minh'],
+  ['Nguyễn Duy Khải', 'male', '1984-03-12', '12 Nguyễn Trãi, phường Bến Thành, Quận 1, TP. Hồ Chí Minh'],
   ['Trần Thị Thu Hà', 'female', '1991-07-25', '48 Lê Lợi, phường 4, TP. Mỹ Tho, Tiền Giang'],
   ['Lê Minh Khoa', 'male', '1978-11-02', '91 Phan Đình Phùng, phường 2, TP. Đà Lạt, Lâm Đồng'],
   ['Phạm Ngọc Lan', 'female', '1989-01-16', '23 Nguyễn Văn Cừ, phường An Hòa, TP. Cần Thơ'],
@@ -108,6 +119,58 @@ const patientProfiles = [
   ['Lý Quang Minh', 'male', '1958-04-01', '75 Nguyễn Chí Thanh, phường 12, Quận 5, TP. Hồ Chí Minh'],
   ['Đoàn Ngọc Ánh', 'female', '2002-06-15', '63 Trường Sơn, phường 2, quận Tân Bình, TP. Hồ Chí Minh'],
 ];
+
+function buildAdditionalPatientProfiles() {
+  const familyNames = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Võ', 'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Cao', 'Dương'];
+  const middleNames = ['Minh', 'Thanh', 'Quỳnh', 'Gia', 'Bảo', 'Ngọc', 'Khánh', 'Hoài', 'Thùy', 'Đức', 'Nhật', 'Phương'];
+  const givenNames = [
+    ['An', 'female'],
+    ['Bình', 'male'],
+    ['Chi', 'female'],
+    ['Duy', 'male'],
+    ['Hạnh', 'female'],
+    ['Khôi', 'male'],
+    ['Lâm', 'male'],
+    ['My', 'female'],
+    ['Nhi', 'female'],
+    ['Phúc', 'male'],
+    ['Quân', 'male'],
+    ['Trang', 'female'],
+    ['Uyên', 'female'],
+    ['Việt', 'male'],
+    ['Yến', 'female'],
+    ['Sơn', 'male'],
+  ];
+  const addresses = [
+    'đường Hải Phòng, phường Thạch Thang, quận Hải Châu, Đà Nẵng',
+    'đường Nguyễn Văn Linh, phường Vĩnh Trung, quận Thanh Khê, Đà Nẵng',
+    'đường Lê Duẩn, phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    'đường Cách Mạng Tháng Tám, phường 13, Quận 10, TP. Hồ Chí Minh',
+    'phố Kim Mã, phường Ngọc Khánh, quận Ba Đình, Hà Nội',
+    'phố Trần Duy Hưng, phường Trung Hòa, quận Cầu Giấy, Hà Nội',
+    'đường Phan Chu Trinh, phường Tân Lợi, TP. Buôn Ma Thuột, Đắk Lắk',
+    'đường Lê Thánh Tông, phường Ia Kring, TP. Pleiku, Gia Lai',
+    'đường Nguyễn Huệ, phường Vĩnh Ninh, TP. Huế',
+    'đường Tây Sơn, phường Ghềnh Ráng, TP. Quy Nhơn, Bình Định',
+  ];
+
+  return indexes(48).map((index) => {
+    const [givenName, gender] = givenNames[index % givenNames.length];
+    const fullName = `${familyNames[index % familyNames.length]} ${middleNames[(index + 3) % middleNames.length]} ${givenName}`;
+    const birthYear = 1948 + ((index * 7) % 65);
+    const birthMonth = String(1 + (index % 12)).padStart(2, '0');
+    const birthDay = String(1 + ((index * 3) % 27)).padStart(2, '0');
+    const houseNo = 12 + index * 3;
+    return [
+      fullName,
+      gender,
+      `${birthYear}-${birthMonth}-${birthDay}`,
+      `${houseNo} ${addresses[index % addresses.length]}`,
+    ];
+  });
+}
+
+patientProfiles.push(...buildAdditionalPatientProfiles());
 
 const roleSeeds = [
   ['vn_seed_bac_si', 'Bác sĩ khám bệnh', 90],
@@ -310,6 +373,13 @@ function addDays(date, days) {
   return next;
 }
 
+function todayAt(hour = 8, minute = 0, extraDays = 0) {
+  const date = new Date();
+  date.setHours(hour, minute, 0, 0);
+  date.setDate(date.getDate() + extraDays);
+  return date;
+}
+
 function temporalBucket(index) {
   const offset = DAY_OFFSETS[index % DAY_OFFSETS.length];
   if (offset < -2) return 'past';
@@ -317,8 +387,105 @@ function temporalBucket(index) {
   return 'future';
 }
 
+function dayOffset(index) {
+  return DAY_OFFSETS[index % DAY_OFFSETS.length];
+}
+
+function isTodaySeed(index) {
+  return dayOffset(index) === 0;
+}
+
+function shiftName(index) {
+  return pick(['morning', 'afternoon', 'night'], index);
+}
+
+function shiftStartHour(index) {
+  return { morning: 7, afternoon: 14, night: 22 }[shiftName(index)] || 7;
+}
+
+function queueStatusForIndex(index) {
+  if (isTodaySeed(index)) {
+    return pick(['waiting', 'called', 'in_service', 'skipped', 'recalled', 'completed', 'no_show', 'waiting', 'called', 'in_service'], index);
+  }
+  if (temporalBucket(index) === 'past') return pick(['completed', 'completed', 'no_show', 'cancelled'], index);
+  if (temporalBucket(index) === 'present') return pick(['waiting', 'called', 'in_service', 'skipped'], index);
+  return 'waiting';
+}
+
+function nursingStageForIndex(index) {
+  if (isTodaySeed(index)) {
+    return pick([
+      'waiting_nurse',
+      'nurse_in_progress',
+      'triage_pending',
+      'triage_in_progress',
+      'vital_pending',
+      'triage_done',
+      'vital_done',
+      'ready_for_doctor',
+      'completed',
+      'waiting_nurse',
+    ], index);
+  }
+  return temporalBucket(index) === 'future'
+    ? 'waiting_nurse'
+    : pick(['triage_done', 'vital_done', 'ready_for_doctor', 'completed'], index);
+}
+
+function taskStatusForIndex(index) {
+  if (isTodaySeed(index)) {
+    return pick(['assigned', 'accepted', 'todo', 'in_progress', 'blocked', 'waiting_doctor', 'done', 'assigned', 'in_progress', 'todo'], index);
+  }
+  if (temporalBucket(index) === 'past') return 'done';
+  if (temporalBucket(index) === 'present') return pick(['assigned', 'in_progress', 'blocked', 'todo'], index);
+  return 'todo';
+}
+
+function taskDueAt(index) {
+  const base = dateAt(index, shiftStartHour(index), 20 + (index % 4) * 20);
+  if (isTodaySeed(index) && index % 4 === 0) return addMinutes(base, -180);
+  if (isTodaySeed(index) && index % 4 === 1) return addMinutes(base, -40);
+  return base;
+}
+
 function pick(list, index) {
   return list[index % list.length];
+}
+
+function patientSeed(index) {
+  return pick(patientProfiles, index);
+}
+
+function diagnosisSeed(index) {
+  return pick(diagnosisSeeds, index);
+}
+
+function allergySeed(index) {
+  return pick(allergySeeds, index);
+}
+
+function labTestSeed(index) {
+  return pick(labTests, index);
+}
+
+function medicationSeed(index) {
+  return pick(medicationSeeds, index);
+}
+
+function procedureSeed(index) {
+  return pick(procedureSeeds, index);
+}
+
+function serviceSeed(index) {
+  return pick(serviceSeeds, index);
+}
+
+function doctorSpecialty(index) {
+  return pick(doctorSpecialties, index);
+}
+
+function supportSubject(index) {
+  return pick(supportSubjects, index);
 }
 
 function stripVietnamese(text) {
@@ -562,12 +729,16 @@ function buildUserRoleDocs() {
 }
 
 function buildUserPreferenceDocs() {
-  return indexes(BASE_COUNT * 2).map((index) => {
-    const type = index < BASE_COUNT ? 'staff' : 'patient';
+  const actors = [
+    ...staffProfiles.map((_, index) => ({ type: 'staff', id: userId(index), patientIndex: index })),
+    ...patientProfiles.map((_, index) => ({ type: 'patient', id: patientAccountId(index), patientIndex: index })),
+  ];
+  return actors.map((actor, index) => {
+    const type = actor.type;
     return make('UserPreference', index, {
       actor_type: type,
-      actor_id: actorIdFor(type, index),
-      default_patient_profile_id: type === 'patient' ? patientId(index) : undefined,
+      actor_id: actor.id,
+      default_patient_profile_id: type === 'patient' ? patientId(actor.patientIndex) : undefined,
       locale: 'vi-VN',
       timezone: 'Asia/Ho_Chi_Minh',
       theme: index % 2 === 0 ? 'light' : 'system',
@@ -578,11 +749,11 @@ function buildUserPreferenceDocs() {
 }
 
 function buildDoctorProfileDocs() {
-  return indexes(BASE_COUNT).map((index) => make('DoctorProfile', index, {
+  return indexes(DOCTOR_COUNT).map((index) => make('DoctorProfile', index, {
     user_id: doctorId(index),
     department_id: doctorDepartmentId(index),
     license_number: `CCHN-${2026}${pad(index)}`,
-    specialty: doctorSpecialties[index],
+    specialty: doctorSpecialty(index),
     subspecialty: pick(['Điều trị ngoại trú', 'Theo dõi bệnh mạn tính', 'Can thiệp tối thiểu', 'Tư vấn phòng bệnh'], index),
     qualification: pick(['Bác sĩ chuyên khoa I', 'Thạc sĩ y khoa', 'Bác sĩ chuyên khoa II', 'Tiến sĩ y khoa'], index),
     academic_title: pick(['BS.CKI', 'ThS.BS', 'BS.CKII', 'TS.BS'], index),
@@ -728,13 +899,14 @@ function buildPatientProfileChangeRequestDocs() {
 }
 
 function buildDoctorScheduleDocs() {
-  return indexes(BASE_COUNT).map((index) => {
-    const start = dateAt(index, 7 + (index % 2) * 6, 30);
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const dayShift = index;
+    const start = dateAt(index, 7 + (index % 2) * 6, 30, dayShift);
     const end = addMinutes(start, 240);
     return make('DoctorSchedule', index, {
       doctor_id: doctorId(index),
       department_id: doctorDepartmentId(index),
-      work_date: dateAt(index, 0, 0),
+      work_date: dateAt(index, 0, 0, dayShift),
       shift_start: start,
       shift_end: end,
       schedule_type: pick(['outpatient_regular', 'outpatient_followup', 'emergency_oncall', 'procedure_block'], index),
@@ -747,8 +919,8 @@ function buildDoctorScheduleDocs() {
 }
 
 function buildScheduleSlotDocs() {
-  return indexes(BASE_COUNT).map((index) => {
-    const start = dateAt(index, 8 + (index % 4), (index % 3) * 15);
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const start = dateAt(index, 8 + (index % 4), (index % 3) * 15, index);
     const appointmentStatus = statusForAppointment(index);
     const isActiveBooking = ['booked', 'confirmed', 'checked_in', 'in_consultation'].includes(appointmentStatus);
     return make('ScheduleSlot', index, {
@@ -767,7 +939,7 @@ function buildScheduleSlotDocs() {
 }
 
 function buildAppointmentDocs() {
-  return indexes(BASE_COUNT).map((index) => {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
     const appointmentTime = dateAt(index, 8 + (index % 4), (index % 3) * 15);
     const status = statusForAppointment(index);
     return make('Appointment', index, {
@@ -817,13 +989,10 @@ function buildAppointmentWaitlistDocs() {
 }
 
 function buildQueueTicketDocs() {
-  return indexes(BASE_COUNT).map((index) => {
-    const status = temporalBucket(index) === 'past'
-      ? pick(['completed', 'completed', 'no_show', 'cancelled'], index)
-      : temporalBucket(index) === 'present'
-        ? pick(['waiting', 'called', 'in_service'], index)
-        : 'waiting';
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const status = queueStatusForIndex(index);
     const queueDate = dateAt(index, 0, 0);
+    const checkin = addMinutes(queueDate, shiftStartHour(index) * 60 + 5 + (index % 5) * 8);
     return make('QueueTicket', index, {
       patient_id: patientId(index),
       appointment_id: idFor('Appointment', index),
@@ -834,27 +1003,34 @@ function buildQueueTicketDocs() {
       queue_number: `A${pad(index)}`,
       queue_type: pick(['normal', 'priority', 'vip'], index),
       status,
-      checkin_time: addMinutes(queueDate, 7 * 60 + 20 + index * 3),
-      called_time: ['called', 'in_service', 'completed'].includes(status) ? addMinutes(queueDate, 8 * 60 + index * 4) : undefined,
-      estimated_called_at: addMinutes(queueDate, 8 * 60 + 15 + index * 4),
-      service_start_time: ['in_service', 'completed'].includes(status) ? addMinutes(queueDate, 8 * 60 + 10 + index * 4) : undefined,
-      completed_time: status === 'completed' ? addMinutes(queueDate, 9 * 60 + index * 4) : undefined,
+      checkin_time: checkin,
+      called_time: ['called', 'recalled', 'in_service', 'completed'].includes(status) ? addMinutes(checkin, 18 + (index % 3) * 4) : undefined,
+      estimated_called_at: addMinutes(checkin, 25 + (index % 4) * 5),
+      service_start_time: ['in_service', 'completed'].includes(status) ? addMinutes(checkin, 28 + (index % 4) * 5) : undefined,
+      completed_time: status === 'completed' ? addMinutes(checkin, 58 + (index % 4) * 6) : undefined,
+      skipped_at: status === 'skipped' ? addMinutes(checkin, 35) : undefined,
+      no_show_at: status === 'no_show' ? addMinutes(checkin, 40) : undefined,
       display_number: `PK${100 + index}`,
-      nursing_stage: temporalBucket(index) === 'future' ? 'waiting_nurse' : pick(['triage_done', 'vital_done', 'ready_for_doctor', 'completed'], index),
-      assigned_nurse_id: nurseId(index),
+      nursing_stage: nursingStageForIndex(index),
+      assigned_nurse_id: index % 7 === 0 ? undefined : nurseId(index),
+      assigned_nurse_at: index % 7 === 0 ? undefined : addMinutes(checkin, 6),
       triage_required: index % 2 === 0,
       vital_required: true,
       doctor_room_id: `P${100 + index}`,
-      sla_due_at: addMinutes(queueDate, 10 * 60 + index * 5),
+      priority_reason: index % 3 === 0 ? pick(['Người cao tuổi chóng mặt', 'Đau ngực thoáng qua', 'Khó thở nhẹ cần theo dõi'], index) : undefined,
+      sla_due_at: addMinutes(checkin, index % 4 === 0 ? 15 : 35),
       latest_vital_sign_id: idFor('VitalSign', index),
     });
   });
 }
 
 function buildEncounterDocs() {
-  return indexes(BASE_COUNT).map((index) => {
-    const start = dateAt(index, 8 + (index % 4), 30);
-    const status = statusForEncounter(index);
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const start = dateAt(index, shiftStartHour(index), 35 + (index % 3) * 10);
+    const status = isTodaySeed(index)
+      ? pick(['arrived', 'in_progress', 'on_hold', 'completed', 'arrived', 'in_progress'], index)
+      : statusForEncounter(index);
+    const nursingStatus = nursingStageForIndex(index);
     return make('Encounter', index, {
       patient_id: patientId(index),
       appointment_id: idFor('Appointment', index),
@@ -868,10 +1044,14 @@ function buildEncounterDocs() {
       started_at: ['in_progress', 'completed', 'on_hold'].includes(status) ? start : undefined,
       started_by: ['in_progress', 'completed', 'on_hold'].includes(status) ? doctorId(index) : undefined,
       completed_by: status === 'completed' ? doctorId(index) : undefined,
-      nursing_status: temporalBucket(index) === 'future' ? 'not_started' : pick(['triage_done', 'vital_done', 'ready_for_doctor', 'completed'], index),
-      assigned_nurse_id: nurseId(index),
+      nursing_status: nursingStatus,
+      assigned_nurse_id: index % 7 === 0 ? undefined : nurseId(index),
       assigned_nurse_at: addMinutes(start, -25),
-      ready_for_doctor_at: temporalBucket(index) !== 'future' ? addMinutes(start, -5) : undefined,
+      waiting_nurse_at: ['waiting_nurse', 'nurse_in_progress'].includes(nursingStatus) ? addMinutes(start, -30) : undefined,
+      triage_started_at: nursingStatus === 'triage_in_progress' ? addMinutes(start, -20) : undefined,
+      triage_completed_at: ['triage_done', 'vital_done', 'ready_for_doctor', 'completed'].includes(nursingStatus) ? addMinutes(start, -15) : undefined,
+      vital_recorded_at: ['vital_done', 'ready_for_doctor', 'completed'].includes(nursingStatus) ? addMinutes(start, -10) : undefined,
+      ready_for_doctor_at: nursingStatus === 'ready_for_doctor' || nursingStatus === 'completed' ? addMinutes(start, -5) : undefined,
       status,
     });
   });
@@ -884,20 +1064,31 @@ function buildConsultationDocs() {
     consultation_no: code('TV-2026', index),
     subjective: 'Bệnh nhân mô tả triệu chứng rõ, đã được hỏi bệnh bằng tiếng Việt.',
     objective: 'Khám lâm sàng ổn định, không ghi nhận dấu hiệu nguy kịch tại thời điểm thăm khám.',
-    assessment: diagnosisSeeds[index][1],
+    assessment: diagnosisSeed(index)[1],
     plan: 'Tư vấn điều trị, theo dõi triệu chứng và hẹn tái khám khi cần.',
     status: temporalBucket(index) === 'future' ? 'draft' : pick(['signed', 'in_progress', 'signed', 'amended'], index),
   }));
 }
 
 function buildClinicalNoteDocs() {
-  return indexes(BASE_COUNT).map((index) => make('ClinicalNote', index, {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('ClinicalNote', index, {
     encounter_id: idFor('Encounter', index),
-    consultation_id: idFor('Consultation', index),
-    author_id: doctorId(index),
-    note_type: pick(['progress', 'assessment', 'instruction', 'follow_up'], index),
-    content: `Ghi chú lâm sàng: ${diagnosisSeeds[index][1]}. Bệnh nhân được giải thích kế hoạch điều trị và đồng ý theo dõi.`,
-    status: temporalBucket(index) === 'future' ? 'draft' : pick(['signed', 'in_progress', 'amended'], index),
+    consultation_id: index < BASE_COUNT ? idFor('Consultation', index) : undefined,
+    author_id: index % 2 === 0 ? nurseId(index) : doctorId(index),
+    note_type: pick(['nursing_vital_routine', 'nursing_abnormal_vital', 'progress', 'assessment', 'instruction', 'follow_up'], index),
+    title: pick(['Ghi chú điều dưỡng sau đo sinh hiệu', 'Theo dõi sinh hiệu bất thường', 'Diễn tiến sau chăm sóc', 'Dặn dò trước khi vào khám'], index),
+    content: index % 2 === 0
+      ? pick([
+        'Bệnh nhân tỉnh, tiếp xúc tốt. Đã đo lại huyết áp sau nghỉ, tiếp tục theo dõi trong ca.',
+        'Đã hướng dẫn người bệnh báo ngay khi khó thở, đau ngực hoặc chóng mặt tăng.',
+        'Vết thương khô, băng sạch. Đã nhắc người nhà giữ chuông gọi trong tầm tay.',
+        'Sau dùng thuốc chưa ghi nhận mẩn ngứa hoặc khó thở, tiếp tục theo dõi 30 phút.',
+      ], index)
+      : `Ghi chú lâm sàng: ${diagnosisSeed(index)[1]}. Bệnh nhân được giải thích kế hoạch điều trị và đồng ý theo dõi.`,
+    priority: index % 5 === 0 ? 'urgent' : 'normal',
+    linked_vital_sign_ids: [idFor('VitalSign', index)],
+    tags: index % 2 === 0 ? ['nursing', 'vital_sign'] : ['doctor_note'],
+    status: temporalBucket(index) === 'future' ? 'draft' : pick(['signed', 'in_progress', 'amended', 'draft'], index),
   }));
 }
 
@@ -906,8 +1097,8 @@ function buildDiagnosisDocs() {
     encounter_id: idFor('Encounter', index),
     consultation_id: idFor('Consultation', index),
     recorded_by: doctorId(index),
-    icd10_code: diagnosisSeeds[index][0],
-    diagnosis_name: diagnosisSeeds[index][1],
+    icd10_code: diagnosisSeed(index)[0],
+    diagnosis_name: diagnosisSeed(index)[1],
     diagnosis_type: pick(['provisional', 'confirmed', 'discharge', 'secondary'], index),
     is_primary: true,
     onset_date: dateAt(index, 0, 0, -2),
@@ -923,8 +1114,8 @@ function buildProblemListDocs() {
     encounter_id: idFor('Encounter', index),
     diagnosis_id: idFor('Diagnosis', index),
     recorded_by: doctorId(index),
-    icd10_code: diagnosisSeeds[index][0],
-    problem_name: diagnosisSeeds[index][1],
+    icd10_code: diagnosisSeed(index)[0],
+    problem_name: diagnosisSeed(index)[1],
     severity: pick(['mild', 'moderate', 'severe', 'unknown'], index),
     onset_date: dateAt(index, 0, 0, -30),
     note: 'Vấn đề sức khỏe đang được theo dõi trong hồ sơ bệnh nhân.',
@@ -936,9 +1127,9 @@ function buildAllergyDocs() {
   return indexes(BASE_COUNT).map((index) => make('Allergy', index, {
     patient_id: patientId(index),
     recorded_by: doctorId(index),
-    allergy_type: allergySeeds[index][0],
-    allergen: allergySeeds[index][1],
-    reaction: allergySeeds[index][2],
+    allergy_type: allergySeed(index)[0],
+    allergen: allergySeed(index)[1],
+    reaction: allergySeed(index)[2],
     severity: pick(['mild', 'moderate', 'severe', 'unknown'], index),
     recorded_at: dateAt(index, 11, 0),
     note: 'Đã nhắc bệnh nhân thông báo dị ứng khi nhận thuốc hoặc làm thủ thuật.',
@@ -947,29 +1138,44 @@ function buildAllergyDocs() {
 }
 
 function buildVitalSignDocs() {
-  return indexes(BASE_COUNT).map((index) => make('VitalSign', index, {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const nursingStage = nursingStageForIndex(index);
+    const recordedAt = ['waiting_nurse', 'nurse_in_progress', 'triage_pending', 'triage_in_progress', 'vital_pending'].includes(nursingStage)
+      ? dateAt(index, shiftStartHour(index), 5, -1)
+      : dateAt(index, shiftStartHour(index), 20 + (index % 4) * 7);
+    const critical = index % 10 === 0;
+    const high = index % 5 === 0 || index % 7 === 0;
+    return make('VitalSign', index, {
     patient_id: patientId(index),
     encounter_id: idFor('Encounter', index),
     queue_ticket_id: idFor('QueueTicket', index),
     appointment_id: idFor('Appointment', index),
     context: pick(['encounter', 'pre_triage', 'inpatient', 'emergency'], index),
     recorded_by: nurseId(index),
-    recorded_at: dateAt(index, 8, 10),
-    temperature_c: 36.4 + (index % 5) * 0.2,
-    heart_rate: 72 + index,
+    recorded_at: recordedAt,
+    temperature: critical ? 39.2 : high && index % 2 === 0 ? 38.6 : 36.4 + (index % 5) * 0.2,
+    temperature_c: critical ? 39.2 : high && index % 2 === 0 ? 38.6 : 36.4 + (index % 5) * 0.2,
+    heart_rate: critical ? 132 : high ? 118 : 72 + index,
     respiratory_rate: 18 + (index % 4),
-    systolic_bp: 112 + index,
-    diastolic_bp: 70 + (index % 8),
-    spo2: 96 + (index % 4),
+    systolic_bp: critical ? 184 : high ? 166 : 112 + index,
+    diastolic_bp: critical ? 112 : high ? 96 : 70 + (index % 8),
+    spo2: critical ? 88 : high && index % 3 === 0 ? 93 : 96 + (index % 4),
     weight_kg: 48 + index * 2,
     height_cm: 150 + index,
     bmi: 21 + (index % 5),
     pain_score: index % 6,
-    alerts: index % 5 === 0 ? [{ code: 'BP_HIGH', message: 'Huyết áp cao hơn mức nền của bệnh nhân.', severity: 'warning' }] : [],
-    overall_severity: index % 5 === 0 ? 'warning' : 'normal',
-    requires_doctor_notification: index % 5 === 0,
+    blood_glucose: index % 6 === 0 ? 268 : 92 + (index % 4) * 11,
+    alerts: high ? [{ code: critical ? 'SPO2_LOW' : 'BP_HIGH', message: critical ? 'SpO2 thấp cần xử trí ngay.' : 'Huyết áp cao hơn mức nền của bệnh nhân.', severity: critical ? 'critical' : 'high' }] : [],
+    abnormal_flags: high ? [{ field: critical ? 'spo2' : 'systolic_bp', value: critical ? 88 : 166, display_value: critical ? '88%' : '166 mmHg', severity: critical ? 'critical' : 'high', message: critical ? 'SpO2 thấp' : 'Huyết áp tâm thu cao' }] : [],
+    overall_severity: critical ? 'critical' : high ? 'high' : 'normal',
+    requires_doctor_notification: high,
+    requires_recheck: high,
+    doctor_notification_required: high,
+    acknowledged_at: high && index % 2 === 0 ? addMinutes(recordedAt, 8) : undefined,
+    doctor_notified_at: high && index % 3 === 0 ? addMinutes(recordedAt, 12) : undefined,
     status: 'recorded',
-  }));
+  });
+  });
 }
 
 function buildCarePlanDocs() {
@@ -978,7 +1184,7 @@ function buildCarePlanDocs() {
     encounter_id: idFor('Encounter', index),
     diagnosis_id: idFor('Diagnosis', index),
     plan_no: code('KHCS-2026', index),
-    title: `Kế hoạch chăm sóc ${diagnosisSeeds[index][1].toLowerCase()}`,
+    title: `Kế hoạch chăm sóc ${diagnosisSeed(index)[1].toLowerCase()}`,
     goals: [
       { goal: 'Giảm triệu chứng chính', target_date: addDays(dateAt(index, 0, 0), 14), status: 'đang theo dõi' },
       { goal: 'Tái khám đúng hẹn', target_date: addDays(dateAt(index, 0, 0), 30), status: 'đã tư vấn' },
@@ -1011,7 +1217,7 @@ function buildOrderDocs() {
       order_type: type,
       priority: pick(['routine', 'urgent', 'stat'], index),
       is_billable: true,
-      clinical_indication: `Chỉ định phục vụ đánh giá ${diagnosisSeeds[index][1].toLowerCase()}.`,
+      clinical_indication: `Chỉ định phục vụ đánh giá ${diagnosisSeed(index)[1].toLowerCase()}.`,
       requested_at: dateAt(index, 8, 45),
       ordered_at: dateAt(index, 9, 0),
       status: statusForOrder(index),
@@ -1026,14 +1232,14 @@ function buildLabOrderDocs() {
     encounter_id: idFor('Encounter', index),
     ordered_by: doctorId(index),
     lab_order_no: code('XN-2026', index),
-    test_code: labTests[index][0],
-    test_name: labTests[index][1],
-    specimen_type: labTests[index][3],
+    test_code: labTestSeed(index)[0],
+    test_name: labTestSeed(index)[1],
+    specimen_type: labTestSeed(index)[3],
     priority: pick(['routine', 'urgent', 'stat'], index),
     ordered_at: dateAt(index, 9, 5),
     collected_at: temporalBucket(index) !== 'future' ? dateAt(index, 9, 20) : undefined,
     completed_at: temporalBucket(index) === 'past' ? dateAt(index, 11, 0) : undefined,
-    clinical_note: `Xét nghiệm theo dõi ${diagnosisSeeds[index][1].toLowerCase()}.`,
+    clinical_note: `Xét nghiệm theo dõi ${diagnosisSeed(index)[1].toLowerCase()}.`,
     status: temporalBucket(index) === 'past' ? 'completed' : temporalBucket(index) === 'present' ? pick(['ordered', 'collected', 'in_progress'], index) : 'ordered',
   }));
 }
@@ -1043,7 +1249,7 @@ function buildSpecimenDocs() {
     lab_order_id: idFor('LabOrder', index),
     patient_id: patientId(index),
     specimen_no: code('SP-2026', index),
-    specimen_type: labTests[index][3],
+    specimen_type: labTestSeed(index)[3],
     collected_by: nurseId(index),
     collected_at: temporalBucket(index) !== 'future' ? dateAt(index, 9, 25) : undefined,
     received_by: labUserId(index),
@@ -1077,11 +1283,11 @@ function buildLabResultDocs() {
 function buildLabResultItemDocs() {
   return indexes(BASE_COUNT).map((index) => make('LabResultItem', index, {
     lab_result_id: idFor('LabResult', index),
-    item_code: labTests[index][0],
-    item_name: labTests[index][1],
+    item_code: labTestSeed(index)[0],
+    item_name: labTestSeed(index)[1],
     result_value: String(4.5 + (index % 6) * 0.7),
     numeric_value: 4.5 + (index % 6) * 0.7,
-    unit: labTests[index][4] || 'Âm tính',
+    unit: labTestSeed(index)[4] || 'Âm tính',
     reference_range: pick(['3.9 - 5.6', '4.0 - 10.0', '< 5.0', 'Theo tuổi và giới'], index),
     abnormal_flag: index % 6 === 0 ? 'high' : 'normal',
     is_critical: index % 6 === 0,
@@ -1115,10 +1321,10 @@ function buildImagingOrderDocs() {
     ordered_by: doctorId(index),
     imaging_order_no: code('CDHA-2026', index),
     modality: pick(modalities, index),
-    body_part: bodyParts[index],
+    body_part: pick(bodyParts, index),
     contrast_required: index % 4 === 0,
     priority: pick(['routine', 'urgent', 'stat'], index),
-    clinical_indication: `Đánh giá hình ảnh liên quan ${diagnosisSeeds[index][1].toLowerCase()}.`,
+    clinical_indication: `Đánh giá hình ảnh liên quan ${diagnosisSeed(index)[1].toLowerCase()}.`,
     ordered_at: dateAt(index, 9, 10),
     scheduled_by: radiologyUserId(index),
     scheduled_at: dateAt(index, 10, 0),
@@ -1173,10 +1379,10 @@ function buildProcedureOrderDocs() {
     performer_id: doctorId(index + 1),
     department_id: doctorDepartmentId(index),
     procedure_order_no: code('TT-2026', index),
-    procedure_code: procedureSeeds[index][0],
-    procedure_name: procedureSeeds[index][1],
+    procedure_code: procedureSeed(index)[0],
+    procedure_name: procedureSeed(index)[1],
     priority: pick(['routine', 'urgent', 'stat'], index),
-    clinical_indication: `Thủ thuật phục vụ xử trí ${diagnosisSeeds[index][1].toLowerCase()}.`,
+    clinical_indication: `Thủ thuật phục vụ xử trí ${diagnosisSeed(index)[1].toLowerCase()}.`,
     scheduled_start: dateAt(index, 13, 30),
     scheduled_end: dateAt(index, 14, 15),
     scheduled_by: userId(index),
@@ -1230,9 +1436,9 @@ function buildPrescriptionItemDocs() {
     dosage_text: pick(['1 viên/lần', '2 viên/lần', '1 gói/lần', '1 nhát xịt/lần'], index),
     frequency_text: pick(['Ngày 2 lần sau ăn', 'Ngày 1 lần buổi tối', 'Mỗi 8 giờ khi sốt', 'Theo hướng dẫn của bác sĩ'], index),
     duration_text: pick(['5 ngày', '7 ngày', '14 ngày', '30 ngày'], index),
-    route: medicationSeeds[index][5],
+    route: medicationSeed(index)[5],
     quantity: 10 + index,
-    unit: medicationSeeds[index][6],
+    unit: medicationSeed(index)[6],
     dispensed_quantity: temporalBucket(index) === 'past' ? 10 + index : index % 3,
     instruction: 'Uống đúng liều, không tự ý ngưng thuốc khi chưa hỏi bác sĩ.',
     status: temporalBucket(index) === 'past' ? pick(['completed', 'active'], index) : 'active',
@@ -1274,7 +1480,7 @@ function buildDispenseItemDocs() {
     medication_id: idFor('MedicationMaster', index),
     stock_batch_id: idFor('StockBatch', index),
     quantity: 5 + index,
-    unit: medicationSeeds[index][6],
+    unit: medicationSeed(index)[6],
     status: temporalBucket(index) === 'future' ? 'planned' : 'dispensed',
     note: 'Cấp phát theo đúng số lượng trên đơn.',
   }));
@@ -1290,7 +1496,7 @@ function buildMedicationAdministrationDocs() {
     administered_at: temporalBucket(index) === 'past' ? dateAt(index, 18, 5) : undefined,
     administered_by: nurseId(index),
     dose_text: pick(['1 viên', '2 viên', '1 lọ', '1 nhát xịt'], index),
-    route: medicationSeeds[index][5],
+    route: medicationSeed(index)[5],
     note: 'Theo dõi phản ứng sau dùng thuốc.',
     status: temporalBucket(index) === 'past' ? pick(['given', 'held', 'refused'], index) : 'scheduled',
   }));
@@ -1305,7 +1511,7 @@ function buildStockBatchDocs() {
     expiry_date: addDays(dateAt(index, 0, 0), 240 + index * 15),
     quantity_received: 500 + index * 20,
     quantity_on_hand: 320 + index * 10,
-    unit_cost: medicationSeeds[index][7],
+    unit_cost: medicationSeed(index)[7],
     status: 'available',
   }));
 }
@@ -1319,7 +1525,7 @@ function buildInventoryTransactionDocs() {
     transaction_type: pick(['receipt', 'dispense', 'adjustment', 'return', 'transfer', 'waste'], index),
     direction: index % 3 === 0 ? 'in' : 'out',
     quantity: 10 + index,
-    unit_cost: medicationSeeds[index][7],
+    unit_cost: medicationSeed(index)[7],
     occurred_at: dateAt(index, 15, 0),
     performed_by: pharmacistId(index),
     reason: 'Giao dịch kho thuốc mẫu phục vụ kiểm thử tồn kho.',
@@ -1327,7 +1533,7 @@ function buildInventoryTransactionDocs() {
 }
 
 function buildRoomDocs() {
-  return indexes(BASE_COUNT).map((index) => make('Room', index, {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('Room', index, {
     department_id: departmentId(index % 8),
     service_id: idFor('ServiceCatalog', 9),
     room_code: code('PHONG', index),
@@ -1341,7 +1547,7 @@ function buildRoomDocs() {
 }
 
 function buildBedDocs() {
-  return indexes(BASE_COUNT).map((index) => make('Bed', index, {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('Bed', index, {
     room_id: idFor('Room', index),
     bed_code: code('GIUONG', index),
     bed_name: `Giường ${index + 1}`,
@@ -1351,7 +1557,7 @@ function buildBedDocs() {
 }
 
 function buildAdmissionDocs() {
-  return indexes(BASE_COUNT).map((index) => {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
     const status = temporalBucket(index) === 'past' ? pick(['discharged', 'admitted', 'cancelled'], index) : temporalBucket(index) === 'present' ? 'admitted' : 'planned';
     return make('Admission', index, {
       patient_id: patientId(index),
@@ -1364,7 +1570,7 @@ function buildAdmissionDocs() {
       admitted_by: userId(index),
       discharged_at: status === 'discharged' ? addDays(dateAt(index, 10, 0), 2) : undefined,
       discharged_by: status === 'discharged' ? doctorId(index) : undefined,
-      reason: `Nhập viện theo dõi ${diagnosisSeeds[index][1].toLowerCase()}.`,
+      reason: `Nhập viện theo dõi ${diagnosisSeed(index)[1].toLowerCase()}.`,
       discharge_disposition: status === 'discharged' ? 'Ổn định, về nhà dùng thuốc theo toa' : undefined,
       discharge_summary: status === 'discharged' ? 'Bệnh nhân ổn định, đã được hẹn tái khám.' : undefined,
       status,
@@ -1373,7 +1579,7 @@ function buildAdmissionDocs() {
 }
 
 function buildBedAssignmentDocs() {
-  return indexes(BASE_COUNT).map((index) => make('BedAssignment', index, {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('BedAssignment', index, {
     admission_id: idFor('Admission', index),
     bed_id: idFor('Bed', index),
     assigned_from: dateAt(index, 15, 30),
@@ -1386,52 +1592,84 @@ function buildBedAssignmentDocs() {
 }
 
 function buildInpatientTaskDocs() {
-  return indexes(BASE_COUNT).map((index) => make('InpatientTask', index, {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const status = isTodaySeed(index) ? pick(['todo', 'in_progress', 'done', 'cancelled', 'todo'], index) : temporalBucket(index) === 'past' ? 'done' : temporalBucket(index) === 'present' ? 'in_progress' : 'todo';
+    return make('InpatientTask', index, {
     admission_id: idFor('Admission', index),
     patient_id: patientId(index),
-    assigned_to: nurseId(index),
+    assigned_to: index % 6 === 0 ? undefined : nurseId(index),
     type: pick(['round', 'nursing_care', 'diet', 'cleaning', 'discharge_checklist', 'other'], index),
     title: pick(['Đi buồng sáng', 'Theo dõi dấu hiệu sinh tồn', 'Nhắc chế độ ăn', 'Chuẩn bị ra viện', 'Chăm sóc vết thương'], index),
     description: 'Nhiệm vụ nội trú mẫu được ghi bằng tiếng Việt.',
-    due_at: dateAt(index, 7, 30),
-    completed_at: temporalBucket(index) === 'past' ? dateAt(index, 8, 10) : undefined,
-    status: temporalBucket(index) === 'past' ? 'done' : temporalBucket(index) === 'present' ? 'in_progress' : 'todo',
-  }));
+    due_at: taskDueAt(index),
+    completed_at: status === 'done' ? addMinutes(taskDueAt(index), 25) : undefined,
+    status,
+  });
+  });
 }
 
 function buildNursingIntakeDocs() {
-  return indexes(BASE_COUNT).map((index) => make('NursingIntake', index, {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('NursingIntake', index, {
     queue_ticket_id: idFor('QueueTicket', index),
+    appointment_id: idFor('Appointment', index),
+    encounter_id: idFor('Encounter', index),
     patient_id: patientId(index),
     department_id: doctorDepartmentId(index),
-    nurse_id: nurseId(index),
-    started_at: temporalBucket(index) !== 'future' ? dateAt(index, 7, 45) : undefined,
-    completed_at: temporalBucket(index) === 'past' ? dateAt(index, 8, 5) : undefined,
+    doctor_id: doctorId(index),
+    assigned_nurse_id: index % 7 === 0 ? undefined : nurseId(index),
+    started_at: temporalBucket(index) !== 'future' ? dateAt(index, shiftStartHour(index), 12) : undefined,
+    completed_at: ['triage_done', 'vital_done', 'ready_for_doctor', 'completed'].includes(nursingStageForIndex(index)) ? dateAt(index, shiftStartHour(index), 28) : undefined,
     reason: 'Tiếp nhận điều dưỡng trước khi vào khám bác sĩ.',
     note: 'Đã kiểm tra thông tin hành chính và triệu chứng ban đầu.',
-    status: temporalBucket(index) === 'past' ? 'completed' : temporalBucket(index) === 'present' ? 'in_progress' : 'waiting',
+    status: ['triage_done', 'vital_done', 'ready_for_doctor', 'completed'].includes(nursingStageForIndex(index)) ? 'completed' : nursingStageForIndex(index) === 'nurse_in_progress' ? 'in_progress' : 'waiting',
   }));
 }
 
 function buildNursingTaskDocs() {
-  return indexes(BASE_COUNT).map((index) => make('NursingTask', index, {
+  return indexes(NURSE_WORKSPACE_COUNT * 3).map((globalIndex) => {
+    const index = globalIndex % NURSE_WORKSPACE_COUNT;
+    const status = taskStatusForIndex(globalIndex);
+    const dueAt = taskDueAt(globalIndex);
+    return make('NursingTask', globalIndex, {
     patient_id: patientId(index),
     encounter_id: idFor('Encounter', index),
     queue_ticket_id: idFor('QueueTicket', index),
+    admission_id: index % 4 === 0 ? idFor('Admission', index) : undefined,
     department_id: doctorDepartmentId(index),
-    assigned_to: nurseId(index),
-    title: pick(['Đo sinh hiệu', 'Hướng dẫn lấy mẫu', 'Chuẩn bị thủ thuật', 'Theo dõi sau tiêm', 'Bàn giao ca trực'], index),
-    description: 'Nhiệm vụ điều dưỡng mẫu trong quy trình khám bệnh.',
-    task_type: pick(['triage', 'vital', 'preparation', 'medication_monitoring', 'post_procedure_monitoring', 'inpatient_care', 'emergency_response', 'handover', 'other'], index),
-    priority: pick(['low', 'medium', 'high', 'critical'], index),
-    due_at: dateAt(index, 8, 0),
-    completed_at: temporalBucket(index) === 'past' ? dateAt(index, 8, 25) : undefined,
-    status: temporalBucket(index) === 'past' ? 'done' : temporalBucket(index) === 'present' ? 'in_progress' : 'todo',
-  }));
+    assigned_to: globalIndex % 9 === 0 ? undefined : nurseId(globalIndex),
+    assigned_by: nurseId(globalIndex + 1),
+    task_code: code('NVDD-2026', globalIndex),
+    title: pick(['Đo sinh hiệu', 'Hướng dẫn lấy mẫu', 'Chuẩn bị thủ thuật', 'Theo dõi sau tiêm', 'Bàn giao ca trực', 'Báo bác sĩ theo SBAR', 'Chăm sóc vết thương', 'Theo dõi sau dùng thuốc'], globalIndex),
+    description: pick([
+      'Đo sinh hiệu, ghi nhận chỉ số và báo bác sĩ nếu vượt ngưỡng.',
+      'Hướng dẫn bệnh nhân chuẩn bị lấy mẫu xét nghiệm đúng quy trình.',
+      'Kiểm tra checklist trước thủ thuật và xác nhận phiếu đồng ý.',
+      'Theo dõi phản ứng sau dùng thuốc trong 30 phút đầu.',
+      'Bàn giao tình trạng người bệnh, task còn mở và thuốc đến giờ.',
+    ], globalIndex),
+    task_type: pick(['triage', 'vital_sign', 'preparation', 'medication_monitoring', 'post_procedure_monitoring', 'inpatient_care', 'emergency_response', 'handoff_followup', 'doctor_report'], globalIndex),
+    priority: pick(['low', 'normal', 'medium', 'high', 'urgent', 'stat', 'critical'], globalIndex),
+    due_at: dueAt,
+    accepted_at: ['accepted', 'in_progress', 'blocked', 'waiting_doctor', 'done'].includes(status) ? addMinutes(dueAt, -45) : undefined,
+    started_at: ['in_progress', 'blocked', 'waiting_doctor', 'done'].includes(status) ? addMinutes(dueAt, -25) : undefined,
+    completed_at: status === 'done' ? addMinutes(dueAt, 20) : undefined,
+    completed_by: status === 'done' ? nurseId(globalIndex) : undefined,
+    result_note: status === 'done' ? 'Đã hoàn tất, bệnh nhân ổn định tại thời điểm ghi nhận.' : undefined,
+    blocked_reason: status === 'blocked' ? 'Chờ bác sĩ xác nhận lại y lệnh trước khi tiếp tục.' : undefined,
+    escalation_level: ['waiting_doctor'].includes(status) || globalIndex % 11 === 0 ? 1 : 0,
+    escalated_at: ['waiting_doctor'].includes(status) || globalIndex % 11 === 0 ? addMinutes(dueAt, -10) : undefined,
+    checklist_items: [
+      { title: 'Xác nhận đúng người bệnh', required: true, status: status === 'done' ? 'done' : 'pending' },
+      { title: 'Ghi nhận vào hồ sơ', required: true, status: status === 'done' ? 'done' : 'pending' },
+      { title: 'Báo bác sĩ nếu bất thường', required: false, status: globalIndex % 5 === 0 ? 'done' : 'pending' },
+    ],
+    status,
+  });
+  });
 }
 
 function buildTriageAssessmentDocs() {
-  return indexes(BASE_COUNT).map((index) => make('TriageAssessment', index, {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('TriageAssessment', index, {
     patient_id: patientId(index),
     appointment_id: idFor('Appointment', index),
     encounter_id: idFor('Encounter', index),
@@ -1440,7 +1678,7 @@ function buildTriageAssessmentDocs() {
     doctor_id: doctorId(index),
     nurse_id: nurseId(index),
     triage_by: nurseId(index),
-    triage_at: temporalBucket(index) !== 'future' ? dateAt(index, 7, 55) : undefined,
+    triage_at: temporalBucket(index) !== 'future' ? dateAt(index, shiftStartHour(index), 18) : undefined,
     chief_complaint: pick(['Đau ngực', 'Khó thở nhẹ', 'Sốt', 'Đau bụng', 'Chóng mặt', 'Ho kéo dài'], index),
     symptom_onset_at: dateAt(index, 0, 0, -2),
     symptoms: { mo_ta: 'Triệu chứng được điều dưỡng ghi nhận lúc tiếp nhận.' },
@@ -1460,34 +1698,38 @@ function buildTriageAssessmentDocs() {
     recommended_doctor_id: doctorId(index),
     infectious_screening: { fever: index % 4 === 0, cough: index % 5 === 0, rash: false, travel_history: false, isolation_required: false },
     fall_risk_score: index % 4,
-    pregnancy_status: patientProfiles[index][1] === 'female' ? pick(['unknown', 'not_pregnant', 'pregnant'], index) : 'not_pregnant',
+    pregnancy_status: patientSeed(index)[1] === 'female' ? pick(['unknown', 'not_pregnant', 'pregnant'], index) : 'not_pregnant',
     allergy_reviewed: true,
     medication_reviewed: true,
     problem_reviewed: true,
     vital_sign_id: idFor('VitalSign', index),
     vital_snapshot: { mach: 72 + index, nhiet_do: 36.6, huyet_ap: `${112 + index}/75` },
-    status: temporalBucket(index) === 'future' ? 'draft' : pick(['completed', 'in_progress', 'completed'], index),
+    status: nursingStageForIndex(index) === 'triage_pending' ? 'draft' : nursingStageForIndex(index) === 'triage_in_progress' ? 'in_progress' : temporalBucket(index) === 'future' ? 'draft' : pick(['completed', 'in_progress', 'completed'], index),
     note: 'Phân loại ban đầu theo thông tin bệnh nhân cung cấp.',
-    started_at: dateAt(index, 7, 50),
-    completed_at: temporalBucket(index) !== 'future' ? dateAt(index, 8, 5) : undefined,
-    completed_by: temporalBucket(index) !== 'future' ? nurseId(index) : undefined,
+    started_at: dateAt(index, shiftStartHour(index), 15),
+    completed_at: ['triage_done', 'vital_done', 'ready_for_doctor', 'completed'].includes(nursingStageForIndex(index)) ? dateAt(index, shiftStartHour(index), 32) : undefined,
+    completed_by: ['triage_done', 'vital_done', 'ready_for_doctor', 'completed'].includes(nursingStageForIndex(index)) ? nurseId(index) : undefined,
   }));
 }
 
 function buildServicePreparationChecklistDocs() {
-  return indexes(BASE_COUNT).map((index) => make('ServicePreparationChecklist', index, {
-    patient_id: patientId(index),
-    order_id: orderId('service', index),
-    order_type: pick(['lab', 'imaging', 'procedure', 'service'], index),
-    department_id: doctorDepartmentId(index),
-    assigned_to: nurseId(index),
-    checklist_items: [
-      { key: 'xac_nhan_dinh_danh', label: 'Xác nhận đúng người bệnh', checked: true, checked_at: dateAt(index, 8, 0), checked_by: nurseId(index) },
-      { key: 'giai_thich_quy_trinh', label: 'Giải thích quy trình cho bệnh nhân', checked: index % 3 !== 0, checked_at: dateAt(index, 8, 5), checked_by: nurseId(index) },
-    ],
-    note: 'Checklist chuẩn bị dịch vụ mẫu.',
-    status: temporalBucket(index) === 'past' ? 'completed' : temporalBucket(index) === 'present' ? 'in_progress' : 'pending',
-  }));
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const orderType = index < BASE_COUNT ? 'service' : pick(['lab', 'imaging', 'procedure'], index - BASE_COUNT);
+    const orderIndex = index < BASE_COUNT ? index : Math.floor((index - BASE_COUNT) / 3);
+    return make('ServicePreparationChecklist', index, {
+      patient_id: patientId(index),
+      order_id: orderId(orderType, orderIndex),
+      order_type: orderType,
+      department_id: doctorDepartmentId(index),
+      assigned_to: nurseId(index),
+      checklist_items: [
+        { key: 'xac_nhan_dinh_danh', label: 'Xác nhận đúng người bệnh', checked: true, checked_at: dateAt(index, 8, 0), checked_by: nurseId(index) },
+        { key: 'giai_thich_quy_trinh', label: 'Giải thích quy trình cho bệnh nhân', checked: index % 3 !== 0, checked_at: dateAt(index, 8, 5), checked_by: nurseId(index) },
+      ],
+      note: 'Checklist chuẩn bị dịch vụ mẫu.',
+      status: temporalBucket(index) === 'past' ? 'completed' : temporalBucket(index) === 'present' ? 'in_progress' : 'pending',
+    });
+  });
 }
 
 function buildServiceCatalogDocs() {
@@ -1506,7 +1748,7 @@ function buildServiceCatalogDocs() {
 
 function buildChargeDocs() {
   return indexes(BASE_COUNT).map((index) => {
-    const unitPrice = serviceSeeds[index][3];
+    const unitPrice = serviceSeed(index)[3];
     const discount = index % 4 === 0 ? 20000 : 0;
     const total = unitPrice - discount;
     return make('Charge', index, {
@@ -1517,7 +1759,7 @@ function buildChargeDocs() {
       order_id: orderId(pick(['lab', 'imaging', 'procedure', 'service'], index), index),
       invoice_id: idFor('Invoice', index),
       charge_no: code('PHI-2026', index),
-      description: serviceSeeds[index][1],
+      description: serviceSeed(index)[1],
       quantity: 1,
       unit_price: unitPrice,
       discount_amount: discount,
@@ -1557,7 +1799,7 @@ function buildInvoiceDocs() {
 
 function buildInvoiceItemDocs() {
   return indexes(BASE_COUNT).map((index) => {
-    const service = serviceSeeds[index];
+    const service = serviceSeed(index);
     const discount = index % 4 === 0 ? 20000 : 0;
     return make('InvoiceItem', index, {
       invoice_id: idFor('Invoice', index),
@@ -1694,7 +1936,7 @@ function buildMedicalRecordDocs() {
     custodian_department_id: doctorDepartmentId(index),
     record_no: code('BA-2026', index),
     record_type: pick(['outpatient', 'inpatient', 'emergency', 'lab', 'imaging', 'procedure', 'pharmacy', 'other'], index),
-    title: `Bệnh án ${diagnosisSeeds[index][1].toLowerCase()}`,
+    title: `Bệnh án ${diagnosisSeed(index)[1].toLowerCase()}`,
     summary: 'Hồ sơ bệnh án mẫu bao gồm thông tin khám, chẩn đoán, chỉ định và kế hoạch chăm sóc.',
     opened_at: dateAt(index, 8, 0),
     closed_at: temporalBucket(index) === 'past' ? dateAt(index, 12, 30) : undefined,
@@ -1864,7 +2106,7 @@ function buildConversationDocs() {
     invoice_id: idFor('Invoice', index),
     prescription_id: idFor('Prescription', index),
     ticket_id: idFor('SupportTicket', index),
-    subject: supportSubjects[index],
+    subject: supportSubject(index),
     status: temporalBucket(index) === 'past' ? pick(['closed', 'archived', 'open'], index) : pick(['open', 'pending'], index),
     priority: pick(['normal', 'high', 'low', 'urgent'], index),
     created_by_actor_type: index % 2 === 0 ? 'patient' : 'staff',
@@ -1948,8 +2190,8 @@ function buildSupportTicketDocs() {
     created_by_actor_type: index % 2 === 0 ? 'patient' : 'staff',
     created_by_actor_id: index % 2 === 0 ? patientAccountId(index) : userId(index),
     category: pick(['appointment', 'billing', 'insurance', 'medical_record', 'technical', 'complaint', 'pharmacy', 'other'], index),
-    subject: supportSubjects[index],
-    description: `${supportSubjects[index]}. Nội dung này được tạo để kiểm thử quy trình chăm sóc khách hàng.`,
+    subject: supportSubject(index),
+    description: `${supportSubject(index)}. Nội dung này được tạo để kiểm thử quy trình chăm sóc khách hàng.`,
     priority: pick(['normal', 'high', 'low', 'urgent'], index),
     status: temporalBucket(index) === 'past' ? pick(['resolved', 'closed', 'waiting_patient'], index) : pick(['open', 'waiting_staff'], index),
     assigned_department_id: departmentId(index % departmentSeeds.length),
@@ -2050,6 +2292,522 @@ function buildEmergencyCaseDocs() {
   }));
 }
 
+function buildEmergencyCaseEventDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('EmergencyCaseEvent', index, {
+    case_id: idFor('EmergencyCase', index % BASE_COUNT),
+    event_type: pick(['created', 'acknowledged', 'triage_started', 'triage_completed', 'doctor_notified', 'resolved'], index),
+    actor_id: index % 2 === 0 ? nurseId(index) : doctorId(index),
+    from_status: pick(['created', 'acknowledged', 'triaged', 'dispatched'], index),
+    to_status: pick(['acknowledged', 'triaged', 'dispatched', 'resolved'], index),
+    note: pick([
+      'Tiếp nhận tín hiệu cấp cứu từ khu chờ khám.',
+      'Điều dưỡng đã đánh giá nhanh tình trạng người bệnh.',
+      'Bác sĩ trực được thông báo và phản hồi trong ca.',
+      'Bệnh nhân ổn định hơn sau xử trí ban đầu.',
+    ], index),
+    payload: {
+      demoCode: code('DEMO-ER-EVENT', index),
+      location: pick(['Sảnh chính', 'Phòng khám tim mạch', 'Khoa cấp cứu', 'Buồng bệnh A302'], index),
+    },
+  }));
+}
+
+function buildEmergencyTriageDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const completed = temporalBucket(index) !== 'future';
+    return make('EmergencyTriage', index, {
+      emergency_case_id: idFor('EmergencyCase', index % BASE_COUNT),
+      patient_id: patientId(index),
+      encounter_id: idFor('Encounter', index % BASE_COUNT),
+      triage_by: nurseId(index),
+      triage_started_at: dateAt(index, 7, 35),
+      triage_completed_at: completed ? dateAt(index, 7, 45) : undefined,
+      chief_complaint: pick(['Đau ngực kèm vã mồ hôi', 'Sốt cao khó hạ', 'Khó thở tăng dần', 'Té ngã trong khu chờ'], index),
+      onset_time: dateAt(index, 5, 30),
+      symptoms: pick(['Mệt, chóng mặt, đau tăng khi vận động', 'Sốt 38.8°C, ho khan', 'SpO2 giảm khi đi lại', 'Đau vùng cổ tay sau té'], index),
+      airway_status: 'Thông thoáng',
+      breathing_status: index % 4 === 0 ? 'Thở nhanh, cần theo dõi SpO2' : 'Tự thở ổn',
+      circulation_status: index % 5 === 0 ? 'Mạch nhanh, huyết áp tăng' : 'Tưới máu ngoại biên ổn',
+      disability_status: 'Tỉnh, tiếp xúc được',
+      exposure_status: 'Không phát hiện chảy máu ngoài',
+      temperature: index % 4 === 1 ? 38.7 : 36.7 + (index % 3) * 0.2,
+      heart_rate: 78 + (index % 6) * 8,
+      respiratory_rate: 18 + (index % 4) * 3,
+      systolic_bp: index % 5 === 0 ? 168 : 112 + (index % 8) * 3,
+      diastolic_bp: index % 5 === 0 ? 96 : 70 + (index % 6) * 2,
+      spo2: index % 6 === 0 ? 92 : 96 + (index % 4),
+      pain_score: index % 8,
+      gcs_eye: 4,
+      gcs_verbal: 5,
+      gcs_motor: 6,
+      avpu: 'alert',
+      blood_glucose: 92 + index * 3,
+      esi_level: pick([2, 3, 3, 4], index),
+      triage_color: pick(['orange', 'yellow', 'green', 'yellow'], index),
+      final_priority: pick(['urgent', 'critical'], index),
+      risk_flags: index % 3 === 0 ? ['SpO2 thấp', 'Nguy cơ té ngã'] : ['Cần theo dõi sát'],
+      recommended_actions: ['Đo lại sinh hiệu sau 15 phút', 'Báo bác sĩ trực nếu triệu chứng tăng'],
+      disposition: pick(['Theo dõi tại cấp cứu', 'Chuyển phòng khám ưu tiên', 'Lưu theo dõi ngắn hạn'], index),
+      doctor_required: index % 3 === 0,
+      dispatch_required: index % 5 === 0,
+      note: 'Phân loại cấp cứu được tạo cho bộ dữ liệu demo vận hành điều dưỡng.',
+      status: completed ? pick(['completed', 'signed'], index) : 'in_progress',
+      signed_by: completed ? nurseId(index) : undefined,
+      signed_at: completed ? dateAt(index, 7, 50) : undefined,
+    });
+  });
+}
+
+function buildInpatientHandoverDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const itemIndex = index % BASE_COUNT;
+    return make('InpatientHandover', index, {
+      handover_no: code('BGNT-2026', index),
+      department_id: doctorDepartmentId(itemIndex),
+      shift_date: dateAt(index, 0, 0),
+      from_shift: pick(['morning', 'afternoon', 'night'], index),
+      to_shift: pick(['afternoon', 'night', 'morning'], index),
+      outgoing_nurse_id: nurseId(index),
+      incoming_nurse_id: nurseId(index + 1),
+      status: temporalBucket(index) === 'past' ? 'closed' : pick(['prepared', 'signed', 'acknowledged'], index),
+      summary: 'Bàn giao người bệnh nội trú trong ca, tập trung sinh hiệu bất thường và thuốc đến giờ.',
+      patient_count: 3 + (index % 5),
+      high_risk_count: index % 3,
+      abnormal_vital_count: index % 4,
+      overdue_task_count: index % 2,
+      medication_due_count: 2 + (index % 3),
+      items: [{
+        admission_id: idFor('Admission', itemIndex),
+        patient_id: patientId(itemIndex),
+        bed_assignment_id: idFor('BedAssignment', itemIndex),
+        room_id: idFor('Room', itemIndex),
+        bed_id: idFor('Bed', itemIndex),
+        priority: pick(['normal', 'high', 'urgent'], index),
+        situation: pick(['Đang theo dõi huyết áp sau điều chỉnh thuốc.', 'Sau thủ thuật cần kiểm tra vết thương.', 'Sốt nhẹ, chờ kết quả xét nghiệm.'], index),
+        background: 'Bệnh nhân nhập viện trong tuần, đã có kế hoạch chăm sóc và y lệnh đang thực hiện.',
+        assessment: 'Tỉnh, tiếp xúc tốt; cần theo dõi sinh hiệu và đáp ứng thuốc trong ca tới.',
+        recommendation: 'Đo sinh hiệu đúng giờ, nhắc uống thuốc, báo bác sĩ nếu đau tăng hoặc SpO2 giảm.',
+        nursing_note: 'Đã dặn người nhà gọi chuông khi bệnh nhân chóng mặt.',
+      }],
+      signed_at: temporalBucket(index) !== 'future' ? dateAt(index, 13, 45) : undefined,
+      signed_by: temporalBucket(index) !== 'future' ? nurseId(index) : undefined,
+      acknowledged_at: temporalBucket(index) === 'past' ? dateAt(index, 14, 5) : undefined,
+      acknowledged_by: temporalBucket(index) === 'past' ? nurseId(index + 1) : undefined,
+    });
+  });
+}
+
+function buildNursingHandoffDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const itemIndex = index % BASE_COUNT;
+    return make('NursingHandoff', index, {
+      handoff_code: code('BGDD-2026', index),
+      department_id: doctorDepartmentId(itemIndex),
+      ward_id: doctorDepartmentId(itemIndex),
+      shift_date: dateAt(index, 0, 0),
+      from_shift: pick(['morning', 'afternoon', 'night'], index),
+      to_shift: pick(['afternoon', 'night', 'morning'], index),
+      from_user_id: nurseId(index),
+      to_user_id: nurseId(index + 1),
+      to_team_role: 'Điều dưỡng ca kế tiếp',
+      status: temporalBucket(index) === 'future' ? 'submitted' : pick(['accepted', 'submitted', 'draft'], index),
+      summary: 'Bàn giao các bệnh nhân cần theo dõi sinh hiệu, dùng thuốc và chuẩn bị dịch vụ.',
+      risk_summary: pick(['Có cảnh báo huyết áp cao cần báo bác sĩ nếu lặp lại.', 'Một bệnh nhân nguy cơ té ngã, cần hỗ trợ khi đi lại.', 'Có ca theo dõi sau dùng kháng sinh.'], index),
+      patient_items: [{
+        patient_id: patientId(itemIndex),
+        encounter_id: idFor('Encounter', itemIndex),
+        admission_id: idFor('Admission', itemIndex),
+        bed_id: idFor('Bed', itemIndex),
+        situation: 'Đang được chăm sóc trong ca, cần đo lại sinh hiệu.',
+        background: 'Có y lệnh thuốc và kế hoạch chăm sóc đang mở.',
+        assessment: 'Ổn định tương đối, còn cần theo dõi sát dấu hiệu cảnh báo.',
+        recommendation: 'Ưu tiên hoàn tất nhiệm vụ quá hạn và cập nhật ghi chú điều dưỡng.',
+        acuity_level: pick(['medium', 'high', 'critical', 'low'], index),
+        flags: {
+          allergy: index % 5 === 0,
+          fall_risk: index % 4 === 0,
+          isolation: false,
+          critical_vitals: index % 3 === 0,
+          post_procedure: index % 6 === 0,
+          medication_attention: index % 4 === 1,
+          doctor_report_needed: index % 3 === 0,
+        },
+        latest_vitals_snapshot: { blood_pressure: index % 3 === 0 ? '168/96' : '122/78', pulse: 82 + index },
+        pending_task_ids: [idFor('NursingTask', index)],
+        overdue_task_ids: index % 4 === 0 ? [idFor('NursingTask', index)] : [],
+        pending_medication_ids: [idFor('MedicationAdministration', itemIndex)],
+        pending_order_ids: [orderId('service', itemIndex)],
+        note: 'Người bệnh hợp tác, cần nhắc uống nước và nghỉ tại giường.',
+      }],
+      task_ids: [idFor('NursingTask', index)],
+      submitted_at: temporalBucket(index) !== 'future' ? dateAt(index, 13, 50) : undefined,
+      accepted_at: temporalBucket(index) === 'past' ? dateAt(index, 14, 10) : undefined,
+      accepted_by: temporalBucket(index) === 'past' ? nurseId(index + 1) : undefined,
+    });
+  });
+}
+
+function buildNursingTaskTemplateDocs() {
+  return indexes(12).map((index) => make('NursingTaskTemplate', index, {
+    template_code: code('MNV-DD', index),
+    name: pick(['Đo sinh hiệu định kỳ', 'Chuẩn bị lấy mẫu xét nghiệm', 'Theo dõi sau dùng thuốc', 'Chăm sóc vết thương', 'Báo bác sĩ theo SBAR', 'Bàn giao ca'], index),
+    description: 'Mẫu nhiệm vụ chuẩn cho điều dưỡng trong ca trực.',
+    department_id: doctorDepartmentId(index),
+    task_type: pick(['vital_sign', 'specimen_collection', 'post_medication_monitor', 'bedside_care', 'doctor_report', 'handoff_followup'], index),
+    title_template: pick(['Đo sinh hiệu cho {{patient}}', 'Chuẩn bị mẫu xét nghiệm cho {{patient}}', 'Theo dõi phản ứng thuốc của {{patient}}'], index),
+    description_template: 'Thực hiện đúng quy trình, ghi nhận kết quả và báo bác sĩ khi có bất thường.',
+    default_priority: pick(['normal', 'medium', 'high', 'urgent'], index),
+    default_sla_minutes: pick([15, 30, 45, 60], index),
+    source_module: 'manual',
+    checklist_items: [
+      { title: 'Xác nhận đúng người bệnh', required: true },
+      { title: 'Ghi nhận kết quả vào hồ sơ', required: true },
+      { title: 'Báo bác sĩ nếu có dấu hiệu cảnh báo', required: false },
+    ],
+    status: 'active',
+  }));
+}
+
+function buildServicePreparationDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => {
+    const sourceType = index < BASE_COUNT ? pick(['pre_exam', 'lab', 'imaging', 'procedure', 'service', 'nursing'], index) : 'other';
+    const base = index % BASE_COUNT;
+    return make('ServicePreparation', index, {
+      preparation_no: code('CBDV-2026', index),
+      patient_id: patientId(index),
+      encounter_id: idFor('Encounter', base),
+      admission_id: index % 4 === 0 ? idFor('Admission', base) : undefined,
+      source_type: sourceType,
+      order_id: sourceType === 'service' || sourceType === 'nursing' ? orderId('service', base) : undefined,
+      lab_order_id: sourceType === 'lab' ? idFor('LabOrder', base) : undefined,
+      imaging_order_id: sourceType === 'imaging' ? idFor('ImagingOrder', base) : undefined,
+      procedure_order_id: sourceType === 'procedure' ? idFor('ProcedureOrder', base) : undefined,
+      queue_ticket_id: sourceType === 'pre_exam' ? idFor('QueueTicket', base) : undefined,
+      department_id: doctorDepartmentId(base),
+      destination_department_id: sourceType === 'lab' ? departmentId(7) : sourceType === 'imaging' ? departmentId(6) : doctorDepartmentId(base),
+      room_id: idFor('Room', base),
+      title: pick(['Chuẩn bị lấy máu xét nghiệm', 'Chuẩn bị siêu âm ổ bụng', 'Chuẩn bị thay băng vết thương', 'Chuẩn bị khám bác sĩ'], index),
+      description: 'Điều dưỡng xác nhận thông tin, hướng dẫn người bệnh và hoàn tất checklist trước khi chuyển bước.',
+      priority: pick(['routine', 'urgent', 'stat'], index),
+      status: temporalBucket(index) === 'past' ? 'completed' : temporalBucket(index) === 'present' ? pick(['assigned', 'in_progress', 'ready', 'blocked'], index) : 'pending',
+      assigned_nurse_id: nurseId(index),
+      assigned_at: dateAt(index, 7, 50),
+      started_by: temporalBucket(index) !== 'future' ? nurseId(index) : undefined,
+      started_at: temporalBucket(index) !== 'future' ? dateAt(index, 8, 5) : undefined,
+      ready_by: ['ready', 'completed'].includes(temporalBucket(index) === 'past' ? 'completed' : pick(['assigned', 'in_progress', 'ready', 'blocked'], index)) ? nurseId(index) : undefined,
+      ready_at: temporalBucket(index) === 'past' ? dateAt(index, 8, 25) : undefined,
+      completed_by: temporalBucket(index) === 'past' ? nurseId(index) : undefined,
+      completed_at: temporalBucket(index) === 'past' ? dateAt(index, 8, 40) : undefined,
+      blocked_reason_text: index % 7 === 0 ? 'Người bệnh cần nhịn ăn thêm trước siêu âm.' : undefined,
+      sla_due_at: dateAt(index, 9, 0),
+      sla_level: index % 6 === 0 ? 'warning' : 'normal',
+      checklist_total: 4,
+      checklist_done: temporalBucket(index) === 'future' ? 0 : 3,
+      checklist_required_total: 3,
+      checklist_required_done: temporalBucket(index) === 'future' ? 0 : 2,
+      readiness_score: temporalBucket(index) === 'future' ? 0 : 75,
+      has_safety_risk: index % 5 === 0,
+      safety_risk_codes: index % 5 === 0 ? ['fall_risk', 'contrast_allergy_check'] : [],
+      last_note: 'Đã giải thích quy trình, người bệnh hợp tác.',
+      last_activity_at: dateAt(index, 8, 15),
+    });
+  });
+}
+
+function buildPreparationChecklistTemplateDocs() {
+  return indexes(12).map((index) => make('PreparationChecklistTemplate', index, {
+    template_code: code('TPL-CBDV', index),
+    name: pick(['Checklist trước xét nghiệm máu', 'Checklist trước chẩn đoán hình ảnh', 'Checklist trước thủ thuật', 'Checklist trước khám'], index),
+    source_type: pick(['lab', 'imaging', 'procedure', 'pre_exam'], index),
+    order_type: pick(['lab', 'imaging', 'procedure', 'service'], index),
+    modality: index % 4 === 1 ? pick(['xray', 'ultrasound', 'ct', 'mri'], index) : undefined,
+    procedure_code: index % 4 === 2 ? procedureSeed(index)[0] : undefined,
+    test_code: index % 4 === 0 ? labTestSeed(index)[0] : undefined,
+    specimen_type: index % 4 === 0 ? labTestSeed(index)[3] : undefined,
+    department_id: doctorDepartmentId(index),
+    version: 1,
+    is_default: index % 4 === 0,
+    is_active: true,
+    items: [
+      { code: 'identity_check', label: 'Xác nhận đúng người bệnh', category: 'identity', required: true, critical: true, sort_order: 1 },
+      { code: 'allergy_check', label: 'Kiểm tra dị ứng và chống chỉ định', category: 'safety', required: true, critical: true, sort_order: 2 },
+      { code: 'instruction_given', label: 'Hướng dẫn người bệnh trước dịch vụ', category: 'instruction', required: true, sort_order: 3 },
+    ],
+  }));
+}
+
+function buildPreparationChecklistItemDocs() {
+  const itemTemplates = [
+    ['identity_check', 'Xác nhận họ tên, năm sinh và mã hồ sơ', 'identity', true, true],
+    ['allergy_check', 'Kiểm tra dị ứng thuốc, thức ăn, thuốc cản quang', 'safety', true, true],
+    ['instruction_given', 'Hướng dẫn quy trình và lưu ý sau thực hiện', 'instruction', true, false],
+    ['consent_ready', 'Kiểm tra phiếu đồng ý nếu cần', 'document', false, false],
+  ];
+
+  return indexes(NURSE_WORKSPACE_COUNT).flatMap((prepIndex) =>
+    itemTemplates.map(([itemCode, label, category, required, critical], itemIndex) => {
+      const done = temporalBucket(prepIndex) === 'past' || (temporalBucket(prepIndex) === 'present' && itemIndex < 2);
+      return make('PreparationChecklistItem', prepIndex * itemTemplates.length + itemIndex, {
+        preparation_id: idFor('ServicePreparation', prepIndex),
+        template_code: code('TPL-CBDV', prepIndex % 12),
+        template_item_code: itemCode,
+        code: itemCode,
+        label,
+        description: 'Mục checklist dùng trong quy trình chuẩn bị dịch vụ điều dưỡng.',
+        category,
+        required,
+        critical,
+        status: done ? 'done' : itemIndex === 3 && prepIndex % 5 === 0 ? 'waived' : 'pending',
+        value_type: 'boolean',
+        value: done,
+        completed_by: done ? nurseId(prepIndex) : undefined,
+        completed_at: done ? dateAt(prepIndex, 8, 10 + itemIndex * 5) : undefined,
+        waived_by: itemIndex === 3 && prepIndex % 5 === 0 ? nurseId(prepIndex) : undefined,
+        waived_at: itemIndex === 3 && prepIndex % 5 === 0 ? dateAt(prepIndex, 8, 25) : undefined,
+        waived_reason: itemIndex === 3 && prepIndex % 5 === 0 ? 'Dịch vụ không yêu cầu phiếu đồng ý riêng.' : undefined,
+        note: done ? 'Đã xác nhận trong ca trực.' : undefined,
+        sort_order: itemIndex + 1,
+      });
+    }),
+  );
+}
+
+function buildPreparationActivityDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT * 2).map((index) => {
+    const prepIndex = index % NURSE_WORKSPACE_COUNT;
+    return make('PreparationActivity', index, {
+      preparation_id: idFor('ServicePreparation', prepIndex),
+      patient_id: patientId(prepIndex),
+      encounter_id: idFor('Encounter', prepIndex % BASE_COUNT),
+      actor_id: nurseId(prepIndex),
+      action: pick(['created', 'assigned', 'started', 'checklist_item_done', 'ready', 'note_added'], index),
+      message: pick([
+        'Tạo hồ sơ chuẩn bị dịch vụ từ y lệnh.',
+        'Phân công điều dưỡng phụ trách chuẩn bị.',
+        'Bắt đầu hướng dẫn người bệnh trước dịch vụ.',
+        'Hoàn tất một mục checklist bắt buộc.',
+        'Người bệnh đã sẵn sàng chuyển bước.',
+        'Bổ sung ghi chú điều dưỡng ngắn.',
+      ], index),
+      metadata: { demoCode: code('ACT-CBDV', index), shift: pick(['morning', 'afternoon', 'night'], index) },
+      created_at: dateAt(prepIndex, 8, 5 + (index % 6) * 7),
+    });
+  });
+}
+
+function buildVitalSignCorrectionRequestDocs() {
+  return indexes(12).map((index) => make('VitalSignCorrectionRequest', index, {
+    vital_sign_id: idFor('VitalSign', index % BASE_COUNT),
+    patient_id: patientId(index),
+    encounter_id: idFor('Encounter', index % BASE_COUNT),
+    department_id: doctorDepartmentId(index),
+    requested_by: nurseId(index),
+    requested_at: dateAt(index, 10, 20),
+    reason: pick(['Nhập nhầm thời điểm đo', 'Cần sửa giá trị huyết áp sau đo lại', 'Thiết bị đo SpO2 báo sai lần đầu', 'Ghi trùng một lần đo'], index),
+    reason_category: pick(['wrong_time', 'wrong_value', 'device_error', 'duplicate'], index),
+    current_values: { blood_pressure: index % 3 === 0 ? '186/102' : '124/78', spo2: index % 4 === 0 ? 91 : 98 },
+    proposed_values: { blood_pressure: index % 3 === 0 ? '166/94' : '122/76', spo2: index % 4 === 0 ? 96 : 98 },
+    status: pick(['pending', 'approved', 'applied', 'rejected'], index),
+    reviewed_by: index % 4 !== 0 ? doctorId(index) : undefined,
+    reviewed_at: index % 4 !== 0 ? dateAt(index, 10, 45) : undefined,
+    review_note: index % 4 !== 0 ? 'Đã đối chiếu phiếu theo dõi tại giường.' : undefined,
+  }));
+}
+
+function buildNursingMonitoringSessionDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('NursingMonitoringSession', index, {
+    patient_id: patientId(index),
+    encounter_id: idFor('Encounter', index % BASE_COUNT),
+    admission_id: index % 4 === 0 ? idFor('Admission', index % BASE_COUNT) : undefined,
+    source_type: pick(['abnormal_vital', 'post_procedure', 'post_medication', 'doctor_request', 'manual'], index),
+    source_id: index % 3 === 0 ? idFor('VitalSign', index % BASE_COUNT) : undefined,
+    reason: pick(['Huyết áp cao cần theo dõi mỗi 30 phút', 'Theo dõi sốt sau truyền dịch', 'SpO2 thấp khi vận động', 'Theo dõi phản ứng sau dùng kháng sinh'], index),
+    priority: pick(['medium', 'high', 'critical', 'low'], index),
+    risk_score: 35 + (index % 6) * 10,
+    status: temporalBucket(index) === 'past' ? pick(['stable', 'resolved'], index) : pick(['active', 'watching', 'doctor_notified', 'escalated'], index),
+    assigned_nurse_id: nurseId(index),
+    attending_doctor_id: doctorId(index),
+    department_id: doctorDepartmentId(index),
+    started_at: dateAt(index, 8, 0),
+    last_checked_at: dateAt(index, 9, 20),
+    next_check_at: temporalBucket(index) !== 'past' ? dateAt(index, 10, 0) : undefined,
+    sla_due_at: temporalBucket(index) !== 'past' ? dateAt(index, 10, 15) : undefined,
+    doctor_notified_at: index % 4 === 0 ? dateAt(index, 9, 35) : undefined,
+    escalated_at: index % 8 === 0 ? dateAt(index, 9, 50) : undefined,
+    resolved_at: temporalBucket(index) === 'past' ? dateAt(index, 11, 30) : undefined,
+    tags: index % 3 === 0 ? ['huyet_ap_cao', 'can_bao_bac_si'] : ['theo_doi_dinh_ky'],
+    metadata: { demoCode: code('MON-DD', index), shift: pick(['morning', 'afternoon', 'night'], index) },
+  }));
+}
+
+function buildNursingMonitoringCheckDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT * 2).map((index) => {
+    const sessionIndex = index % NURSE_WORKSPACE_COUNT;
+    return make('NursingMonitoringCheck', index, {
+      monitoring_session_id: idFor('NursingMonitoringSession', sessionIndex),
+      patient_id: patientId(sessionIndex),
+      encounter_id: idFor('Encounter', sessionIndex % BASE_COUNT),
+      checked_by: nurseId(sessionIndex),
+      checked_at: dateAt(sessionIndex, 8 + (index % 3), 10 + (index % 4) * 10),
+      subjective_note: pick(['Bệnh nhân đỡ mệt, còn hơi chóng mặt.', 'Bệnh nhân còn sốt nhẹ, uống nước được.', 'Không đau ngực, không khó thở tăng.', 'Ngủ được, gọi hỏi đáp tốt.'], index),
+      objective_note: pick(['Da niêm hồng, không co kéo hô hấp.', 'Mạch đều, SpO2 cải thiện sau nghỉ.', 'Vết thương khô, không thấm dịch.', 'Huyết áp giảm sau nghỉ tại giường.'], index),
+      intervention_note: pick(['Nhắc nghỉ tại giường và báo khi chóng mặt.', 'Lau mát, khuyến khích uống nước theo chỉ định.', 'Đặt chuông gọi trong tầm tay.', 'Báo bác sĩ khi chỉ số vượt ngưỡng.'], index),
+      vital_sign_id: idFor('VitalSign', sessionIndex % BASE_COUNT),
+      pain_score: sessionIndex % 7,
+      consciousness: 'Tỉnh, tiếp xúc tốt',
+      warning_flags: sessionIndex % 5 === 0 ? ['SpO2 thấp', 'Huyết áp cao'] : [],
+      next_check_at: dateAt(sessionIndex, 10, 0),
+      need_doctor_notification: sessionIndex % 5 === 0,
+      status_after_check: pick(['stable', 'watching', 'worse', 'critical'], index),
+    });
+  });
+}
+
+function buildDoctorNotificationRequestDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('DoctorNotificationRequest', index, {
+    request_no: code('BCBS-2026', index),
+    patient_id: patientId(index),
+    encounter_id: idFor('Encounter', index % BASE_COUNT),
+    admission_id: index % 4 === 0 ? idFor('Admission', index % BASE_COUNT) : undefined,
+    from_nurse_id: nurseId(index),
+    to_doctor_id: doctorId(index),
+    department_id: doctorDepartmentId(index),
+    priority: pick(['routine', 'urgent', 'stat', 'critical'], index),
+    category: pick(['abnormal_vital', 'post_procedure', 'post_medication', 'patient_complaint', 'manual'], index),
+    sbar: {
+      situation: pick(['Huyết áp đo lại vẫn cao.', 'Bệnh nhân sốt sau truyền dịch.', 'Người bệnh nổi mẩn nhẹ sau thuốc.', 'SpO2 giảm khi đi lại.'], index),
+      background: 'Bệnh nhân đang trong quy trình theo dõi điều dưỡng hôm nay.',
+      assessment: 'Tỉnh, tiếp xúc được; cần bác sĩ xem xét y lệnh nếu triệu chứng không cải thiện.',
+      recommendation: 'Đề nghị bác sĩ phản hồi hướng xử trí và ngưỡng báo lại.',
+    },
+    latest_vital_sign_id: idFor('VitalSign', index % BASE_COUNT),
+    related_order_id: orderId('service', index % BASE_COUNT),
+    related_alert_id: idFor('ClinicalAlert', index),
+    status: temporalBucket(index) === 'past' ? pick(['responded', 'closed', 'acknowledged'], index) : pick(['sent', 'delivered', 'seen', 'escalated'], index),
+    sent_at: dateAt(index, 9, 30),
+    delivered_at: dateAt(index, 9, 31),
+    seen_at: index % 3 !== 0 ? dateAt(index, 9, 40) : undefined,
+    acknowledged_at: temporalBucket(index) === 'past' ? dateAt(index, 9, 45) : undefined,
+    responded_at: temporalBucket(index) === 'past' ? dateAt(index, 10, 0) : undefined,
+    doctor_response: temporalBucket(index) === 'past' ? 'Tiếp tục theo dõi, báo lại nếu huyết áp trên 170/100 hoặc khó thở.' : undefined,
+    sla_due_at: dateAt(index, 10, 0),
+    escalation_level: index % 8 === 0 ? 1 : 0,
+    escalated_to_user_id: index % 8 === 0 ? doctorId(index + 1) : undefined,
+    escalated_at: index % 8 === 0 ? dateAt(index, 9, 55) : undefined,
+  }));
+}
+
+function buildClinicalAlertRuleDocs() {
+  const rules = [
+    ['BP_HIGH', 'Cảnh báo huyết áp cao', 'vital_sign', { systolic_gte: 160, diastolic_gte: 95 }, 'high'],
+    ['FEVER', 'Cảnh báo sốt', 'vital_sign', { temperature_gte: 38.5 }, 'warning'],
+    ['SPO2_LOW', 'Cảnh báo SpO2 thấp', 'vital_sign', { spo2_lte: 94 }, 'critical'],
+    ['DRUG_ALLERGY', 'Cảnh báo dị ứng thuốc', 'medication_reaction', { suspected_allergy: true }, 'high'],
+    ['FALL_RISK', 'Cảnh báo nguy cơ té ngã', 'manual', { fall_risk_score_gte: 3 }, 'warning'],
+    ['POST_PROC_PAIN', 'Đau tăng sau thủ thuật', 'procedure_observation', { pain_score_gte: 7 }, 'high'],
+    ['LAB_CRITICAL', 'Kết quả xét nghiệm nguy cấp', 'lab_result_item', { critical: true }, 'critical'],
+    ['WOUND_BLEEDING', 'Chảy máu vết thương', 'procedure_observation', { bleeding_level: 'moderate' }, 'high'],
+    ['GLUCOSE_HIGH', 'Đường huyết cao', 'vital_sign', { glucose_gte: 250 }, 'warning'],
+    ['NEWS2_HIGH', 'Điểm cảnh báo sớm cao', 'vital_sign', { news2_gte: 7 }, 'critical'],
+    ['MED_REACTION', 'Phản ứng sau dùng thuốc', 'medication_reaction', { severity_gte: 'moderate' }, 'high'],
+    ['NURSE_ESCALATION', 'Điều dưỡng yêu cầu hỗ trợ', 'manual', { escalation_level_gte: 1 }, 'warning'],
+  ];
+
+  return rules.map(([ruleCode, name, sourceType, condition, severity], index) => make('ClinicalAlertRule', index, {
+    code: ruleCode,
+    name,
+    source_type: sourceType,
+    condition,
+    severity,
+    title_template: name,
+    message_template: 'Người bệnh có dấu hiệu cần điều dưỡng kiểm tra và báo bác sĩ khi cần.',
+    suggested_action: 'Đánh giá lại tại giường, ghi nhận sinh hiệu mới và xử trí theo quy trình khoa.',
+    enabled: true,
+    department_id: doctorDepartmentId(index),
+  }));
+}
+
+function buildClinicalAlertDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('ClinicalAlert', index, {
+    patient_id: patientId(index),
+    encounter_id: idFor('Encounter', index % BASE_COUNT),
+    admission_id: index % 4 === 0 ? idFor('Admission', index % BASE_COUNT) : undefined,
+    source_type: pick(['vital_sign', 'medication_reaction', 'procedure_observation', 'manual'], index),
+    source_id: idFor(index % 2 === 0 ? 'VitalSign' : 'NursingMonitoringSession', index % BASE_COUNT),
+    rule_code: pick(['BP_HIGH', 'FEVER', 'SPO2_LOW', 'DRUG_ALLERGY', 'FALL_RISK'], index),
+    title: pick(['Huyết áp cao cần theo dõi', 'Sốt 38.8°C', 'SpO2 thấp khi vận động', 'Nghi ngờ dị ứng thuốc', 'Nguy cơ té ngã cao'], index),
+    message: pick([
+      'Huyết áp sau nghỉ vẫn cao, cần đo lại và báo bác sĩ nếu không giảm.',
+      'Bệnh nhân sốt nhẹ, cần theo dõi nhiệt độ và dấu hiệu nhiễm trùng.',
+      'SpO2 xuống 92% khi đi lại, cần cho nghỉ và đánh giá hô hấp.',
+      'Nổi mẩn sau dùng thuốc, cần theo dõi phản ứng dị ứng.',
+      'Người bệnh chóng mặt khi đứng dậy, cần hỗ trợ di chuyển.',
+    ], index),
+    severity: pick(['high', 'warning', 'critical', 'high', 'warning'], index),
+    status: temporalBucket(index) === 'past' ? pick(['resolved', 'acknowledged'], index) : pick(['open', 'doctor_notified', 'escalated'], index),
+    assigned_to_user_id: nurseId(index),
+    department_id: doctorDepartmentId(index),
+    acknowledged_by: temporalBucket(index) !== 'future' ? nurseId(index) : undefined,
+    acknowledged_at: temporalBucket(index) !== 'future' ? dateAt(index, 9, 10) : undefined,
+    doctor_notification_request_id: idFor('DoctorNotificationRequest', index),
+    doctor_notified_at: index % 3 === 0 ? dateAt(index, 9, 35) : undefined,
+    escalated_at: index % 8 === 0 ? dateAt(index, 9, 50) : undefined,
+    resolved_by: temporalBucket(index) === 'past' ? nurseId(index) : undefined,
+    resolved_at: temporalBucket(index) === 'past' ? dateAt(index, 11, 0) : undefined,
+    sla_due_at: dateAt(index, 10, 0),
+    breached_at: index % 9 === 0 ? dateAt(index, 10, 5) : undefined,
+  }));
+}
+
+function buildPostProcedureObservationDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('PostProcedureObservation', index, {
+    procedure_order_id: idFor('ProcedureOrder', index % BASE_COUNT),
+    patient_id: patientId(index),
+    encounter_id: idFor('Encounter', index % BASE_COUNT),
+    admission_id: index % 4 === 0 ? idFor('Admission', index % BASE_COUNT) : undefined,
+    observed_by: nurseId(index),
+    observed_at: dateAt(index, 10, 30),
+    pain_score: index % 8,
+    bleeding_level: pick(['none', 'mild', 'moderate', 'none'], index),
+    wound_status: pick(['Vết thương khô, mép gọn', 'Băng hơi thấm dịch hồng nhạt', 'Không sưng nóng đỏ', 'Cần thay băng lại trong ca'], index),
+    consciousness: 'alert',
+    nausea: index % 6 === 0,
+    vomiting: false,
+    dizziness: index % 5 === 0,
+    dyspnea: index % 9 === 0,
+    vital_sign_id: idFor('VitalSign', index % BASE_COUNT),
+    intervention_note: 'Đã kiểm tra băng, hướng dẫn người bệnh báo khi đau tăng hoặc chóng mặt.',
+    patient_instruction: 'Giữ vùng thủ thuật khô, không tự tháo băng.',
+    complication_flags: index % 6 === 0 ? ['pain_increase'] : [],
+    severity: pick(['normal', 'watch', 'urgent'], index),
+    next_check_at: dateAt(index, 11, 30),
+    doctor_notified: index % 6 === 0,
+    doctor_notification_request_id: index % 6 === 0 ? idFor('DoctorNotificationRequest', index) : undefined,
+    status: temporalBucket(index) === 'past' ? 'resolved' : pick(['monitoring', 'stable', 'doctor_notified'], index),
+  }));
+}
+
+function buildMedicationReactionObservationDocs() {
+  return indexes(NURSE_WORKSPACE_COUNT).map((index) => make('MedicationReactionObservation', index, {
+    medication_administration_id: idFor('MedicationAdministration', index % BASE_COUNT),
+    patient_id: patientId(index),
+    encounter_id: idFor('Encounter', index % BASE_COUNT),
+    admission_id: index % 4 === 0 ? idFor('Admission', index % BASE_COUNT) : undefined,
+    observed_by: nurseId(index),
+    observed_at: dateAt(index, 10, 45),
+    symptoms: index % 5 === 0 ? ['Nổi mẩn nhẹ vùng cổ tay', 'Ngứa da'] : ['Không ghi nhận phản ứng bất thường'],
+    onset_at: index % 5 === 0 ? dateAt(index, 10, 30) : undefined,
+    severity: index % 5 === 0 ? pick(['mild', 'moderate'], index) : 'mild',
+    suspected_allergy: index % 5 === 0,
+    suspected_medication_id: idFor('MedicationMaster', index % medicationSeeds.length),
+    vital_sign_id: idFor('VitalSign', index % BASE_COUNT),
+    intervention_note: index % 5 === 0 ? 'Tạm ngưng theo dõi thêm, báo bác sĩ nếu mẩn lan rộng.' : 'Theo dõi sau dùng thuốc ổn định.',
+    medication_stopped: index % 10 === 0,
+    doctor_notification_request_id: index % 5 === 0 ? idFor('DoctorNotificationRequest', index) : undefined,
+    status: index % 5 === 0 ? pick(['observed', 'doctor_notified', 'allergy_recorded'], index) : 'resolved',
+  }));
+}
+
 function buildFacilityLocationDocs() {
   return indexes(BASE_COUNT).map((index) => make('FacilityLocation', index, {
     name: pick([
@@ -2125,10 +2883,25 @@ function buildAllDocs(passwordHash) {
     Admission: buildAdmissionDocs,
     BedAssignment: buildBedAssignmentDocs,
     InpatientTask: buildInpatientTaskDocs,
+    InpatientHandover: buildInpatientHandoverDocs,
     NursingIntake: buildNursingIntakeDocs,
     NursingTask: buildNursingTaskDocs,
+    NursingHandoff: buildNursingHandoffDocs,
+    NursingTaskTemplate: buildNursingTaskTemplateDocs,
     TriageAssessment: buildTriageAssessmentDocs,
     ServicePreparationChecklist: buildServicePreparationChecklistDocs,
+    ServicePreparation: buildServicePreparationDocs,
+    PreparationChecklistTemplate: buildPreparationChecklistTemplateDocs,
+    PreparationChecklistItem: buildPreparationChecklistItemDocs,
+    PreparationActivity: buildPreparationActivityDocs,
+    VitalSignCorrectionRequest: buildVitalSignCorrectionRequestDocs,
+    NursingMonitoringSession: buildNursingMonitoringSessionDocs,
+    NursingMonitoringCheck: buildNursingMonitoringCheckDocs,
+    DoctorNotificationRequest: buildDoctorNotificationRequestDocs,
+    ClinicalAlert: buildClinicalAlertDocs,
+    ClinicalAlertRule: buildClinicalAlertRuleDocs,
+    PostProcedureObservation: buildPostProcedureObservationDocs,
+    MedicationReactionObservation: buildMedicationReactionObservationDocs,
     ServiceCatalog: buildServiceCatalogDocs,
     Charge: buildChargeDocs,
     Invoice: buildInvoiceDocs,
@@ -2155,19 +2928,18 @@ function buildAllDocs(passwordHash) {
     ConsentRecord: buildConsentRecordDocs,
     BreakGlassAccess: buildBreakGlassAccessDocs,
     EmergencyCase: buildEmergencyCaseDocs,
+    EmergencyCaseEvent: buildEmergencyCaseEventDocs,
+    EmergencyTriage: buildEmergencyTriageDocs,
     FacilityLocation: buildFacilityLocationDocs,
   };
 
   const docsByModel = new Map();
   const targetModels = Object.entries(models)
-    .filter(([name, Model]) => Model?.schema && !SKIPPED_MODELS.has(name))
+    .filter(([name, Model]) => Model?.schema && !SKIPPED_MODELS.has(name) && builders[name])
     .map(([name]) => name);
 
   for (const modelName of targetModels) {
     const builder = builders[modelName];
-    if (!builder) {
-      throw new Error(`Thiếu builder seed cho model ${modelName}.`);
-    }
     docsByModel.set(modelName, builder());
   }
 
@@ -2196,6 +2968,20 @@ async function upsertDocs(docsByModel) {
   const summary = [];
   for (const [modelName, docs] of docsByModel.entries()) {
     const Model = models[modelName];
+    if (RESET_BEFORE_UPSERT_MODELS.has(modelName)) {
+      await Model.deleteMany({ _id: { $in: docs.map((doc) => doc._id) } });
+    }
+    if (modelName === 'UserPreference') {
+      await Model.deleteMany({
+        $or: [
+          { actor_type: 'staff', actor_id: { $in: staffProfiles.map((_, index) => userId(index)) } },
+          { actor_type: 'patient', actor_id: { $in: patientProfiles.map((_, index) => patientAccountId(index)) } },
+        ],
+      });
+    }
+    if (modelName === 'DoctorSchedule' || modelName === 'ScheduleSlot') {
+      await Model.deleteMany({ doctor_id: { $in: indexes(DOCTOR_COUNT).map((index) => doctorId(index)) } });
+    }
     const operations = docs.map((doc) => {
       const { _id, created_at: createdAt, ...set } = doc;
       return {
@@ -2247,10 +3033,1229 @@ function printSummary(summary) {
   }
 }
 
+async function connectSeedDatabase() {
+  const uri = process.env.MONGODB_URI;
+  const dbName = process.env.MONGODB_DB_NAME;
+
+  if (!uri) throw new Error('Missing MONGODB_URI in .env.');
+  if (dbName !== 'healthcare_system') {
+    throw new Error(`Refusing to seed database "${dbName || '(empty)'}"; expected "healthcare_system".`);
+  }
+
+  await mongoose.connect(uri, { dbName });
+  if (mongoose.connection.name !== 'healthcare_system') {
+    throw new Error(`Refusing to seed connected database "${mongoose.connection.name}"; expected "healthcare_system".`);
+  }
+
+  console.log(`Connected database: ${mongoose.connection.name}`);
+}
+
+async function ensureDemoCoreRoleAssignments() {
+  const roleCodesByUserIndex = new Map();
+  indexes(12).forEach((index) => roleCodesByUserIndex.set(index, 'doctor'));
+  indexes(6).forEach((index) => roleCodesByUserIndex.set(12 + index, 'nurse'));
+  indexes(3).forEach((index) => roleCodesByUserIndex.set(18 + index, 'lab_technician'));
+  indexes(3).forEach((index) => roleCodesByUserIndex.set(21 + index, 'imaging_technician'));
+  indexes(2).forEach((index) => roleCodesByUserIndex.set(24 + index, 'pharmacist'));
+  indexes(2).forEach((index) => roleCodesByUserIndex.set(26 + index, 'cashier'));
+  roleCodesByUserIndex.set(28, 'admin');
+  roleCodesByUserIndex.set(29, 'receptionist');
+
+  const roleCodes = [...new Set(roleCodesByUserIndex.values())];
+  const roles = await models.Role.find({ role_code: { $in: roleCodes }, status: 'active', is_deleted: false }).lean();
+  const roleByCode = new Map(roles.map((role) => [role.role_code, role]));
+  const operations = [];
+
+  for (const [userIndex, roleCode] of roleCodesByUserIndex.entries()) {
+    const role = roleByCode.get(roleCode);
+    if (!role) continue;
+    operations.push({
+      updateOne: {
+        filter: { user_id: userId(userIndex), role_id: role._id },
+        update: {
+          $set: { is_active: true, updated_at: new Date() },
+          $setOnInsert: { user_id: userId(userIndex), role_id: role._id, created_at: new Date() },
+        },
+        upsert: true,
+      },
+    });
+  }
+
+  if (!operations.length) return { requested: 0, seeded: 0, upserted: 0, modified: 0 };
+  const result = await models.UserRole.bulkWrite(operations, { ordered: false, timestamps: false });
+  const seeded = await models.UserRole.countDocuments({
+    user_id: { $in: [...roleCodesByUserIndex.keys()].map((index) => userId(index)) },
+    role_id: { $in: roles.map((role) => role._id) },
+    is_active: true,
+  });
+
+  return {
+    requested: operations.length,
+    seeded,
+    upserted: result.upsertedCount || 0,
+    modified: result.modifiedCount || 0,
+  };
+}
+
+async function ensureInvoiceConsistency() {
+  const invoices = await models.Invoice.find({ status: { $ne: 'voided' } });
+  const validStatuses = new Set(['draft', 'issued', 'partially_paid', 'paid', 'voided', 'cancelled', 'refunded']);
+  let modified = 0;
+  for (const invoice of invoices) {
+    const paidAmount = Number(invoice.paid_amount || 0);
+    const balanceDue = Math.max(0, Number(invoice.total_amount || 0) - paidAmount);
+    const currentStatus = validStatuses.has(invoice.status) ? invoice.status : 'issued';
+    const nextStatus = currentStatus === 'draft'
+      ? currentStatus
+      : balanceDue === 0
+        ? 'paid'
+        : paidAmount > 0
+          ? 'partially_paid'
+          : currentStatus;
+    if (Number(invoice.balance_due || 0) !== balanceDue || invoice.status !== nextStatus) {
+      invoice.balance_due = balanceDue;
+      invoice.status = nextStatus;
+      await invoice.save();
+      modified += 1;
+    }
+  }
+  return { requested: invoices.length, seeded: invoices.length, upserted: 0, modified };
+}
+
+async function ensureCompletedAppointmentsHaveEncounters() {
+  const completedAppointments = await models.Appointment.find({ status: 'completed', is_deleted: false }).lean();
+  const operations = [];
+  for (const appointment of completedAppointments) {
+    const existing = await models.Encounter.findOne({
+      appointment_id: appointment._id,
+      status: { $ne: 'cancelled' },
+    }).select('_id').lean();
+    if (existing) continue;
+    const appointmentIdText = String(appointment._id);
+    const startTime = appointment.appointment_time || appointment.checked_in_at || appointment.created_at || new Date();
+    const endTime = appointment.completed_at || addMinutes(new Date(startTime), 45);
+    operations.push({
+      updateOne: {
+        filter: { appointment_id: appointment._id, status: { $ne: 'cancelled' } },
+        update: {
+          $setOnInsert: {
+            _id: stableObjectId(`CompletedAppointmentEncounter:${appointmentIdText}`),
+            patient_id: appointment.patient_id,
+            appointment_id: appointment._id,
+            department_id: appointment.department_id,
+            attending_doctor_id: appointment.doctor_id,
+            encounter_code: `LK-AUTO-${appointmentIdText.slice(-8).toUpperCase()}`,
+            encounter_type: appointment.appointment_type === 'emergency' ? 'emergency' : 'outpatient',
+            start_time: startTime,
+            end_time: endTime,
+            chief_reason: appointment.reason || 'Hoàn tất lịch hẹn khám',
+            started_at: startTime,
+            started_by: appointment.doctor_id,
+            completed_by: appointment.doctor_id,
+            nursing_status: 'completed',
+            ready_for_doctor_at: appointment.checked_in_at || startTime,
+            status: 'completed',
+            created_at: new Date(),
+            updated_at: new Date(),
+            created_by: appointment.doctor_id,
+            updated_by: appointment.doctor_id,
+          },
+        },
+        upsert: true,
+      },
+    });
+  }
+
+  if (!operations.length) return { requested: completedAppointments.length, seeded: 0, upserted: 0, modified: 0 };
+  const result = await models.Encounter.bulkWrite(operations, { ordered: false, timestamps: false });
+  return {
+    requested: completedAppointments.length,
+    seeded: operations.length,
+    upserted: result.upsertedCount || 0,
+    modified: result.modifiedCount || 0,
+  };
+}
+
+async function bulkUpdateSeeded(modelName, count, buildUpdate, offset = 0) {
+  const Model = models[modelName];
+  const operations = indexes(count).map((index) => ({
+    updateOne: {
+      filter: { _id: idFor(modelName, index + offset) },
+      update: buildUpdate(index, index + offset),
+    },
+  }));
+  if (!operations.length) return { requested: 0, matched: 0, modified: 0 };
+  const result = await Model.bulkWrite(operations, { ordered: false, timestamps: false });
+  return {
+    requested: operations.length,
+    matched: result.matchedCount || 0,
+    modified: result.modifiedCount || 0,
+  };
+}
+
+async function ensureNurseWorkspaceApiCoverage() {
+  const now = new Date();
+  const todayStart = todayAt(0, 0);
+  const morningStart = todayAt(7, 0);
+  const maiHuong = await models.User.findOne({ username: 'dd.maihuong' }).select('_id department_id').lean();
+  if (!maiHuong) throw new Error('Khong tim thay tai khoan dieu duong dd.maihuong de seed Nurse Workspace.');
+  const nurseId = maiHuong._id;
+  const departmentId = maiHuong.department_id || idFor('Department', 0);
+  const nextNurseId = userId(13);
+  const doctorId = userId(5);
+  const otherDoctorId = userId(0);
+
+  await bulkUpdateSeeded('Appointment', 48, (index) => ({
+    $set: {
+      department_id: departmentId,
+      doctor_id: index % 2 === 0 ? doctorId : otherDoctorId,
+      appointment_date: todayStart,
+      appointment_time: addMinutes(morningStart, index * 8),
+      checked_in_at: addMinutes(morningStart, index * 8 + 3),
+      status: pick(['checked_in', 'waiting', 'in_progress', 'completed', 'no_show', 'cancelled'], index),
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('QueueTicket', 48, (index) => ({
+    $set: {
+      department_id: departmentId,
+      doctor_id: index % 2 === 0 ? doctorId : otherDoctorId,
+      assigned_nurse_id: index % 5 === 0 ? null : nurseId,
+      queue_date: todayStart,
+      checkin_time: addMinutes(morningStart, index * 5),
+      status: pick(['waiting', 'called', 'recalled', 'in_service', 'skipped', 'completed', 'no_show', 'waiting'], index),
+      priority: pick(['low', 'medium', 'high', 'urgent'], index),
+      nursing_stage: pick([
+        'waiting_nurse',
+        'waiting_nurse',
+        'triage_pending',
+        'triage_in_progress',
+        'vital_pending',
+        'nurse_in_progress',
+        'ready_for_doctor',
+        'waiting_nurse',
+      ], index),
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('Encounter', 72, (index) => ({
+    $set: {
+      department_id: departmentId,
+      attending_doctor_id: index % 2 === 0 ? doctorId : otherDoctorId,
+      assigned_nurse_id: nurseId,
+      start_time: addMinutes(morningStart, index * 6),
+      started_at: addMinutes(morningStart, index * 6),
+      ready_for_doctor_at: addMinutes(morningStart, index * 6 + 20),
+      status: pick(['arrived', 'in_progress', 'on_hold', 'completed', 'arrived', 'in_progress'], index),
+      nursing_status: pick(['waiting_nurse', 'triage_pending', 'vital_pending', 'ready_for_doctor', 'completed'], index),
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('VitalSign', 36, (index) => {
+    const vital = [
+      { systolic: 188, diastolic: 112, heart: 104, temperature: 37.8, spo2: 96, rr: 22, flag: 'hypertension' },
+      { systolic: 92, diastolic: 58, heart: 112, temperature: 37.1, spo2: 95, rr: 21, flag: 'hypotension' },
+      { systolic: 128, diastolic: 78, heart: 118, temperature: 39.2, spo2: 94, rr: 24, flag: 'fever' },
+      { systolic: 134, diastolic: 84, heart: 126, temperature: 37.5, spo2: 89, rr: 30, flag: 'low_spo2' },
+      { systolic: 146, diastolic: 90, heart: 138, temperature: 38.4, spo2: 92, rr: 33, flag: 'tachycardia' },
+      { systolic: 118, diastolic: 76, heart: 86, temperature: 36.8, spo2: 98, rr: 18, flag: 'normal' },
+    ][index % 6];
+    const isAbnormal = vital.flag !== 'normal';
+    return {
+      $set: {
+        patient_id: idFor('Patient', index),
+        encounter_id: idFor('Encounter', index),
+        recorded_by: nurseId,
+        recorded_at: addMinutes(morningStart, index * 7),
+        temperature: vital.temperature,
+        heart_rate: vital.heart,
+        respiratory_rate: vital.rr,
+        blood_pressure_systolic: vital.systolic,
+        blood_pressure_diastolic: vital.diastolic,
+        oxygen_saturation: vital.spo2,
+        blood_glucose: index % 5 === 0 ? 14.2 : 6.4,
+        pain_score: index % 5,
+        abnormal_flags: isAbnormal ? [vital.flag] : [],
+        overall_severity: isAbnormal ? pick(['high', 'critical', 'medium'], index) : 'normal',
+        requires_recheck: isAbnormal,
+        requires_doctor_notification: index % 3 === 0,
+        status: 'recorded',
+        notes: isAbnormal ? 'Can theo doi lai sinh hieu va bao bac si neu khong cai thien.' : 'Sinh hieu on dinh.',
+        updated_at: now,
+      },
+    };
+  });
+
+  await bulkUpdateSeeded('VitalSignCorrectionRequest', 10, (index) => ({
+    $set: {
+      vital_sign_id: idFor('VitalSign', index),
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      department_id: departmentId,
+      requested_by: nurseId,
+      requested_at: addMinutes(morningStart, index * 9),
+      reason: pick([
+        'Can xac nhan lai huyet ap do benh nhan vua van dong.',
+        'May do SpO2 bao tin hieu yeu, can nhap lai gia tri sau khi do lai.',
+        'Nham thoi diem ghi nhan ca truc, can dieu chinh gio do.',
+        'Can sua mach do nhap thieu mot chu so.',
+        'Kiem tra lai nhiet do do benh nhan moi uong nuoc am.',
+      ], index),
+      reason_category: pick(['wrong_value', 'wrong_time', 'device_error', 'other'], index),
+      status: index < 8 ? 'pending' : 'approved',
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('ServicePreparation', 72, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      department_id: departmentId,
+      destination_department_id: departmentId,
+      assigned_nurse_id: index % 6 === 0 ? null : nurseId,
+      requested_by_user_id: index % 2 === 0 ? doctorId : otherDoctorId,
+      source_type: pick(['pre_exam', 'lab', 'imaging', 'procedure', 'pre_exam', 'lab'], index),
+      status: pick(['pending', 'assigned', 'in_progress', 'ready', 'blocked', 'transferred'], index),
+      priority: pick(['routine', 'high', 'urgent', 'stat'], index),
+      created_at: addMinutes(morningStart, index * 4),
+      updated_at: now,
+      scheduled_at: addMinutes(morningStart, index * 6 + 20),
+      sla_due_at: index % 4 === 0 ? addMinutes(now, -30) : addMinutes(now, 60 + index),
+      checklist_total: 4,
+      checklist_done: index % 4,
+      checklist_required_total: 3,
+      checklist_required_done: index % 3,
+      notes: 'Chuan bi day du giay to, vong dinh danh va huong dan benh nhan truoc khi thuc hien dich vu.',
+    },
+  }));
+
+  await bulkUpdateSeeded('NursingTask', 96, (index) => {
+    const status = index < 24
+      ? pick(['assigned', 'accepted', 'in_progress', 'waiting_doctor'], index)
+      : index < 48
+        ? pick(['assigned', 'accepted', 'in_progress'], index)
+        : index < 72
+          ? 'done'
+          : pick(['todo', 'blocked', 'waiting_doctor', 'cancelled', 'skipped', 'no_show'], index);
+    const completed = status === 'done';
+    return {
+      $set: {
+        patient_id: idFor('Patient', index % NURSE_WORKSPACE_COUNT),
+        encounter_id: idFor('Encounter', index % NURSE_WORKSPACE_COUNT),
+        department_id: departmentId,
+        assigned_to: index < 40 || completed ? nurseId : (index % 5 === 0 ? null : nextNurseId),
+        assigned_by: doctorId,
+        status,
+        priority: pick(['critical', 'urgent', 'high', 'medium', 'low'], index),
+        task_type: pick([
+          'vital_sign',
+          'triage',
+          'pre_exam',
+          'pre_lab',
+          'pre_imaging',
+          'pre_procedure',
+          'post_procedure_monitor',
+          'post_medication_monitor',
+          'doctor_report',
+          'handoff_followup',
+        ], index),
+        due_at: index >= 24 && index < 48 ? addMinutes(now, -120 - index) : addMinutes(morningStart, 40 + index * 5),
+        started_at: ['in_progress', 'waiting_doctor', 'done'].includes(status) ? addMinutes(morningStart, index * 5 + 10) : undefined,
+        completed_at: completed ? addMinutes(morningStart, index + 10) : undefined,
+        completed_by: completed ? nurseId : undefined,
+        title: pick([
+          'Do lai sinh hieu truoc khi bac si kham',
+          'Ho tro benh nhan chuan bi xet nghiem mau',
+          'Theo doi sau dung thuoc ha ap',
+          'Bao bac si ve ket qua SpO2 thap',
+          'Chuan bi ho so truoc thu thuat',
+        ], index),
+        updated_at: now,
+      },
+    };
+  });
+
+  await bulkUpdateSeeded('NursingMonitoringSession', 36, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      admission_id: idFor('Admission', index),
+      department_id: departmentId,
+      assigned_nurse_id: nurseId,
+      attending_doctor_id: index % 2 === 0 ? doctorId : otherDoctorId,
+      source_type: pick(['manual', 'abnormal_vital', 'post_procedure', 'post_medication', 'doctor_request', 'lab_critical'], index),
+      reason: pick([
+        'Theo doi huyet ap sau khi dung thuoc.',
+        'Theo doi sot va mach nhanh.',
+        'Theo doi dau nguc nhe sau thu thuat.',
+        'Theo doi phan ung sau truyen dich.',
+        'Bac si yeu cau theo doi SpO2 lien tuc.',
+      ], index),
+      priority: pick(['critical', 'high', 'medium', 'low'], index),
+      status: pick(['active', 'watching', 'doctor_notified', 'doctor_acknowledged', 'escalated', 'stable'], index),
+      started_at: addMinutes(morningStart, index * 6),
+      last_checked_at: addMinutes(morningStart, index * 6 + 20),
+      next_check_at: addMinutes(now, 15 + index * 3),
+      sla_due_at: index % 5 === 0 ? addMinutes(now, -20) : addMinutes(now, 45 + index),
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('ProcedureOrder', 24, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      department_id: departmentId,
+      ordered_by: index % 2 === 0 ? doctorId : otherDoctorId,
+      status: 'completed',
+      priority: pick(['routine', 'urgent', 'stat'], index),
+      scheduled_at: addMinutes(morningStart, index * 10),
+      started_at: addMinutes(morningStart, index * 10 + 15),
+      completed_at: addMinutes(morningStart, index * 10 + 40),
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('PostProcedureObservation', 24, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      procedure_order_id: idFor('ProcedureOrder', index),
+      observed_by: nurseId,
+      observed_at: addMinutes(morningStart, index * 10 + 50),
+      status: pick(['watching', 'stable', 'needs_attention', 'reported'], index),
+      severity: pick(['normal', 'medium', 'high', 'critical'], index),
+      note: pick([
+        'Vet thu thuat kho, khong chay mau.',
+        'Benh nhan con dau nhe, tiep tuc theo doi moi 30 phut.',
+        'Mach nhanh sau thu thuat, da bao bac si truc.',
+        'Tinh trang on, huong dan nghi ngoi tai giuong.',
+      ], index),
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('MedicationAdministration', 36, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      admission_id: idFor('Admission', index),
+      administered_by: nurseId,
+      status: pick(['given', 'held', 'refused', 'omitted', 'given', 'given'], index),
+      scheduled_at: addMinutes(morningStart, index * 8),
+      administered_at: index % 4 === 0 ? undefined : addMinutes(morningStart, index * 8 + 5),
+      hold_reason: index % 6 === 1 ? 'Benh nhan dang cho danh gia lai huyet ap.' : undefined,
+      refused_reason: index % 6 === 2 ? 'Benh nhan buon non, tam thoi tu choi uong thuoc.' : undefined,
+      omission_reason: index % 6 === 3 ? 'Chua co thuoc tai tu truc, da bao duoc.' : undefined,
+      notes: 'Ghi nhan dung thuoc theo y lenh, theo doi phan ung sau dung.',
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('MedicationReactionObservation', 24, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      medication_administration_id: idFor('MedicationAdministration', index),
+      observed_by: nurseId,
+      observed_at: addMinutes(morningStart, index * 8 + 25),
+      reaction_type: pick(['nausea', 'rash', 'dizziness', 'hypotension'], index),
+      severity: pick(['mild', 'moderate', 'severe'], index),
+      status: pick(['watching', 'reported', 'resolved', 'needs_attention'], index),
+      note: 'Benh nhan duoc theo doi phan ung sau dung thuoc, da ghi nhan va xu tri theo chi dinh.',
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('ClinicalAlert', 36, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      admission_id: idFor('Admission', index),
+      department_id: departmentId,
+      assigned_to_user_id: nurseId,
+      source_type: pick(['vital_sign', 'procedure_observation', 'medication_reaction', 'manual'], index),
+      source_id: idFor('VitalSign', index),
+      title: pick([
+        'Huyet ap tang cao can theo doi',
+        'SpO2 thap sau van dong',
+        'Sot va mach nhanh',
+        'Dau nguc nhe sau thu thuat',
+        'Nghi phan ung sau dung thuoc',
+      ], index),
+      message: 'Can dieu duong theo doi sat va bao bac si neu chi so khong cai thien.',
+      severity: pick(['critical', 'high', 'warning', 'info'], index),
+      status: pick(['open', 'acknowledged', 'doctor_notified', 'escalated', 'resolved', 'dismissed'], index),
+      acknowledged_by: index % 6 >= 1 ? nurseId : undefined,
+      acknowledged_at: index % 6 >= 1 ? addMinutes(morningStart, index * 5 + 10) : undefined,
+      doctor_notified_at: index % 6 >= 2 ? addMinutes(morningStart, index * 5 + 15) : undefined,
+      escalated_at: index % 6 === 3 ? addMinutes(morningStart, index * 5 + 20) : undefined,
+      resolved_by: index % 6 === 4 ? nurseId : undefined,
+      resolved_at: index % 6 === 4 ? addMinutes(morningStart, index * 5 + 35) : undefined,
+      dismissed_by: index % 6 === 5 ? nurseId : undefined,
+      dismissed_at: index % 6 === 5 ? addMinutes(morningStart, index * 5 + 35) : undefined,
+      sla_due_at: index % 4 === 0 ? addMinutes(now, -15) : addMinutes(now, 30 + index),
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('DoctorNotificationRequest', 42, (index) => {
+    const status = pick(['draft', 'sent', 'delivered', 'seen', 'responded', 'escalated', 'acknowledged'], index);
+    return {
+      $set: {
+        patient_id: idFor('Patient', index),
+        encounter_id: idFor('Encounter', index),
+        admission_id: idFor('Admission', index),
+        from_nurse_id: nurseId,
+        to_doctor_id: index % 2 === 0 ? doctorId : otherDoctorId,
+        department_id: departmentId,
+        priority: pick(['routine', 'urgent', 'stat', 'critical'], index),
+        category: pick(['abnormal_vital', 'post_procedure', 'post_medication', 'patient_complaint', 'manual'], index),
+        status,
+        sent_at: status !== 'draft' ? addMinutes(morningStart, index * 5) : undefined,
+        delivered_at: ['delivered', 'seen', 'responded', 'escalated', 'acknowledged'].includes(status) ? addMinutes(morningStart, index * 5 + 5) : undefined,
+        seen_at: ['seen', 'responded', 'escalated', 'acknowledged'].includes(status) ? addMinutes(morningStart, index * 5 + 10) : undefined,
+        acknowledged_at: status === 'acknowledged' ? addMinutes(morningStart, index * 5 + 15) : undefined,
+        responded_at: status === 'responded' ? addMinutes(morningStart, index * 5 + 20) : undefined,
+        escalated_at: status === 'escalated' ? addMinutes(morningStart, index * 5 + 18) : undefined,
+        doctor_response: status === 'responded' ? 'Da xem thong tin, tiep tuc theo doi va bao lai sau 30 phut.' : undefined,
+        sla_due_at: index % 5 === 0 ? addMinutes(now, -10) : addMinutes(now, 40 + index),
+        sbar: {
+          situation: 'Benh nhan co dau hieu can bac si danh gia.',
+          background: 'Dang duoc dieu duong theo doi trong ca truc.',
+          assessment: 'Chi so sinh hieu thay doi so voi lan truoc.',
+          recommendation: 'De nghi bac si phan hoi huong xu tri.',
+        },
+        updated_at: now,
+      },
+    };
+  });
+
+  await bulkUpdateSeeded('NursingHandoff', 30, (index) => ({
+    $set: {
+      department_id: departmentId,
+      from_nurse_id: nurseId,
+      to_nurse_id: nextNurseId,
+      shift_date: todayStart,
+      from_shift: pick(['morning', 'afternoon', 'night'], index),
+      to_shift: pick(['afternoon', 'night', 'morning'], index),
+      status: pick(['submitted', 'accepted', 'rejected', 'reopened', 'archived'], index),
+      submitted_at: addMinutes(morningStart, index * 6),
+      accepted_at: index % 5 === 1 ? addMinutes(morningStart, index * 6 + 20) : undefined,
+      rejected_at: index % 5 === 2 ? addMinutes(morningStart, index * 6 + 20) : undefined,
+      patient_count: 5 + (index % 4),
+      task_count: 6 + (index % 5),
+      critical_count: index % 3,
+      summary: 'Ban giao benh nhan can theo doi sinh hieu, thuoc va cac viec con mo trong ca.',
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('Admission', 36, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      encounter_id: idFor('Encounter', index),
+      department_id: departmentId,
+      attending_doctor_id: index % 2 === 0 ? doctorId : otherDoctorId,
+      admitted_at: addMinutes(todayAt(8, 0, index % 5 === 0 ? -1 : 0), index * 3),
+      admitted_by: nurseId,
+      discharged_at: undefined,
+      status: 'admitted',
+      admission_type: pick(['emergency', 'elective', 'transfer'], index),
+      priority: pick(['routine', 'high', 'urgent', 'critical'], index),
+      fall_risk_level: pick(['low', 'medium', 'high'], index),
+      infection_risk_level: pick(['low', 'medium', 'high'], index + 1),
+      pressure_ulcer_risk_level: pick(['low', 'medium', 'high'], index + 2),
+      nursing_acuity_score: 3 + (index % 8),
+      nursing_note_summary: 'Dang nam dieu tri noi tru, can theo doi sinh hieu va thuc hien y lenh trong ca.',
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('BedAssignment', 36, (index) => ({
+    $set: {
+      patient_id: idFor('Patient', index),
+      admission_id: idFor('Admission', index),
+      department_id: departmentId,
+      status: 'active',
+      assigned_at: addMinutes(todayAt(8, 30, index % 5 === 0 ? -1 : 0), index * 4),
+      assigned_by: nurseId,
+      ended_at: undefined,
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('Bed', 36, (index) => ({
+    $set: {
+      department_id: departmentId,
+      status: index % 3 === 0 ? 'reserved' : 'occupied',
+      current_patient_id: idFor('Patient', index),
+      updated_at: now,
+    },
+  }));
+
+  await bulkUpdateSeeded('InpatientTask', 36, (index) => {
+    const status = pick(['todo', 'in_progress', 'done', 'todo', 'in_progress', 'done'], index);
+    return {
+      $set: {
+        admission_id: idFor('Admission', index),
+        patient_id: idFor('Patient', index),
+        assigned_to: nurseId,
+        assigned_by: doctorId,
+        status,
+        priority: pick(['urgent', 'high', 'normal', 'low'], index),
+        due_at: index % 4 === 0 ? addMinutes(now, -90 - index) : addMinutes(now, 40 + index * 4),
+        completed_at: status === 'done' ? addMinutes(morningStart, index * 4 + 20) : undefined,
+        completed_by: status === 'done' ? nurseId : undefined,
+        source_module: 'vn_demo_nurse_workspace',
+        title: pick([
+          'Cham soc vet thuong va thay bang',
+          'Theo doi duong huyet truoc an',
+          'Ho tro benh nhan van dong tai giuong',
+          'Kiem tra duong truyen tinh mach',
+          'Ghi nhan luong nuoc vao ra',
+        ], index),
+        updated_at: now,
+      },
+    };
+  });
+
+  await bulkUpdateSeeded('InpatientHandover', 18, (index) => ({
+    $set: {
+      department_id: departmentId,
+      shift_date: todayStart,
+      from_shift: pick(['morning', 'afternoon', 'night'], index),
+      to_shift: pick(['afternoon', 'night', 'morning'], index),
+      outgoing_nurse_id: nurseId,
+      incoming_nurse_id: nextNurseId,
+      status: pick(['draft', 'prepared', 'signed', 'acknowledged', 'closed', 'reopened'], index),
+      patient_count: 6 + (index % 5),
+      high_risk_count: 2 + (index % 3),
+      abnormal_vital_count: 1 + (index % 4),
+      overdue_task_count: 1 + (index % 3),
+      medication_due_count: 3 + (index % 5),
+      signed_at: index % 6 >= 2 ? addMinutes(morningStart, index * 8) : undefined,
+      signed_by: index % 6 >= 2 ? nurseId : undefined,
+      acknowledged_at: index % 6 === 3 ? addMinutes(morningStart, index * 8 + 20) : undefined,
+      acknowledged_by: index % 6 === 3 ? nextNurseId : undefined,
+      summary: 'Ban giao noi tru gom benh nhan nguy co cao, thuoc den gio va viec cham soc can tiep tuc.',
+      updated_at: now,
+    },
+  }));
+
+  const collectionChecks = [
+    ['QueueTicket', { department_id: departmentId, queue_date: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['VitalSign', { recorded_by: nurseId, recorded_at: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['VitalSignCorrectionRequest', { department_id: departmentId, status: 'pending' }],
+    ['ServicePreparation', { department_id: departmentId, created_at: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['NursingTask', { department_id: departmentId }],
+    ['NursingMonitoringSession', { department_id: departmentId, started_at: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['ProcedureOrder', { department_id: departmentId, status: 'completed', completed_at: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['MedicationAdministration', { scheduled_at: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['ClinicalAlert', { department_id: departmentId, created_at: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['DoctorNotificationRequest', { department_id: departmentId, created_at: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['NursingHandoff', { department_id: departmentId, shift_date: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+    ['Admission', { department_id: departmentId, status: 'admitted' }],
+    ['InpatientTask', { assigned_to: nurseId }],
+    ['InpatientHandover', { department_id: departmentId, shift_date: { $gte: todayStart, $lt: addDays(todayStart, 1) } }],
+  ];
+
+  const rows = [];
+  for (const [modelName, filter] of collectionChecks) {
+    rows.push({
+      model: `${modelName}(nurse coverage)`,
+      collection: models[modelName].collection.name,
+      requested: 5,
+      seeded: await models[modelName].countDocuments(filter),
+      upserted: 0,
+      modified: 0,
+    });
+  }
+  return rows;
+}
+
+const DASHBOARD_DATES = [
+  '2026-05-12',
+  '2026-05-13',
+  '2026-05-14',
+  '2026-05-15',
+  '2026-05-16',
+  '2026-05-18',
+  '2026-05-19',
+  '2026-05-20',
+  '2026-05-21',
+  '2026-05-22',
+  '2026-05-23',
+  '2026-05-24',
+  '2026-05-25',
+  '2026-05-26',
+  '2026-05-27',
+  '2026-05-28',
+  '2026-05-29',
+];
+const REQUIRED_DASHBOARD_DATES = ['2026-05-19', '2026-05-20', '2026-05-21', '2026-05-22'];
+const DASHBOARD_APPOINTMENTS_PER_DAY = 35;
+const DASHBOARD_OPERATIONAL_RECORDS_PER_DAY = 30;
+const DASHBOARD_STATUS_QUERY = 'draft,confirmed,in_progress,result_ready';
+
+function dashId(modelName, key) {
+  return stableObjectId(`doctor-dashboard:${modelName}:${key}`);
+}
+
+function dashDate(dateKey, hour = 0, minute = 0) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0, 0);
+}
+
+function dashDoctorId() {
+  return dashId('User', 'bs.minhanh');
+}
+
+function dashDepartmentId() {
+  return departmentId(2);
+}
+
+function dashNurseId() {
+  return userId(12);
+}
+
+function dashPatientId(index) {
+  return dashId('Patient', index);
+}
+
+function dashDoc(modelName, key, data, createdAt = new Date()) {
+  const doc = {
+    _id: dashId(modelName, key),
+    ...data,
+    created_at: data.created_at || createdAt,
+    updated_at: data.updated_at || createdAt,
+  };
+  if (models[modelName]?.schema?.path('created_by') && !doc.created_by) doc.created_by = dashDoctorId();
+  if (models[modelName]?.schema?.path('updated_by') && !doc.updated_by) doc.updated_by = dashDoctorId();
+  if (models[modelName]?.schema?.path('is_deleted')) doc.is_deleted = false;
+  return doc;
+}
+
+function buildDoctorDashboardCoverageDocs(passwordHash) {
+  const doctorIdValue = dashDoctorId();
+  const departmentIdValue = dashDepartmentId();
+  const nurseId = dashNurseId();
+  const names = [
+    ['Trần Gia Bảo', 'male', '1981-02-14', '34 Hải Phòng, phường Thạch Thang, quận Hải Châu, Đà Nẵng'],
+    ['Lê Thảo Nhi', 'female', '1994-09-03', '82 Nguyễn Văn Linh, phường Vĩnh Trung, quận Thanh Khê, Đà Nẵng'],
+    ['Phạm Minh Khôi', 'male', '1972-11-18', '15 Kim Mã, phường Ngọc Khánh, quận Ba Đình, Hà Nội'],
+    ['Hoàng Ngọc Diệp', 'female', '1988-06-25', '19 Trần Duy Hưng, phường Trung Hòa, quận Cầu Giấy, Hà Nội'],
+    ['Võ Anh Tú', 'male', '1965-01-07', '47 Lê Duẩn, phường Bến Nghé, Quận 1, TP. Hồ Chí Minh'],
+    ['Đặng Khánh Linh', 'female', '2003-03-29', '106 Cách Mạng Tháng Tám, phường 13, Quận 10, TP. Hồ Chí Minh'],
+    ['Bùi Nhật Minh', 'male', '2014-12-12', '28 Phan Chu Trinh, phường Tân Lợi, TP. Buôn Ma Thuột, Đắk Lắk'],
+    ['Đỗ Mai Chi', 'female', '1959-08-21', '62 Lê Thánh Tông, phường Ia Kring, TP. Pleiku, Gia Lai'],
+    ['Hồ Quang Vinh', 'male', '1977-04-10', '11 Nguyễn Huệ, phường Vĩnh Ninh, TP. Huế'],
+    ['Cao Thanh Hằng', 'female', '1999-10-05', '77 Tây Sơn, phường Ghềnh Ráng, TP. Quy Nhơn, Bình Định'],
+  ];
+  const symptoms = [
+    'Sốt nhẹ, đau họng và mệt mỏi.',
+    'Ho kéo dài, khó thở nhẹ khi gắng sức.',
+    'Theo dõi tăng huyết áp, chóng mặt thoáng qua.',
+    'Đau bụng âm ỉ vùng thượng vị.',
+    'Tái khám sau điều trị viêm họng.',
+    'Đau đầu, mất ngủ.',
+    'Theo dõi đường huyết sau ăn.',
+    'Đau ngực nhẹ khi gắng sức.',
+    'Rối loạn tiêu hóa, buồn nôn.',
+    'Đau lưng vùng thắt lưng.',
+  ];
+  const docs = new Map([
+    ['User', [dashDoc('User', 'bs.minhanh', {
+      department_id: departmentIdValue,
+      username: 'bs.minhanh',
+      password_hash: passwordHash,
+      full_name: 'Nguyễn Minh Anh',
+      phone: '0905123786',
+      employee_code: 'BS-DEMO-MINHANH',
+      email: 'bs.minhanh@benhvienminhchau.vn',
+      date_of_birth: dashDate('1984-04-12'),
+      gender: 'female',
+      address: '126 Nguyễn Văn Linh, phường Vĩnh Trung, quận Thanh Khê, Đà Nẵng',
+      status: 'active',
+      last_login_at: dashDate('2026-05-19', 7, 18),
+      must_change_password: false,
+      permission_version: 1,
+      password_changed_at: dashDate('2026-05-01', 9, 0),
+      failed_login_attempts: 0,
+      auth_provider: 'local',
+      avatar_url: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=256&h=256&fit=crop&crop=faces',
+      email_verified: true,
+      email_verified_at: dashDate('2026-05-01', 9, 5),
+      phone_verified_at: dashDate('2026-05-01', 9, 6),
+    })]],
+    ['DoctorProfile', [dashDoc('DoctorProfile', 'bs.minhanh', {
+      user_id: doctorIdValue,
+      department_id: departmentIdValue,
+      license_number: 'CCHN-DN-2026-1582',
+      specialty: 'Nội tổng quát',
+      subspecialty: 'Theo dõi bệnh mạn tính và hô hấp',
+      qualification: 'Bác sĩ Chuyên khoa I Nội tổng quát',
+      academic_title: 'BS.CKI',
+      years_of_experience: 12,
+      consultation_duration_minutes: 20,
+      consultation_fee: 220000,
+      avatar_url: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=256&h=256&fit=crop&crop=faces',
+      biography: 'Phụ trách phòng khám nội tổng quát, theo dõi tăng huyết áp, đái tháo đường và bệnh hô hấp thường gặp.',
+      languages: ['vi', 'en'],
+      public_profile_enabled: true,
+      status: 'active',
+    })]],
+    ['Patient', []],
+    ['DoctorSchedule', []],
+    ['Appointment', []],
+    ['QueueTicket', []],
+    ['Encounter', []],
+    ['Order', []],
+    ['Prescription', []],
+    ['PrescriptionItem', []],
+    ['VitalSign', []],
+    ['ClinicalAlert', []],
+    ['Notification', []],
+  ]);
+
+  indexes(DASHBOARD_DATES.length * DASHBOARD_APPOINTMENTS_PER_DAY).forEach((index) => {
+    const [fullName, gender, dob, address] = names[index % names.length];
+    docs.get('Patient').push(dashDoc('Patient', index, {
+      patient_code: `BN-DASH-${String(index + 1).padStart(4, '0')}`,
+      full_name: `${fullName} ${index >= names.length ? Math.floor(index / names.length) + 1 : ''}`.trim(),
+      date_of_birth: dashDate(dob),
+      gender,
+      phone: `09${String(35000000 + index * 137).slice(-8)}`,
+      email: `benhnhan.dashboard.${index + 1}@example.vn`,
+      address,
+      national_id: `079${String(198000000 + index * 17).padStart(9, '0')}`,
+      insurance_number: `DN${String(1026000000 + index * 19)}`,
+      emergency_contact_name: names[(index + 3) % names.length][0],
+      emergency_contact_phone: `08${String(66000000 + index * 131).slice(-8)}`,
+      status: 'active',
+    }, dashDate('2026-05-01', 8, index % 60)));
+  });
+
+  DASHBOARD_DATES.forEach((dateKey, dateIndex) => {
+    const scheduleWindows = [[7, 0, 10, 30], [10, 30, 12, 30], [13, 0, 15, 30], [15, 30, 18, 0], [18, 0, 21, 0]];
+    scheduleWindows.forEach(([sh, sm, eh, em], slotIndex) => {
+      docs.get('DoctorSchedule').push(dashDoc('DoctorSchedule', `${dateIndex}:${slotIndex}`, {
+        doctor_id: doctorIdValue,
+        department_id: departmentIdValue,
+        work_date: dashDate(dateKey),
+        shift_start: dashDate(dateKey, sh, sm),
+        shift_end: dashDate(dateKey, eh, em),
+        slot_duration_minutes: 20,
+        max_patients: 12,
+        schedule_type: slotIndex === 4 ? 'emergency_oncall' : 'outpatient_regular',
+        patient_portal_enabled: true,
+        staff_only: false,
+        internal_note: `Ca ${slotIndex + 1} phòng Nội ${203 + (slotIndex % 2)}`,
+        break_windows: [],
+        status: dateKey === '2026-05-19' && slotIndex <= 3 ? 'active' : 'published',
+      }, dashDate(dateKey, 6, 0)));
+    });
+
+    const appointmentStatuses = ['booked', 'confirmed', 'checked_in', 'in_consultation', 'completed', 'cancelled', 'no_show'];
+    const queueStatuses = ['waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'called', 'called', 'called', 'called', 'called', 'in_service', 'in_service', 'in_service', 'in_service', 'in_service', 'completed', 'completed', 'completed', 'completed', 'completed', 'skipped', 'skipped', 'skipped', 'skipped', 'skipped', 'no_show', 'no_show', 'no_show', 'no_show', 'no_show'];
+    const encounterToday = ['arrived', 'arrived', 'arrived', 'arrived', 'arrived', 'in_progress', 'in_progress', 'in_progress', 'in_progress', 'in_progress', 'on_hold', 'on_hold', 'on_hold', 'on_hold', 'on_hold', 'completed', 'completed', 'completed', 'completed', 'completed', 'planned', 'planned', 'planned', 'cancelled', 'completed'];
+    const encounterOther = ['arrived', 'arrived', 'in_progress', 'on_hold', 'completed', 'completed', 'completed', 'planned', 'planned', 'cancelled'];
+    const orderTypes = ['lab', 'imaging', 'procedure', 'service', 'medication'];
+    const orderStatuses = ['draft', 'ordered', 'acknowledged', 'in_progress', 'completed', 'cancelled'];
+
+    indexes(DASHBOARD_APPOINTMENTS_PER_DAY).forEach((index) => {
+      const patientIndex = dateIndex * DASHBOARD_APPOINTMENTS_PER_DAY + index;
+      const appointmentTime = dashDate(dateKey, 7 + Math.floor(index / 4), (index % 4) * 15);
+      const appointmentStatus = appointmentStatuses[index % appointmentStatuses.length];
+      docs.get('Appointment').push(dashDoc('Appointment', `${dateIndex}:${index}`, {
+        patient_id: dashPatientId(patientIndex),
+        doctor_id: doctorIdValue,
+        department_id: departmentIdValue,
+        doctor_schedule_id: dashId('DoctorSchedule', `${dateIndex}:${Math.min(4, Math.floor(index / 7))}`),
+        appointment_time: appointmentTime,
+        appointment_type: index % 9 === 0 ? 'emergency' : 'outpatient',
+        reason: symptoms[index % symptoms.length],
+        source: index % 3 === 0 ? 'front_desk' : 'doctor_dashboard_seed',
+        status: appointmentStatus,
+        notes: `Ghi chú bác sĩ: ${symptoms[(index + 2) % symptoms.length]}`,
+        confirmed_at: ['confirmed', 'checked_in', 'in_consultation', 'completed'].includes(appointmentStatus) ? new Date(appointmentTime.getTime() - 45 * 60000) : undefined,
+        checked_in_at: ['checked_in', 'in_consultation', 'completed'].includes(appointmentStatus) ? new Date(appointmentTime.getTime() - 20 * 60000) : undefined,
+        completed_at: appointmentStatus === 'completed' ? new Date(appointmentTime.getTime() + 35 * 60000) : undefined,
+        no_show_at: appointmentStatus === 'no_show' ? new Date(appointmentTime.getTime() + 25 * 60000) : undefined,
+        cancelled_at: appointmentStatus === 'cancelled' ? new Date(appointmentTime.getTime() - 4 * 3600000) : undefined,
+        cancel_reason: appointmentStatus === 'cancelled' ? 'Bệnh nhân báo bận đột xuất, hẹn lại sau.' : undefined,
+      }, dashDate(dateKey, 6, index)));
+
+      if (index >= DASHBOARD_OPERATIONAL_RECORDS_PER_DAY) return;
+
+      const queueStatus = queueStatuses[index];
+      const checkin = dashDate(dateKey, 7 + Math.floor(index / 5), (index % 5) * 10 + 3);
+      docs.get('QueueTicket').push(dashDoc('QueueTicket', `${dateIndex}:${index}`, {
+        patient_id: dashPatientId(patientIndex),
+        appointment_id: dashId('Appointment', `${dateIndex}:${index}`),
+        encounter_id: dashId('Encounter', `${dateIndex}:${index}`),
+        doctor_id: doctorIdValue,
+        department_id: departmentIdValue,
+        queue_date: dashDate(dateKey),
+        queue_number: `MA${dateKey.slice(-2)}${String(index + 1).padStart(3, '0')}`,
+        display_number: `Nội-${String(index + 1).padStart(2, '0')}`,
+        queue_type: index % 10 === 0 ? 'vip' : index % 4 === 0 ? 'priority' : 'normal',
+        status: queueStatus,
+        checkin_time: checkin,
+        called_time: ['called', 'in_service', 'completed'].includes(queueStatus) ? new Date(checkin.getTime() + 12 * 60000) : undefined,
+        service_start_time: ['in_service', 'completed'].includes(queueStatus) ? new Date(checkin.getTime() + 22 * 60000) : undefined,
+        completed_time: queueStatus === 'completed' ? new Date(checkin.getTime() + 55 * 60000) : undefined,
+        no_show_at: queueStatus === 'no_show' ? new Date(checkin.getTime() + 35 * 60000) : undefined,
+        skipped_at: queueStatus === 'skipped' ? new Date(checkin.getTime() + 20 * 60000) : undefined,
+        priority_reason: index % 4 === 0 ? pick(['Đau ngực', 'Khó thở nhẹ', 'Huyết áp cao', 'Người cao tuổi cần ưu tiên'], index) : undefined,
+        nursing_stage: ['waiting', 'called'].includes(queueStatus) ? 'vital_done' : 'ready_for_doctor',
+        assigned_nurse_id: nurseId,
+        assigned_nurse_at: new Date(checkin.getTime() + 5 * 60000),
+        vital_required: true,
+        vital_recorded_at: new Date(checkin.getTime() + 9 * 60000),
+        ready_for_doctor_at: new Date(checkin.getTime() + 11 * 60000),
+        ready_for_doctor_by: nurseId,
+        doctor_room_id: 'PK-NOI-203',
+        intake_checklist_completed: true,
+      }, dashDate(dateKey, 6, index)));
+    });
+
+    indexes(DASHBOARD_APPOINTMENTS_PER_DAY).forEach((index) => {
+      const patientIndex = dateIndex * DASHBOARD_APPOINTMENTS_PER_DAY + index;
+      const status = dateKey === '2026-05-19' ? encounterToday[index % encounterToday.length] : encounterOther[index % encounterOther.length];
+      const start = dashDate(dateKey, 7 + Math.floor(index / 4), (index % 4) * 15 + 5);
+      docs.get('Encounter').push(dashDoc('Encounter', `${dateIndex}:${index}`, {
+        patient_id: dashPatientId(patientIndex),
+        appointment_id: dashId('Appointment', `${dateIndex}:${index}`),
+        department_id: departmentIdValue,
+        attending_doctor_id: doctorIdValue,
+        encounter_code: `LK-MA-${dateKey.replace(/-/g, '')}-${String(index + 1).padStart(3, '0')}`,
+        encounter_type: index % 9 === 0 ? 'emergency' : 'outpatient',
+        start_time: start,
+        end_time: ['completed', 'cancelled'].includes(status) ? new Date(start.getTime() + 45 * 60000) : undefined,
+        chief_reason: symptoms[index % symptoms.length],
+        started_at: ['in_progress', 'on_hold', 'completed'].includes(status) ? start : undefined,
+        started_by: ['in_progress', 'on_hold', 'completed'].includes(status) ? doctorIdValue : undefined,
+        completed_by: status === 'completed' ? doctorIdValue : undefined,
+        nursing_status: 'ready_for_doctor',
+        assigned_nurse_id: nurseId,
+        ready_for_doctor_at: new Date(start.getTime() - 8 * 60000),
+        status,
+      }, dashDate(dateKey, 7, index)));
+    });
+
+    indexes(DASHBOARD_OPERATIONAL_RECORDS_PER_DAY).forEach((index) => {
+      const encounterIndex = index % DASHBOARD_OPERATIONAL_RECORDS_PER_DAY;
+      const patientIndex = dateIndex * DASHBOARD_APPOINTMENTS_PER_DAY + encounterIndex;
+      const orderType = orderTypes[index % orderTypes.length];
+      const orderedAt = dashDate(dateKey, 8 + Math.floor(index / 5), (index % 5) * 10);
+      docs.get('Order').push(dashDoc('Order', `${dateIndex}:${index}`, {
+        patient_id: dashPatientId(patientIndex),
+        encounter_id: dashId('Encounter', `${dateIndex}:${encounterIndex}`),
+        department_id: orderType === 'lab' ? departmentId(7) : orderType === 'imaging' ? departmentId(6) : departmentIdValue,
+        ordered_by: doctorIdValue,
+        service_id: idFor('ServiceCatalog', (index + dateIndex) % serviceSeeds.length),
+        order_no: `ORD-MA-${dateKey.replace(/-/g, '')}-${String(index + 1).padStart(3, '0')}`,
+        order_code: `ORD-MA-${dateKey.replace(/-/g, '')}-${String(index + 1).padStart(3, '0')}`,
+        title: pick(['Công thức máu và CRP', 'X-quang ngực thẳng', 'Siêu âm bụng tổng quát', 'Điện tim tại phòng khám', 'Đơn thuốc điều trị triệu chứng'], index),
+        order_type: orderType,
+        priority: index % 11 === 0 ? 'stat' : index % 4 === 0 ? 'urgent' : 'routine',
+        is_billable: true,
+        clinical_indication: symptoms[(index + 1) % symptoms.length],
+        requested_at: new Date(orderedAt.getTime() - 10 * 60000),
+        ordered_at: orderedAt,
+        status: dateKey === '2026-05-19' && index < 24 ? DASHBOARD_STATUS_QUERY : orderStatuses[index % orderStatuses.length],
+        items_count: 1 + (index % 4),
+      }, dashDate(dateKey, 8, index)));
+    });
+
+    indexes(15).forEach((index) => {
+      const prescribedAt = dashDate(dateKey, 9 + Math.floor(index / 4), (index % 4) * 12);
+      docs.get('Prescription').push(dashDoc('Prescription', `${dateIndex}:${index}`, {
+        order_id: dashId('Order', `${dateIndex}:${index * 2}`),
+        patient_id: dashPatientId(dateIndex * DASHBOARD_APPOINTMENTS_PER_DAY + index),
+        encounter_id: dashId('Encounter', `${dateIndex}:${index}`),
+        prescribed_by: doctorIdValue,
+        prescription_no: `DT-MA-${dateKey.replace(/-/g, '')}-${String(index + 1).padStart(3, '0')}`,
+        prescribed_at: prescribedAt,
+        version: 1,
+        is_current: true,
+        status: index % 5 === 0 ? 'verified' : index % 7 === 0 ? 'draft' : 'active',
+        note: 'Dặn bệnh nhân uống thuốc đúng giờ, tái khám nếu triệu chứng tăng.',
+      }, dashDate(dateKey, 9, index)));
+      docs.get('PrescriptionItem').push(dashDoc('PrescriptionItem', `${dateIndex}:${index}:0`, {
+        prescription_id: dashId('Prescription', `${dateIndex}:${index}`),
+        medication_id: idFor('MedicationMaster', index % 24),
+        dose: pick(['1 viên', '2 viên', '1 gói', '5 ml'], index),
+        frequency: pick(['mỗi sáng', 'ngày 2 lần', 'mỗi 6 giờ khi sốt', 'sau ăn tối'], index),
+        route: 'oral',
+        duration_days: 5 + (index % 5),
+        quantity: 10 + (index % 4) * 5,
+        unit: index % 4 === 2 ? 'gói' : 'viên',
+        dispensed_quantity: 0,
+        instructions: pick(['uống sau ăn', 'theo dõi huyết áp tại nhà', 'tránh rượu bia', 'uống nhiều nước'], index),
+        status: 'active',
+      }, dashDate(dateKey, 9, index + 5)));
+    });
+
+    indexes(DASHBOARD_OPERATIONAL_RECORDS_PER_DAY).forEach((index) => {
+      const abnormal = index < 10 || index % 7 === 0;
+      const recordedAt = dashDate(dateKey, 7 + Math.floor(index / 5), (index % 5) * 10 + 8);
+      docs.get('VitalSign').push(dashDoc('VitalSign', `${dateIndex}:${index}`, {
+        patient_id: dashPatientId(dateIndex * DASHBOARD_APPOINTMENTS_PER_DAY + index),
+        encounter_id: dashId('Encounter', `${dateIndex}:${index}`),
+        queue_ticket_id: dashId('QueueTicket', `${dateIndex}:${index}`),
+        appointment_id: dashId('Appointment', `${dateIndex}:${index}`),
+        context: 'encounter',
+        recorded_by: nurseId,
+        temperature: abnormal && index % 3 === 0 ? 38.7 : 36.6 + (index % 5) * 0.1,
+        heart_rate: abnormal && index % 4 === 0 ? 112 : 72 + (index % 18),
+        respiratory_rate: abnormal && index % 5 === 0 ? 25 : 16 + (index % 4),
+        systolic_bp: abnormal && index % 2 === 0 ? 158 : 112 + (index % 16),
+        diastolic_bp: abnormal && index % 2 === 0 ? 96 : 70 + (index % 10),
+        spo2: abnormal && index % 6 === 0 ? 92 : 97 + (index % 3),
+        weight: 48 + (index % 35),
+        height: 150 + (index % 28),
+        pain_score: abnormal ? 5 + (index % 4) : index % 3,
+        blood_glucose: abnormal && index % 4 === 1 ? 198 : 92 + (index % 30),
+        measurement_position: 'sitting',
+        temperature_site: 'axillary',
+        bp_site: 'left_arm',
+        source: 'manual',
+        note: abnormal ? 'Có chỉ số bất thường, đã báo bác sĩ phụ trách.' : 'Sinh hiệu ổn định trước khi vào khám.',
+        recorded_at: recordedAt,
+        abnormal_flags: abnormal ? [{ field: index % 2 === 0 ? 'blood_pressure' : 'temperature', value: index % 2 === 0 ? '158/96' : 38.7, threshold: index % 2 === 0 ? '>140/90' : '>38.0', level: index % 3 === 0 ? 'high' : 'warning', severity: index % 3 === 0 ? 'high' : 'warning', message: index % 2 === 0 ? 'Huyết áp cao cần theo dõi sát.' : 'Sốt cần đánh giá nhiễm trùng.', recommendation: 'Đo lại sau 15 phút và thông báo bác sĩ.' }] : [],
+        severity: abnormal ? (index % 3 === 0 ? 'high' : 'warning') : 'normal',
+        overall_severity: abnormal ? (index % 3 === 0 ? 'high' : 'warning') : 'normal',
+        requires_recheck: abnormal,
+        suggested_recheck_minutes: abnormal ? 15 : undefined,
+        doctor_notification_required: abnormal,
+        requires_doctor_notification: abnormal,
+        status: 'recorded',
+      }, recordedAt));
+    });
+
+    indexes(10).forEach((index) => {
+      const createdAt = dashDate(dateKey, 8 + Math.floor(index / 3), (index % 3) * 15);
+      const title = pick(['Huyết áp cao', 'Sốt cần đánh giá', 'SpO2 thấp', 'Đau ngực khi gắng sức', 'Dị ứng thuốc cần lưu ý'], index);
+      docs.get('ClinicalAlert').push(dashDoc('ClinicalAlert', `${dateIndex}:${index}`, {
+        patient_id: dashPatientId(dateIndex * DASHBOARD_APPOINTMENTS_PER_DAY + index),
+        encounter_id: dashId('Encounter', `${dateIndex}:${index}`),
+        source_type: index % 5 === 0 ? 'manual' : 'vital_sign',
+        source_id: dashId('VitalSign', `${dateIndex}:${index}`),
+        rule_code: `DASH-${String(index + 1).padStart(2, '0')}`,
+        title,
+        message: `${title}: cần bác sĩ xem trong ca khám, bệnh nhân có triệu chứng ${symptoms[index % symptoms.length].toLowerCase()}`,
+        severity: index % 4 === 0 ? 'critical' : index % 3 === 0 ? 'high' : 'warning',
+        status: index % 5 === 0 ? 'doctor_notified' : 'open',
+        assigned_to_user_id: doctorIdValue,
+        department_id: departmentIdValue,
+        doctor_notified_at: index % 5 === 0 ? new Date(createdAt.getTime() + 5 * 60000) : undefined,
+        sla_due_at: new Date(createdAt.getTime() + 30 * 60000),
+        metadata: { demoCode: 'doctor-dashboard-coverage', symptom: symptoms[index % symptoms.length] },
+      }, createdAt));
+    });
+  });
+
+  DASHBOARD_DATES.forEach((dateKey, dateIndex) => {
+    indexes(10).forEach((index) => {
+      const globalIndex = dateIndex * 10 + index;
+      docs.get('Notification').push(dashDoc('Notification', `${dateIndex}:${index}`, {
+        recipient_type: 'staff',
+        recipient_id: doctorIdValue,
+        recipient_actor_type: 'staff',
+        recipient_actor_id: doctorIdValue,
+        recipient_user_id: doctorIdValue,
+        patient_id: dashPatientId(dateIndex * DASHBOARD_APPOINTMENTS_PER_DAY + index),
+        channel: 'in_app',
+        notification_type: pick(['appointment_created', 'queue_checked_in', 'lab_result_ready', 'vital_alert', 'order_pending'], globalIndex),
+        event_type: pick(['appointment.new', 'queue.ready', 'lab.result_ready', 'clinical.alert', 'order.pending'], globalIndex),
+        priority: index % 5 === 0 ? 'critical' : index % 3 === 0 ? 'high' : 'normal',
+        dedupe_key: `doctor-dashboard-bs-minhanh-${dateKey}-${index}`,
+        title: pick(['Lịch hẹn mới trong ca hôm nay', 'Bệnh nhân đã check-in và sẵn sàng khám', 'Kết quả xét nghiệm cần xem', 'Cảnh báo sinh hiệu bất thường', 'Order đang chờ xử lý'], globalIndex),
+        message: pick(['Bệnh nhân vừa xác nhận lịch khám nội tổng quát.', 'Điều dưỡng đã hoàn tất sinh hiệu, bệnh nhân đang chờ gọi vào phòng.', 'Có kết quả xét nghiệm mới cần bác sĩ xem trước khi kết luận.', 'Sinh hiệu bất thường cần đánh giá lại trong ca khám.', 'Có chỉ định còn mở, cần theo dõi tiến độ xử lý.'], globalIndex),
+        data: { appointment_id: String(dashId('Appointment', `${dateIndex}:${index % DASHBOARD_APPOINTMENTS_PER_DAY}`)), encounter_id: String(dashId('Encounter', `${dateIndex}:${index % 25}`)) },
+        action_url: '/doctor/dashboard',
+        created_by_module: 'doctor_dashboard_seed',
+        sent_at: dashDate(dateKey, 8 + (index % 8), (index * 7) % 60),
+        delivered_at: dashDate(dateKey, 8 + (index % 8), ((index * 7) % 60) + 1),
+        status: index % 2 === 0 ? 'sent' : 'delivered',
+      }, dashDate(dateKey, 8 + (index % 8), (index * 7) % 60)));
+    });
+  });
+
+  return docs;
+}
+
+async function validateDoctorDashboardCoverageDocs(docsByModel) {
+  const errors = [];
+  for (const [modelName, docs] of docsByModel.entries()) {
+    if (modelName === 'Order') continue;
+    for (const doc of docs) {
+      try {
+        await new models[modelName](doc).validate();
+      } catch (error) {
+        errors.push(`${modelName}/${doc._id}: ${error.message}`);
+      }
+    }
+  }
+  if (errors.length) throw new Error(`Doctor dashboard coverage validation failed:\n- ${errors.join('\n- ')}`);
+}
+
+async function cleanupDoctorDashboardCoverageDocs() {
+  const doctorIdValue = dashDoctorId();
+  const nurseId = dashNurseId();
+  const dateRanges = DASHBOARD_DATES.map((dateKey) => {
+    const start = dashDate(dateKey);
+    const end = dashDate(dateKey, 23, 59);
+    end.setSeconds(59, 999);
+    return { start, end };
+  });
+  const inSeedDay = (field) => ({ $or: dateRanges.map(({ start, end }) => ({ [field]: { $gte: start, $lte: end } })) });
+  const workDates = DASHBOARD_DATES.map((dateKey) => dashDate(dateKey));
+  const prescriptionIds = await models.Prescription
+    .find({ prescribed_by: doctorIdValue, prescription_no: /^DT-MA-/, ...inSeedDay('prescribed_at') })
+    .select('_id')
+    .lean();
+
+  await models.PrescriptionItem.deleteMany({ prescription_id: { $in: prescriptionIds.map((item) => item._id) } });
+  await Promise.all([
+    models.DoctorSchedule.deleteMany({ doctor_id: doctorIdValue, work_date: { $in: workDates }, internal_note: /^Ca / }),
+    models.Appointment.deleteMany({ doctor_id: doctorIdValue, source: 'doctor_dashboard_seed', ...inSeedDay('appointment_time') }),
+    models.QueueTicket.deleteMany({ doctor_id: doctorIdValue, queue_number: /^MA/, queue_date: { $in: workDates } }),
+    models.Encounter.deleteMany({ attending_doctor_id: doctorIdValue, encounter_code: /^LK-MA-/, ...inSeedDay('start_time') }),
+    models.Order.deleteMany({ ordered_by: doctorIdValue, order_no: /^ORD-MA-/, ...inSeedDay('ordered_at') }),
+    models.Prescription.deleteMany({ prescribed_by: doctorIdValue, prescription_no: /^DT-MA-/, ...inSeedDay('prescribed_at') }),
+    models.VitalSign.deleteMany({ recorded_by: nurseId, ...inSeedDay('recorded_at') }),
+    models.ClinicalAlert.deleteMany({ assigned_to_user_id: doctorIdValue, 'metadata.demoCode': 'doctor-dashboard-coverage', ...inSeedDay('created_at') }),
+    models.Notification.deleteMany({ recipient_user_id: doctorIdValue, created_by_module: 'doctor_dashboard_seed', ...inSeedDay('created_at') }),
+  ]);
+}
+
+async function upsertDoctorDashboardCoverageDocs(docsByModel) {
+  await cleanupDoctorDashboardCoverageDocs();
+  const summary = [];
+  for (const [modelName, docs] of docsByModel.entries()) {
+    const Model = models[modelName];
+    const operations = docs.map((doc) => {
+      const { _id, created_at: createdAt, ...set } = doc;
+      return { updateOne: { filter: { _id }, update: { $set: set, $setOnInsert: { _id, created_at: createdAt || new Date() } }, upsert: true } };
+    });
+    const result = await Model.bulkWrite(operations, { ordered: false, timestamps: false, ...(modelName === 'Order' ? { strict: false } : {}) });
+    summary.push({
+      model: `${modelName}(doctor dashboard)`,
+      collection: Model.collection.name,
+      requested: docs.length,
+      seeded: await Model.countDocuments({ _id: { $in: docs.map((doc) => doc._id) } }),
+      upserted: result.upsertedCount || 0,
+      modified: result.modifiedCount || 0,
+    });
+  }
+  return summary;
+}
+
+async function ensureDoctorDashboardRole() {
+  const doctorRole = await models.Role.findOne({ role_code: 'doctor', status: 'active', is_deleted: false }).lean();
+  if (!doctorRole) throw new Error('Role doctor chưa tồn tại sau bootstrapSystemAccess.');
+  const result = await models.UserRole.updateOne(
+    { user_id: dashDoctorId(), role_id: doctorRole._id },
+    { $set: { is_active: true, updated_at: new Date(), updated_by: dashDoctorId() }, $setOnInsert: { user_id: dashDoctorId(), role_id: doctorRole._id, created_at: new Date(), created_by: dashDoctorId() } },
+    { upsert: true },
+  );
+  return {
+    model: 'UserRole(doctor dashboard)',
+    collection: models.UserRole.collection.name,
+    requested: 1,
+    seeded: await models.UserRole.countDocuments({ user_id: dashDoctorId(), role_id: doctorRole._id, is_active: true }),
+    upserted: result.upsertedCount || 0,
+    modified: result.modifiedCount || 0,
+  };
+}
+
+async function ensureDoctorDashboardPermissions() {
+  const [doctorRole, queueReportPermission] = await Promise.all([
+    models.Role.findOne({ role_code: 'doctor', status: 'active', is_deleted: false }).lean(),
+    models.Permission.findOne({ permission_code: 'reports.queue.read', is_deleted: false }).lean(),
+  ]);
+  if (!doctorRole) throw new Error('Role doctor chÆ°a tá»“n táº¡i sau bootstrapSystemAccess.');
+  if (!queueReportPermission) throw new Error('Permission reports.queue.read chÆ°a tá»“n táº¡i sau bootstrapSystemAccess.');
+
+  const result = await models.RolePermission.updateOne(
+    { role_id: doctorRole._id, permission_id: queueReportPermission._id },
+    {
+      $set: { is_active: true, updated_at: new Date(), updated_by: dashDoctorId() },
+      $setOnInsert: {
+        role_id: doctorRole._id,
+        permission_id: queueReportPermission._id,
+        created_at: new Date(),
+        created_by: dashDoctorId(),
+      },
+    },
+    { upsert: true },
+  );
+
+  return {
+    model: 'RolePermission(doctor dashboard)',
+    collection: models.RolePermission.collection.name,
+    requested: 1,
+    seeded: await models.RolePermission.countDocuments({ role_id: doctorRole._id, permission_id: queueReportPermission._id, is_active: true }),
+    upserted: result.upsertedCount || 0,
+    modified: result.modifiedCount || 0,
+  };
+}
+
+async function verifyDoctorDashboardCoverage() {
+  const doctorIdValue = dashDoctorId();
+  const rows = [];
+  for (const dateKey of DASHBOARD_DATES) {
+    const start = dashDate(dateKey);
+    const end = dashDate(dateKey, 23, 59);
+    end.setSeconds(59, 999);
+    rows.push({
+      date: dateKey,
+      appointments: await models.Appointment.countDocuments({ doctor_id: doctorIdValue, appointment_time: { $gte: start, $lte: end }, is_deleted: false }),
+      queue_tickets: await models.QueueTicket.countDocuments({ doctor_id: doctorIdValue, queue_date: start }),
+      encounters: await models.Encounter.countDocuments({ attending_doctor_id: doctorIdValue, start_time: { $gte: start, $lte: end } }),
+      active_encounters: await models.Encounter.countDocuments({ attending_doctor_id: doctorIdValue, status: { $in: ['arrived', 'in_progress', 'on_hold'] }, start_time: { $gte: start, $lte: end } }),
+      completed_encounters: await models.Encounter.countDocuments({ attending_doctor_id: doctorIdValue, status: 'completed', start_time: { $gte: start, $lte: end } }),
+      orders: await models.Order.countDocuments({ ordered_by: doctorIdValue, ordered_at: { $gte: start, $lte: end } }),
+      prescriptions: await models.Prescription.countDocuments({ prescribed_by: doctorIdValue, prescribed_at: { $gte: start, $lte: end } }),
+      vital_signs: await models.VitalSign.countDocuments({ recorded_by: dashNurseId(), recorded_at: { $gte: start, $lte: end } }),
+      clinical_alerts: await models.ClinicalAlert.countDocuments({ assigned_to_user_id: doctorIdValue, created_at: { $gte: start, $lte: end } }),
+      schedules: await models.DoctorSchedule.countDocuments({ doctor_id: doctorIdValue, work_date: start, is_deleted: false }),
+      notifications: await models.Notification.countDocuments({ $or: [{ recipient_id: doctorIdValue }, { recipient_user_id: doctorIdValue }], created_at: { $gte: start, $lte: end } }),
+    });
+  }
+  const today = dashDate('2026-05-19');
+  const dashboardChecks = [{
+    doctor_id: String(doctorIdValue),
+    today_waiting: await models.QueueTicket.countDocuments({ doctor_id: doctorIdValue, queue_date: today, status: 'waiting' }),
+    today_called: await models.QueueTicket.countDocuments({ doctor_id: doctorIdValue, queue_date: today, status: 'called' }),
+    today_in_service: await models.QueueTicket.countDocuments({ doctor_id: doctorIdValue, queue_date: today, status: 'in_service' }),
+    dashboard_order_query_count: await models.Order.countDocuments({ ordered_by: doctorIdValue, status: DASHBOARD_STATUS_QUERY }),
+    unread_notifications: await models.Notification.countDocuments({ $or: [{ recipient_id: doctorIdValue }, { recipient_user_id: doctorIdValue }], status: { $in: ['unread', 'queued', 'sent', 'delivered'] }, read_at: null }),
+  }];
+  console.table(rows);
+  console.table(dashboardChecks);
+  const missing = rows.flatMap((row) => Object.entries(row).filter(([key, value]) => key !== 'date' && Number(value) <= 0).map(([key]) => `${row.date}:${key}`));
+  if (missing.length || dashboardChecks[0].dashboard_order_query_count < 5 || dashboardChecks[0].unread_notifications < 5) {
+    throw new Error(`Doctor dashboard coverage chưa đủ dữ liệu: ${missing.join(', ') || 'daily ok'}`);
+  }
+  return rows;
+}
+
 async function main() {
   const passwordHash = await hashPassword('MatKhau@123');
   const docsByModel = buildAllDocs(passwordHash);
+  const doctorDashboardCoverageDocs = buildDoctorDashboardCoverageDocs(passwordHash);
+  const pharmacyOverviewCoverageDocs = pharmacyOverviewCoverage.build(passwordHash);
   await validateDocs(docsByModel);
+  await validateDoctorDashboardCoverageDocs(doctorDashboardCoverageDocs);
+  await pharmacyOverviewCoverage.validate(pharmacyOverviewCoverageDocs);
 
   if (DRY_RUN) {
     printSummary([...docsByModel.entries()].map(([modelName, docs]) => ({
@@ -2259,14 +4264,55 @@ async function main() {
       requested: docs.length,
       seeded: docs.length,
     })));
+    console.table([...doctorDashboardCoverageDocs.entries()].map(([modelName, docs]) => ({
+      model: `${modelName}(doctor dashboard)`,
+      collection: models[modelName].collection.name,
+      requested: docs.length,
+      seeded: docs.length,
+    })));
+    console.table(pharmacyOverviewCoverage.summaryRows(pharmacyOverviewCoverageDocs));
     console.log('Dry-run thành công: dữ liệu mẫu hợp lệ theo Mongoose schema.');
     return;
   }
 
-  const { connectDatabase } = require('../config/database');
-  await connectDatabase();
+  await connectSeedDatabase();
+  const { bootstrapSystemAccess } = require('../services/bootstrap.service');
+  await bootstrapSystemAccess();
   const summary = await upsertDocs(docsByModel);
+  const roleAssignmentSummary = await ensureDemoCoreRoleAssignments();
+  const invoiceConsistencySummary = await ensureInvoiceConsistency();
+  const completedAppointmentSummary = await ensureCompletedAppointmentsHaveEncounters();
+  const nurseCoverageSummary = await ensureNurseWorkspaceApiCoverage();
+  const doctorDashboardCoverageSummary = await upsertDoctorDashboardCoverageDocs(doctorDashboardCoverageDocs);
+  const doctorDashboardRoleSummary = await ensureDoctorDashboardRole();
+  const doctorDashboardPermissionSummary = await ensureDoctorDashboardPermissions();
+  const pharmacyOverviewCoverageSummary = await pharmacyOverviewCoverage.upsert(pharmacyOverviewCoverageDocs);
+  const pharmacyOverviewRoleSummary = await pharmacyOverviewCoverage.ensureRoles();
   printSummary(summary);
+  console.table([{
+    model: 'UserRole(core)',
+    collection: models.UserRole.collection.name,
+    seeded: roleAssignmentSummary.seeded,
+    requested: roleAssignmentSummary.requested,
+    upserted: roleAssignmentSummary.upserted,
+    modified: roleAssignmentSummary.modified,
+  }, {
+    model: 'Invoice(consistency)',
+    collection: models.Invoice.collection.name,
+    seeded: invoiceConsistencySummary.seeded,
+    requested: invoiceConsistencySummary.requested,
+    upserted: invoiceConsistencySummary.upserted,
+    modified: invoiceConsistencySummary.modified,
+  }, {
+    model: 'Encounter(completed appointments)',
+    collection: models.Encounter.collection.name,
+    seeded: completedAppointmentSummary.seeded,
+    requested: completedAppointmentSummary.requested,
+    upserted: completedAppointmentSummary.upserted,
+    modified: completedAppointmentSummary.modified,
+  }, doctorDashboardRoleSummary, doctorDashboardPermissionSummary, pharmacyOverviewRoleSummary, ...nurseCoverageSummary, ...doctorDashboardCoverageSummary, ...pharmacyOverviewCoverageSummary]);
+  await verifyDoctorDashboardCoverage();
+  await pharmacyOverviewCoverage.verify();
   console.log('Seed dữ liệu mẫu tiếng Việt hoàn tất.');
 }
 

@@ -166,7 +166,7 @@ async function createTokenResponse(user, requestMeta = {}, options = {}) {
 }
 
 async function loginStaff(payload = {}, requestMeta = {}) {
-  const identifier = payload.login || payload.username || payload.identifier;
+  const identifier = payload.login || payload.username || payload.identifier || payload.email || payload.phone;
   const password = payload.password;
 
   if (!identifier || !password) {

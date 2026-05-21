@@ -83,7 +83,7 @@ function validateBody({ allowed = [], required = [], requireAny = [] } = {}) {
   };
 }
 
-const loginFields = ['login', 'username', 'identifier', 'password', ...AUTH_META_FIELDS];
+const loginFields = ['login', 'username', 'identifier', 'email', 'phone', 'password', ...AUTH_META_FIELDS];
 const resetTokenFields = [
   'actor_type',
   'actorType',
@@ -101,12 +101,12 @@ const resetTokenFields = [
 module.exports = {
   staffLogin: validateBody({
     allowed: loginFields,
-    requireAny: [['login', 'username', 'identifier']],
+    requireAny: [['login', 'username', 'identifier', 'email', 'phone']],
     required: ['password'],
   }),
   patientLogin: validateBody({
     allowed: loginFields,
-    requireAny: [['login', 'username', 'identifier']],
+    requireAny: [['login', 'username', 'identifier', 'email', 'phone']],
     required: ['password'],
   }),
   patientRegister: validateBody({

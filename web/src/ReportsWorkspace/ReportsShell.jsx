@@ -200,7 +200,7 @@ export function ReportsShell({ children }) {
 
         <div className="reports-sidebar__footer">
           {!isSidebarCollapsed ? (
-            <Link to="/reports/executive-overview/abnormal-alerts" className="reports-sidebar__alert" onClick={closeMobileSidebar}>
+            <Link to="/reports/overview/anomaly-alerts" className="reports-sidebar__alert" onClick={closeMobileSidebar}>
               <Bell size={17} strokeWidth={2.2} />
               <span>
                 <strong>5 cảnh báo chỉ số</strong>
@@ -299,7 +299,7 @@ export function ReportsShell({ children }) {
                   {[
                     ['Cảnh báo bất thường', '/reports/executive-overview/abnormal-alerts'],
                     ['Cảnh báo nguy cấp', '/reports/quality-risk/critical-alerts'],
-                    ['Cam kết mức dịch vụ', '/reports/quality-risk/service-commitment'],
+                    ['Cam kết mức dịch vụ', '/reports/quality-risk/sla'],
                   ].map(([label, to]) => (
                     <button
                       key={to}
