@@ -37,6 +37,69 @@ async function filterStaffAccounts(req, res, next) {
   }
 }
 
+async function listPendingActivationAccounts(req, res, next) {
+  try {
+    const result = await staffService.listPendingActivationAccounts(req.query, req.auth);
+    return sendSuccess(res, { message: 'Lấy tài khoản chờ kích hoạt thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function validateStaffUnique(req, res, next) {
+  try {
+    const result = await staffService.validateStaffUnique(req.query);
+    return sendSuccess(res, { message: 'Kiểm tra dữ liệu duy nhất thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function generateStaffUsername(req, res, next) {
+  try {
+    const result = await staffService.generateStaffUsername(req.body);
+    return sendSuccess(res, { message: 'Sinh username nhân sự thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function generateStaffEmployeeCode(req, res, next) {
+  try {
+    const result = await staffService.generateStaffEmployeeCode(req.body);
+    return sendSuccess(res, { message: 'Sinh mã nhân sự thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function listRiskAccounts(req, res, next) {
+  try {
+    const result = await staffService.listRiskAccounts(req.query, req.auth);
+    return sendSuccess(res, { message: 'Lấy danh sách tài khoản rủi ro thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function getGlobalStaffLoginHistory(req, res, next) {
+  try {
+    const result = await staffService.getGlobalStaffLoginHistory(req.query, req.auth);
+    return sendSuccess(res, { message: 'Lấy lịch sử đăng nhập nhân sự toàn hệ thống thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function bulkStaffAction(req, res, next) {
+  try {
+    const result = await staffService.bulkStaffAction(req.body, req.auth, requestMeta(req));
+    return sendSuccess(res, { message: 'Thực hiện bulk action nhân sự thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
 async function getStaffAccountDetail(req, res, next) {
   try {
     const result = await staffService.getStaffAccountDetail(req.params.userId, req.auth);
@@ -104,6 +167,47 @@ async function deleteStaffAccountSoft(req, res, next) {
   try {
     const result = await staffService.deleteStaffAccountSoft(req.params.userId, req.auth, requestMeta(req));
     return sendSuccess(res, { message: 'Xóa mềm tài khoản staff thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function getStaffDependencies(req, res, next) {
+  try {
+    const result = await staffService.getStaffDependencies(req.params.userId, req.auth);
+    return sendSuccess(res, { message: 'Lấy phụ thuộc nghiệp vụ của staff thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function checkStaffCanBeDeleted(req, res, next) {
+  try {
+    const result = await staffService.checkStaffCanBeDeleted(req.params.userId);
+    return sendSuccess(res, { message: 'Kiểm tra điều kiện xóa staff thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function requirePasswordChange(req, res, next) {
+  try {
+    const result = await staffService.requirePasswordChangeOnFirstLogin(req.params.userId, req.auth, requestMeta(req));
+    return sendSuccess(res, { message: 'Yêu cầu đổi mật khẩu thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function transferStaffDepartment(req, res, next) {
+  try {
+    const result = await staffService.transferStaffDepartment(
+      req.params.userId,
+      req.body.department_id || req.body.departmentId,
+      req.auth,
+      requestMeta(req),
+    );
+    return sendSuccess(res, { message: 'Điều chuyển khoa/phòng cho staff thành công.', data: result });
   } catch (error) {
     return next(markLegacyControllerError(error));
   }
@@ -226,6 +330,60 @@ async function getStaffAuditLogs(req, res, next) {
   }
 }
 
+async function getStaffSessions(req, res, next) {
+  try {
+    const result = await staffService.getStaffSessions(req.params.userId, req.query, req.auth);
+    return sendSuccess(res, { message: 'Lấy phiên đăng nhập của staff thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function revokeStaffSession(req, res, next) {
+  try {
+    const result = await staffService.revokeStaffSession(req.params.userId, req.params.sessionId, req.auth, requestMeta(req));
+    return sendSuccess(res, { message: 'Thu hồi phiên đăng nhập của staff thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function revokeAllStaffSessions(req, res, next) {
+  try {
+    const result = await staffService.revokeAllStaffSessions(req.params.userId, req.auth, requestMeta(req));
+    return sendSuccess(res, { message: 'Thu hồi toàn bộ phiên đăng nhập của staff thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function getStaffRiskProfile(req, res, next) {
+  try {
+    const result = await staffService.getStaffRiskProfile(req.params.userId, req.auth);
+    return sendSuccess(res, { message: 'Lấy risk profile staff thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function markStaffRiskReviewed(req, res, next) {
+  try {
+    const result = await staffService.markStaffRiskReviewed(req.params.userId, req.body, req.auth, requestMeta(req));
+    return sendSuccess(res, { message: 'Đánh dấu risk profile đã rà soát thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
+async function runStaffSecurityAction(req, res, next) {
+  try {
+    const result = await staffService.runStaffSecurityAction(req.params.userId, req.body, req.auth, requestMeta(req));
+    return sendSuccess(res, { message: 'Thực hiện security action staff thành công.', data: result });
+  } catch (error) {
+    return next(markLegacyControllerError(error));
+  }
+}
+
 async function forceLogoutStaff(req, res, next) {
   try {
     const result = await staffService.forceLogoutStaff(req.params.userId, req.auth, requestMeta(req));
@@ -240,6 +398,13 @@ module.exports = {
   listStaffAccounts,
   searchStaffAccounts,
   filterStaffAccounts,
+  listPendingActivationAccounts,
+  validateStaffUnique,
+  generateStaffUsername,
+  generateStaffEmployeeCode,
+  listRiskAccounts,
+  getGlobalStaffLoginHistory,
+  bulkStaffAction,
   getStaffAccountDetail,
   updateStaffAccount,
   updateStaffAccountStatus,
@@ -248,6 +413,10 @@ module.exports = {
   unlockStaffAccount,
   resetStaffPassword,
   deleteStaffAccountSoft,
+  getStaffDependencies,
+  checkStaffCanBeDeleted,
+  requirePasswordChange,
+  transferStaffDepartment,
   assignRolesToStaff,
   removeRolesFromStaff,
   syncStaffRoles,
@@ -261,5 +430,11 @@ module.exports = {
   getStaffSummary,
   getStaffLoginHistory,
   getStaffAuditLogs,
+  getStaffSessions,
+  revokeStaffSession,
+  revokeAllStaffSessions,
+  getStaffRiskProfile,
+  markStaffRiskReviewed,
+  runStaffSecurityAction,
   forceLogoutStaff,
 };

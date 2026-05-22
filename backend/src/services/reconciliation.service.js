@@ -59,7 +59,7 @@ function actorPermissions(actor = {}) {
 
 function hasPermission(actor = {}, permission) {
   const permissions = actorPermissions(actor);
-  return permissions.has(permission) || permissions.has('*');
+  return permissions.has(permission) || permissions.has(PERMISSION.SYSTEM.FULL_ACCESS) || permissions.has('*');
 }
 
 function assertReconciliationPermission(actor = {}, permissions = [], message = 'Tai khoan hien tai khong co quyen doi soat.') {

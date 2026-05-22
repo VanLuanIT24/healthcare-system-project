@@ -98,6 +98,26 @@ function clearUserAuthorizationCache(userId) {
   }
 }
 
+function clearAllAuthorizationCache() {
+  const size = authorizationCache.size;
+  authorizationCache.clear();
+  return size;
+}
+
+function getAuthorizationCacheStatus() {
+  let expired = 0;
+  for (const cached of authorizationCache.values()) {
+    if (!cached || cached.expiresAt <= Date.now()) expired += 1;
+  }
+
+  return {
+    ttl_ms: AUTHORIZATION_CACHE_TTL_MS,
+    entries: authorizationCache.size,
+    expired_entries: expired,
+    strategy: 'in_memory_by_user_permission_version',
+  };
+}
+
 async function buildUserAuthorizationSnapshot(userId, permissionVersion = 1) {
   const cached = getCachedAuthorization(userId, permissionVersion);
   if (cached) return cached;
@@ -228,6 +248,10 @@ module.exports = {
   buildUserAuthorizationSnapshot,
   // clearUserAuthorizationCache: Xóa cache quyền của một user.
   clearUserAuthorizationCache,
+  // clearAllAuthorizationCache: Xóa toàn bộ cache quyền trong tiến trình hiện tại.
+  clearAllAuthorizationCache,
+  // getAuthorizationCacheStatus: Lấy trạng thái cache phân quyền trong tiến trình hiện tại.
+  getAuthorizationCacheStatus,
   // bumpUserPermissionVersion: Tăng version quyền của một user để vô hiệu hóa cache/token cũ.
   bumpUserPermissionVersion,
   // bumpUsersPermissionVersion: Tăng version quyền của nhiều user.

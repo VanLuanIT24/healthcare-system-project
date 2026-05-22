@@ -1,0 +1,29 @@
+const complianceService = require('../services/compliance.service');
+const { controllerHandler: wrap, requestMeta } = require('../common/controllers');
+
+module.exports = {
+  dashboard: wrap((req) => complianceService.complianceDashboard(req.query), 'Lấy compliance dashboard thành công.'),
+  sensitiveAccess: wrap((req) => complianceService.sensitiveAccess(req.query), 'Lấy sensitive access audit thành công.'),
+  sensitiveAccessSummary: wrap((req) => complianceService.sensitiveAccessSummary(req.query), 'Lấy sensitive access summary thành công.'),
+  sensitiveAccessRiskQueue: wrap((req) => complianceService.sensitiveAccessRiskQueue(req.query), 'Lấy sensitive access risk queue thành công.'),
+  reviewAuditLog: wrap((req) => complianceService.reviewAuditLog(req.params.auditLogId, req.body || {}, req.auth, requestMeta(req)), 'Review audit log thành công.'),
+  breakGlass: wrap((req) => complianceService.breakGlassList(req.query), 'Lấy break-glass compliance thành công.'),
+  breakGlassSummary: wrap((req) => complianceService.breakGlassSummary(req.query), 'Lấy break-glass summary thành công.'),
+  breakGlassTimeline: wrap((req) => complianceService.breakGlassTimeline(req.params.accessId, req.query), 'Lấy break-glass timeline thành công.'),
+  reviewBreakGlass: wrap((req) => complianceService.reviewBreakGlass(req.params.accessId, req.body || {}, req.auth, requestMeta(req)), 'Review break-glass thành công.'),
+  patientAccessTimeline: wrap((req) => complianceService.patientAccessTimeline(req.params.patientId, req.query), 'Lấy patient access timeline thành công.'),
+  patientAccessSummary: wrap((req) => complianceService.patientAccessSummary(req.params.patientId, req.query), 'Lấy patient access summary thành công.'),
+  billingSummary: wrap((req) => complianceService.billingSummary(req.query), 'Lấy billing compliance summary thành công.'),
+  billingAudit: wrap((req) => complianceService.billingAudit(req.query), 'Lấy billing audit thành công.'),
+  iamSummary: wrap((req) => complianceService.iamSummary(req.query), 'Lấy IAM compliance summary thành công.'),
+  iamAudit: wrap((req) => complianceService.iamAudit(req.query), 'Lấy IAM audit thành công.'),
+  settingsSummary: wrap((req) => complianceService.settingsSummary(req.query), 'Lấy system config audit summary thành công.'),
+  settingsAudit: wrap((req) => complianceService.settingsAudit(req.query), 'Lấy system config audit thành công.'),
+  previewExportCount: wrap((req) => complianceService.previewExportCount(req.body || {}), 'Preview audit export count thành công.'),
+  previewExportSample: wrap((req) => complianceService.previewExportSample(req.body || {}), 'Preview audit export sample thành công.'),
+  createAuditExport: wrap((req) => complianceService.createAuditExport(req.body || {}, req.auth, requestMeta(req)), 'Tạo audit export request thành công.', 201),
+  listAuditExports: wrap((req) => complianceService.listAuditExports(req.query), 'Lấy audit export requests thành công.'),
+  generateComplianceReport: wrap((req) => complianceService.generateComplianceReport(req.body || {}, req.auth, requestMeta(req)), 'Generate compliance report thành công.', 201),
+  listComplianceReports: wrap((req) => complianceService.listComplianceReports(req.query), 'Lấy compliance reports thành công.'),
+  getComplianceReport: wrap((req) => complianceService.getComplianceReport(req.params.reportId), 'Lấy compliance report thành công.'),
+};

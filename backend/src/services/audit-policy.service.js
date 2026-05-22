@@ -16,6 +16,8 @@ const SENSITIVE_WRITE_ACTIONS = new Set([
   'message.clinical_advice',
   'break_glass.start',
   'break_glass.end',
+  'break_glass.started',
+  'break_glass.ended',
   'patient_relative.access_grant',
   'patient_relative.access_revoke',
 ]);

@@ -33,6 +33,8 @@ export function getInitials(name) {
 
 export function getStatusTone(status) {
   switch (status) {
+    case 'pending_activation':
+      return 'pending';
     case 'active':
       return 'active';
     case 'locked':
@@ -43,6 +45,51 @@ export function getStatusTone(status) {
       return 'disabled';
     default:
       return 'pending';
+  }
+}
+
+export function getStatusLabel(status) {
+  switch (status) {
+    case 'active':
+      return 'Đang hoạt động';
+    case 'locked':
+      return 'Bị khóa';
+    case 'suspended':
+      return 'Tạm ngưng';
+    case 'disabled':
+      return 'Vô hiệu hóa';
+    case 'pending_activation':
+      return 'Chờ kích hoạt';
+    default:
+      return status || 'Chưa rõ';
+  }
+}
+
+export function getRiskTone(level) {
+  switch (level) {
+    case 'critical':
+      return 'critical';
+    case 'high':
+      return 'high';
+    case 'medium':
+      return 'medium';
+    default:
+      return 'low';
+  }
+}
+
+export function getRiskLabel(level) {
+  switch (level) {
+    case 'critical':
+      return 'Critical';
+    case 'high':
+      return 'High';
+    case 'medium':
+      return 'Medium';
+    case 'low':
+      return 'Low';
+    default:
+      return 'Low';
   }
 }
 

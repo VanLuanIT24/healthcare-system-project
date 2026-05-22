@@ -105,7 +105,7 @@ async function startBreakGlass(payload = {}, actor = {}, requestMeta = {}) {
     status: BREAK_GLASS_STATUS.ACTIVE,
     metadata: payload.metadata,
   });
-  await recordAuditLog({ actor, action: 'break_glass.started', targetType: 'break_glass_access', targetId: access._id, status: 'success', message: 'Bắt đầu break-glass.', requestMeta, metadata: { patient_id: toId(patient._id), reason } });
+  await recordAuditLog({ actor, action: 'break_glass.start', targetType: 'break_glass_access', targetId: access._id, status: 'success', message: 'Bắt đầu break-glass.', requestMeta, metadata: { patient_id: toId(patient._id), reason } });
   return access.toObject();
 }
 
@@ -125,7 +125,7 @@ async function endBreakGlass(accessId, payload = {}, actor = {}, requestMeta = {
     access.metadata = { ...(access.metadata || {}), end_reason: payload.reason || payload.end_reason };
     await access.save();
   }
-  await recordAuditLog({ actor, action: 'break_glass.ended', targetType: 'break_glass_access', targetId: access._id, status: 'success', message: 'Kết thúc break-glass.', requestMeta });
+  await recordAuditLog({ actor, action: 'break_glass.end', targetType: 'break_glass_access', targetId: access._id, status: 'success', message: 'Kết thúc break-glass.', requestMeta });
   return access.toObject();
 }
 

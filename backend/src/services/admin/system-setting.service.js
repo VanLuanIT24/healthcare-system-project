@@ -11,13 +11,31 @@ const {
   SYSTEM_SETTING_VALUE_TYPES,
 } = require('../../constants/statuses');
 const { PERMISSION } = require('../../constants/permissions');
-const { SystemSetting } = require('../../models');
+const { SystemSetting, SystemSettingRevision } = require('../../models');
 const auditService = require('../audit.service');
 const { getActorId, isSuperAdmin } = require('../auth/auth.policy');
 const permissionService = require('../permission.service');
 
 const SETTING_KEY_REGEX = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
 const ENCRYPTION_PREFIX = 'enc:v1:';
+const SNAPSHOT_FIELDS = [
+  'setting_key',
+  'setting_name',
+  'module_key',
+  'value_type',
+  'setting_value',
+  'default_value',
+  'description',
+  'is_public',
+  'is_sensitive',
+  'is_encrypted',
+  'requires_restart',
+  'runtime_reloadable',
+  'risk_level',
+  'affected_services',
+  'last_applied_at',
+  'status',
+];
 
 function getEncryptionKey() {
   const secret = process.env.SYSTEM_SETTING_ENCRYPTION_SECRET || env.jwtRefreshSecret || env.jwtAccessSecret;
@@ -122,6 +140,11 @@ function serializeSetting(setting, options = {}) {
     is_public: Boolean(plain.is_public),
     is_sensitive: Boolean(plain.is_sensitive),
     is_encrypted: Boolean(plain.is_encrypted),
+    requires_restart: Boolean(plain.requires_restart),
+    runtime_reloadable: plain.runtime_reloadable !== false,
+    risk_level: plain.risk_level || 'medium',
+    affected_services: plain.affected_services || [],
+    last_applied_at: plain.last_applied_at,
     status: plain.status,
     created_at: plain.created_at,
     updated_at: plain.updated_at,
@@ -144,6 +167,106 @@ function validateSettingKey(settingKey) {
   if (!SETTING_KEY_REGEX.test(String(settingKey || ''))) {
     throw ApiError.validation('setting_key phải theo format module.key_name, lowercase snake_case.');
   }
+}
+
+function normalizeAffectedServices(value) {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) return value.map((item) => normalizeString(item)).filter(Boolean);
+  return String(value || '')
+    .split(',')
+    .map((item) => normalizeString(item))
+    .filter(Boolean);
+}
+
+function normalizeSettingSnapshot(setting = {}) {
+  const plain = typeof setting.toObject === 'function' ? setting.toObject() : setting;
+  return SNAPSHOT_FIELDS.reduce((snapshot, field) => {
+    if (plain[field] !== undefined) snapshot[field] = plain[field];
+    return snapshot;
+  }, {});
+}
+
+function changedSettingFields(before = {}, after = {}) {
+  const left = before || {};
+  const right = after || {};
+  const fields = new Set([...Object.keys(left), ...Object.keys(right)]);
+
+  return [...fields].filter((field) => JSON.stringify(left[field]) !== JSON.stringify(right[field]));
+}
+
+function redactSnapshot(snapshot = {}) {
+  if (!snapshot || typeof snapshot !== 'object') return snapshot;
+  const safe = { ...snapshot };
+  if (safe.is_sensitive || safe.is_encrypted) {
+    if (Object.prototype.hasOwnProperty.call(safe, 'setting_value')) {
+      safe.setting_value = safe.setting_value === undefined || safe.setting_value === null ? safe.setting_value : '[REDACTED]';
+    }
+    if (Object.prototype.hasOwnProperty.call(safe, 'default_value')) {
+      safe.default_value = safe.default_value === undefined || safe.default_value === null ? safe.default_value : '[REDACTED]';
+    }
+  }
+  return safe;
+}
+
+async function getNextRevisionNo(settingKey) {
+  const latest = await SystemSettingRevision.findOne({ setting_key: settingKey })
+    .sort({ revision_no: -1 })
+    .select('revision_no')
+    .lean();
+  return Number(latest?.revision_no || 0) + 1;
+}
+
+function serializeRevision(revision) {
+  const plain = typeof revision.toObject === 'function' ? revision.toObject() : revision;
+  return {
+    revision_id: String(plain._id || plain.id),
+    setting_id: String(plain.setting_id),
+    setting_key: plain.setting_key,
+    revision_no: plain.revision_no,
+    action: plain.action,
+    before_snapshot: redactSnapshot(plain.before_snapshot),
+    after_snapshot: redactSnapshot(plain.after_snapshot),
+    changed_fields: plain.changed_fields || [],
+    change_reason: plain.change_reason,
+    changed_by: plain.changed_by,
+    request_meta: plain.request_meta,
+    created_at: plain.created_at,
+    updated_at: plain.updated_at,
+  };
+}
+
+async function recordSettingRevision({
+  setting,
+  beforeSnapshot,
+  afterSnapshot,
+  action = 'update',
+  actor = {},
+  requestMeta = {},
+  changeReason,
+} = {}) {
+  const after = afterSnapshot || normalizeSettingSnapshot(setting);
+  const settingKey = after.setting_key || beforeSnapshot?.setting_key || setting?.setting_key;
+  if (!settingKey) return null;
+
+  const revision = await SystemSettingRevision.create({
+    setting_id: setting?._id || setting?.id,
+    setting_key: settingKey,
+    revision_no: await getNextRevisionNo(settingKey),
+    action,
+    before_snapshot: beforeSnapshot || null,
+    after_snapshot: after || null,
+    changed_fields: changedSettingFields(beforeSnapshot || {}, after || {}),
+    change_reason: normalizeString(changeReason || requestMeta?.reason),
+    changed_by: getActorId(actor),
+    request_meta: {
+      ip_address: requestMeta.ipAddress,
+      user_agent: requestMeta.userAgent,
+      request_id: requestMeta.requestId,
+      session_id: requestMeta.sessionId,
+    },
+  });
+
+  return revision;
 }
 
 async function findSetting(settingKey, options = {}) {
@@ -211,8 +334,23 @@ async function createSystemSetting(payload = {}, actor = {}, requestMeta = {}) {
     is_public: Boolean(payload.is_public),
     is_sensitive: Boolean(payload.is_sensitive),
     is_encrypted: Boolean(payload.is_encrypted),
+    requires_restart: Boolean(payload.requires_restart),
+    runtime_reloadable: payload.runtime_reloadable !== undefined ? Boolean(payload.runtime_reloadable) : true,
+    risk_level: payload.risk_level || 'medium',
+    affected_services: normalizeAffectedServices(payload.affected_services) || [],
+    last_applied_at: payload.last_applied_at,
     status: payload.status || SYSTEM_SETTING_STATUS.ACTIVE,
     created_by: getActorId(actor),
+  });
+
+  await recordSettingRevision({
+    setting,
+    beforeSnapshot: null,
+    afterSnapshot: normalizeSettingSnapshot(setting),
+    action: 'create',
+    actor,
+    requestMeta,
+    changeReason: payload.change_reason,
   });
 
   await auditService.recordAuditLog({
@@ -342,6 +480,11 @@ async function updateSystemSetting(settingKey, payload = {}, actor = {}, request
   if (payload.module_key !== undefined) setting.module_key = normalizeString(payload.module_key);
   if (payload.description !== undefined) setting.description = payload.description;
   if (payload.status !== undefined) setting.status = payload.status;
+  if (payload.requires_restart !== undefined) setting.requires_restart = Boolean(payload.requires_restart);
+  if (payload.runtime_reloadable !== undefined) setting.runtime_reloadable = Boolean(payload.runtime_reloadable);
+  if (payload.risk_level !== undefined) setting.risk_level = payload.risk_level || 'medium';
+  if (payload.affected_services !== undefined) setting.affected_services = normalizeAffectedServices(payload.affected_services);
+  if (payload.last_applied_at !== undefined) setting.last_applied_at = payload.last_applied_at;
   setting.is_public = nextIsPublic;
   setting.is_sensitive = nextIsSensitive;
   setting.is_encrypted = nextIsEncrypted;
@@ -361,6 +504,16 @@ async function updateSystemSetting(settingKey, payload = {}, actor = {}, request
   setting.updated_by = getActorId(actor);
   await setting.save();
 
+  await recordSettingRevision({
+    setting,
+    beforeSnapshot: normalizeSettingSnapshot(before),
+    afterSnapshot: normalizeSettingSnapshot(setting),
+    action: payload.rollback_from_revision ? 'rollback' : 'update',
+    actor,
+    requestMeta,
+    changeReason: payload.change_reason,
+  });
+
   await auditService.recordAuditLog({
     actor,
     action: 'settings.update',
@@ -377,6 +530,78 @@ async function updateSystemSetting(settingKey, payload = {}, actor = {}, request
 
 async function getPublicSettings(query = {}) {
   return listSystemSettingsGrouped(query, {}, { publicOnly: true });
+}
+
+async function listSystemSettingRevisions(settingKey, query = {}) {
+  validateSettingKey(settingKey);
+  const limit = Math.min(Math.max(Number(query.limit || 20), 1), 100);
+  const revisions = await SystemSettingRevision.find({ setting_key: settingKey })
+    .sort({ revision_no: -1 })
+    .limit(limit)
+    .lean();
+
+  return { items: revisions.map(serializeRevision) };
+}
+
+function applyRawSnapshotToSetting(setting, snapshot = {}) {
+  SNAPSHOT_FIELDS.forEach((field) => {
+    if (field === 'setting_key') return;
+    if (Object.prototype.hasOwnProperty.call(snapshot, field)) {
+      setting[field] = snapshot[field];
+    }
+  });
+}
+
+async function rollbackSystemSetting(settingKey, payload = {}, actor = {}, requestMeta = {}) {
+  const setting = await findSetting(settingKey);
+  assertCanManageSensitiveSetting(setting, actor);
+
+  const revisionNo = Number(payload.revision_no || payload.revisionNo);
+  if (!Number.isFinite(revisionNo) || revisionNo <= 0) {
+    throw ApiError.validation('revision_no là bắt buộc để rollback.');
+  }
+
+  const revision = await SystemSettingRevision.findOne({ setting_key: settingKey, revision_no: revisionNo }).lean();
+  if (!revision) throw ApiError.notFound('Không tìm thấy revision để rollback.');
+
+  const targetSnapshot = payload.target === 'after'
+    ? revision.after_snapshot
+    : revision.before_snapshot;
+  if (!targetSnapshot) {
+    throw ApiError.conflict('Revision này không có snapshot phù hợp để rollback.');
+  }
+
+  const before = setting.toObject();
+  applyRawSnapshotToSetting(setting, targetSnapshot);
+  setting.updated_by = getActorId(actor);
+  await setting.save();
+
+  await recordSettingRevision({
+    setting,
+    beforeSnapshot: normalizeSettingSnapshot(before),
+    afterSnapshot: normalizeSettingSnapshot(setting),
+    action: 'rollback',
+    actor,
+    requestMeta,
+    changeReason: payload.change_reason || `Rollback to revision ${revisionNo}`,
+  });
+
+  await auditService.recordAuditLog({
+    actor,
+    action: 'settings.rollback',
+    targetType: 'system_setting',
+    targetId: setting._id,
+    before,
+    after: setting,
+    message: `System setting rolled back to revision ${revisionNo}.`,
+    requestMeta,
+    metadata: {
+      revision_no: revisionNo,
+      target: payload.target || 'before',
+    },
+  });
+
+  return { setting: serializeSetting(setting, { includeSensitive: canUpdateSensitiveSetting(actor) }) };
 }
 
 module.exports = {
@@ -402,4 +627,8 @@ module.exports = {
   updateSystemSetting,
   // getPublicSettings: Lấy các cấu hình công khai.
   getPublicSettings,
+  // listSystemSettingRevisions: Liệt kê revision của setting.
+  listSystemSettingRevisions,
+  // rollbackSystemSetting: Rollback setting về snapshot revision.
+  rollbackSystemSetting,
 };

@@ -75,6 +75,7 @@ function serializePresence(state) {
     actor_type: state.actor_type,
     actor_id: state.actor_id,
     socket_count: state.socket_ids.size,
+    socket_ids: [...state.socket_ids],
     rooms: [...state.rooms],
     last_seen_at: state.last_seen_at,
     expires_at: new Date(state.expires_at),

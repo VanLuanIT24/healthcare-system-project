@@ -1,5 +1,10 @@
 const PERMISSION_MODULE = {
   SYSTEM: 'system',
+  OPERATIONS: 'operations',
+  INTEGRATIONS: 'integrations',
+  PATIENT_PORTAL: 'patient_portal',
+  SUPPORT_COMMUNICATION: 'support_communication',
+  ADMIN_TOOLS: 'admin_tools',
   SETTINGS: 'settings',
   USERS: 'users',
   ROLES: 'roles',

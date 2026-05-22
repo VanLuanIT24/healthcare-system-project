@@ -3,6 +3,7 @@ const { AuthSession, Patient, PatientAccount, PatientRelative, User } = require(
 const { ROLE_CODE } = require('../constants/permissions');
 const { ACTOR_TYPE, LEGACY_ACTOR_TYPE, PATIENT_STATUS, RELATIVE_STATUS, normalizeActorType } = require('../constants/statuses');
 const { buildUserAuthorizationSnapshot } = require('../services/access-control.service');
+const { resolveActiveDenyPoliciesForActor } = require('../services/iam/deny-policy.service');
 const { ApiError } = require('../common');
 const actorContext = require('../common/actors');
 const { PATIENT_PORTAL_PERMISSIONS, RELATIVE_PORTAL_PERMISSIONS } = require('../services/auth/auth.policy');
@@ -128,6 +129,14 @@ async function authenticate(req, res, next) {
       }
 
       const authorization = await resolveStaffAuthorization(user);
+      const denyContext = await resolveActiveDenyPoliciesForActor({
+        actorType: 'staff',
+        userId: String(user._id),
+        departmentId: user.department_id ? String(user.department_id) : null,
+        roles: authorization.roles,
+        roleDetails: authorization.roleDetails,
+        user,
+      });
 
       if (user.must_change_password && !isAllowedWhilePasswordChangeRequired(req)) {
         return next(ApiError.forbidden('Bạn cần đổi mật khẩu trước khi sử dụng chức năng này.', {
@@ -144,6 +153,12 @@ async function authenticate(req, res, next) {
         roles: authorization.roles,
         roleDetails: authorization.roleDetails,
         permissions: authorization.permissions,
+        deniedRoles: denyContext.deniedRoles,
+        deniedPermissions: denyContext.deniedPermissions,
+        deniedModules: denyContext.deniedModules,
+        deniedRoutes: denyContext.deniedRoutes,
+        deniedWorkspaces: denyContext.deniedWorkspaces,
+        denyPolicies: denyContext.policies,
         permissionVersion: authorization.permissionVersion,
         user,
         session,

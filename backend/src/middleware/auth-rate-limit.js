@@ -1,5 +1,6 @@
 const { createHash } = require('crypto');
 const rateLimitService = require('../services/auth/rate-limit.service');
+const rateLimitEventService = require('../services/security-rate-limit-event.service');
 
 function hashKey(value) {
   if (!value) return '';
@@ -25,10 +26,11 @@ function createAuthRateLimit({
   keyGenerator,
 } = {}) {
   return function authRateLimitMiddleware(req, res, next) {
+    let key = null;
     try {
       const ip = getRequestIp(req);
       const extraKey = typeof keyGenerator === 'function' ? keyGenerator(req) : null;
-      const key = extraKey ? `${ip}:${hashKey(extraKey)}` : ip;
+      key = extraKey ? `${ip}:${hashKey(extraKey)}` : ip;
 
       rateLimitService.checkRateLimit(`auth:${scope || 'public'}`, key, {
         limit,
@@ -37,6 +39,17 @@ function createAuthRateLimit({
 
       return next();
     } catch (error) {
+      if (error?.statusCode === 429) {
+        rateLimitEventService.recordRateLimitBlocked({
+          req,
+          scope: `auth:${scope || 'public'}`,
+          key,
+          limit,
+          windowMs,
+          retryAfterSeconds: error.details?.retry_after_seconds,
+          metadata: { limiter: 'auth' },
+        }).catch(() => {});
+      }
       return next(markLegacy(error));
     }
   };

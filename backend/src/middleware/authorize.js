@@ -45,6 +45,31 @@ function actorDeniedRoles(auth = {}) {
   return auth.deniedRoles || auth.denied_roles || auth.explicitDenyRoles || auth.explicit_deny_roles || [];
 }
 
+function actorDeniedModules(auth = {}) {
+  return auth.deniedModules || auth.denied_modules || [];
+}
+
+function actorDeniedRoutes(auth = {}) {
+  return auth.deniedRoutes || auth.denied_routes || [];
+}
+
+function actorDeniedWorkspaces(auth = {}) {
+  return auth.deniedWorkspaces || auth.denied_workspaces || [];
+}
+
+function permissionMatchesDeniedModule(permissionCode, deniedModules = []) {
+  const normalized = String(permissionCode || '').toLowerCase();
+  return deniedModules.some((moduleKey) => normalized === moduleKey || normalized.startsWith(`${moduleKey}.`));
+}
+
+function routeMatchesDeniedRoute(req, deniedRoutes = []) {
+  const path = String(req.originalUrl || req.url || '').split('?')[0].toLowerCase();
+  return deniedRoutes.some((route) => {
+    const normalizedRoute = String(route || '').toLowerCase();
+    return normalizedRoute && (path === normalizedRoute || path.startsWith(normalizedRoute));
+  });
+}
+
 function maxRolePriority(roleCodes = []) {
   return Math.max(0, ...roleCodes.map((roleCode) => Number(ROLE_PRIORITY[roleCode] || 0)));
 }
@@ -90,6 +115,22 @@ function authorize({
     const effectiveDeniedPermissions = [...actorDeniedPermissions(req.auth), ...deniedPermissions];
     if (intersects(requiredPermissionCodes, effectiveDeniedPermissions)) {
       return deny(req, next, 'Tài khoản hiện tại bị deny policy chặn quyền truy cập này.', { denied_permissions: effectiveDeniedPermissions });
+    }
+
+    const effectiveDeniedModules = actorDeniedModules(req.auth);
+    if (requiredPermissionCodes.some((permissionCode) => permissionMatchesDeniedModule(permissionCode, effectiveDeniedModules))) {
+      return deny(req, next, 'Tài khoản hiện tại bị deny policy chặn module quyền này.', { denied_modules: effectiveDeniedModules });
+    }
+
+    const effectiveDeniedRoutes = actorDeniedRoutes(req.auth);
+    if (routeMatchesDeniedRoute(req, effectiveDeniedRoutes)) {
+      return deny(req, next, 'Tài khoản hiện tại bị deny policy chặn route này.', { denied_routes: effectiveDeniedRoutes });
+    }
+
+    const currentWorkspace = req.context?.workspace || req.query?.workspace || req.headers?.['x-workspace-code'];
+    const effectiveDeniedWorkspaces = actorDeniedWorkspaces(req.auth);
+    if (currentWorkspace && effectiveDeniedWorkspaces.includes(String(currentWorkspace))) {
+      return deny(req, next, 'Tài khoản hiện tại bị deny policy chặn workspace này.', { denied_workspaces: effectiveDeniedWorkspaces });
     }
 
     const denyMessage = evaluateDenyRules(denyRules, req);

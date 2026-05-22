@@ -452,6 +452,7 @@ function assertCanRevokeSession(session, auth = {}) {
     permissionService.hasAnyPermission(auth.permissions || [], [
       PERMISSION.USERS.RESET_PASSWORD,
       PERMISSION.USERS.LOCK,
+      PERMISSION.USERS.FORCE_LOGOUT,
     ])
   );
 

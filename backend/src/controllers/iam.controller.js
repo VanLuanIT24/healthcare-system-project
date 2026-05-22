@@ -366,7 +366,128 @@ async function deletePermissionSoft(req, res, next) {
   }
 }
 
+const getIamOverview = wrap(
+  (req) => iamService.getIamOverview(req.query),
+  'Lấy tổng quan IAM thành công.',
+);
+
+const getIamMatrix = wrap(
+  (req) => iamService.getIamMatrix(req.query),
+  'Lấy ma trận quyền thành công.',
+);
+
+const previewRolePermissionChange = wrap(
+  (req) => iamService.previewRolePermissionChange(req.body, req.auth),
+  'Preview thay đổi phân quyền thành công.',
+);
+
+const applyRolePermissionMatrix = wrap(
+  (req) => iamService.applyRolePermissionMatrix(req.body, req.auth, requestMeta(req)),
+  'Áp dụng thay đổi ma trận quyền thành công.',
+);
+
+const previewStaffRoleChange = wrap(
+  (req) => iamService.previewStaffRoleChange(req.params.userId, req.body, req.auth),
+  'Preview thay đổi vai trò nhân sự thành công.',
+);
+
+const getStaffEffectivePermissions = wrap(
+  (req) => iamService.getStaffEffectivePermissions(req.params.userId, req.query),
+  'Lấy quyền hiệu lực kèm nguồn cấp thành công.',
+);
+
+const explainAccess = wrap(
+  (req) => iamService.explainAccess(req.body, req.auth),
+  'Giải thích quyết định truy cập thành công.',
+);
+
+const getCacheStatus = wrap(
+  () => iamService.getCacheStatus(),
+  'Lấy trạng thái cache quyền thành công.',
+);
+
+const rebuildUserPermissionContext = wrap(
+  (req) => iamService.rebuildUserPermissionContext(req.params.userId, req.body, req.auth, requestMeta(req)),
+  'Rebuild permission context của user thành công.',
+);
+
+const rebuildRolePermissionContext = wrap(
+  (req) => iamService.rebuildRolePermissionContext(req.params.roleId, req.body, req.auth, requestMeta(req)),
+  'Rebuild permission context theo role thành công.',
+);
+
+const rebuildAllPermissionContexts = wrap(
+  (req) => iamService.rebuildAllPermissionContexts(req.body, req.auth, requestMeta(req)),
+  'Rebuild permission context toàn hệ thống thành công.',
+);
+
+const seedSystemAccessDryRun = wrap(
+  () => iamService.seedSystemAccessDryRun(),
+  'Preview seed system access thành công.',
+);
+
+const getIamAudit = wrap(
+  (req) => iamService.getIamAudit(req.query),
+  'Lấy audit IAM thành công.',
+);
+
+const listDenyPolicies = wrap(
+  (req) => iamService.listDenyPolicies(req.query),
+  'Lấy danh sách deny policy thành công.',
+);
+
+const previewDenyPolicy = wrap(
+  (req) => iamService.previewDenyPolicy(req.body),
+  'Preview deny policy thành công.',
+);
+
+const createDenyPolicy = wrap(
+  (req) => iamService.createDenyPolicy(req.body, req.auth, requestMeta(req)),
+  'Tạo deny policy thành công.',
+  201,
+);
+
+const updateDenyPolicy = wrap(
+  (req) => iamService.updateDenyPolicy(req.params.denyPolicyId, req.body, req.auth, requestMeta(req)),
+  'Cập nhật deny policy thành công.',
+);
+
+const activateDenyPolicy = wrap(
+  (req) => iamService.setDenyPolicyStatus(req.params.denyPolicyId, 'active', req.auth, requestMeta(req)),
+  'Kích hoạt deny policy thành công.',
+);
+
+const deactivateDenyPolicy = wrap(
+  (req) => iamService.setDenyPolicyStatus(req.params.denyPolicyId, 'inactive', req.auth, requestMeta(req)),
+  'Vô hiệu hóa deny policy thành công.',
+);
+
+const deleteDenyPolicySoft = wrap(
+  (req) => iamService.deleteDenyPolicySoft(req.params.denyPolicyId, req.auth, requestMeta(req)),
+  'Xóa mềm deny policy thành công.',
+);
+
 module.exports = {
+  getIamOverview,
+  getIamMatrix,
+  previewRolePermissionChange,
+  applyRolePermissionMatrix,
+  previewStaffRoleChange,
+  getStaffEffectivePermissions,
+  explainAccess,
+  getCacheStatus,
+  rebuildUserPermissionContext,
+  rebuildRolePermissionContext,
+  rebuildAllPermissionContexts,
+  seedSystemAccessDryRun,
+  getIamAudit,
+  listDenyPolicies,
+  previewDenyPolicy,
+  createDenyPolicy,
+  updateDenyPolicy,
+  activateDenyPolicy,
+  deactivateDenyPolicy,
+  deleteDenyPolicySoft,
   createRole,
   createPermission,
   listRoles,

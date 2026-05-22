@@ -4,7 +4,15 @@
 @import './styles/info.css';
 @import './styles/admin.css';
 @import './styles/admin-control-plane.css';
+@import './styles/platform-config.css';
+@import './styles/security-center.css';
+@import './styles/audit-compliance.css';
 @import './styles/command-center.css';
+@import './styles/operations-center.css';
+@import './styles/integration-hub.css';
+@import './styles/patient-portal-admin.css';
+@import './styles/support-communication.css';
+@import './styles/admin-tools.css';
 @import './styles/scheduling.css';
 @import './styles/reception.css';
 
@@ -12,9 +20,159 @@
   --app-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+.app-error-boundary {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  color: #172033;
+  background: #eef7fb;
+}
+
+.app-error-boundary section {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.25rem;
+  border: 1px solid #d8e1ec;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
+}
+
+.app-error-boundary strong {
+  font-size: 1.05rem;
+}
+
+.app-error-boundary p {
+  margin: 0;
+  color: #5f6f89;
+  line-height: 1.5;
+}
+
+.app-error-boundary button {
+  justify-self: start;
+  min-height: 38px;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #2563eb;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 html,
 body,
 #root,
 #root * {
   font-family: var(--app-font-family);
+}
+
+/* Control-plane pages must never push the browser viewport sideways.
+   Wide operational data keeps its own local horizontal scroll inside tables/navs. */
+.scp-shell,
+.scp-stage,
+.scp-topbar,
+.integration-hub,
+.ppa-shell,
+.scm-page,
+.at-page {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.scp-shell {
+  width: 100%;
+  max-width: 100vw;
+}
+
+.scp-stage > .integration-hub,
+.scp-stage > .ppa-shell,
+.scp-stage > .scm-page,
+.scp-stage > .at-page {
+  width: 100%;
+}
+
+.ih-hero,
+.ppa-hero,
+.scm-hero,
+.at-hero,
+.ih-toolbar,
+.ppa-filter-bar,
+.scm-command,
+.at-command,
+.ih-content-grid,
+.ppa-dashboard-grid,
+.scm-workspace,
+.at-two-col,
+.at-overview,
+.at-console {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ih-tabs,
+.ppa-nav,
+.scm-nav,
+.at-nav,
+.ih-table,
+.ppa-table-wrap,
+.scm-table-wrap,
+.at-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.ih-table__head,
+.ih-table__row {
+  width: max-content;
+  min-width: 100%;
+}
+
+.ih-kpi-strip,
+.ppa-kpi-strip,
+.scm-kpi-strip,
+.at-kpi-grid,
+.ih-provider-grid,
+.at-tool-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+}
+
+.ppa-filter-bar,
+.ih-hero__actions,
+.ppa-hero__actions,
+.scm-hero__actions,
+.at-hero__actions {
+  flex-wrap: wrap;
+}
+
+.ih-search,
+.ppa-search,
+.scm-search,
+.at-search {
+  min-width: 0;
+}
+
+.scm-main-panel,
+.scm-side-panel,
+.ih-main-stack,
+.ih-side-stack,
+.ppa-panel,
+.at-panel {
+  min-width: 0;
+}
+
+@media (max-width: 1440px) {
+  .scp-topbar__profile,
+  .scp-topbar__logout {
+    display: none;
+  }
+
+  .scp-search {
+    width: min(450px, 36vw);
+  }
 }

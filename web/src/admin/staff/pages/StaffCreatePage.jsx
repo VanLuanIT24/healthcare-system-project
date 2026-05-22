@@ -1,35 +1,102 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  AlertTriangle,
+  BadgeCheck,
+  Building2,
+  CheckCircle2,
+  ClipboardCheck,
+  Fingerprint,
+  KeyRound,
+  Mail,
+  Phone,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  UserPlus,
+  UsersRound,
+} from 'lucide-react';
 import { PasswordPolicyChecklist } from '../../../Auth/components/PasswordPolicyChecklist';
 import { usePasswordPolicyValidation } from '../../../lib/passwordPolicy';
-import { createStaffAccount, getAssignableRoles, getDepartments } from '../staffApi';
+import {
+  createStaffAccount,
+  generateStaffEmployeeCode,
+  generateStaffUsername,
+  getAssignableRoles,
+  getDepartments,
+  validateStaffUnique,
+} from '../staffApi';
 import { StaffSuccessDialog } from '../components/StaffDialogs';
+import { formatNumber } from '../staffUi';
 
 const INITIAL_FORM = {
   full_name: '',
   email: '',
   phone: '',
   username: '',
-  gender: '',
-  date_of_birth: '',
   department_id: '',
   employee_code: '',
   role_codes: [],
   status: 'active',
   password: '',
   confirm_password: '',
-  send_activation_email: false,
   must_change_password: true,
-  activate_now: true,
+  send_activation_email: false,
   note: '',
 };
 
+const WORKSPACE_BY_ROLE = {
+  super_admin: ['admin', 'scheduling', 'reception', 'doctor', 'nursing', 'lab', 'pharmacy', 'billing', 'reports'],
+  admin: ['admin', 'scheduling', 'billing', 'reports'],
+  manager: ['admin', 'scheduling', 'pharmacy', 'billing', 'reports'],
+  department_head: ['scheduling', 'nursing', 'reports'],
+  scheduler: ['scheduling', 'reception'],
+  receptionist: ['scheduling', 'reception'],
+  doctor: ['doctor', 'lab'],
+  nurse: ['nursing', 'lab'],
+  lab_technician: ['lab'],
+  lab_manager: ['lab', 'reports'],
+  radiologist: ['doctor', 'lab'],
+  imaging_technician: ['lab'],
+  procedure_staff: ['lab'],
+  pharmacist: ['pharmacy', 'reports'],
+  inventory_staff: ['pharmacy'],
+  cashier: ['billing'],
+  billing_staff: ['billing', 'reports'],
+  insurance_staff: ['billing', 'reports'],
+  medical_record_staff: ['reports'],
+};
+
+function roleRisk(role = {}) {
+  if (['super_admin'].includes(role.role_code)) return 'critical';
+  if (['admin', 'manager'].includes(role.role_code) || Number(role.priority_level || 0) >= 80) return 'high';
+  if (Number(role.priority_level || 0) >= 50) return 'medium';
+  return 'low';
+}
+
+function RiskBadge({ level }) {
+  return <span className={`staff-create-pro-risk staff-create-pro-risk--${level}`}>{level}</span>;
+}
+
+function Field({ icon: Icon, label, children, hint, error }) {
+  return (
+    <label className={`staff-create-pro-field${error ? ' has-error' : ''}`}>
+      <span>{Icon ? <Icon size={15} strokeWidth={2.25} /> : null}{label}</span>
+      {children}
+      {hint ? <small>{hint}</small> : null}
+      {error ? <em>{error}</em> : null}
+    </label>
+  );
+}
+
 export function StaffCreatePage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState(INITIAL_FORM);
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [uniqueCheck, setUniqueCheck] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
@@ -45,52 +112,73 @@ export function StaffCreatePage() {
 
   useEffect(() => {
     let active = true;
-
     async function loadMeta() {
       try {
-        const [rolesData, departmentsData] = await Promise.all([getAssignableRoles(), getDepartments()]);
+        const [rolesData, departmentsData] = await Promise.all([getAssignableRoles(), getDepartments('limit=150')]);
         if (!active) return;
-
         const roleItems = rolesData?.items || [];
         const departmentItems = departmentsData?.items || [];
         setRoles(roleItems);
         setDepartments(departmentItems);
-
-        const roleQuery = searchParams.get('role');
-        const departmentQuery = searchParams.get('department');
-
         setForm((current) => ({
           ...current,
-          role_codes:
-            roleQuery && roleItems.some((item) => item.role_code === roleQuery) ? [roleQuery] : current.role_codes,
-          department_id:
-            departmentQuery && departmentItems.some((item) => item.department_id === departmentQuery)
-              ? departmentQuery
-              : current.department_id,
+          role_codes: searchParams.get('role') && roleItems.some((item) => item.role_code === searchParams.get('role'))
+            ? [searchParams.get('role')]
+            : current.role_codes,
+          department_id: searchParams.get('department') && departmentItems.some((item) => item.department_id === searchParams.get('department'))
+            ? searchParams.get('department')
+            : current.department_id,
         }));
       } catch (loadError) {
-        if (!active) return;
-        setError(loadError.message);
+        if (active) setError(loadError.message);
       }
     }
-
     loadMeta();
     return () => {
       active = false;
     };
   }, [searchParams]);
 
-  const selectedRoleLabels = useMemo(
-    () => roles.filter((item) => form.role_codes.includes(item.role_code)).map((item) => item.role_name),
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (form.username) params.set('username', form.username);
+    if (form.email) params.set('email', form.email);
+    if (form.phone) params.set('phone', form.phone);
+    if (form.employee_code) params.set('employee_code', form.employee_code);
+    if (![...params.keys()].length) {
+      setUniqueCheck(null);
+      return undefined;
+    }
+    const timer = window.setTimeout(async () => {
+      try {
+        setUniqueCheck(await validateStaffUnique(params.toString()));
+      } catch {
+        setUniqueCheck(null);
+      }
+    }, 420);
+    return () => window.clearTimeout(timer);
+  }, [form.username, form.email, form.phone, form.employee_code]);
+
+  const selectedRoles = useMemo(
+    () => roles.filter((role) => form.role_codes.includes(role.role_code)),
     [form.role_codes, roles],
   );
+  const selectedDepartment = departments.find((department) => department.department_id === form.department_id);
+  const workspacePreview = useMemo(
+    () => [...new Set(selectedRoles.flatMap((role) => WORKSPACE_BY_ROLE[role.role_code] || []))],
+    [selectedRoles],
+  );
+  const maxPriority = selectedRoles.reduce((max, role) => Math.max(max, Number(role.priority_level || 0)), 0);
+  const selectedRisk = selectedRoles.some((role) => roleRisk(role) === 'critical')
+    ? 'critical'
+    : selectedRoles.some((role) => roleRisk(role) === 'high')
+      ? 'high'
+      : selectedRoles.some((role) => roleRisk(role) === 'medium')
+        ? 'medium'
+        : 'low';
 
-  const selectedDepartment = departments.find((item) => item.department_id === form.department_id);
-  const previewStatus = form.activate_now ? 'Đang hoạt động' : form.status === 'suspended' ? 'Đang tiếp nhận' : form.status;
-
-  function handleFieldChange(event) {
-    const { name, value, type, checked } = event.target;
-    setForm((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }));
+  function updateField(name, value) {
+    setForm((current) => ({ ...current, [name]: value }));
   }
 
   function toggleRole(roleCode) {
@@ -102,26 +190,38 @@ export function StaffCreatePage() {
     }));
   }
 
-  function clearPrefill() {
-    searchParams.delete('role');
-    searchParams.delete('department');
-    setSearchParams(searchParams);
+  async function handleGenerateUsername() {
+    setError('');
+    try {
+      const result = await generateStaffUsername({ full_name: form.full_name, email: form.email, phone: form.phone });
+      updateField('username', result.username || form.username);
+    } catch (loadError) {
+      setError(loadError.message);
+    }
+  }
+
+  async function handleGenerateEmployeeCode() {
+    setError('');
+    try {
+      const result = await generateStaffEmployeeCode({ department_id: form.department_id });
+      updateField('employee_code', result.employee_code || form.employee_code);
+    } catch (loadError) {
+      setError(loadError.message);
+    }
   }
 
   async function submitForm(event, keepCreating = false) {
     event.preventDefault();
     setError('');
 
-    if (!form.full_name || !form.email || !form.phone || !form.username || form.role_codes.length === 0) {
-      setError('Vui lòng điền đầy đủ thông tin bắt buộc và chọn ít nhất một role.');
+    if (!form.full_name || !form.email || !form.phone || !form.username || !form.role_codes.length) {
+      setError('Vui lòng nhập đủ họ tên, email, số điện thoại, username và ít nhất một vai trò.');
       return;
     }
-
     if (form.password && form.password !== form.confirm_password) {
       setError('Xác nhận mật khẩu không khớp.');
       return;
     }
-
     if (form.password) {
       const validationResult = await passwordPolicyValidation.validateNow();
       if (!validationResult.valid) {
@@ -131,7 +231,6 @@ export function StaffCreatePage() {
     }
 
     setSubmitting(true);
-
     try {
       const payload = {
         full_name: form.full_name,
@@ -141,33 +240,28 @@ export function StaffCreatePage() {
         department_id: form.department_id || undefined,
         employee_code: form.employee_code || undefined,
         role_codes: form.role_codes,
+        status: form.status,
         password: form.password || undefined,
         must_change_password: form.must_change_password,
       };
-
       const result = await createStaffAccount(payload);
       const createdUser = result?.user;
-      const temporaryPassword = result?.initial_password || form.password || 'Mật khẩu đã được tạo';
-
-      if (keepCreating) {
-        setSuccess({
-          userId: createdUser?.user_id,
-          title: 'Tạo tài khoản thành công',
-      summary: [
-        { label: 'Tên nhân sự', value: createdUser?.full_name || payload.full_name },
-        { label: 'Email đăng nhập', value: createdUser?.email || payload.email },
-        { label: 'Vai trò ban đầu', value: selectedRoleLabels.join(', ') || form.role_codes.join(', ') },
-        { label: 'Mật khẩu tạm thời', value: temporaryPassword },
-          ],
-        });
-        setForm((current) => ({
-          ...INITIAL_FORM,
-          role_codes: current.role_codes,
-          department_id: current.department_id,
-        }));
-      } else {
+      const temporaryPassword = result?.initial_password || form.password || 'Backend đã tự sinh mật khẩu';
+      if (!keepCreating) {
         navigate(`/admin/staff/${createdUser?.user_id || ''}`, { replace: true });
+        return;
       }
+      setSuccess({
+        userId: createdUser?.user_id,
+        title: 'Tạo tài khoản nhân sự thành công',
+        summary: [
+          { label: 'Nhân sự', value: createdUser?.full_name || payload.full_name },
+          { label: 'Username', value: createdUser?.username || payload.username },
+          { label: 'Vai trò', value: selectedRoles.map((role) => role.role_code).join(', ') },
+          { label: 'Mật khẩu tạm', value: temporaryPassword },
+        ],
+      });
+      setForm((current) => ({ ...INITIAL_FORM, department_id: current.department_id, role_codes: current.role_codes }));
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -177,285 +271,189 @@ export function StaffCreatePage() {
 
   return (
     <>
-      <section className="staff-create-shell">
-        <div className="staff-create-shell__main">
-          <section className="staff-create-topbar">
-            <div>
-              <p className="admin-page-header__eyebrow">Admin / Nhân sự / Tạo nhân sự</p>
-              <h1>Tạo tài khoản nhân sự</h1>
-              <p>Tạo tài khoản nhân sự nội bộ, gán vai trò ban đầu và chuẩn bị tiếp nhận an toàn.</p>
-            </div>
-            <div className="admin-page-header__actions">
-              <Link to="/admin/staff" className="staff-button staff-button--ghost">
-                Hủy
-              </Link>
-              {(searchParams.get('role') || searchParams.get('department')) ? (
-                <button type="button" className="staff-button staff-button--ghost" onClick={clearPrefill}>
-                  Bỏ dữ liệu gợi ý
-                </button>
-              ) : null}
-            </div>
-          </section>
+      <section className="staff-create-pro-page">
+        <section className="staff-create-pro-hero">
+          <div className="staff-create-pro-hero__icon"><UserPlus size={26} strokeWidth={2.25} /></div>
+          <div>
+            <span>Human Identity Control</span>
+            <h1>Tạo tài khoản nhân viên</h1>
+            <p>Onboarding nhân sự nội bộ với kiểm tra unique realtime, role priority, workspace preview, chính sách mật khẩu và cảnh báo rủi ro trước khi tạo.</p>
+          </div>
+          <div className="staff-create-pro-hero__actions">
+            <Link to="/admin/staff" className="staff-button staff-button--ghost">Hủy</Link>
+            <button type="submit" form="staff-create-pro-form" className="staff-button staff-button--primary" disabled={submitting || passwordPolicyValidation.isChecking}>
+              <CheckCircle2 size={16} /> {submitting ? 'Đang tạo...' : 'Tạo nhân sự'}
+            </button>
+          </div>
+        </section>
 
-          <form id="staff-create-form" className="staff-create-form" onSubmit={(event) => submitForm(event, false)}>
-            <article className="staff-create-section">
-              <div className="staff-create-section__header staff-create-section__header--blue">
-                <span />
-                <h2>Thông tin cơ bản</h2>
-              </div>
-              <div className="staff-create-grid">
-                <label className="staff-create-field">
-                  <span>Họ và tên</span>
-                  <input name="full_name" value={form.full_name} onChange={handleFieldChange} placeholder="Ví dụ: BS. Nguyễn Minh An" />
-                </label>
-                <label className="staff-create-field">
-                  <span>Địa chỉ email</span>
-                  <input name="email" type="email" value={form.email} onChange={handleFieldChange} placeholder="nguyen.an@auralumina.vn" />
-                </label>
-                <label className="staff-create-field">
-                  <span>Số điện thoại</span>
-                  <input name="phone" value={form.phone} onChange={handleFieldChange} placeholder="+84 9xx xxx xxx" />
-                </label>
-                <label className="staff-create-field">
-                  <span>Tên đăng nhập</span>
-                  <input name="username" value={form.username} onChange={handleFieldChange} placeholder="nguyenan_admin" />
-                </label>
-                <label className="staff-create-field">
-                  <span>Giới tính</span>
-                  <select name="gender" value={form.gender} onChange={handleFieldChange}>
-                    <option value="">Chọn giới tính</option>
-                    <option value="male">Nam</option>
-                    <option value="female">Nữ</option>
-                    <option value="other">Khác</option>
-                  </select>
-                </label>
-                <label className="staff-create-field">
-                  <span>Ngày sinh</span>
-                  <input name="date_of_birth" type="date" value={form.date_of_birth} onChange={handleFieldChange} />
-                </label>
-              </div>
-            </article>
+        {error ? <p className="form-message error">{error}</p> : null}
 
-            <article className="staff-create-section">
-              <div className="staff-create-section__header staff-create-section__header--green">
-                <span />
-                <h2>Tổ chức & vai trò</h2>
+        <form id="staff-create-pro-form" className="staff-create-pro-layout" onSubmit={(event) => submitForm(event, false)}>
+          <main className="staff-create-pro-main">
+            <section className="staff-create-pro-panel">
+              <div className="staff-create-pro-panel__head">
+                <Fingerprint size={19} />
+                <div><span>Bước 1</span><strong>Thông tin định danh</strong></div>
               </div>
-              <div className="staff-create-grid">
-                <label className="staff-create-field">
-                  <span>Khoa/Phòng</span>
-                  <select name="department_id" value={form.department_id} onChange={handleFieldChange}>
-                    <option value="">Chọn khoa/phòng</option>
-                    {departments.map((item) => (
-                      <option key={item.department_id} value={item.department_id}>
-                        {item.department_name}
+              <div className="staff-create-pro-grid">
+                <Field icon={UsersRound} label="Họ và tên">
+                  <input value={form.full_name} onChange={(event) => updateField('full_name', event.target.value)} placeholder="VD: BS. Nguyễn Minh An" />
+                </Field>
+                <Field icon={Mail} label="Email" error={uniqueCheck?.email?.available === false ? 'Email đã tồn tại trong staff/patient account.' : ''}>
+                  <input type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} placeholder="nguyen.an@hospital.vn" />
+                </Field>
+                <Field icon={Phone} label="Số điện thoại" error={uniqueCheck?.phone?.available === false ? 'Số điện thoại đã tồn tại.' : ''}>
+                  <input value={form.phone} onChange={(event) => updateField('phone', event.target.value)} placeholder="+84 9xx xxx xxx" />
+                </Field>
+                <Field icon={Fingerprint} label="Username" error={uniqueCheck?.username?.available === false ? 'Username đã tồn tại.' : ''}>
+                  <div className="staff-create-pro-inline">
+                    <input value={form.username} onChange={(event) => updateField('username', event.target.value)} placeholder="nguyenminhan" />
+                    <button type="button" onClick={handleGenerateUsername}><Sparkles size={15} /> Gợi ý</button>
+                  </div>
+                </Field>
+                <Field icon={BadgeCheck} label="Mã nhân viên" error={uniqueCheck?.employee_code?.available === false ? 'Mã nhân viên đã tồn tại.' : ''}>
+                  <div className="staff-create-pro-inline">
+                    <input value={form.employee_code} onChange={(event) => updateField('employee_code', event.target.value)} placeholder="EMP-0001" />
+                    <button type="button" onClick={handleGenerateEmployeeCode}><RefreshCw size={15} /> Sinh mã</button>
+                  </div>
+                </Field>
+                <Field icon={Building2} label="Khoa/phòng">
+                  <select value={form.department_id} onChange={(event) => updateField('department_id', event.target.value)}>
+                    <option value="">Chọn khoa/phòng active</option>
+                    {departments.map((department) => (
+                      <option key={department.department_id} value={department.department_id}>
+                        {department.department_name}
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="staff-create-field">
-                  <span>Mã nhân viên / chức danh</span>
-                  <input name="employee_code" value={form.employee_code} onChange={handleFieldChange} placeholder="BSCC / EMP-001" />
-                </label>
+                </Field>
               </div>
+            </section>
 
-              <div className="staff-create-role-picker">
-                <div className="staff-create-role-picker__column">
-                  <span>Vai trò ban đầu</span>
-                  <div className="staff-create-role-picker__grid">
-                    {roles.map((item) => (
-                      <button
-                        key={item.role_code}
-                        type="button"
-                        className={form.role_codes.includes(item.role_code) ? 'is-active' : ''}
-                        onClick={() => toggleRole(item.role_code)}
-                      >
-                        <strong>{item.role_name}</strong>
-                        <small>{item.description || item.role_code}</small>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="staff-create-role-picker__column">
-                  <span>Trạng thái ban đầu</span>
-                  <div className="staff-create-status-pills">
-                    <label className={form.status === 'suspended' ? 'is-active' : ''}>
-                      <input type="radio" name="status" value="suspended" checked={form.status === 'suspended'} onChange={handleFieldChange} />
-                      <span>Đang tiếp nhận</span>
-                    </label>
-                    <label className={form.status === 'active' ? 'is-active' : ''}>
-                      <input type="radio" name="status" value="active" checked={form.status === 'active'} onChange={handleFieldChange} />
-                      <span>Đang hoạt động</span>
-                    </label>
-                    <label className={form.status === 'disabled' ? 'is-active' : ''}>
-                      <input type="radio" name="status" value="disabled" checked={form.status === 'disabled'} onChange={handleFieldChange} />
-                      <span>Không hoạt động</span>
-                    </label>
-                  </div>
-                </div>
+            <section className="staff-create-pro-panel">
+              <div className="staff-create-pro-panel__head">
+                <ShieldCheck size={19} />
+                <div><span>Bước 2</span><strong>Vai trò ban đầu</strong></div>
               </div>
-            </article>
-
-            <article className="staff-create-section">
-              <div className="staff-create-section__header staff-create-section__header--orange">
-                <span />
-                <h2>Bảo mật tài khoản</h2>
+              <div className="staff-create-pro-role-grid">
+                {roles.map((role) => {
+                  const selected = form.role_codes.includes(role.role_code);
+                  return (
+                    <button key={role.role_code} type="button" className={selected ? 'is-selected' : ''} onClick={() => toggleRole(role.role_code)}>
+                      <div>
+                        <strong>{role.role_name}</strong>
+                        <code>{role.role_code}</code>
+                        <small>{role.description || 'Vai trò vận hành nội bộ'}</small>
+                      </div>
+                      <span>P{role.priority_level || 0}</span>
+                      <RiskBadge level={roleRisk(role)} />
+                    </button>
+                  );
+                })}
               </div>
-              <div className="staff-create-grid">
-                <label className="staff-create-field">
-                  <span>Mật khẩu tạm thời</span>
-                  <input
-                    name="password"
-                    type="password"
-                    value={form.password}
-                    onChange={handleFieldChange}
-                    onBlur={() => passwordPolicyValidation.validateNow().catch(() => {})}
-                    placeholder="Để trống để tự tạo"
-                  />
-                </label>
-                <label className="staff-create-field">
-                  <span>Xác nhận mật khẩu</span>
-                  <input name="confirm_password" type="password" value={form.confirm_password} onChange={handleFieldChange} placeholder="Nhập lại mật khẩu" />
-                </label>
-              </div>
+            </section>
 
+            <section className="staff-create-pro-panel">
+              <div className="staff-create-pro-panel__head">
+                <KeyRound size={19} />
+                <div><span>Bước 3</span><strong>Bảo mật tài khoản</strong></div>
+              </div>
+              <div className="staff-create-pro-grid">
+                <Field icon={KeyRound} label="Mật khẩu tạm" hint="Để trống để backend tự sinh mật khẩu mạnh.">
+                  <input type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} onBlur={() => passwordPolicyValidation.validateNow().catch(() => {})} />
+                </Field>
+                <Field icon={KeyRound} label="Xác nhận mật khẩu">
+                  <input type="password" value={form.confirm_password} onChange={(event) => updateField('confirm_password', event.target.value)} />
+                </Field>
+              </div>
               {form.password ? (
-                <>
-                  <PasswordPolicyChecklist
-                    actorType="staff"
-                    password={form.password}
-                    identifiers={[form.username, form.email, form.phone]}
-                  />
-                  {passwordPolicyValidation.isChecking ? (
-                    <p className="form-message">Đang kiểm tra mật khẩu với máy chủ...</p>
-                  ) : null}
-                  {!passwordPolicyValidation.isChecking && passwordPolicyValidation.status === 'valid' ? (
-                    <p className="form-message success">Mật khẩu đáp ứng chính sách bảo mật của hệ thống.</p>
-                  ) : null}
-                  {!passwordPolicyValidation.isChecking && ['invalid', 'rate-limited', 'error'].includes(passwordPolicyValidation.status) ? (
-                    <p className="form-message error">{passwordPolicyValidation.messages[0]}</p>
-                  ) : null}
-                </>
+                <div className="staff-create-pro-password-policy">
+                  <PasswordPolicyChecklist actorType="staff" password={form.password} identifiers={[form.username, form.email, form.phone]} />
+                </div>
               ) : null}
-
-              <div className="staff-create-toggle-grid">
-                <label className={`staff-create-toggle ${form.send_activation_email ? 'is-on' : ''}`}>
-                  <div>
-                    <strong>Gửi email</strong>
-                    <span>Gửi liên kết kích hoạt tài khoản qua email.</span>
-                  </div>
-                  <input name="send_activation_email" type="checkbox" checked={form.send_activation_email} onChange={handleFieldChange} />
+              <div className="staff-create-pro-toggles">
+                <label className={form.must_change_password ? 'is-on' : ''}>
+                  <input type="checkbox" checked={form.must_change_password} onChange={(event) => updateField('must_change_password', event.target.checked)} />
+                  <span><strong>Bắt đổi mật khẩu</strong><small>Phù hợp tài khoản mới hoặc reset bảo mật.</small></span>
                 </label>
-
-                <label className={`staff-create-toggle ${form.must_change_password ? 'is-on' : ''}`}>
-                  <div>
-                    <strong>Bắt buộc đổi</strong>
-                    <span>Người dùng phải đổi mật khẩu khi đăng nhập.</span>
-                  </div>
-                  <input name="must_change_password" type="checkbox" checked={form.must_change_password} onChange={handleFieldChange} />
+                <label className={form.send_activation_email ? 'is-on' : ''}>
+                  <input type="checkbox" checked={form.send_activation_email} onChange={(event) => updateField('send_activation_email', event.target.checked)} />
+                  <span><strong>Gửi lời mời</strong><small>Backend hiện ở mức MVP notification.</small></span>
                 </label>
-
-                <label className={`staff-create-toggle ${form.activate_now ? 'is-on' : ''}`}>
-                  <div>
-                    <strong>Kích hoạt ngay</strong>
-                    <span>Tài khoản có thể sử dụng ngay sau khi tạo.</span>
-                  </div>
-                  <input name="activate_now" type="checkbox" checked={form.activate_now} onChange={handleFieldChange} />
+                <label className={form.status === 'active' ? 'is-on' : ''}>
+                  <input type="checkbox" checked={form.status === 'active'} onChange={(event) => updateField('status', event.target.checked ? 'active' : 'suspended')} />
+                  <span><strong>Kích hoạt ngay</strong><small>Cho phép đăng nhập sau khi tạo.</small></span>
                 </label>
               </div>
-            </article>
+            </section>
+          </main>
 
-            <article className="staff-create-section">
-              <div className="staff-create-section__header staff-create-section__header--slate">
-                <span />
-                <h2>Ghi chú nội bộ</h2>
+          <aside className="staff-create-pro-sidebar">
+            <section className="staff-create-pro-card">
+              <div className="staff-create-pro-avatar">{String(form.full_name || form.username || 'NV').slice(0, 2).toUpperCase()}</div>
+              <h2>{form.full_name || 'Nhân sự mới'}</h2>
+              <p>{form.email || form.username || 'Chưa có định danh đăng nhập'}</p>
+              <div className="staff-create-pro-card__badges">
+                <span>{selectedDepartment?.department_name || 'Chưa chọn khoa'}</span>
+                <RiskBadge level={selectedRisk} />
               </div>
-              <label className="staff-create-field staff-create-field--full">
-                <textarea
-                  name="note"
-                  rows="5"
-                  value={form.note}
-                  onChange={handleFieldChange}
-                  placeholder="Nhập ghi chú bảo mật về tài khoản hoặc quá trình tiếp nhận nhân sự..."
-                />
-              </label>
-            </article>
+            </section>
 
-            {error ? <p className="form-message error">{error}</p> : null}
-          </form>
-        </div>
+            <section className="staff-create-pro-card staff-create-pro-impact">
+              <div className="staff-create-pro-impact__row">
+                <span>Role đã chọn</span>
+                <strong>{formatNumber(selectedRoles.length)}</strong>
+              </div>
+              <div className="staff-create-pro-impact__row">
+                <span>Priority cao nhất</span>
+                <strong>{formatNumber(maxPriority)}</strong>
+              </div>
+              <div className="staff-create-pro-impact__row">
+                <span>Workspace dự kiến</span>
+                <strong>{formatNumber(workspacePreview.length)}</strong>
+              </div>
+              <div className="staff-create-pro-workspaces">
+                {workspacePreview.length ? workspacePreview.map((workspace) => <span key={workspace}>{workspace}</span>) : <small>Chưa có workspace vì chưa chọn role.</small>}
+              </div>
+            </section>
 
-        <aside className="staff-create-shell__aside">
-          <article className="staff-create-preview">
-            <div className="staff-create-preview__cover" />
-            <div className="staff-create-preview__avatar">◉</div>
-            <div className="staff-create-preview__body">
-              <strong>{form.full_name || 'Nhân sự mới'}</strong>
-              <span>{form.email || 'Đang chờ thông tin...'}</span>
-              <div className="staff-create-preview__badges">
-                <span>{selectedRoleLabels[0] || 'Chưa gán'}</span>
-                <span>{previewStatus}</span>
+            <section className="staff-create-pro-card staff-create-pro-warning">
+              <ShieldAlert size={20} />
+              <div>
+                <strong>Guard backend đang áp dụng</strong>
+                <ul>
+                  <li>Không cho gán role priority bằng/cao hơn actor.</li>
+                  <li>Non-super-admin không gán được super_admin.</li>
+                  <li>Trùng username/email/phone/employee_code bị chặn.</li>
+                  <li>Tạo xong có thể trả mật khẩu tạm một lần.</li>
+                </ul>
               </div>
-              <div className="staff-create-preview__meta">
-                <div>
-                  <small>Khoa/Phòng</small>
-                  <strong>{selectedDepartment?.department_name || '—'}</strong>
-                </div>
-                <div>
-                  <small>Mã NV</small>
-                  <strong>{form.employee_code || 'LUM-AUTO-002'}</strong>
-                </div>
-              </div>
+            </section>
+
+            <div className="staff-create-pro-submit-row">
+              <button type="button" className="staff-button staff-button--ghost" onClick={(event) => submitForm(event, true)} disabled={submitting}>
+                <ClipboardCheck size={16} /> Tạo & tiếp tục
+              </button>
+              <button type="submit" className="staff-button staff-button--primary" disabled={submitting || passwordPolicyValidation.isChecking}>
+                <UserPlus size={16} /> Tạo nhân sự
+              </button>
             </div>
-          </article>
-
-          <article className="staff-create-guidelines">
-            <h3>Hướng dẫn nhanh</h3>
-            <ul>
-              <li>Ưu tiên dùng email nội bộ của bệnh viện để tăng bảo mật.</li>
-              <li>Mật khẩu nên có ít nhất 12 ký tự, chữ hoa và ký tự đặc biệt.</li>
-              <li>Chọn đúng vai trò để cấu hình quyền truy cập ban đầu.</li>
-              <li>Trạng thái tiếp nhận phù hợp khi tài khoản chưa nên truy cập đầy đủ.</li>
-            </ul>
-          </article>
-        </aside>
+          </aside>
+        </form>
       </section>
-
-      <footer className="staff-create-footer">
-        <span>Thông tin sẽ được lưu khi bạn xác nhận tạo tài khoản</span>
-        <div className="staff-create-footer__actions">
-          <button type="button" className="staff-button staff-button--ghost" onClick={(event) => submitForm(event, true)} disabled={submitting || passwordPolicyValidation.isChecking}>
-            Lưu nháp
-          </button>
-          <button type="submit" form="staff-create-form" className="staff-button staff-button--primary" disabled={submitting || passwordPolicyValidation.isChecking}>
-            {submitting ? 'Đang tạo...' : 'Tạo nhân sự'}
-          </button>
-        </div>
-      </footer>
 
       {success ? (
         <StaffSuccessDialog
           title={success.title}
           summary={success.summary}
           onClose={() => setSuccess(null)}
-          actions={
+          actions={(
             <>
-              <Link to={`/admin/staff/${success.userId}`} className="staff-button staff-button--ghost">
-                Đi đến chi tiết nhân sự
-              </Link>
-              <button
-                type="button"
-                className="staff-button staff-button--primary"
-                onClick={() => {
-                  setSuccess(null);
-                  navigate('/admin/staff/create', { replace: true });
-                }}
-              >
-                Tạo nhân sự mới
-              </button>
+              <Link to={`/admin/staff/${success.userId}`} className="staff-button staff-button--ghost">Mở Staff 360</Link>
+              <button type="button" className="staff-button staff-button--primary" onClick={() => setSuccess(null)}>Tạo tiếp</button>
             </>
-          }
+          )}
         />
       ) : null}
     </>

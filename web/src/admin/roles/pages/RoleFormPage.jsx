@@ -1,193 +1,249 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { createRole, getRoleDetail, listPermissions, syncRolePermissions, updateRole, updateRoleStatus } from '../roleApi';
 import {
-  ROLE_PRESETS,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Copy,
+  Database,
+  KeyRound,
+  Layers3,
+  LockKeyhole,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Workflow,
+} from 'lucide-react';
+import {
+  createRole,
+  getIamMatrix,
+  getRoleDetail,
+  getRolePermissions,
+  syncRolePermissions,
+  updateRole,
+  updateRoleStatus,
+} from '../roleApi';
+import {
   buildRoleCode,
+  formatNumber,
+  getPermissionActionTitle,
   getPermissionBrief,
-  getPermissionDetail,
   getPermissionModuleTitle,
-  getPermissionTone,
-  groupPermissions,
   prettifyRoleCode,
-  roleIcon,
 } from '../roleUi';
+
+const WORKSPACE_HINTS = [
+  { code: 'admin', label: 'Quản trị', prefixes: ['system.', 'users.', 'roles.', 'permissions.', 'audit_logs.', 'settings.'] },
+  { code: 'scheduling', label: 'Điều phối', prefixes: ['schedules.', 'appointments.', 'queues.', 'departments.'] },
+  { code: 'reception', label: 'Lễ tân', prefixes: ['patients.', 'appointments.', 'queues.', 'patient_authorizations.'] },
+  { code: 'doctor', label: 'Lâm sàng', prefixes: ['encounters.', 'diagnoses.', 'medical_records.', 'clinical_orders.', 'prescriptions.'] },
+  { code: 'nursing', label: 'Điều dưỡng', prefixes: ['vitals.', 'nursing.', 'medications.', 'encounters.'] },
+  { code: 'lab', label: 'Cận lâm sàng', prefixes: ['lab_', 'lab.', 'imaging_', 'procedure_', 'clinical_orders.'] },
+  { code: 'pharmacy', label: 'Dược', prefixes: ['prescriptions.', 'dispenses.', 'stock_', 'inventory.', 'medications.'] },
+  { code: 'billing', label: 'Viện phí', prefixes: ['invoices.', 'payments.', 'charges.', 'insurance_'] },
+  { code: 'reports', label: 'Báo cáo', prefixes: ['reports.', 'analytics.', 'audit_logs.'] },
+];
+
+const RISK_RANK = { low: 1, medium: 2, high: 3, critical: 4 };
+
+function riskLevelOf(permission) {
+  const code = String(permission?.permission_code || '').toLowerCase();
+  if (permission?.risk?.level) return permission.risk.level;
+  if (code === 'system.full_access' || code.includes('assign_roles') || code.includes('assign_permissions')) return 'critical';
+  if (/^(payments|invoices|audit_logs|medical_records|settings|break_glass)\./.test(code)) return 'high';
+  if (/^(reports|notifications|roles|users|departments)\.(create|update|delete|export|manage|update_status)/.test(code)) return 'medium';
+  return 'low';
+}
+
+function RiskBadge({ level }) {
+  return <span className={`role-create-pro-risk role-create-pro-risk--${level || 'low'}`}>{level || 'low'}</span>;
+}
+
+function permissionCodeOf(item) {
+  return item?.permission_code || item;
+}
+
+function permissionMatchesWorkspace(permission, workspace) {
+  const code = String(permissionCodeOf(permission) || '').toLowerCase();
+  return workspace.prefixes.some((prefix) => code.startsWith(prefix) || code.includes(prefix));
+}
+
+function summarizeSelection(permissions = [], selectedCodes = []) {
+  const selectedSet = new Set(selectedCodes);
+  const selectedItems = permissions.filter((permission) => selectedSet.has(permission.permission_code));
+  const byRisk = { critical: 0, high: 0, medium: 0, low: 0 };
+  let maxLevel = 'low';
+
+  selectedItems.forEach((permission) => {
+    const level = riskLevelOf(permission);
+    byRisk[level] = (byRisk[level] || 0) + 1;
+    if (RISK_RANK[level] > RISK_RANK[maxLevel]) maxLevel = level;
+  });
+
+  return {
+    selectedItems,
+    total: selectedItems.length,
+    modules: new Set(selectedItems.map((permission) => permission.module_key || 'general')).size,
+    byRisk,
+    maxLevel,
+    workspaces: WORKSPACE_HINTS
+      .map((workspace) => ({
+        ...workspace,
+        count: selectedItems.filter((permission) => permissionMatchesWorkspace(permission, workspace)).length,
+      }))
+      .filter((workspace) => workspace.count > 0)
+      .sort((left, right) => right.count - left.count),
+  };
+}
+
+function normalizePermissionData(matrix) {
+  const permissions = matrix?.permissions || [];
+  const modules = matrix?.modules || [];
+  const moduleKeys = modules.length
+    ? modules.map((item) => item.module_key)
+    : [...new Set(permissions.map((permission) => permission.module_key || 'general'))];
+
+  return { permissions, moduleKeys };
+}
 
 function RoleFormPage({ mode }) {
   const { roleId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [meta, setMeta] = useState(null);
-  const [allPermissions, setAllPermissions] = useState([]);
-  const [selectedPermissions, setSelectedPermissions] = useState([]);
-  const [permissionSearch, setPermissionSearch] = useState('');
-  const [openGroups, setOpenGroups] = useState({});
+  const isEdit = mode === 'edit';
   const [form, setForm] = useState({
     role_name: '',
     role_code: '',
     description: '',
     status: 'active',
-    role_type: 'custom',
-    note: '',
+    priority_level: 10,
+    change_reason: '',
   });
-  const isEdit = mode === 'edit';
+  const [matrix, setMatrix] = useState(null);
+  const [selectedPermissions, setSelectedPermissions] = useState([]);
+  const [selectedModule, setSelectedModule] = useState('all');
+  const [permissionSearch, setPermissionSearch] = useState('');
+  const [sourceRoleId, setSourceRoleId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function loadData() {
+    setLoading(true);
+    setError('');
+    try {
+      const matrixData = await getIamMatrix();
+      setMatrix(matrixData);
+
+      if (isEdit && roleId) {
+        const [detailData, permissionsData] = await Promise.all([getRoleDetail(roleId), getRolePermissions(roleId)]);
+        const role = detailData?.role || {};
+        setForm({
+          role_name: role.role_name || '',
+          role_code: role.role_code || '',
+          description: role.description || '',
+          status: role.status || 'active',
+          priority_level: Number(role.priority_level ?? 10),
+          change_reason: '',
+        });
+        setSelectedPermissions(permissionsData?.permission_codes || detailData?.permissions?.map((item) => item.permission_code) || []);
+      }
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let active = true;
-
-    async function loadData() {
-      try {
-        if (mode === 'create') {
-          const permissionsData = await listPermissions('limit=500');
-          if (!active) return;
-          const permissionItems = permissionsData?.items || [];
-          setAllPermissions(permissionItems);
-          setOpenGroups(
-            Object.keys(groupPermissions(permissionItems)).reduce((accumulator, key) => ({ ...accumulator, [key]: true }), {}),
-          );
-          return;
-        }
-
-        if (!roleId) return;
-
-        const detail = await getRoleDetail(roleId);
-        if (!active) return;
-
-        setForm({
-          role_name: detail?.role?.role_name || '',
-          role_code: detail?.role?.role_code || '',
-          description: detail?.role?.description || '',
-          status: detail?.role?.status || 'active',
-          role_type: detail?.role?.is_system ? 'system' : 'custom',
-          note: '',
-        });
-        setMeta(detail?.role || null);
-      } catch (loadError) {
-        if (!active) return;
-        setError(loadError.message);
-      }
-    }
-
     loadData();
-    return () => {
-      active = false;
-    };
-  }, [mode, roleId]);
+  }, [isEdit, roleId]);
 
-  const groupedPermissions = useMemo(() => {
-    const filtered = allPermissions.filter((item) => {
-      if (!permissionSearch) return true;
-      const keyword = permissionSearch.toLowerCase();
-      return (
-        item.permission_code.toLowerCase().includes(keyword) ||
-        item.permission_name.toLowerCase().includes(keyword) ||
-        getPermissionBrief(item).toLowerCase().includes(keyword)
-      );
+  const { permissions, moduleKeys } = useMemo(() => normalizePermissionData(matrix), [matrix]);
+  const summary = useMemo(() => summarizeSelection(permissions, selectedPermissions), [permissions, selectedPermissions]);
+
+  const filteredPermissions = useMemo(() => {
+    const keyword = permissionSearch.trim().toLowerCase();
+    return permissions.filter((permission) => {
+      if (selectedModule !== 'all' && permission.module_key !== selectedModule) return false;
+      if (!keyword) return true;
+      return [
+        permission.permission_code,
+        permission.permission_name,
+        permission.module_key,
+        permission.action_key,
+        permission.description,
+      ].some((value) => String(value || '').toLowerCase().includes(keyword));
     });
+  }, [permissionSearch, permissions, selectedModule]);
 
-    return groupPermissions(filtered);
-  }, [allPermissions, permissionSearch]);
+  const selectedSourceRole = useMemo(
+    () => (matrix?.roles || []).find((role) => role.role_id === sourceRoleId),
+    [matrix?.roles, sourceRoleId],
+  );
 
-  const createSummary = useMemo(() => {
-    const selectedItems = allPermissions.filter((item) => selectedPermissions.includes(item.permission_code));
-    const grouped = groupPermissions(selectedItems);
-    const sensitiveCount = selectedItems.filter((item) => ['auth', 'role', 'permission'].includes(String(item.module_key || '').toLowerCase())).length;
-
-    return {
-      selectedCount: selectedItems.length,
-      moduleCount: Object.keys(grouped).length,
-      riskLabel: sensitiveCount > 4 ? 'Cao' : sensitiveCount > 0 ? 'Trung bình' : 'Thấp',
-    };
-  }, [allPermissions, selectedPermissions]);
-
-  function handleFieldChange(event) {
-    const { name, value } = event.target;
+  function updateField(name, value) {
     setForm((current) => {
       const next = { ...current, [name]: value };
-      if (name === 'role_name' && mode === 'create' && !current.role_code) {
-        next.role_code = buildRoleCode(value);
-      }
+      if (name === 'role_name' && !isEdit && !current.role_code) next.role_code = buildRoleCode(value);
       return next;
     });
   }
 
-  function handleStatusChange(status) {
-    setForm((current) => ({ ...current, status }));
-  }
-
-  function handleRoleTypeChange(roleType) {
-    setForm((current) => ({ ...current, role_type: roleType }));
-  }
-
-  function togglePermission(permissionCode) {
-    setSelectedPermissions((current) =>
-      current.includes(permissionCode) ? current.filter((item) => item !== permissionCode) : [...current, permissionCode],
-    );
+  function togglePermission(code) {
+    setSelectedPermissions((current) => (
+      current.includes(code) ? current.filter((item) => item !== code) : [...current, code]
+    ));
   }
 
   function toggleModule(moduleKey) {
-    const items = groupedPermissions[moduleKey] || [];
-    const moduleCodes = items.map((item) => item.permission_code);
-    const fullySelected = moduleCodes.every((code) => selectedPermissions.includes(code));
-
+    const moduleCodes = permissions
+      .filter((permission) => permission.module_key === moduleKey)
+      .map((permission) => permission.permission_code);
+    const allSelected = moduleCodes.every((code) => selectedPermissions.includes(code));
     setSelectedPermissions((current) => {
-      if (fullySelected) {
-        return current.filter((code) => !moduleCodes.includes(code));
-      }
-
+      if (allSelected) return current.filter((code) => !moduleCodes.includes(code));
       return [...new Set([...current, ...moduleCodes])];
     });
   }
 
-  function applyPreset(presetKey) {
-    const codes = ROLE_PRESETS[presetKey] || [];
-    setSelectedPermissions((current) => [...new Set([...current, ...codes])]);
+  function applySourceRole(roleIdToApply) {
+    setSourceRoleId(roleIdToApply);
+    const grants = matrix?.grants?.[roleIdToApply] || [];
+    setSelectedPermissions(grants);
   }
 
-  async function saveRole(continueToPermissions = false) {
-    if (!form.role_name || !form.role_code) {
+  async function saveRole(openPermissions = false) {
+    if (!form.role_name.trim() || !form.role_code.trim()) {
       setError('Tên vai trò và mã vai trò là bắt buộc.');
       return;
     }
 
     setSubmitting(true);
     setError('');
-
     try {
       let resolvedRoleId = roleId;
-
-      if (mode === 'create') {
+      if (isEdit && roleId) {
+        await updateRole(roleId, {
+          role_name: form.role_name,
+          description: form.description,
+          priority_level: Number(form.priority_level),
+        });
+        await updateRoleStatus(roleId, form.status);
+      } else {
         const created = await createRole({
           role_name: form.role_name,
           role_code: form.role_code,
           description: form.description,
           status: form.status,
+          priority_level: Number(form.priority_level),
         });
         resolvedRoleId = created?.role?.role_id;
-        if (resolvedRoleId && selectedPermissions.length > 0) {
-          await syncRolePermissions(resolvedRoleId, selectedPermissions);
-        }
-      } else if (roleId) {
-        await updateRole(roleId, {
-          role_name: form.role_name,
-          description: form.description,
-        });
-        await updateRoleStatus(roleId, form.status);
-        resolvedRoleId = roleId;
       }
 
-      if (continueToPermissions && resolvedRoleId) {
-        navigate(`/admin/roles/${resolvedRoleId}/permissions`, { replace: true });
-        return;
-      }
-
-      if (resolvedRoleId) {
-        navigate(`/admin/roles/${resolvedRoleId}`, { replace: true });
-      } else {
-        navigate('/admin/roles', { replace: true });
-      }
+      if (resolvedRoleId) await syncRolePermissions(resolvedRoleId, selectedPermissions);
+      navigate(openPermissions && resolvedRoleId ? `/admin/roles/${resolvedRoleId}/permissions` : `/admin/roles/${resolvedRoleId || ''}`, { replace: true });
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -196,313 +252,187 @@ function RoleFormPage({ mode }) {
   }
 
   return (
-    <section className="role-page role-form-page">
-      <section className="role-hero role-form-hero">
-        <div className="role-hero__copy">
-          <p className="admin-page-header__eyebrow">
-            {mode === 'create'
-              ? 'Admin / Vai trò & quyền / Tạo vai trò'
-              : 'Admin / Vai trò & quyền / Danh sách vai trò / Chỉnh sửa vai trò'}
-          </p>
-          <h1>{mode === 'create' ? 'Tạo vai trò mới' : 'Chỉnh sửa vai trò'}</h1>
-          <p>
-            {mode === 'create'
-              ? 'Thiết lập vai trò truy cập mới, cấu hình thông tin định danh trước khi chuyển sang bước gán quyền.'
-              : 'Cập nhật vai trò: tên, mã, mô tả, trạng thái và lớp cấu hình cơ bản.'}
-          </p>
+    <section className="role-create-pro-page">
+      <section className="role-create-pro-hero">
+        <div className="role-create-pro-hero__icon"><Sparkles size={26} strokeWidth={2.25} /></div>
+        <div>
+          <span>IAM Role Builder</span>
+          <h1>{isEdit ? 'Chỉnh sửa vai trò' : 'Tạo vai trò'}</h1>
+          <p>Thiết kế vai trò theo priority, template, permission module, risk review và workspace impact. Mọi thay đổi quyền dùng đúng luồng backend sync role-permission.</p>
         </div>
-
-        <div className="role-hero__actions">
-          <Link to={location.state?.returnTo || (roleId ? `/admin/roles/${roleId}` : '/admin/roles')} className="staff-button staff-button--ghost">
-            Hủy
-          </Link>
-          <button type="button" className="staff-button staff-button--ghost" onClick={() => saveRole(true)} disabled={submitting}>
-            {submitting ? 'Đang lưu...' : mode === 'create' ? 'Lưu & gán quyền' : 'Lưu & mở quyền'}
+        <div className="role-create-pro-hero__actions">
+          <Link to={location.state?.returnTo || '/admin/roles'} className="staff-button staff-button--ghost">Hủy</Link>
+          <button type="button" className="staff-button staff-button--ghost" disabled={submitting} onClick={() => saveRole(true)}>
+            <KeyRound size={16} /> Lưu & mở quyền
           </button>
-          <button type="button" className="staff-button staff-button--primary" onClick={() => saveRole(false)} disabled={submitting}>
-            {submitting ? 'Đang lưu...' : mode === 'create' ? 'Lưu vai trò' : 'Lưu thay đổi'}
+          <button type="button" className="staff-button staff-button--primary" disabled={submitting} onClick={() => saveRole(false)}>
+            <ShieldCheck size={16} /> {submitting ? 'Đang lưu...' : 'Lưu vai trò'}
           </button>
         </div>
       </section>
 
-      <section className="role-form-layout">
-        <div className="role-form-stack">
-          <article className="role-form-card admin-panel role-edit-overview">
-            <div className="role-edit-overview__identity">
-              <div className="role-edit-overview__icon">{roleIcon(form.role_code)}</div>
-              <div>
-                <small>{isEdit ? 'Vai trò hiện tại' : 'Vai trò sắp tạo'}</small>
-                <strong>{form.role_name || 'Tên vai trò sẽ hiển thị tại đây'}</strong>
-                <p>{form.description || 'Vai trò này sẽ được dùng để phân nhóm truy cập và vận hành quyền trong hệ thống y tế.'}</p>
-              </div>
-            </div>
+      {error ? <p className="form-message error">{error}</p> : null}
+      {loading ? <div className="staff-loading-panel">Đang tải IAM matrix...</div> : null}
 
-            <div className="role-edit-overview__meta">
-              <div>
-                <span>Mã vai trò</span>
-                <strong>{form.role_code || 'role_code'}</strong>
-              </div>
-              <div>
-                <span>Trạng thái</span>
-                <strong>{form.status === 'active' ? 'Đang hoạt động' : 'Tạm ngưng'}</strong>
-              </div>
-              <div>
-                <span>Loại vai trò</span>
-                <strong>{form.role_type === 'system' ? 'Hệ thống' : 'Tùy chỉnh'}</strong>
-              </div>
+      <section className="role-create-pro-layout">
+        <main className="role-create-pro-main">
+          <section className="role-create-pro-panel">
+            <div className="role-create-pro-panel__head">
+              <div><Database size={18} /><h2>Định danh vai trò</h2></div>
+              <span>Step 1</span>
             </div>
-          </article>
-
-          <article className="role-form-card admin-panel">
-            <div className="staff-edit-section__header staff-edit-section__header--violet">
-              <span />
-              <h2>{isEdit ? 'Thông tin định danh' : 'Thông tin định danh'}</h2>
-            </div>
-
-            <div className="staff-create-grid">
-              <label className="staff-field">
+            <div className="role-create-pro-grid">
+              <label>
                 <span>Tên vai trò</span>
-                <input name="role_name" value={form.role_name} onChange={handleFieldChange} placeholder="Bác sĩ chuyên khoa" />
+                <input value={form.role_name} onChange={(event) => updateField('role_name', event.target.value)} placeholder="Điều phối viện phí nâng cao" />
               </label>
-              <label className="staff-field">
+              <label>
                 <span>Mã vai trò</span>
-                <input
-                  name="role_code"
-                  value={form.role_code}
-                  onChange={handleFieldChange}
-                  placeholder="doctor_core"
-                  disabled={mode === 'edit'}
-                />
-                <small className="staff-field__hint">Mã hiển thị: {prettifyRoleCode(form.role_code || 'role_code')}</small>
+                <input value={form.role_code} disabled={isEdit} onChange={(event) => updateField('role_code', buildRoleCode(event.target.value))} placeholder="advanced_billing_operator" />
               </label>
-              <label className="staff-field staff-field--full">
-                <span>Mô tả</span>
-                <textarea
-                  name="description"
-                  rows="4"
-                  value={form.description}
-                  onChange={handleFieldChange}
-                  placeholder="Vai trò dành cho bác sĩ thực hiện thăm khám, chẩn đoán và xử lý hồ sơ lâm sàng."
-                />
+              <label>
+                <span>Priority level</span>
+                <input type="number" min="0" max="100" value={form.priority_level} onChange={(event) => updateField('priority_level', event.target.value)} />
+              </label>
+              <label>
+                <span>Trạng thái</span>
+                <select value={form.status} onChange={(event) => updateField('status', event.target.value)}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+              <label className="role-create-pro-grid__full">
+                <span>Mô tả nghiệp vụ</span>
+                <textarea rows="4" value={form.description} onChange={(event) => updateField('description', event.target.value)} placeholder="Mô tả phạm vi vận hành, nhóm nhân sự được gán và giới hạn trách nhiệm của vai trò này." />
               </label>
             </div>
-          </article>
+          </section>
 
-          <article className="role-form-card admin-panel">
-            <div className="staff-edit-section__header staff-edit-section__header--mint">
-              <span />
-              <h2>{isEdit ? 'Cấu hình cơ bản' : 'Mô tả và trạng thái'}</h2>
+          <section className="role-create-pro-panel">
+            <div className="role-create-pro-panel__head">
+              <div><Copy size={18} /><h2>Template và baseline</h2></div>
+              <span>Step 2</span>
             </div>
-
-            <div className="staff-create-grid">
-              <div className="staff-field">
-                <span>Trạng thái vận hành</span>
-                <div className="role-edit-choice-grid">
-                  <button
-                    type="button"
-                    className={`role-edit-choice ${form.status === 'active' ? 'is-active' : ''}`}
-                    onClick={() => handleStatusChange('active')}
-                  >
-                    <strong>Đang hoạt động</strong>
-                    <small>Vai trò có thể được áp dụng cho tài khoản nội bộ.</small>
-                  </button>
-                  <button
-                    type="button"
-                    className={`role-edit-choice ${form.status === 'inactive' ? 'is-active is-muted' : ''}`}
-                    onClick={() => handleStatusChange('inactive')}
-                  >
-                    <strong>Tạm ngưng</strong>
-                    <small>Tạm dừng vai trò khỏi luồng gán mới và kiểm soát phát sinh.</small>
-                  </button>
-                </div>
-              </div>
-
-              <div className="staff-field">
-                <span>Loại vai trò</span>
-                <div className="role-edit-choice-grid role-edit-choice-grid--compact">
-                  <button
-                    type="button"
-                    className={`role-edit-choice ${form.role_type === 'custom' ? 'is-active' : ''}`}
-                    onClick={() => handleRoleTypeChange('custom')}
-                  >
-                    <strong>Tùy chỉnh</strong>
-                    <small>Vai trò dành riêng cho cấu hình nội bộ.</small>
-                  </button>
-                  <button
-                    type="button"
-                    className={`role-edit-choice ${form.role_type === 'system' ? 'is-active' : ''}`}
-                    onClick={() => handleRoleTypeChange('system')}
-                  >
-                    <strong>Hệ thống</strong>
-                    <small>Vai trò nền tảng cần kiểm soát chặt hơn.</small>
-                  </button>
-                </div>
-              </div>
-
-              <label className="staff-field staff-field--full">
-                <span>Ghi chú cấu hình</span>
-                <textarea
-                  name="note"
-                  rows="4"
-                  value={form.note}
-                  onChange={handleFieldChange}
-                  placeholder="Ghi chú thêm cho vai trò này, phạm vi sử dụng hoặc cảnh báo dành cho admin nội bộ."
-                />
-              </label>
+            <div className="role-create-pro-template-grid">
+              <button type="button" className={!sourceRoleId ? 'is-active' : ''} onClick={() => { setSourceRoleId(''); setSelectedPermissions([]); }}>
+                <strong>Role rỗng</strong>
+                <small>Bắt đầu với 0 permission để cấu hình thủ công.</small>
+              </button>
+              {(matrix?.roles || []).slice(0, 12).map((role) => (
+                <button key={role.role_id} type="button" className={sourceRoleId === role.role_id ? 'is-active' : ''} onClick={() => applySourceRole(role.role_id)}>
+                  <strong>{role.role_name}</strong>
+                  <small>{role.role_code} · {formatNumber(role.permission_count)} quyền · P{role.priority_level}</small>
+                </button>
+              ))}
             </div>
-          </article>
+          </section>
 
-          {!isEdit ? (
-            <article className="role-form-card admin-panel role-create-permission-card">
-              <div className="role-form-card__top role-form-card__top--stack">
-                <div className="staff-edit-section__header staff-edit-section__header--slate">
-                  <span />
-                  <h2>Cấu hình quyền hạn</h2>
-                </div>
-
-                <div className="role-create-permission-card__toolbar">
-                  <label className="admin-search role-form-card__search">
-                    <span>⌕</span>
-                    <input
-                      type="search"
-                      placeholder="Tìm quyền theo code hoặc mô tả"
-                      value={permissionSearch}
-                      onChange={(event) => setPermissionSearch(event.target.value)}
-                    />
-                  </label>
-
-                  <div className="role-template-row">
-                    {Object.keys(ROLE_PRESETS).map((presetKey) => (
-                      <button key={presetKey} type="button" className="role-template-chip" onClick={() => applyPreset(presetKey)}>
-                        Mẫu {prettifyRoleCode(presetKey)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="role-permission-groups">
-                {Object.entries(groupedPermissions).map(([moduleKey, items]) => {
-                  const selectedInModule = items.filter((item) => selectedPermissions.includes(item.permission_code)).length;
-
+          <section className="role-create-pro-panel">
+            <div className="role-create-pro-panel__head">
+              <div><Layers3 size={18} /><h2>Chọn permission</h2></div>
+              <span>{formatNumber(selectedPermissions.length)} selected</span>
+            </div>
+            <div className="role-create-pro-permission-layout">
+              <aside className="role-create-pro-modules">
+                <button type="button" className={selectedModule === 'all' ? 'is-active' : ''} onClick={() => setSelectedModule('all')}>
+                  <strong>Tất cả module</strong><small>{formatNumber(permissions.length)}</small>
+                </button>
+                {moduleKeys.map((moduleKey) => {
+                  const modulePermissions = permissions.filter((permission) => permission.module_key === moduleKey);
+                  const selectedCount = modulePermissions.filter((permission) => selectedPermissions.includes(permission.permission_code)).length;
                   return (
-                    <section key={moduleKey} className="role-permission-group role-permission-group--center">
-                      <button
-                        type="button"
-                        className="role-permission-group__head"
-                        onClick={() => setOpenGroups((current) => ({ ...current, [moduleKey]: !current[moduleKey] }))}
-                      >
-                        <div>
-                          <strong>{getPermissionModuleTitle(moduleKey)}</strong>
-                          <span>{selectedInModule}/{items.length} quyền đã chọn</span>
-                        </div>
-                        <small>{openGroups[moduleKey] ? '−' : '+'}</small>
-                      </button>
-
-                      <div className="role-permission-group__toolbar">
-                        <button type="button" className="role-template-chip" onClick={() => toggleModule(moduleKey)}>
-                          {items.every((item) => selectedPermissions.includes(item.permission_code)) ? 'Bỏ chọn module' : 'Chọn toàn bộ module'}
-                        </button>
-                      </div>
-
-                      {openGroups[moduleKey] ? (
-                        <div className="role-permission-grid">
-                          {items.map((permission) => {
-                            const isSelected = selectedPermissions.includes(permission.permission_code);
-                            return (
-                              <label
-                                key={permission.permission_id}
-                                className={`role-permission-card ${isSelected ? 'role-permission-card--selected role-permission-card--new' : ''}`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => togglePermission(permission.permission_code)}
-                                />
-                                <div>
-                                  <strong>{getPermissionBrief(permission)}</strong>
-                                  <div className="role-permission-card__meta">
-                                    <code className={`role-chip role-chip--${getPermissionTone(permission.module_key)}`}>
-                                      {getPermissionModuleTitle(permission.module_key)}
-                                    </code>
-                                    {isSelected ? <span className="role-permission-state role-permission-state--new">Đã chọn</span> : null}
-                                  </div>
-                                  <p>{getPermissionDetail(permission)}</p>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </section>
+                    <button key={moduleKey} type="button" className={selectedModule === moduleKey ? 'is-active' : ''} onClick={() => setSelectedModule(moduleKey)}>
+                      <strong>{getPermissionModuleTitle(moduleKey)}</strong>
+                      <small>{selectedCount}/{modulePermissions.length}</small>
+                    </button>
                   );
                 })}
-              </div>
-            </article>
-          ) : null}
-
-          {error ? <p className="form-message error">{error}</p> : null}
-        </div>
-
-        <aside className="role-summary-stack">
-          <article className={`role-summary-card admin-panel role-edit-sidecard ${!isEdit ? 'role-create-preview-card' : ''}`}>
-            <div className="role-summary-card__hero">
-              <span>{roleIcon(form.role_code)}</span>
-              <div>
-                <strong>{form.role_name || 'Xem trước vai trò'}</strong>
-                <code>{form.role_code || 'role_code'}</code>
-              </div>
-            </div>
-
-            <div className="role-summary-grid">
-              <div>
-                <span>Trạng thái</span>
-                <strong>{form.status}</strong>
-              </div>
-              <div>
-                <span>Loại vai trò</span>
-                <strong>{form.role_type === 'system' ? 'Hệ thống' : 'Tùy chỉnh'}</strong>
-              </div>
-              <div>
-                <span>Ngày tạo</span>
-                <strong>{meta?.created_at ? new Date(meta.created_at).toLocaleDateString('vi-VN') : 'Sau khi lưu'}</strong>
-              </div>
-              <div>
-                <span>Bước tiếp theo</span>
-                <strong>{isEdit ? 'Gán quyền truy cập' : `${createSummary.selectedCount}/${allPermissions.length || 0} quyền đã chọn`}</strong>
-              </div>
-            </div>
-
-            {!isEdit ? (
-              <div className="role-create-preview-card__risk">
-                <div className="role-create-preview-card__riskbar">
-                  <span style={{ width: `${Math.min((createSummary.selectedCount / Math.max(allPermissions.length || 1, 1)) * 100, 100)}%` }} />
+              </aside>
+              <div className="role-create-pro-permissions">
+                <div className="role-create-pro-permission-toolbar">
+                  <label>
+                    <Search size={16} />
+                    <input value={permissionSearch} onChange={(event) => setPermissionSearch(event.target.value)} placeholder="Tìm permission_code, module hoặc action..." />
+                  </label>
+                  {selectedModule !== 'all' ? (
+                    <button type="button" className="staff-button staff-button--ghost" onClick={() => toggleModule(selectedModule)}>
+                      Chọn/Bỏ module
+                    </button>
+                  ) : null}
                 </div>
-                <small>Mức kiểm soát cấu hình: <strong>{createSummary.riskLabel}</strong> • {createSummary.moduleCount} module được cấp quyền.</small>
+                <div className="role-create-pro-permission-list">
+                  {filteredPermissions.map((permission) => {
+                    const selected = selectedPermissions.includes(permission.permission_code);
+                    const level = riskLevelOf(permission);
+                    return (
+                      <label key={permission.permission_id} className={`role-create-pro-permission ${selected ? 'is-selected' : ''}`}>
+                        <input type="checkbox" checked={selected} onChange={() => togglePermission(permission.permission_code)} />
+                        <span>
+                          <strong>{permission.permission_code}</strong>
+                          <small>{permission.permission_name || getPermissionBrief(permission)}</small>
+                        </span>
+                        <em>{getPermissionActionTitle(permission.action_key)}</em>
+                        <RiskBadge level={level} />
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
-            ) : null}
-          </article>
-
-          <article className="role-summary-card admin-panel role-edit-sidecard role-edit-sidecard--warn">
-            <h3>Tác động cấu hình</h3>
-            <ul className="role-alert-list">
-              <li>Trang này chỉ chỉnh thông tin nhận diện và trạng thái của vai trò.</li>
-              <li>Quyền truy cập được quản lý riêng trong màn hình Gán quyền để tránh thao tác nhầm.</li>
-              <li>{isEdit ? 'Thay đổi tên hoặc trạng thái vai trò có thể ảnh hưởng trực tiếp tới các tài khoản đang sử dụng vai trò này.' : 'Sau khi lưu vai trò, bạn nên chuyển ngay sang bước gán quyền để vai trò hoạt động đúng mục đích.'}</li>
-            </ul>
-          </article>
-
-          <article className="role-summary-card admin-panel role-edit-sidecard role-edit-sidecard--action">
-            <h3>Bước tiếp theo</h3>
-            <p>{isEdit ? 'Sau khi lưu, bạn có thể chuyển sang trung tâm quyền để cập nhật những gì vai trò này được phép làm.' : 'Sau khi tạo xong vai trò, hệ thống sẽ cho bạn chuyển tiếp sang màn hình gán quyền riêng.'}</p>
-            <div className="role-edit-sidecard__actions">
-              {roleId ? (
-                <Link to={`/admin/roles/${roleId}/permissions`} className="staff-button staff-button--ghost">
-                  Mở trung tâm quyền
-                </Link>
-              ) : null}
             </div>
-          </article>
+          </section>
+        </main>
+
+        <aside className="role-create-pro-sidebar">
+          <section className="role-create-pro-preview">
+            <div className="role-create-pro-preview__avatar">{String(form.role_code || 'RL').slice(0, 2).toUpperCase()}</div>
+            <h2>{form.role_name || 'Vai trò mới'}</h2>
+            <code>{form.role_code || 'role_code'}</code>
+            <p>{form.description || 'Mô tả vai trò sẽ giúp audit và quản trị phân quyền rõ ràng hơn.'}</p>
+            <div className="role-create-pro-preview__badges">
+              <span>P{form.priority_level}</span>
+              <span>{form.status}</span>
+              {selectedSourceRole ? <span>Copy {selectedSourceRole.role_code}</span> : <span>Manual</span>}
+            </div>
+          </section>
+
+          <section className="role-create-pro-card">
+            <div className="role-create-pro-card__title"><ShieldAlert size={18} /><strong>Risk review</strong></div>
+            <div className="role-create-pro-risk-grid">
+              <div><span>Max risk</span><RiskBadge level={summary.maxLevel} /></div>
+              <div><span>Permissions</span><strong>{formatNumber(summary.total)}</strong></div>
+              <div><span>Modules</span><strong>{formatNumber(summary.modules)}</strong></div>
+              <div><span>Sensitive</span><strong>{formatNumber(summary.byRisk.critical + summary.byRisk.high + summary.byRisk.medium)}</strong></div>
+            </div>
+            <div className="role-create-pro-risk-bars">
+              {['critical', 'high', 'medium', 'low'].map((level) => (
+                <span key={level}><i>{level}</i><b>{formatNumber(summary.byRisk[level])}</b></span>
+              ))}
+            </div>
+          </section>
+
+          <section className="role-create-pro-card">
+            <div className="role-create-pro-card__title"><Workflow size={18} /><strong>Workspace impact</strong></div>
+            <div className="role-create-pro-workspaces">
+              {summary.workspaces.length ? summary.workspaces.map((workspace) => (
+                <span key={workspace.code}>{workspace.label}<b>{workspace.count}</b></span>
+              )) : <small>Chưa thấy workspace nào bị ảnh hưởng từ permission đã chọn.</small>}
+            </div>
+          </section>
+
+          <section className="role-create-pro-card role-create-pro-card--warning">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Guard backend đang bật</strong>
+              <p>Backend sẽ chặn role priority vượt quyền actor, gán `system.full_access` trái phép và sync permission không nằm trong quyền của người thao tác.</p>
+            </div>
+          </section>
+
+          <button type="button" className="staff-button staff-button--primary role-create-pro-submit" disabled={submitting} onClick={() => saveRole(false)}>
+            <CheckCircle2 size={16} /> {submitting ? 'Đang ghi IAM...' : 'Xác nhận lưu vai trò'}
+          </button>
+          <button type="button" className="staff-button staff-button--ghost role-create-pro-submit" disabled={submitting} onClick={() => saveRole(true)}>
+            Lưu và mở trung tâm quyền <ArrowRight size={15} />
+          </button>
         </aside>
       </section>
     </section>

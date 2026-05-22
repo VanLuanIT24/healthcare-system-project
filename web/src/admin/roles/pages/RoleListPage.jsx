@@ -1,193 +1,129 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { getRoleDetail, listPermissions, listRoles, updateRoleStatus } from '../roleApi';
 import {
-  formatNumber,
-  getPermissionTone,
-  getRoleStatusTone,
-  getRoleUsageLevel,
-  roleIcon,
-} from '../roleUi';
-import { RoleQuickPreviewDialog, RoleStatusDialog } from '../components/RoleDialogs';
+  AlertTriangle,
+  CheckCircle2,
+  Database,
+  Eye,
+  KeyRound,
+  LockKeyhole,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  TableProperties,
+  UsersRound,
+} from 'lucide-react';
+import { getIamMatrix, listRoles, updateRoleStatus } from '../roleApi';
+import { formatNumber, getRoleStatusTone } from '../roleUi';
 
-function filterRoles(items, filters) {
-  return items
-    .filter((item) => {
-      if (filters.permissionBucket === 'many' && item.permissions_count < 10) return false;
-      if (filters.permissionBucket === 'few' && item.permissions_count >= 10) return false;
-      if (filters.staffBucket === 'high' && item.users_count < 10) return false;
-      if (filters.staffBucket === 'low' && item.users_count >= 10) return false;
-      return true;
-    })
-    .sort((left, right) => {
-      if (filters.sortBy === 'name_asc') return left.role_name.localeCompare(right.role_name);
-      if (filters.sortBy === 'name_desc') return right.role_name.localeCompare(left.role_name);
-      if (filters.sortBy === 'permissions_desc') return right.permissions_count - left.permissions_count;
-      if (filters.sortBy === 'users_desc') return right.users_count - left.users_count;
-      return left.role_name.localeCompare(right.role_name);
-    });
+function riskTone(level = 'low') {
+  if (level === 'critical') return 'critical';
+  if (level === 'high') return 'high';
+  if (level === 'medium') return 'medium';
+  return 'low';
+}
+
+function RiskBadge({ level }) {
+  return <span className={`role-pro-risk role-pro-risk--${riskTone(level)}`}>{level || 'low'}</span>;
+}
+
+function StatusBadge({ status }) {
+  return <span className={`admin-status-badge admin-status-badge--${getRoleStatusTone(status)}`}>{status || 'unknown'}</span>;
+}
+
+function mergeRoleData(listItems = [], matrixRoles = []) {
+  const matrixByCode = new Map(matrixRoles.map((role) => [role.role_code, role]));
+  return listItems.map((role) => {
+    const matrix = matrixByCode.get(role.role_code) || {};
+    return {
+      ...role,
+      permission_count: role.permission_count ?? role.permissions_count ?? matrix.permission_count ?? 0,
+      user_count: role.user_count ?? role.users_count ?? matrix.user_count ?? 0,
+      risk: matrix.risk || role.risk || { max_level: role.role_code === 'super_admin' ? 'critical' : 'low' },
+      workspace_count: matrix.workspaces?.filter((workspace) => workspace.allowed).length || 0,
+      matrix,
+    };
+  });
 }
 
 export function RoleListPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentPage = Math.max(Number(searchParams.get('page') || 1), 1);
   const [filters, setFilters] = useState({
     keyword: searchParams.get('keyword') || '',
     status: searchParams.get('status') || '',
-    permissionBucket: searchParams.get('permission_bucket') || '',
-    staffBucket: searchParams.get('staff_bucket') || '',
-    sortBy: searchParams.get('sort') || 'name_asc',
+    risk: searchParams.get('risk') || '',
+    scope: searchParams.get('scope') || '',
   });
-  const [viewMode, setViewMode] = useState(searchParams.get('view') || 'table');
   const [roles, setRoles] = useState([]);
-  const [permissions, setPermissions] = useState([]);
+  const [matrix, setMatrix] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [preview, setPreview] = useState(null);
-  const [statusDialog, setStatusDialog] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedRoleIds, setSelectedRoleIds] = useState([]);
+  const [error, setError] = useState('');
+  const [selectedRole, setSelectedRole] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    setError('');
+    try {
+      const query = new URLSearchParams({ limit: '120' });
+      if (filters.keyword) query.set('search', filters.keyword);
+      if (filters.status) query.set('status', filters.status);
+      const [rolesData, matrixData] = await Promise.all([listRoles(query.toString()), getIamMatrix()]);
+      setMatrix(matrixData);
+      setRoles(mergeRoleData(rolesData?.items || [], matrixData?.roles || []));
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let active = true;
+    load();
+  }, [filters.keyword, filters.status]);
 
-    async function loadData() {
-      setLoading(true);
-      setError('');
-
-      try {
-        const [rolesData, permissionsData] = await Promise.all([
-          listRoles(`limit=100${filters.keyword ? `&search=${encodeURIComponent(filters.keyword)}` : ''}${filters.status ? `&status=${filters.status}` : ''}`),
-          listPermissions('limit=200'),
-        ]);
-
-        if (!active) return;
-        setRoles(filterRoles(rolesData?.items || [], filters));
-        setPermissions(permissionsData?.items || []);
-      } catch (loadError) {
-        if (!active) return;
-        setError(loadError.message);
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    loadData();
-    return () => {
-      active = false;
-    };
-  }, [filters]);
+  const visibleRoles = useMemo(() => roles.filter((role) => {
+    if (filters.risk && riskTone(role.risk?.max_level) !== filters.risk) return false;
+    if (filters.scope === 'system' && !role.is_system) return false;
+    if (filters.scope === 'custom' && role.is_system) return false;
+    if (filters.scope === 'locked' && role.is_mutable) return false;
+    return true;
+  }), [roles, filters]);
 
   const stats = useMemo(() => {
-    const activeCount = roles.filter((item) => item.status === 'active').length;
-    const topRole = [...roles].sort((left, right) => right.users_count - left.users_count)[0];
-    const underPermissioned = roles.filter((item) => item.permissions_count <= 2).length;
-
+    const active = roles.filter((role) => role.status === 'active').length;
+    const critical = roles.filter((role) => riskTone(role.risk?.max_level) === 'critical').length;
+    const high = roles.filter((role) => ['critical', 'high'].includes(riskTone(role.risk?.max_level))).length;
+    const broad = roles.filter((role) => role.permission_count >= 80 || role.workspace_count >= 5).length;
     return [
-      { label: 'Tổng số vai trò', value: formatNumber(roles.length), note: '+2 tháng này', icon: '⌘', tone: 'indigo' },
-      { label: 'Vai trò đang hoạt động', value: formatNumber(activeCount), note: roles.length ? `${Math.round((activeCount / roles.length) * 100)}% hoạt động` : '0% hoạt động', icon: '✓', tone: 'green' },
-      { label: 'Vai trò dùng nhiều nhất', value: topRole ? `${formatNumber(topRole.users_count)} người dùng` : 'N/A', note: topRole?.role_name || 'Chưa có', icon: '↗', tone: 'amber' },
-      { label: 'Vai trò thiếu quyền', value: formatNumber(underPermissioned), note: underPermissioned > 0 ? 'Cần rà soát' : 'Ổn định', icon: '▲', tone: 'red' },
+      { label: 'Tổng role', value: roles.length, icon: ShieldCheck, tone: 'blue' },
+      { label: 'Active', value: active, icon: CheckCircle2, tone: 'green' },
+      { label: 'Critical', value: critical, icon: ShieldAlert, tone: 'red' },
+      { label: 'High risk', value: high, icon: AlertTriangle, tone: 'amber' },
+      { label: 'Broad access', value: broad, icon: TableProperties, tone: 'violet' },
+      { label: 'Users impacted', value: roles.reduce((sum, role) => sum + Number(role.user_count || 0), 0), icon: UsersRound, tone: 'cyan' },
     ];
   }, [roles]);
-
-  const paginatedRoles = useMemo(() => {
-    const pageSize = 4;
-    const start = (currentPage - 1) * pageSize;
-    return roles.slice(start, start + pageSize);
-  }, [currentPage, roles]);
-
-  const totalPages = Math.max(Math.ceil(roles.length / 4), 1);
 
   function updateFilters(next) {
     setFilters(next);
     const params = new URLSearchParams();
     if (next.keyword) params.set('keyword', next.keyword);
     if (next.status) params.set('status', next.status);
-    if (next.permissionBucket) params.set('permission_bucket', next.permissionBucket);
-    if (next.staffBucket) params.set('staff_bucket', next.staffBucket);
-    if (next.sortBy) params.set('sort', next.sortBy);
-    if (viewMode) params.set('view', viewMode);
-    setSearchParams(params);
-    setSelectedRoleIds([]);
-  }
-
-  function setPage(nextPage) {
-    const params = new URLSearchParams(searchParams);
-    params.set('page', String(nextPage));
+    if (next.risk) params.set('risk', next.risk);
+    if (next.scope) params.set('scope', next.scope);
     setSearchParams(params);
   }
 
-  function changeView(nextView) {
-    setViewMode(nextView);
-    const params = new URLSearchParams(searchParams);
-    params.set('view', nextView);
-    setSearchParams(params);
-  }
-
-  function toggleRoleSelection(roleId) {
-    setSelectedRoleIds((current) =>
-      current.includes(roleId) ? current.filter((item) => item !== roleId) : [...current, roleId],
-    );
-  }
-
-  function toggleAllVisibleRoles() {
-    const visibleIds = paginatedRoles.map((item) => item.role_id);
-    const allSelected = visibleIds.every((roleId) => selectedRoleIds.includes(roleId));
-
-    setSelectedRoleIds((current) => {
-      if (allSelected) {
-        return current.filter((roleId) => !visibleIds.includes(roleId));
-      }
-
-      return [...new Set([...current, ...visibleIds])];
-    });
-  }
-
-  function renderUsageAvatars(role) {
-    const seed = role.role_name || role.role_code || 'R';
-    const avatars = Array.from({ length: Math.min(role.users_count || 0, 3) }, (_, index) => `${seed}${index + 1}`);
-    const remainder = Math.max((role.users_count || 0) - avatars.length, 0);
-
-    return (
-      <div className="role-user-cluster">
-        <div className="role-user-cluster__avatars">
-          {avatars.map((avatar, index) => (
-            <span key={avatar} style={{ zIndex: avatars.length - index }}>
-              {avatar.slice(0, 2).toUpperCase()}
-            </span>
-          ))}
-        </div>
-        <div className="role-user-cluster__meta">
-          <strong>{formatNumber(role.users_count)}</strong>
-          <small>{remainder > 0 ? `+${remainder} nhân sự` : role.users_count > 0 ? 'nhân sự' : 'Không còn sử dụng'}</small>
-        </div>
-      </div>
-    );
-  }
-
-  async function openPreview(role) {
-    try {
-      const detail = await getRoleDetail(role.role_id);
-      setPreview({
-        role,
-        permissions: detail?.permissions || [],
-      });
-    } catch (previewError) {
-      setError(previewError.message);
-    }
-  }
-
-  async function handleStatusConfirm() {
-    if (!statusDialog?.role) return;
-
+  async function toggleStatus(role) {
     setSubmitting(true);
+    setError('');
     try {
-      await updateRoleStatus(statusDialog.role.role_id, statusDialog.action === 'activate' ? 'active' : 'inactive');
-      setStatusDialog(null);
-      const refreshed = await listRoles(`limit=100${filters.keyword ? `&search=${encodeURIComponent(filters.keyword)}` : ''}${filters.status ? `&status=${filters.status}` : ''}`);
-      setRoles(filterRoles(refreshed?.items || [], filters));
+      await updateRoleStatus(role.role_id, role.status === 'active' ? 'inactive' : 'active');
+      await load();
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -196,216 +132,134 @@ export function RoleListPage() {
   }
 
   return (
-    <>
-      <section className="role-page">
-        <section className="role-hero">
-          <div className="role-hero__copy">
-            <p className="admin-page-header__eyebrow">Admin / Vai trò & quyền / Danh sách vai trò</p>
-            <h1>Danh sách vai trò</h1>
-            <p>Quản lý các vai trò truy cập trong hệ thống, theo dõi mức sử dụng và phân quyền cho từng nhóm người dùng.</p>
-          </div>
-
-          <div className="role-hero__actions">
-            <button type="button" className="staff-button staff-button--ghost role-hero__action" onClick={() => updateFilters({ ...filters })}>
-              <span>⟳</span>
-              <span>Làm mới</span>
-            </button>
-            <button type="button" className="staff-button staff-button--ghost role-hero__action">
-              <span>⇩</span>
-              <span>Xuất danh sách</span>
-            </button>
-            <Link to="/admin/roles/create" className="staff-button staff-button--primary role-hero__action">
-              <span>⊕</span>
-              <span>Tạo vai trò mới</span>
-            </Link>
-          </div>
-        </section>
-
-        <section className="role-stats">
-          {stats.map((item) => (
-            <article key={item.label} className={`admin-metric-card admin-metric-card--${item.tone} role-stat-card`}>
-              <div className="admin-metric-card__top">
-                <span className="admin-metric-card__icon">{item.icon}</span>
-                <small>{item.note}</small>
-              </div>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </section>
-
-        <section className="role-filters admin-panel">
-          <div className="role-filters__bar">
-            <label className="admin-search role-filters__search">
-              <span>⌕</span>
-              <input
-                type="search"
-                placeholder="Tìm theo tên vai trò hoặc mã code"
-                value={filters.keyword}
-                onChange={(event) => updateFilters({ ...filters, keyword: event.target.value })}
-              />
-            </label>
-
-            <label className="role-filter-chip">
-              <select value={filters.status} onChange={(event) => updateFilters({ ...filters, status: event.target.value })}>
-                <option value="">Trạng thái: Tất cả</option>
-                <option value="active">Trạng thái: Đang hoạt động</option>
-                <option value="inactive">Trạng thái: Không hoạt động</option>
-              </select>
-            </label>
-
-            <label className="role-filter-chip">
-              <select value={filters.permissionBucket} onChange={(event) => updateFilters({ ...filters, permissionBucket: event.target.value })}>
-                <option value="">Số quyền: Tăng dần</option>
-                <option value="many">Số quyền: Nhiều</option>
-                <option value="few">Số quyền: Ít</option>
-              </select>
-            </label>
-
-            <label className="role-filter-chip">
-              <select value={filters.sortBy} onChange={(event) => updateFilters({ ...filters, sortBy: event.target.value })}>
-                <option value="users_desc">Lượt dùng: Nhiều nhất</option>
-                <option value="permissions_desc">Lượt dùng: Nhiều quyền nhất</option>
-                <option value="name_asc">Lượt dùng: Tên A-Z</option>
-                <option value="name_desc">Lượt dùng: Tên Z-A</option>
-              </select>
-            </label>
-
-            <div className="role-view-toggle" aria-label="Chế độ hiển thị">
-              <button type="button" className={viewMode === 'table' ? 'is-active' : ''} onClick={() => changeView('table')}>
-                ☷
-              </button>
-              <button type="button" className={viewMode === 'compact' ? 'is-active' : ''} onClick={() => changeView('compact')}>
-                ◫
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="admin-panel">
-          {loading ? <div className="staff-loading-panel">Đang tải danh sách vai trò...</div> : null}
-          {!loading && error ? <p className="form-message error">{error}</p> : null}
-
-          {!loading && !error && roles.length === 0 ? (
-            <div className="staff-empty-state">
-              <div className="staff-empty-state__art">⌘</div>
-              <strong>Chưa có vai trò nào trong hệ thống</strong>
-              <p>Tạo vai trò đầu tiên để bắt đầu cấu hình phân quyền cho nền tảng bệnh viện.</p>
-              <Link to="/admin/roles/create" className="staff-button staff-button--primary">
-                Tạo vai trò đầu tiên
-              </Link>
-            </div>
-          ) : null}
-
-          {!loading && !error && roles.length > 0 ? (
-            <div className="role-table">
-              <div className="role-table__head">
-                <label className="role-table__checkbox">
-                  <input
-                    type="checkbox"
-                    checked={paginatedRoles.length > 0 && paginatedRoles.every((item) => selectedRoleIds.includes(item.role_id))}
-                    onChange={toggleAllVisibleRoles}
-                  />
-                </label>
-                <span>Vai trò & mã</span>
-                <span>Mô tả</span>
-                <span>Trạng thái</span>
-                <span>Quyền</span>
-                <span>Nhân sự đang dùng</span>
-                <span>Thao tác</span>
-              </div>
-
-              {paginatedRoles.map((role) => {
-                const usage = getRoleUsageLevel(role.users_count);
-                return (
-                  <div key={role.role_id} className="role-table__row">
-                    <label className="role-table__checkbox">
-                      <input
-                        type="checkbox"
-                        checked={selectedRoleIds.includes(role.role_id)}
-                        onChange={() => toggleRoleSelection(role.role_id)}
-                      />
-                    </label>
-
-                    <div className="role-table__identity">
-                      <button type="button" className="role-table__icon" onClick={() => navigate(`/admin/roles/${role.role_id}`)}>
-                        {roleIcon(role.role_code)}
-                      </button>
-                      <div>
-                        <strong>{role.role_name}</strong>
-                        <code className="role-code-badge">{role.role_code.toUpperCase()}</code>
-                      </div>
-                    </div>
-
-                    <p className="role-table__description">{role.description || 'Vai trò nền tảng cho vận hành nội bộ.'}</p>
-
-                    <span className={`admin-status-badge admin-status-badge--${getRoleStatusTone(role.status)}`}>{role.status}</span>
-
-                    <button type="button" className="role-inline-stat" onClick={() => navigate(`/admin/roles/${role.role_id}/permissions`)}>
-                      <span className={`role-chip role-chip--${getPermissionTone(role.role_code)}`}>🛡</span>
-                      <strong>{role.permissions_count === permissions.length ? `Tất cả (${formatNumber(role.permissions_count)})` : formatNumber(role.permissions_count)}</strong>
-                    </button>
-
-                    <button type="button" className="role-inline-stat role-inline-stat--usage" onClick={() => navigate(`/admin/roles/${role.role_id}?tab=staff`)}>
-                      {renderUsageAvatars(role)}
-                      <small className={`role-usage role-usage--${usage.tone}`}>{usage.label}</small>
-                    </button>
-
-                    <div className="staff-row-actions staff-row-actions--menu">
-                      <button type="button">•••</button>
-                      <div className="staff-row-actions__quick">
-                        <button type="button" onClick={() => openPreview(role)}>Xem nhanh</button>
-                        <button type="button" onClick={() => navigate(`/admin/roles/${role.role_id}`)}>Chi tiết</button>
-                        <button type="button" onClick={() => navigate(`/admin/roles/${role.role_id}/edit`)}>Chỉnh sửa</button>
-                        <button type="button" onClick={() => navigate(`/admin/roles/${role.role_id}/permissions`)}>Gán quyền</button>
-                        <button type="button" onClick={() => setStatusDialog({ action: role.status === 'active' ? 'deactivate' : 'activate', role })}>
-                          {role.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div className="role-table__footer">
-                <span>Đang hiển thị {paginatedRoles.length} trong tổng số {roles.length} vai trò</span>
-                <div className="role-pagination">
-                  <button type="button" disabled={currentPage <= 1} onClick={() => setPage(Math.max(currentPage - 1, 1))}>
-                    Trước
-                  </button>
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
-                    <button
-                      key={pageNumber}
-                      type="button"
-                      className={pageNumber === currentPage ? 'is-active' : ''}
-                      onClick={() => setPage(pageNumber)}
-                    >
-                      {pageNumber}
-                    </button>
-                  ))}
-                  <button type="button" disabled={currentPage >= totalPages} onClick={() => setPage(Math.min(currentPage + 1, totalPages))}>
-                    Sau
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </section>
+    <section className="role-pro-page">
+      <section className="role-pro-hero">
+        <div className="role-pro-hero__icon"><ShieldCheck size={26} strokeWidth={2.25} /></div>
+        <div>
+          <span>IAM Role Registry</span>
+          <h1>Vai trò hệ thống</h1>
+          <p>Quản trị vai trò theo priority, risk, user impact, permission coverage và workspace surface. Dữ liệu bám trực tiếp `/iam/roles` và `/iam/matrix`.</p>
+        </div>
+        <div className="role-pro-hero__actions">
+          <button type="button" className="staff-button staff-button--ghost" onClick={load}>
+            <RefreshCw size={16} /> Làm mới
+          </button>
+          <Link to="/admin/roles/create" className="staff-button staff-button--primary">
+            <Sparkles size={16} /> Tạo vai trò
+          </Link>
+        </div>
       </section>
 
-      {preview ? (
-        <RoleQuickPreviewDialog role={preview.role} permissions={preview.permissions} onClose={() => setPreview(null)} />
-      ) : null}
+      {error ? <p className="form-message error">{error}</p> : null}
 
-      {statusDialog ? (
-        <RoleStatusDialog
-          role={statusDialog.role}
-          action={statusDialog.action}
-          onClose={() => setStatusDialog(null)}
-          onConfirm={handleStatusConfirm}
-          isSubmitting={submitting}
-        />
-      ) : null}
-    </>
+      <section className="role-pro-metrics">
+        {stats.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article key={item.label} className={`role-pro-metric role-pro-metric--${item.tone}`}>
+              <Icon size={18} />
+              <span>{item.label}</span>
+              <strong>{formatNumber(item.value)}</strong>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="role-pro-toolbar">
+        <label>
+          <Search size={16} />
+          <input value={filters.keyword} onChange={(event) => updateFilters({ ...filters, keyword: event.target.value })} placeholder="Tìm role_name hoặc role_code..." />
+        </label>
+        <select value={filters.status} onChange={(event) => updateFilters({ ...filters, status: event.target.value })}>
+          <option value="">Mọi trạng thái</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <select value={filters.risk} onChange={(event) => updateFilters({ ...filters, risk: event.target.value })}>
+          <option value="">Mọi risk</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select value={filters.scope} onChange={(event) => updateFilters({ ...filters, scope: event.target.value })}>
+          <option value="">Mọi loại role</option>
+          <option value="system">System</option>
+          <option value="custom">Custom</option>
+          <option value="locked">Locked</option>
+        </select>
+      </section>
+
+      <section className="role-pro-layout">
+        <main className="role-pro-table-panel">
+          {loading ? <div className="staff-loading-panel">Đang tải role registry...</div> : null}
+          <div className="role-pro-table">
+            <div className="role-pro-table__head">
+              <span>Role</span><span>Priority</span><span>Usage</span><span>Permission</span><span>Workspace</span><span>Risk</span><span>Actions</span>
+            </div>
+            {visibleRoles.map((role) => (
+              <div key={role.role_id} className="role-pro-table__row" onClick={() => setSelectedRole(role)}>
+                <span className="role-pro-identity">
+                  <i>{role.role_code?.slice(0, 2).toUpperCase()}</i>
+                  <span>
+                    <strong>{role.role_name}</strong>
+                    <code>{role.role_code}</code>
+                    <small>{role.description || 'Role vận hành nội bộ'}</small>
+                  </span>
+                </span>
+                <span className="role-pro-priority">P{role.priority_level}</span>
+                <span><strong>{formatNumber(role.user_count)}</strong><small>users</small></span>
+                <span><strong>{formatNumber(role.permission_count)}</strong><small>permissions</small></span>
+                <span><strong>{formatNumber(role.workspace_count)}</strong><small>workspaces</small></span>
+                <RiskBadge level={role.risk?.max_level} />
+                <span className="role-pro-actions" onClick={(event) => event.stopPropagation()}>
+                  <button type="button" title="Chi tiết" onClick={() => navigate(`/admin/roles/${role.role_id}`)}><Eye size={15} /></button>
+                  <button type="button" title="Gán quyền" onClick={() => navigate(`/admin/roles/${role.role_id}/permissions`)}><KeyRound size={15} /></button>
+                  <button type="button" title="Đổi trạng thái" disabled={submitting} onClick={() => toggleStatus(role)}><LockKeyhole size={15} /></button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </main>
+
+        <aside className="role-pro-drawer">
+          {selectedRole ? (
+            <>
+              <div className="role-pro-drawer__head">
+                <span>{selectedRole.role_code}</span>
+                <h2>{selectedRole.role_name}</h2>
+                <StatusBadge status={selectedRole.status} />
+              </div>
+              <div className="role-pro-drawer__grid">
+                <div><span>Priority</span><strong>{selectedRole.priority_level}</strong></div>
+                <div><span>Users</span><strong>{formatNumber(selectedRole.user_count)}</strong></div>
+                <div><span>Permissions</span><strong>{formatNumber(selectedRole.permission_count)}</strong></div>
+                <div><span>Version</span><strong>{selectedRole.role_version || 1}</strong></div>
+              </div>
+              <div className="role-pro-workspaces">
+                {(selectedRole.matrix?.workspaces || []).map((workspace) => (
+                  <span key={workspace.code} className={workspace.allowed ? 'is-allowed' : ''}>{workspace.code}</span>
+                ))}
+              </div>
+              <div className="role-pro-risk-box">
+                <ShieldAlert size={18} />
+                <div>
+                  <strong>Risk summary</strong>
+                  <p>{selectedRole.risk?.sensitive_count || 0} sensitive permission, level {selectedRole.risk?.max_level || 'low'}.</p>
+                </div>
+              </div>
+              <button type="button" className="staff-button staff-button--primary" onClick={() => navigate(`/admin/roles/${selectedRole.role_id}/permissions`)}>
+                Mở trung tâm quyền
+              </button>
+            </>
+          ) : (
+            <div className="role-pro-empty">
+              <Database size={26} />
+              <strong>Chọn một role để xem control drawer</strong>
+            </div>
+          )}
+        </aside>
+      </section>
+    </section>
   );
 }

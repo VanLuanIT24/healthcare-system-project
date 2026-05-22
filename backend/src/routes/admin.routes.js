@@ -1,5 +1,8 @@
 const express = require('express');
 const adminCommandCenterRoutes = require('./admin-command-center.routes');
+const adminFacilityRoutes = require('./admin-facility.routes');
+const adminMasterDataRoutes = require('./admin-master-data.routes');
+const adminWorkspaceAccessRoutes = require('./admin-workspace-access.routes');
 const adminController = require('../controllers/admin.controller');
 const paymentIntentController = require('../controllers/payment-intent.controller');
 const authenticate = require('../middleware/authenticate');
@@ -20,6 +23,9 @@ router.use('/command-center', adminCommandCenterRoutes);
 
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));
+router.use('/facilities', adminFacilityRoutes);
+router.use('/master-data', adminMasterDataRoutes);
+router.use('/workspace-access', adminWorkspaceAccessRoutes);
 
 router.get(
   '/overview',

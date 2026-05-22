@@ -2,6 +2,7 @@ const { AuditLog } = require('../models');
 const { PERMISSION } = require('../constants/permissions');
 const { ACTOR_TYPES, AUDIT_STATUS, normalizeActorType } = require('../constants/statuses');
 const permissionService = require('./permission.service');
+const auditPolicy = require('./audit-policy.service');
 const {
   buildPagination,
   createError,
@@ -14,6 +15,32 @@ const {
 const AUDIT_SORT_FIELDS = new Set(['created_at', 'action', 'actor_type', 'target_type', 'status', 'severity']);
 const SECURITY_MODULES = ['auth', 'security', 'user', 'users', 'role', 'roles', 'permission', 'permissions'];
 const SCHEDULING_MODULES = ['schedule', 'schedules', 'appointment', 'appointments', 'queue'];
+const BREAK_GLASS_ACTIONS = ['break_glass.start', 'break_glass.end', 'break_glass.started', 'break_glass.ended'];
+const SENSITIVE_ACTIONS = [
+  ...auditPolicy.SENSITIVE_READ_ACTIONS,
+  ...auditPolicy.SENSITIVE_WRITE_ACTIONS,
+];
+const PAYMENT_ACTIONS = [
+  ...auditPolicy.PAYMENT_ACTIONS,
+  'charges.create',
+  'charges.post',
+  'charges.void',
+  'invoices.create_from_charges',
+  'invoices.issue',
+  'invoices.void',
+  'payments.create',
+  'payments.void',
+  'payments.refund',
+  'refund.requested',
+  'refund.approved',
+  'refund.rejected',
+  'receipt.print_log',
+  'receipt.viewed',
+  'manual_payment.confirmed',
+  'manual_payment.rejected',
+];
+const IAM_ACTION_PREFIXES = ['iam.', 'role.', 'roles.', 'permission.', 'permissions.', 'user_role.', 'access_control.'];
+const SYSTEM_CONFIG_ACTIONS = ['system_setting.create', 'system_setting.update', 'system_setting.rollback'];
 const SAFE_LIMITED_METADATA_KEYS = [
   'reason',
   'from_status',
@@ -172,6 +199,158 @@ function buildSort(query = {}) {
   const sortBy = AUDIT_SORT_FIELDS.has(query.sort_by) ? query.sort_by : 'created_at';
   const sortDirection = String(query.sort_direction || query.sort || 'desc').toLowerCase() === 'asc' ? 1 : -1;
   return { [sortBy]: sortDirection };
+}
+
+function nonEmptyFilter(filter = {}) {
+  return filter && Object.keys(filter).length > 0;
+}
+
+function andFilter(...filters) {
+  const usable = filters.filter(nonEmptyFilter);
+  if (usable.length === 0) return {};
+  if (usable.length === 1) return usable[0];
+  return { $and: usable };
+}
+
+function startOfToday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function scopedBaseFilter(query = {}, actor = {}, mode = 'list') {
+  assertStaff(actor);
+  if (!canReadAllAudit(actor) && !canReadLimitedAudit(actor)) {
+    throw createError('Tài khoản hiện tại không có quyền xem audit logs.', 403);
+  }
+  return scopedAuditFilter(buildAuditFilter(query), actor, mode);
+}
+
+async function aggregateCountBy(filter, field, limit = 12) {
+  return AuditLog.aggregate([
+    { $match: filter },
+    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+    { $match: { _id: { $nin: [null, ''] } } },
+    { $sort: { count: -1 } },
+    { $limit: limit },
+  ]);
+}
+
+function actionPrefixFilter(prefixes = []) {
+  return { $or: prefixes.map((prefix) => ({ action: { $regex: `^${escapeRegex(prefix)}` } })) };
+}
+
+async function getAuditSummary(query = {}, actor = {}) {
+  const baseFilter = scopedBaseFilter(query, actor);
+  const todayFilter = andFilter(baseFilter, { created_at: { $gte: startOfToday() } });
+  const sensitiveFilter = andFilter(baseFilter, { action: { $in: SENSITIVE_ACTIONS } });
+  const breakGlassFilter = andFilter(baseFilter, { action: { $in: BREAK_GLASS_ACTIONS } });
+  const paymentFilter = andFilter(baseFilter, { action: { $in: PAYMENT_ACTIONS } });
+  const iamFilter = andFilter(baseFilter, actionPrefixFilter(IAM_ACTION_PREFIXES));
+  const systemConfigFilter = andFilter(baseFilter, { $or: [{ action: { $in: SYSTEM_CONFIG_ACTIONS } }, { module_key: 'settings' }, { target_type: 'system_setting' }] });
+
+  const [
+    total,
+    totalToday,
+    successCount,
+    failureCount,
+    warningCount,
+    criticalCount,
+    sensitiveAccessCount,
+    breakGlassCount,
+    paymentEventCount,
+    iamChangeCount,
+    systemConfigChangeCount,
+    exportEventCount,
+    topActions,
+    topModules,
+    topActors,
+    topIps,
+    trendByHour,
+  ] = await Promise.all([
+    AuditLog.countDocuments(baseFilter),
+    AuditLog.countDocuments(todayFilter),
+    AuditLog.countDocuments(andFilter(baseFilter, { status: AUDIT_STATUS.SUCCESS })),
+    AuditLog.countDocuments(andFilter(baseFilter, { status: 'failure' })),
+    AuditLog.countDocuments(andFilter(baseFilter, { severity: 'warning' })),
+    AuditLog.countDocuments(andFilter(baseFilter, { severity: 'critical' })),
+    AuditLog.countDocuments(sensitiveFilter),
+    AuditLog.countDocuments(breakGlassFilter),
+    AuditLog.countDocuments(paymentFilter),
+    AuditLog.countDocuments(iamFilter),
+    AuditLog.countDocuments(systemConfigFilter),
+    AuditLog.countDocuments(andFilter(baseFilter, { action: 'audit_log.export' })),
+    aggregateCountBy(baseFilter, 'action', 10),
+    aggregateCountBy(baseFilter, 'module_key', 10),
+    AuditLog.aggregate([
+      { $match: baseFilter },
+      { $group: { _id: { actor_type: '$actor_type', actor_id: '$actor_id' }, count: { $sum: 1 }, last_seen_at: { $max: '$created_at' } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]),
+    aggregateCountBy(andFilter(baseFilter, { ip_address: { $nin: [null, ''] } }), 'ip_address', 10),
+    AuditLog.aggregate([
+      { $match: baseFilter },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$created_at' },
+            month: { $month: '$created_at' },
+            day: { $dayOfMonth: '$created_at' },
+            hour: { $hour: '$created_at' },
+          },
+          count: { $sum: 1 },
+          failures: { $sum: { $cond: [{ $eq: ['$status', 'failure'] }, 1, 0] } },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
+      { $limit: 48 },
+    ]),
+  ]);
+
+  return {
+    total,
+    total_today: totalToday,
+    total_24h: total,
+    success_count: successCount,
+    failure_count: failureCount,
+    warning_count: warningCount,
+    critical_count: criticalCount,
+    sensitive_access_count: sensitiveAccessCount,
+    break_glass_count: breakGlassCount,
+    payment_event_count: paymentEventCount,
+    iam_change_count: iamChangeCount,
+    system_config_change_count: systemConfigChangeCount,
+    export_event_count: exportEventCount,
+    top_actions: topActions,
+    top_modules: topModules,
+    top_actors: topActors,
+    top_ips: topIps,
+    trend_by_hour: trendByHour,
+  };
+}
+
+async function getAuditFacets(query = {}, actor = {}) {
+  const baseFilter = scopedBaseFilter(query, actor);
+  const [actions, modules, targetTypes, statuses, severities, actorTypes] = await Promise.all([
+    aggregateCountBy(baseFilter, 'action', 40),
+    aggregateCountBy(baseFilter, 'module_key', 30),
+    aggregateCountBy(baseFilter, 'target_type', 30),
+    aggregateCountBy(baseFilter, 'status', 12),
+    aggregateCountBy(baseFilter, 'severity', 12),
+    aggregateCountBy(baseFilter, 'actor_type', 12),
+  ]);
+  return { actions, modules, target_types: targetTypes, statuses, severities, actor_types: actorTypes };
+}
+
+async function getRequestTimeline(requestId, query = {}, actor = {}) {
+  if (!requestId) throw createError('requestId là bắt buộc.', 422);
+  return listAuditLogs({ ...query, request_id: requestId, sort_by: 'created_at', sort_direction: 'asc', limit: query.limit || 200 }, actor);
+}
+
+async function getSessionTimeline(sessionId, query = {}, actor = {}) {
+  if (!sessionId) throw createError('sessionId là bắt buộc.', 422);
+  return listAuditLogs({ ...query, session_id: sessionId, sort_by: 'created_at', sort_direction: 'asc', limit: query.limit || 200 }, actor);
 }
 
 async function listAuditLogs(query = {}, actor = {}) {
@@ -358,6 +537,14 @@ module.exports = {
   getAuditLogsByEntity,
   // getLoginHistory: Lấy lịch sử đăng nhập.
   getLoginHistory,
+  // getAuditSummary: Tổng hợp KPI, top facets và trend audit.
+  getAuditSummary,
+  // getAuditFacets: Lấy facets động để build filter UI.
+  getAuditFacets,
+  // getRequestTimeline: Timeline theo request_id.
+  getRequestTimeline,
+  // getSessionTimeline: Timeline theo session_id.
+  getSessionTimeline,
   // exportAuditLogs: Xuất nhật ký kiểm toán.
   exportAuditLogs,
 };

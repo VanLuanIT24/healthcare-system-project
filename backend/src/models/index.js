@@ -5,9 +5,27 @@ const Role = require('./iam/role.model');
 const UserRole = require('./iam/user-role.model');
 const Permission = require('./iam/permission.model');
 const RolePermission = require('./iam/role-permission.model');
+const DenyPolicy = require('./iam/deny-policy.model');
+const WorkspaceAccessPolicy = require('./workspace/workspace-access-policy.model');
+const SecurityRateLimitEvent = require('./security/rate-limit-event.model');
+const SecurityDataAccessPolicy = require('./security/data-access-policy.model');
+const AuditReview = require('./compliance/audit-review.model');
+const AuditExportRequest = require('./compliance/audit-export-request.model');
+const ComplianceReport = require('./compliance/compliance-report.model');
+const DiagnosticRun = require('./operations/diagnostic-run.model');
+const MaintenanceWindow = require('./operations/maintenance-window.model');
+const IntegrationLog = require('./integrations/integration-log.model');
+const IntegrationHealthCheck = require('./integrations/integration-health-check.model');
+const IntegrationDiagnosticRun = require('./integrations/integration-diagnostic-run.model');
+const PortalFeatureFlag = require('./portal/portal-feature-flag.model');
+const PortalProfileFieldPolicy = require('./portal/portal-profile-field-policy.model');
 
 const DoctorProfile = require('./admin/doctor-profile.model');
 const SystemSetting = require('./admin/system-setting.model');
+const SystemSettingRevision = require('./admin/system-setting-revision.model');
+const AdminToolRun = require('./admin/admin-tool-run.model');
+const AdminToolFinding = require('./admin/admin-tool-finding.model');
+const AdminToolApproval = require('./admin/admin-tool-approval.model');
 
 const Patient = require('./patients/patient.model');
 const PatientIdentifier = require('./patients/patient-identifier.model');
@@ -171,7 +189,9 @@ const Notification = require('./notifications/notification.model');
 const NotificationDelivery = require('./notifications/notification-delivery.model');
 const NotificationPreference = require('./notifications/notification-preference.model');
 const NotificationTemplate = require('./notifications/notification-template.model');
+const BroadcastCampaign = require('./notifications/broadcast-campaign.model');
 const SupportTicket = require('./support/support-ticket.model');
+const SupportReplyTemplate = require('./support/support-reply-template.model');
 const Conversation = require('./messaging/conversation.model');
 const ConversationCall = require('./messaging/conversation-call.model');
 const ConversationParticipant = require('./messaging/conversation-participant.model');
@@ -207,8 +227,26 @@ module.exports = {
   UserRole,
   Permission,
   RolePermission,
+  DenyPolicy,
+  WorkspaceAccessPolicy,
+  SecurityRateLimitEvent,
+  SecurityDataAccessPolicy,
+  AuditReview,
+  AuditExportRequest,
+  ComplianceReport,
+  DiagnosticRun,
+  MaintenanceWindow,
+  IntegrationLog,
+  IntegrationHealthCheck,
+  IntegrationDiagnosticRun,
+  PortalFeatureFlag,
+  PortalProfileFieldPolicy,
   DoctorProfile,
   SystemSetting,
+  SystemSettingRevision,
+  AdminToolRun,
+  AdminToolFinding,
+  AdminToolApproval,
   Patient,
   PatientIdentifier,
   PatientAccount,
@@ -358,7 +396,9 @@ module.exports = {
   NotificationDelivery,
   NotificationPreference,
   NotificationTemplate,
+  BroadcastCampaign,
   SupportTicket,
+  SupportReplyTemplate,
   Conversation,
   ConversationCall,
   ConversationParticipant,

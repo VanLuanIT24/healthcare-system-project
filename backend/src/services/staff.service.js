@@ -3,6 +3,7 @@ const ApiError = require('../common/errors/api-error');
 const { mongoose } = require('../config/database');
 const {
   Appointment,
+  AuthSession,
   AuditLog,
   Department,
   DoctorProfile,
@@ -78,6 +79,67 @@ function getActorMaxRolePriority(actor = {}) {
     return Math.max(0, ...roleDetails.map((role) => Number(role.priority_level ?? ROLE_PRIORITY[role.role_code] ?? 0)));
   }
   return Math.max(0, ...(actor.roles || []).map((roleCode) => ROLE_PRIORITY[roleCode] || 0));
+}
+
+const HIGH_PRIVILEGE_ROLE_CODES = new Set([
+  ROLE_CODE.SUPER_ADMIN,
+  ROLE_CODE.ADMIN,
+  ROLE_CODE.DEPARTMENT_HEAD,
+].filter(Boolean));
+
+const LOGIN_AUDIT_ACTIONS = [
+  'auth.login',
+  'auth.login_failed',
+  'auth.logout',
+  'auth.refresh_token',
+  'auth.session.revoke',
+];
+
+function parseBooleanFlag(value) {
+  if (value === true || value === 'true' || value === '1') return true;
+  if (value === false || value === 'false' || value === '0') return false;
+  return null;
+}
+
+function serializeStaffSession(session, currentSessionId = null) {
+  const isActive = !session.revoked_at && session.expires_at > new Date();
+  const riskFlags = [
+    session.revoked_reason === 'refresh_token_reuse' ? 'refresh_token_reuse' : null,
+    session.last_ip && session.created_ip && session.last_ip !== session.created_ip ? 'ip_changed' : null,
+    isActive && session.expires_at < new Date(Date.now() + 24 * 60 * 60 * 1000) ? 'expires_soon' : null,
+  ].filter(Boolean);
+
+  return {
+    session_id: String(session._id),
+    actor_type: session.actor_type,
+    actor_id: session.actor_id ? String(session.actor_id) : null,
+    permission_version: session.permission_version || 1,
+    device_id: session.device_id,
+    device_name: session.device_name,
+    browser: session.browser,
+    os: session.os,
+    location: session.location,
+    login_method: session.login_method,
+    created_ip: session.created_ip,
+    last_ip: session.last_ip,
+    ip_address: session.ip_address,
+    user_agent: session.user_agent,
+    created_at: session.created_at,
+    last_used_at: session.last_used_at,
+    expires_at: session.expires_at,
+    revoked_at: session.revoked_at,
+    revoked_reason: session.revoked_reason,
+    is_current: currentSessionId ? String(session._id) === String(currentSessionId) : false,
+    is_active: isActive,
+    risk_flags: riskFlags,
+  };
+}
+
+function riskLevelFromScore(score) {
+  if (score >= 80) return 'critical';
+  if (score >= 60) return 'high';
+  if (score >= 35) return 'medium';
+  return 'low';
 }
 
 async function getStaffRoleCodes(userId) {
@@ -189,6 +251,7 @@ async function validateStaffCreationPayload(payload, actor = {}) {
     'password',
     'temporary_password',
     'must_change_password',
+    'status',
   ]);
 
   const input = { ...payload };
@@ -228,6 +291,9 @@ async function validateStaffCreationPayload(payload, actor = {}) {
   }
 
   input.must_change_password = shouldRequirePasswordChangeOnFirstLogin(input);
+  if (input.status && !['active', 'suspended', 'disabled'].includes(input.status)) {
+    throw ApiError.validation('Trạng thái ban đầu của staff không hợp lệ.');
+  }
 
   authService.validatePasswordPolicy({
     password: input.password,
@@ -323,7 +389,18 @@ async function buildStaffFilter(query = {}, actor = {}) {
     ...getDepartmentScopeFilter(actor),
   };
 
-  if (query.status) filter.status = query.status;
+  if (query.status === 'pending_activation' || parseBooleanFlag(query.pending_activation) === true) {
+    filter.status = 'active';
+    filter.must_change_password = true;
+    filter.last_login_at = null;
+  } else if (query.status) {
+    filter.status = query.status;
+  }
+  const mustChangePassword = parseBooleanFlag(query.must_change_password);
+  if (mustChangePassword !== null) filter.must_change_password = mustChangePassword;
+  const neverLoggedIn = parseBooleanFlag(query.never_logged_in);
+  if (neverLoggedIn === true) filter.last_login_at = null;
+  if (neverLoggedIn === false && !filter.last_login_at) filter.last_login_at = { $ne: null };
   if (query.department_id) {
     if (filter.department_id && String(filter.department_id) !== String(query.department_id)) {
       throw ApiError.forbidden('Bạn không được xem staff ngoài department của mình.');
@@ -385,12 +462,28 @@ async function listStaffAccounts(query = {}, actor = {}) {
   ]);
 
   const departmentIds = users.map((user) => user.department_id).filter(Boolean);
-  const departments = await Department.find({ _id: { $in: departmentIds }, is_deleted: false }).lean();
+  const [departments, activeSessionCounts] = await Promise.all([
+    Department.find({ _id: { $in: departmentIds }, is_deleted: false }).lean(),
+    AuthSession.aggregate([
+      {
+        $match: {
+          actor_type: 'staff',
+          actor_id: { $in: users.map((user) => user._id) },
+          revoked_at: null,
+          expires_at: { $gt: new Date() },
+        },
+      },
+      { $group: { _id: '$actor_id', count: { $sum: 1 } } },
+    ]),
+  ]);
   const departmentMap = new Map(departments.map((department) => [String(department._id), department]));
+  const activeSessionMap = new Map(activeSessionCounts.map((item) => [String(item._id), item.count]));
 
   const items = await Promise.all(users.map(async (user) => {
     const roles = await buildUserRoleDetails(user._id);
     const department = user.department_id ? departmentMap.get(String(user.department_id)) : null;
+    const roleCodes = roles.map((role) => role.role_code);
+    const isPendingActivation = user.status === 'active' && user.must_change_password && !user.last_login_at;
     return {
       user_id: String(user._id),
       username: user.username,
@@ -398,16 +491,27 @@ async function listStaffAccounts(query = {}, actor = {}) {
       email: user.email,
       phone: user.phone,
       employee_code: user.employee_code,
+      department_id: user.department_id ? String(user.department_id) : null,
+      department_name: department?.department_name || null,
       department: department ? {
         department_id: String(department._id),
         department_name: department.department_name,
         department_code: department.department_code,
       } : null,
-      roles: roles.map((role) => role.role_code),
+      roles: roleCodes,
+      role_details: roles,
       status: user.status,
+      activation_status: isPendingActivation ? 'pending_activation' : 'activated',
       must_change_password: user.must_change_password,
+      failed_login_attempts: user.failed_login_attempts || 0,
+      locked_until: user.locked_until,
       last_login_at: user.last_login_at,
+      last_login_ip: user.last_login_ip,
+      auth_provider: user.auth_provider,
+      active_session_count: activeSessionMap.get(String(user._id)) || 0,
+      high_privilege: roleCodes.some((roleCode) => HIGH_PRIVILEGE_ROLE_CODES.has(roleCode)),
       created_at: user.created_at,
+      updated_at: user.updated_at,
     };
   }));
 
@@ -904,14 +1008,34 @@ async function sendStaffAccountNotification() {
 
 async function getStaffSummary(actor = {}) {
   const scope = getDepartmentScopeFilter(actor);
-  const [total, active, locked, disabled, suspended, roles, departments] = await Promise.all([
+  const scopedUserIdsPromise = scope.department_id
+    ? User.find({ department_id: scope.department_id, is_deleted: false }).distinct('_id')
+    : Promise.resolve(null);
+
+  const [
+    total,
+    active,
+    locked,
+    disabled,
+    suspended,
+    pendingActivation,
+    mustChangePassword,
+    neverLoggedIn,
+    roles,
+    departments,
+    scopedUserIds,
+  ] = await Promise.all([
     User.countDocuments({ is_deleted: false, ...scope }),
     User.countDocuments({ is_deleted: false, status: 'active', ...scope }),
     User.countDocuments({ is_deleted: false, status: 'locked', ...scope }),
     User.countDocuments({ is_deleted: false, status: 'disabled', ...scope }),
     User.countDocuments({ is_deleted: false, status: 'suspended', ...scope }),
+    User.countDocuments({ is_deleted: false, status: 'active', must_change_password: true, last_login_at: null, ...scope }),
+    User.countDocuments({ is_deleted: false, must_change_password: true, ...scope }),
+    User.countDocuments({ is_deleted: false, last_login_at: null, ...scope }),
     Role.find({ is_deleted: false }).lean(),
     Department.find({ is_deleted: false, ...(scope.department_id ? { _id: scope.department_id } : {}) }).lean(),
+    scopedUserIdsPromise,
   ]);
 
   const role_breakdown = await Promise.all(
@@ -920,14 +1044,41 @@ async function getStaffSummary(actor = {}) {
       count: await UserRole.countDocuments({
         role_id: role._id,
         is_active: true,
-        ...(scope.department_id ? {
-          user_id: {
-            $in: await User.find({ department_id: scope.department_id, is_deleted: false }).distinct('_id'),
-          },
-        } : {}),
+        ...(scopedUserIds ? { user_id: { $in: scopedUserIds } } : {}),
       }),
     })),
   );
+
+  const highPrivilegeRoleIds = roles
+    .filter((role) => HIGH_PRIVILEGE_ROLE_CODES.has(role.role_code))
+    .map((role) => role._id);
+  const highPrivilegeUserIds = highPrivilegeRoleIds.length
+    ? await UserRole.find({
+      role_id: { $in: highPrivilegeRoleIds },
+      is_active: true,
+      ...(scopedUserIds ? { user_id: { $in: scopedUserIds } } : {}),
+    }).distinct('user_id')
+    : [];
+
+  const [activeSessionActorIds, riskAccountCount] = await Promise.all([
+    AuthSession.distinct('actor_id', {
+      actor_type: 'staff',
+      revoked_at: null,
+      expires_at: { $gt: new Date() },
+      ...(scopedUserIds ? { actor_id: { $in: scopedUserIds } } : {}),
+    }),
+    User.countDocuments({
+      is_deleted: false,
+      ...scope,
+      $or: [
+        { status: 'locked' },
+        { failed_login_attempts: { $gte: 3 } },
+        { locked_until: { $gt: new Date() } },
+        { password_expired_at: { $lte: new Date() } },
+        ...(highPrivilegeUserIds.length ? [{ _id: { $in: highPrivilegeUserIds } }] : []),
+      ],
+    }),
+  ]);
 
   const department_breakdown = await Promise.all(
     departments.map(async (department) => ({
@@ -943,6 +1094,12 @@ async function getStaffSummary(actor = {}) {
     locked,
     disabled,
     suspended,
+    pending_activation_count: pendingActivation,
+    must_change_password_count: mustChangePassword,
+    never_logged_in_count: neverLoggedIn,
+    active_session_count: activeSessionActorIds.length,
+    high_privilege_count: highPrivilegeUserIds.length,
+    risk_account_count: riskAccountCount,
     role_breakdown,
     department_breakdown,
   };
@@ -1098,6 +1255,545 @@ async function checkStaffCanBeDeleted(userId) {
   };
 }
 
+async function getStaffDependencies(userId, actor = {}) {
+  const user = await User.findById(userId).lean();
+  if (!user || user.is_deleted) {
+    throw createError('Không tìm thấy tài khoản nhân sự.', 404);
+  }
+  assertCanAccessStaff(user, actor);
+
+  const [deleteCheck, doctorProfile, activeSessions, allSessions] = await Promise.all([
+    checkStaffCanBeDeleted(user._id),
+    DoctorProfile.findOne({ user_id: user._id, is_deleted: false }).lean(),
+    AuthSession.countDocuments({
+      actor_type: 'staff',
+      actor_id: user._id,
+      revoked_at: null,
+      expires_at: { $gt: new Date() },
+    }),
+    AuthSession.countDocuments({ actor_type: 'staff', actor_id: user._id }),
+  ]);
+
+  return {
+    user_id: String(user._id),
+    can_delete: deleteCheck.can_delete,
+    can_deactivate: deleteCheck.blockers.head_departments === 0,
+    can_transfer: deleteCheck.can_delete,
+    blocking_reasons: deleteCheck.blocking_reasons,
+    blockers: {
+      ...deleteCheck.blockers,
+      active_sessions: activeSessions,
+      all_sessions: allSessions,
+      has_doctor_profile: Boolean(doctorProfile),
+      doctor_profile_status: doctorProfile?.status || null,
+    },
+    recommendations: [
+      activeSessions ? 'Thu hồi phiên đăng nhập trước khi xử lý tác vụ bảo mật nhạy cảm.' : null,
+      deleteCheck.blockers.head_departments ? 'Gỡ hoặc đổi trưởng khoa/phòng trước khi chuyển/xóa nhân sự.' : null,
+      deleteCheck.blockers.future_appointments || deleteCheck.blockers.active_schedules
+        ? 'Hoàn tất hoặc điều phối lại lịch/hẹn trước khi điều chuyển.'
+        : null,
+    ].filter(Boolean),
+  };
+}
+
+async function getStaffSessions(userId, query = {}, actor = {}) {
+  const user = await User.findById(userId).lean();
+  if (!user || user.is_deleted) {
+    throw createError('Không tìm thấy tài khoản nhân sự.', 404);
+  }
+  assertCanAccessStaff(user, actor);
+
+  const { page, limit, skip } = getPagination(query);
+  const activeOnly = parseBooleanFlag(query.active_only);
+  const filter = {
+    actor_type: 'staff',
+    actor_id: user._id,
+  };
+  if (activeOnly === true) {
+    filter.revoked_at = null;
+    filter.expires_at = { $gt: new Date() };
+  }
+
+  const [sessions, total, activeCount] = await Promise.all([
+    AuthSession.find(filter).sort({ last_used_at: -1, created_at: -1 }).skip(skip).limit(limit).lean(),
+    AuthSession.countDocuments(filter),
+    AuthSession.countDocuments({
+      actor_type: 'staff',
+      actor_id: user._id,
+      revoked_at: null,
+      expires_at: { $gt: new Date() },
+    }),
+  ]);
+
+  return {
+    user_id: String(user._id),
+    active_count: activeCount,
+    items: sessions.map((session) => serializeStaffSession(session, actor.sessionId || actor.session_id)),
+    pagination: buildPagination(page, limit, total),
+  };
+}
+
+async function revokeStaffSession(userId, sessionId, actor = {}, requestMeta = {}) {
+  const user = await User.findById(userId);
+  if (!user || user.is_deleted) {
+    throw createError('Không tìm thấy tài khoản nhân sự.', 404);
+  }
+  await assertCanManageTargetStaff(user, actor, 'thu hồi phiên của');
+
+  const session = await AuthSession.findById(sessionId).lean();
+  if (!session || String(session.actor_id) !== String(user._id) || session.actor_type !== 'staff') {
+    throw createError('Không tìm thấy phiên đăng nhập của nhân sự này.', 404);
+  }
+
+  return authService.revokeRefreshToken({ session_id: sessionId }, actor, requestMeta);
+}
+
+async function revokeAllStaffSessions(userId, actor = {}, requestMeta = {}) {
+  return forceLogoutStaff(userId, actor, requestMeta);
+}
+
+async function validateStaffUnique(query = {}) {
+  const username = normalizeLower(query.username);
+  const email = normalizeLower(query.email);
+  const phone = normalizePhone(query.phone);
+  const employeeCode = query.employee_code ? String(query.employee_code).trim().toUpperCase() : '';
+  const excludeId = query.exclude_user_id || query.user_id;
+
+  const makeUserFilter = (field, value) => ({
+    is_deleted: false,
+    [field]: value,
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  });
+
+  const [usernameUser, emailUser, phoneUser, employeeUser, emailPatient, phonePatient] = await Promise.all([
+    username ? User.findOne(makeUserFilter('username', username)).lean() : null,
+    email ? User.findOne(makeUserFilter('email', email)).lean() : null,
+    phone ? User.findOne(makeUserFilter('phone', phone)).lean() : null,
+    employeeCode ? User.findOne(makeUserFilter('employee_code', employeeCode)).lean() : null,
+    email ? PatientAccount.findOne({ email, is_deleted: false }).lean() : null,
+    phone ? PatientAccount.findOne({ phone, is_deleted: false }).lean() : null,
+  ]);
+
+  return {
+    username: { value: username, available: !username || !usernameUser, conflict_type: usernameUser ? 'staff' : null },
+    email: {
+      value: email,
+      available: !email || (!emailUser && !emailPatient),
+      conflict_type: emailUser ? 'staff' : emailPatient ? 'patient' : null,
+    },
+    phone: {
+      value: phone,
+      available: !phone || (!phoneUser && !phonePatient),
+      conflict_type: phoneUser ? 'staff' : phonePatient ? 'patient' : null,
+    },
+    employee_code: {
+      value: employeeCode,
+      available: !employeeCode || !employeeUser,
+      conflict_type: employeeUser ? 'staff' : null,
+    },
+  };
+}
+
+function normalizeUsernameBase(value = '') {
+  const parts = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s._-]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) return `staff${randomInt(1000, 9999)}`;
+  const last = parts[parts.length - 1];
+  const initials = parts.slice(0, -1).map((part) => part[0]).join('');
+  return `${last}${initials}`.slice(0, 24);
+}
+
+async function generateStaffUsername(payload = {}) {
+  const base = normalizeUsernameBase(payload.full_name || payload.email || payload.phone || 'staff');
+  for (let index = 0; index < 50; index += 1) {
+    const candidate = index === 0 ? base : `${base}${index + 1}`;
+    const exists = await User.exists({ username: candidate, is_deleted: false });
+    if (!exists) return { username: candidate };
+  }
+  return { username: `${base}${randomInt(1000, 9999)}` };
+}
+
+async function generateStaffEmployeeCode(payload = {}) {
+  let prefix = 'NV';
+  if (payload.department_id && mongoose.Types.ObjectId.isValid(payload.department_id)) {
+    const department = await Department.findById(payload.department_id).lean();
+    if (department?.department_code) prefix = String(department.department_code).replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 8) || prefix;
+  }
+
+  for (let index = 0; index < 30; index += 1) {
+    const candidate = `${prefix}-${String(randomInt(1, 99999)).padStart(5, '0')}`;
+    const exists = await User.exists({ employee_code: candidate, is_deleted: false });
+    if (!exists) return { employee_code: candidate };
+  }
+  return { employee_code: `${prefix}-${Date.now().toString().slice(-6)}` };
+}
+
+async function buildStaffRiskProfile(user, actor = {}) {
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [roles, activeSessions, recentFailedLogins, recentRoleChanges, recentPasswordResets, recentForceLogouts] =
+    await Promise.all([
+      buildUserRoleDetails(user._id),
+      AuthSession.find({
+        actor_type: 'staff',
+        actor_id: user._id,
+        revoked_at: null,
+        expires_at: { $gt: new Date() },
+      }).sort({ last_used_at: -1 }).lean(),
+      AuditLog.countDocuments({
+        actor_type: 'staff',
+        actor_id: user._id,
+        action: 'auth.login_failed',
+        created_at: { $gte: since24h },
+      }),
+      AuditLog.countDocuments({
+        target_type: 'user',
+        target_id: user._id,
+        action: { $in: ['users.assign_roles', 'iam.user_roles.sync', 'users.remove_roles'] },
+        created_at: { $gte: since7d },
+      }),
+      AuditLog.countDocuments({
+        target_type: 'user',
+        target_id: user._id,
+        action: { $in: ['users.reset_password', 'auth.staff.reset_password'] },
+        created_at: { $gte: since7d },
+      }),
+      AuditLog.countDocuments({
+        target_type: 'user',
+        target_id: user._id,
+        action: { $in: ['auth.staff.force_logout', 'auth.sessions.invalidate_all'] },
+        created_at: { $gte: since7d },
+      }),
+    ]);
+
+  const roleCodes = roles.map((role) => role.role_code);
+  const highPrivilege = roleCodes.some((roleCode) => HIGH_PRIVILEGE_ROLE_CODES.has(roleCode));
+  const distinctIps = new Set(activeSessions.map((session) => session.last_ip || session.ip_address || session.created_ip).filter(Boolean));
+  const passwordAgeDays = user.password_changed_at
+    ? Math.floor((Date.now() - new Date(user.password_changed_at).getTime()) / (24 * 60 * 60 * 1000))
+    : null;
+
+  let score = 0;
+  const reasons = [];
+  if (user.status === 'locked' || (user.locked_until && user.locked_until > new Date())) {
+    score += 28;
+    reasons.push('Tài khoản đang bị khóa hoặc còn thời hạn khóa.');
+  }
+  if ((user.failed_login_attempts || 0) >= 5) {
+    score += 24;
+    reasons.push(`${user.failed_login_attempts} lần đăng nhập thất bại đang được ghi nhận.`);
+  } else if ((user.failed_login_attempts || 0) >= 3) {
+    score += 14;
+    reasons.push(`${user.failed_login_attempts} lần đăng nhập thất bại gần đây.`);
+  }
+  if (recentFailedLogins >= 5) {
+    score += 18;
+    reasons.push(`${recentFailedLogins} login failed trong 24 giờ.`);
+  }
+  if (activeSessions.length >= 5) {
+    score += 12;
+    reasons.push(`${activeSessions.length} phiên active đồng thời.`);
+  } else if (activeSessions.length >= 3) {
+    score += 6;
+    reasons.push(`${activeSessions.length} phiên active cần theo dõi.`);
+  }
+  if (distinctIps.size >= 3) {
+    score += 12;
+    reasons.push(`Phiên active từ ${distinctIps.size} IP khác nhau.`);
+  }
+  if (highPrivilege) {
+    score += 12;
+    reasons.push('Tài khoản có role nhạy cảm.');
+  }
+  if (recentRoleChanges > 0) {
+    score += 10;
+    reasons.push('Vai trò/quyền vừa thay đổi trong 7 ngày.');
+  }
+  if (recentPasswordResets >= 2) {
+    score += 8;
+    reasons.push('Có nhiều lần reset mật khẩu trong 7 ngày.');
+  }
+  if (recentForceLogouts > 0) {
+    score += 5;
+    reasons.push('Đã từng bị force logout gần đây.');
+  }
+  if (passwordAgeDays !== null && passwordAgeDays > 90) {
+    score += 8;
+    reasons.push(`Mật khẩu đã ${passwordAgeDays} ngày chưa đổi.`);
+  }
+  if (user.must_change_password && !user.last_login_at) {
+    score += 6;
+    reasons.push('Tài khoản mới chưa đăng nhập và đang phải đổi mật khẩu.');
+  }
+
+  score = Math.min(score, 100);
+  const recommendedActions = [
+    score >= 60 ? 'force_logout' : null,
+    score >= 45 || user.must_change_password ? 'require_password_change' : null,
+    score >= 75 ? 'review_roles' : null,
+    user.status === 'locked' ? 'unlock_after_review' : null,
+  ].filter(Boolean);
+
+  return {
+    user_id: String(user._id),
+    risk_score: score,
+    risk_level: riskLevelFromScore(score),
+    reasons: reasons.length ? reasons : ['Không có tín hiệu rủi ro đáng kể từ dữ liệu hiện có.'],
+    recommended_actions: [...new Set(recommendedActions)],
+    signals: {
+      failed_login_attempts: user.failed_login_attempts || 0,
+      recent_failed_logins_24h: recentFailedLogins,
+      active_session_count: activeSessions.length,
+      distinct_active_ip_count: distinctIps.size,
+      high_privilege: highPrivilege,
+      recent_role_changes_7d: recentRoleChanges,
+      recent_password_resets_7d: recentPasswordResets,
+      recent_force_logouts_7d: recentForceLogouts,
+      password_age_days: passwordAgeDays,
+    },
+    roles: roleCodes,
+    sessions: activeSessions.slice(0, 5).map((session) => serializeStaffSession(session, actor.sessionId || actor.session_id)),
+  };
+}
+
+async function getStaffRiskProfile(userId, actor = {}) {
+  const user = await User.findById(userId).lean();
+  if (!user || user.is_deleted) {
+    throw createError('Không tìm thấy tài khoản nhân sự.', 404);
+  }
+  assertCanAccessStaff(user, actor);
+  const [department, profile] = await Promise.all([
+    user.department_id ? Department.findById(user.department_id).lean() : null,
+    buildStaffRiskProfile(user, actor),
+  ]);
+
+  return {
+    ...profile,
+    user: {
+      user_id: String(user._id),
+      username: user.username,
+      full_name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      employee_code: user.employee_code,
+      department_id: user.department_id ? String(user.department_id) : null,
+      department_name: department?.department_name || null,
+      status: user.status,
+      must_change_password: user.must_change_password,
+      last_login_at: user.last_login_at,
+      last_login_ip: user.last_login_ip,
+    },
+  };
+}
+
+async function listRiskAccounts(query = {}, actor = {}) {
+  const { page, limit, skip } = getPagination(query);
+  const filter = await buildStaffFilter(query, actor);
+  const [users, total] = await Promise.all([
+    User.find(filter).sort({ updated_at: -1, created_at: -1 }).skip(skip).limit(limit).lean(),
+    User.countDocuments(filter),
+  ]);
+  const departmentIds = users.map((user) => user.department_id).filter(Boolean);
+  const departments = await Department.find({ _id: { $in: departmentIds }, is_deleted: false }).lean();
+  const departmentMap = new Map(departments.map((department) => [String(department._id), department.department_name]));
+  const profiles = await Promise.all(users.map((user) => buildStaffRiskProfile(user, actor)));
+  const minScore = Number(query.min_score || 0);
+  const riskLevel = query.risk_level || query.risk;
+
+  const paired = profiles.map((profile, index) => ({ profile, user: users[index] }));
+
+  return {
+    items: paired
+      .filter(({ profile }) => profile.risk_score >= minScore)
+      .filter(({ profile }) => !riskLevel || riskLevel === 'all' || profile.risk_level === riskLevel || (riskLevel === 'high' && ['high', 'critical'].includes(profile.risk_level)))
+      .map(({ profile, user }) => {
+        return {
+          ...profile,
+          user: {
+            user_id: String(user._id),
+            username: user.username,
+            full_name: user.full_name,
+            email: user.email,
+            employee_code: user.employee_code,
+            department_id: user.department_id ? String(user.department_id) : null,
+            department_name: user.department_id ? departmentMap.get(String(user.department_id)) || null : null,
+            status: user.status,
+            last_login_at: user.last_login_at,
+          },
+        };
+      }),
+    pagination: buildPagination(page, limit, total),
+  };
+}
+
+async function listPendingActivationAccounts(query = {}, actor = {}) {
+  const result = await listStaffAccounts({ ...query, status: 'pending_activation' }, actor);
+  return {
+    ...result,
+    items: result.items.map((item) => ({
+      ...item,
+      invitation_status: 'not_configured',
+      invitation_expires_at: null,
+      activation_age_hours: item.created_at
+        ? Math.floor((Date.now() - new Date(item.created_at).getTime()) / (60 * 60 * 1000))
+        : null,
+    })),
+  };
+}
+
+async function getGlobalStaffLoginHistory(query = {}, actor = {}) {
+  const { page, limit, skip } = getPagination(query);
+  const filter = {
+    actor_type: 'staff',
+    action: query.action || { $in: LOGIN_AUDIT_ACTIONS },
+  };
+  if (query.status) filter.status = query.status;
+  if (query.ip) filter.ip_address = query.ip;
+  if (query.from || query.to) {
+    filter.created_at = {};
+    if (query.from) filter.created_at.$gte = new Date(query.from);
+    if (query.to) filter.created_at.$lte = new Date(query.to);
+  }
+
+  if (query.user_id) {
+    const user = await User.findById(query.user_id).lean();
+    if (!user || user.is_deleted) throw createError('Không tìm thấy tài khoản nhân sự.', 404);
+    assertCanAccessStaff(user, actor);
+    filter.actor_id = user._id;
+  } else {
+    const staffFilter = await buildStaffFilter({
+      keyword: query.keyword || query.search,
+      department_id: query.department_id,
+      role_code: query.role_code,
+    }, actor);
+    const needsStaffFilter = Object.keys(staffFilter).some((key) => key !== 'is_deleted');
+    if (needsStaffFilter) {
+      const scopedUserIds = await User.find(staffFilter).distinct('_id');
+      filter.actor_id = { $in: scopedUserIds };
+    }
+  }
+
+  const [items, total] = await Promise.all([
+    AuditLog.find(filter).sort({ created_at: -1 }).skip(skip).limit(limit).lean(),
+    AuditLog.countDocuments(filter),
+  ]);
+  const users = await User.find({ _id: { $in: items.map((item) => item.actor_id).filter(Boolean) } }).lean();
+  const userMap = new Map(users.map((user) => [String(user._id), user]));
+
+  return {
+    items: items.map((item) => {
+      const user = item.actor_id ? userMap.get(String(item.actor_id)) : null;
+      return {
+        ...item,
+        actor: user ? {
+          user_id: String(user._id),
+          username: user.username,
+          full_name: user.full_name,
+          department_id: user.department_id ? String(user.department_id) : null,
+          status: user.status,
+        } : null,
+      };
+    }),
+    pagination: buildPagination(page, limit, total),
+  };
+}
+
+async function markStaffRiskReviewed(userId, payload = {}, actor = {}, requestMeta = {}) {
+  const user = await User.findById(userId).lean();
+  if (!user || user.is_deleted) {
+    throw createError('Không tìm thấy tài khoản nhân sự.', 404);
+  }
+  assertCanAccessStaff(user, actor);
+  await recordAuditLog({
+    actor,
+    action: 'users.risk_reviewed',
+    targetType: 'user',
+    targetId: user._id,
+    status: 'success',
+    message: 'Đánh dấu risk profile của staff đã được rà soát.',
+    requestMeta,
+    metadata: {
+      note: payload.note,
+      risk_level: payload.risk_level,
+      risk_score: payload.risk_score,
+    },
+  });
+  return { success: true, reviewed_at: new Date() };
+}
+
+async function runStaffSecurityAction(userId, payload = {}, actor = {}, requestMeta = {}) {
+  const action = payload.action;
+  if (action === 'force_logout') return forceLogoutStaff(userId, actor, requestMeta);
+  if (action === 'require_password_change') return requirePasswordChangeOnFirstLogin(userId, actor, requestMeta);
+  if (action === 'lock') return updateStaffAccountStatus(userId, 'locked', actor, requestMeta);
+  if (action === 'disable') return updateStaffAccountStatus(userId, 'disabled', actor, requestMeta);
+  if (action === 'unlock') return unlockStaffAccount(userId, actor, requestMeta);
+  if (action === 'activate') return activateStaffAccount(userId, actor, requestMeta);
+  throw ApiError.validation('security action không được hỗ trợ.');
+}
+
+async function bulkStaffAction(payload = {}, actor = {}, requestMeta = {}) {
+  const action = payload.action;
+  const userIds = [...new Set((payload.user_ids || payload.userIds || []).map(String).filter(Boolean))];
+  if (!action || userIds.length === 0) {
+    throw ApiError.validation('action và user_ids là bắt buộc.');
+  }
+  if (userIds.length > 100) {
+    throw ApiError.validation('Mỗi bulk action chỉ hỗ trợ tối đa 100 tài khoản.');
+  }
+
+  const results = [];
+  for (const userId of userIds) {
+    try {
+      let data;
+      if (action === 'activate') data = await activateStaffAccount(userId, actor, requestMeta);
+      else if (action === 'deactivate') data = await deactivateStaffAccount(userId, actor, requestMeta);
+      else if (action === 'unlock') data = await unlockStaffAccount(userId, actor, requestMeta);
+      else if (action === 'force_logout') data = await forceLogoutStaff(userId, actor, requestMeta);
+      else if (action === 'require_password_change') data = await requirePasswordChangeOnFirstLogin(userId, actor, requestMeta);
+      else if (action === 'status') data = await updateStaffAccountStatus(userId, payload.status, actor, requestMeta);
+      else if (action === 'assign_roles') data = await assignRolesToStaff(userId, payload.role_codes || [], actor, requestMeta);
+      else if (action === 'remove_roles') data = await removeRolesFromStaff(userId, payload.role_codes || [], actor, requestMeta);
+      else if (action === 'transfer_department') data = await transferStaffDepartment(userId, payload.department_id, actor, requestMeta);
+      else throw ApiError.validation('bulk action không được hỗ trợ.');
+      results.push({ user_id: userId, success: true, data });
+    } catch (error) {
+      results.push({ user_id: userId, success: false, message: error.message });
+    }
+  }
+
+  await recordAuditLog({
+    actor,
+    action: 'users.bulk_action',
+    targetType: 'user',
+    status: 'success',
+    message: 'Thực hiện bulk staff action.',
+    requestMeta,
+    metadata: {
+      action,
+      total: userIds.length,
+      succeeded: results.filter((item) => item.success).length,
+      failed: results.filter((item) => !item.success).length,
+    },
+  });
+
+  return {
+    action,
+    total: userIds.length,
+    succeeded: results.filter((item) => item.success).length,
+    failed: results.filter((item) => !item.success).length,
+    results,
+  };
+}
+
 module.exports = {
   // generateInitialStaffPassword: Sinh/tạo mật khẩu ban đầu cho nhân sự.
   generateInitialStaffPassword,
@@ -1115,6 +1811,14 @@ module.exports = {
   searchStaffAccounts,
   // filterStaffAccounts: Lọc tài khoản nhân sự.
   filterStaffAccounts,
+  // listPendingActivationAccounts: Liệt kê tài khoản đang chờ kích hoạt theo suy luận bảo mật hiện có.
+  listPendingActivationAccounts,
+  // validateStaffUnique: Kiểm tra trùng username/email/phone/employee_code cho UI realtime.
+  validateStaffUnique,
+  // generateStaffUsername: Gợi ý username duy nhất cho nhân sự.
+  generateStaffUsername,
+  // generateStaffEmployeeCode: Gợi ý mã nhân sự duy nhất.
+  generateStaffEmployeeCode,
   // getStaffAccountDetail: Lấy chi tiết tài khoản nhân sự.
   getStaffAccountDetail,
   // updateStaffAccount: Cập nhật tài khoản nhân sự.
@@ -1143,6 +1847,12 @@ module.exports = {
   getStaffPermissions,
   // checkStaffPermission: Kiểm tra quyền của nhân sự.
   checkStaffPermission,
+  // getStaffSessions: Lấy danh sách phiên đăng nhập của nhân sự.
+  getStaffSessions,
+  // revokeStaffSession: Thu hồi một phiên đăng nhập của nhân sự.
+  revokeStaffSession,
+  // revokeAllStaffSessions: Thu hồi toàn bộ phiên đăng nhập của nhân sự.
+  revokeAllStaffSessions,
   // getUsersByRole: Lấy người dùng theo vai trò.
   getUsersByRole,
   // getStaffByDepartment: Lấy nhân sự theo khoa/phòng ban.
@@ -1153,14 +1863,28 @@ module.exports = {
   getAssignableStaffRoles,
   // getStaffLoginHistory: Lấy nhân sự đăng nhập lịch sử.
   getStaffLoginHistory,
+  // getGlobalStaffLoginHistory: Lấy lịch sử đăng nhập toàn hệ thống cho nhân sự.
+  getGlobalStaffLoginHistory,
   // getStaffAuditLogs: Lấy nhật ký kiểm toán của nhân sự.
   getStaffAuditLogs,
   // getStaffSummary: Lấy tổng hợp nhân sự.
   getStaffSummary,
   // transferStaffDepartment: Chuyển nhân sự khoa/phòng ban.
   transferStaffDepartment,
+  // getStaffDependencies: Preview phụ thuộc nghiệp vụ trước khi deactivate/delete/transfer.
+  getStaffDependencies,
   // checkStaffCanBeDeleted: Kiểm tra điều kiện xóa nhân sự.
   checkStaffCanBeDeleted,
+  // listRiskAccounts: Liệt kê tài khoản rủi ro.
+  listRiskAccounts,
+  // getStaffRiskProfile: Lấy risk profile cho một tài khoản.
+  getStaffRiskProfile,
+  // markStaffRiskReviewed: Đánh dấu risk profile đã rà soát.
+  markStaffRiskReviewed,
+  // runStaffSecurityAction: Chạy security action theo risk recommendation.
+  runStaffSecurityAction,
+  // bulkStaffAction: Thực hiện thao tác hàng loạt trên nhân sự.
+  bulkStaffAction,
   // forceLogoutStaff: Buộc đăng xuất nhân sự.
   forceLogoutStaff,
   // sendStaffAccountNotification: Gửi thông báo liên quan đến tài khoản nhân sự.

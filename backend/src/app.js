@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const env = require('./config/env');
 const routes = require('./routes');
+const { maintenanceModeMiddleware } = require('./middleware/maintenance-mode');
 const {
   errorMiddleware,
   notFoundMiddleware,
@@ -33,6 +34,7 @@ if (env.nodeEnv !== 'production') {
   app.use(morgan('dev'));
 }
 app.use(requestContextMiddleware);
+app.use(maintenanceModeMiddleware);
 
 app.use('/api', routes);
 app.use(notFoundMiddleware);

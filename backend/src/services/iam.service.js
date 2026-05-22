@@ -4,6 +4,8 @@ const rolePermissionService = require('./iam/role-permission.service');
 const userRoleService = require('./iam/user-role.service');
 const accessContextService = require('./iam/access-context.service');
 const seedService = require('./iam/iam-seed.service');
+const controlPlaneService = require('./iam/iam-control-plane.service');
+const denyPolicyService = require('./iam/deny-policy.service');
 
 module.exports = {
   // validateRoleAssignable: Kiểm tra tính hợp lệ của điều kiện gán vai trò.
@@ -78,4 +80,44 @@ module.exports = {
 
   // seedSystemAccess: Khởi tạo dữ liệu hạt giống cho quyền truy cập hệ thống mặc định.
   seedSystemAccess: seedService.seedSystemAccess,
+
+  // getIamOverview: Lấy tổng quan IAM control plane.
+  getIamOverview: controlPlaneService.getIamOverview,
+  // getIamMatrix: Lấy ma trận role-permission.
+  getIamMatrix: controlPlaneService.getIamMatrix,
+  // previewRolePermissionChange: Preview tác động đổi permission của role.
+  previewRolePermissionChange: controlPlaneService.previewRolePermissionChange,
+  // applyRolePermissionMatrix: Áp dụng thay đổi role-permission qua matrix.
+  applyRolePermissionMatrix: controlPlaneService.applyRolePermissionMatrix,
+  // getStaffEffectivePermissions: Lấy quyền hiệu lực kèm nguồn cấp theo user.
+  getStaffEffectivePermissions: controlPlaneService.getStaffEffectivePermissions,
+  // previewStaffRoleChange: Preview tác động đổi role user.
+  previewStaffRoleChange: controlPlaneService.previewStaffRoleChange,
+  // explainAccess: Giải thích quyết định allow/deny.
+  explainAccess: controlPlaneService.explainAccess,
+  // getCacheStatus: Lấy trạng thái cache quyền.
+  getCacheStatus: controlPlaneService.getCacheStatus,
+  // rebuildUserPermissionContext: Rebuild context quyền user.
+  rebuildUserPermissionContext: controlPlaneService.rebuildUserPermissionContext,
+  // rebuildRolePermissionContext: Rebuild context quyền theo role.
+  rebuildRolePermissionContext: controlPlaneService.rebuildRolePermissionContext,
+  // rebuildAllPermissionContexts: Rebuild context quyền toàn hệ thống.
+  rebuildAllPermissionContexts: controlPlaneService.rebuildAllPermissionContexts,
+  // seedSystemAccessDryRun: Preview seed system access.
+  seedSystemAccessDryRun: controlPlaneService.seedSystemAccessDryRun,
+  // getIamAudit: Lấy audit chuyên biệt IAM.
+  getIamAudit: controlPlaneService.getIamAudit,
+
+  // listDenyPolicies: Liệt kê deny policy.
+  listDenyPolicies: denyPolicyService.listDenyPolicies,
+  // previewDenyPolicy: Preview deny policy.
+  previewDenyPolicy: denyPolicyService.previewDenyPolicy,
+  // createDenyPolicy: Tạo deny policy.
+  createDenyPolicy: denyPolicyService.createDenyPolicy,
+  // updateDenyPolicy: Cập nhật deny policy.
+  updateDenyPolicy: denyPolicyService.updateDenyPolicy,
+  // setDenyPolicyStatus: Kích hoạt/vô hiệu hóa deny policy.
+  setDenyPolicyStatus: denyPolicyService.setDenyPolicyStatus,
+  // deleteDenyPolicySoft: Xóa mềm deny policy.
+  deleteDenyPolicySoft: denyPolicyService.deleteDenyPolicySoft,
 };

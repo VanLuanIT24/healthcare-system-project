@@ -1,8 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  Activity,
+  AlertTriangle,
+  Building2,
+  CalendarClock,
+  CheckCircle2,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  Stethoscope,
+  UserCheck,
+  UsersRound,
+} from 'lucide-react';
+import {
   getDepartmentDetail,
   getDepartmentSummary,
+  listDepartmentStaff,
   listDepartments,
 } from '../systemApi';
 import {
@@ -19,6 +33,188 @@ function buildQuery(filters) {
   if (filters.status) params.set('status', filters.status);
   if (filters.departmentType) params.set('department_type', filters.departmentType);
   return params.toString();
+}
+
+function DepartmentStaffControlPage() {
+  const [departments, setDepartments] = useState([]);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
+  const [staff, setStaff] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  async function loadDepartments() {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await listDepartments('limit=120');
+      const items = data?.items || [];
+      setDepartments(items);
+      setSelectedDepartmentId((current) => current || items[0]?.department_id || '');
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadDepartmentContext(departmentId) {
+    if (!departmentId) return;
+    setError('');
+    try {
+      const [staffData, summaryData] = await Promise.all([
+        listDepartmentStaff(departmentId, `limit=120${statusFilter ? `&status=${statusFilter}` : ''}`),
+        getDepartmentSummary(departmentId).catch(() => null),
+      ]);
+      setStaff(staffData?.items || []);
+      setSummary(summaryData);
+    } catch (loadError) {
+      setError(loadError.message);
+      setStaff([]);
+      setSummary(null);
+    }
+  }
+
+  useEffect(() => {
+    loadDepartments();
+  }, []);
+
+  useEffect(() => {
+    loadDepartmentContext(selectedDepartmentId);
+  }, [selectedDepartmentId, statusFilter]);
+
+  const selectedDepartment = departments.find((item) => item.department_id === selectedDepartmentId);
+  const filteredStaff = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return staff;
+    return staff.filter((user) => `${user.full_name} ${user.username} ${user.email} ${user.employee_code}`.toLowerCase().includes(keyword));
+  }, [search, staff]);
+
+  const metrics = [
+    { label: 'Nhân sự', value: summary?.staff?.total_staff ?? staff.length, icon: UsersRound, tone: 'blue' },
+    { label: 'Active', value: summary?.active_staff_count ?? staff.filter((item) => item.status === 'active').length, icon: CheckCircle2, tone: 'green' },
+    { label: 'Bác sĩ', value: summary?.doctors_count || 0, icon: Stethoscope, tone: 'violet' },
+    { label: 'Lịch hôm nay', value: summary?.schedules_today || 0, icon: CalendarClock, tone: 'amber' },
+    { label: 'Hẹn hôm nay', value: summary?.appointments_today || 0, icon: Activity, tone: 'cyan' },
+    { label: 'Tương lai', value: (summary?.future_schedules_count || 0) + (summary?.future_appointments_count || 0), icon: AlertTriangle, tone: 'red' },
+  ];
+
+  return (
+    <section className="dept-staff-pro-page">
+      <section className="dept-staff-pro-hero">
+        <div className="dept-staff-pro-hero__icon"><Building2 size={25} strokeWidth={2.25} /></div>
+        <div>
+          <span>Organization Control</span>
+          <h1>Nhân sự theo khoa</h1>
+          <p>Quan sát cơ cấu nhân sự theo khoa/phòng, trưởng khoa, lịch vận hành, lịch hẹn tương lai và trạng thái tài khoản.</p>
+        </div>
+        <div className="dept-staff-pro-hero__actions">
+          <button type="button" className="staff-button staff-button--ghost" onClick={loadDepartments}>
+            <RefreshCw size={16} /> Làm mới
+          </button>
+          <Link to="/admin/staff/create" className="staff-button staff-button--primary">
+            <UserCheck size={16} /> Thêm nhân sự
+          </Link>
+        </div>
+      </section>
+
+      {error ? <p className="form-message error">{error}</p> : null}
+
+      <section className="dept-staff-pro-layout">
+        <aside className="dept-staff-pro-sidebar">
+          <label className="dept-staff-pro-search">
+            <Search size={16} />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm nhân sự trong khoa..." />
+          </label>
+          <div className="dept-staff-pro-dept-list">
+            {departments.map((department) => (
+              <button
+                key={department.department_id}
+                type="button"
+                className={selectedDepartmentId === department.department_id ? 'is-active' : ''}
+                onClick={() => setSelectedDepartmentId(department.department_id)}
+              >
+                <span>{department.department_code || 'KHOA'}</span>
+                <div>
+                  <strong>{department.department_name}</strong>
+                  <small>{getDepartmentTypeLabel(department.department_type)} · {department.status}</small>
+                </div>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <main className="dept-staff-pro-main">
+          <section className="dept-staff-pro-summary">
+            <div>
+              <span>Khoa/phòng đang xem</span>
+              <h2>{selectedDepartment?.department_name || 'Chọn khoa/phòng'}</h2>
+              <p>{selectedDepartment?.department_code || 'Department scope'} · {getDepartmentTypeLabel(selectedDepartment?.department_type)}</p>
+            </div>
+            <div className="dept-staff-pro-summary__badges">
+              <span>{selectedDepartment?.status || 'unknown'}</span>
+              <span>{formatNumber(filteredStaff.length)} hiển thị</span>
+            </div>
+          </section>
+
+          <section className="dept-staff-pro-metrics">
+            {metrics.map((item) => {
+              const Icon = item.icon;
+              return (
+                <article key={item.label} className={`dept-staff-pro-metric dept-staff-pro-metric--${item.tone}`}>
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                  <strong>{formatNumber(item.value)}</strong>
+                </article>
+              );
+            })}
+          </section>
+
+          <section className="dept-staff-pro-toolbar">
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="">Mọi trạng thái</option>
+              <option value="active">Active</option>
+              <option value="locked">Locked</option>
+              <option value="suspended">Suspended</option>
+              <option value="disabled">Disabled</option>
+            </select>
+            <Link to={`/admin/staff/create?department=${selectedDepartmentId}`} className="staff-button staff-button--ghost">
+              Tạo nhân sự trong khoa
+            </Link>
+          </section>
+
+          <section className="dept-staff-pro-table">
+            <div className="dept-staff-pro-table__head">
+              <span>Nhân sự</span><span>Liên hệ</span><span>Trạng thái</span><span>Rủi ro</span><span>Actions</span>
+            </div>
+            {loading ? <div className="staff-loading-panel">Đang tải khoa/phòng...</div> : null}
+            {filteredStaff.map((user) => (
+              <div key={user.user_id} className="dept-staff-pro-table__row">
+                <span>
+                  <i>{getInitials(user.full_name || user.username)}</i>
+                  <span><strong>{user.full_name || user.username}</strong><small>{user.employee_code || user.username || user.user_id}</small></span>
+                </span>
+                <span><strong>{user.email || 'Chưa có email'}</strong><small>{user.phone || 'Chưa có SĐT'}</small></span>
+                <span className={`dept-staff-pro-status dept-staff-pro-status--${user.status}`}>{user.status}</span>
+                <span className="dept-staff-pro-risk"><ShieldAlert size={14} /> {user.status === 'locked' ? 'high' : 'normal'}</span>
+                <span>
+                  <Link to={`/admin/staff/${user.user_id}`}>Staff 360</Link>
+                </span>
+              </div>
+            ))}
+            {!loading && filteredStaff.length === 0 ? (
+              <div className="dept-staff-pro-empty">
+                <UsersRound size={24} />
+                <strong>Không có nhân sự phù hợp trong khoa/phòng này</strong>
+              </div>
+            ) : null}
+          </section>
+        </main>
+      </section>
+    </section>
+  );
 }
 
 export function DepartmentListPage() {
@@ -156,6 +352,10 @@ export function DepartmentListPage() {
     if (next.headState) params.set('head', next.headState);
     if (next.futureState) params.set('future', next.futureState);
     setSearchParams(params);
+  }
+
+  if (searchParams.get('view') === 'staff') {
+    return <DepartmentStaffControlPage />;
   }
 
   return (

@@ -1,382 +1,710 @@
 import { useEffect, useMemo, useState } from 'react';
-import { formatDateTime } from '../systemUi';
+import { useSearchParams } from 'react-router-dom';
+import {
+  AlertTriangle,
+  Archive,
+  Banknote,
+  BellRing,
+  CheckCircle2,
+  Clock3,
+  Database,
+  FileClock,
+  Fingerprint,
+  Gauge,
+  Globe2,
+  HeartPulse,
+  KeyRound,
+  Mail,
+  Play,
+  RadioTower,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  ScanLine,
+  Search,
+  ServerCog,
+  Settings,
+  ShieldAlert,
+  ShieldCheck,
+  SlidersHorizontal,
+  Smartphone,
+  Sparkles,
+  UploadCloud,
+  Vault,
+  XCircle,
+} from 'lucide-react';
+import { formatDateTime, formatNumber } from '../systemUi';
+import {
+  applyPlatformConfig,
+  getPlatformConfigDrift,
+  getPlatformConfigModule,
+  getPlatformConfigOverview,
+  getPlatformSecretsStatus,
+  getSettingRevisions,
+  reloadPlatformConfig,
+  rollbackSetting,
+  testPlatformConfigModule,
+  validatePlatformConfig,
+} from '../../platform-config/platformConfigApi';
 
-const STORAGE_KEY = 'healthcare.admin.systemSettings';
-
-const DEFAULT_SETTINGS = {
-  hospital_name: 'Aura Lumina Medical Center',
-  hotline: '1900 6868',
-  email: 'contact@auralumina.vn',
-  tax_code: '0312456789',
-  address: 'Số 123 Đường Sáng Tạo, Khu Công Nghệ Cao, Quận 9, TP. Hồ Chí Minh',
-  timezone: 'Asia/Ho_Chi_Minh',
-  date_format: 'DD/MM/YYYY',
-  language: 'vi',
-  min_password_length: 8,
-  password_rotation_days: 90,
-  require_special: true,
-  require_uppercase: true,
-  require_lowercase: true,
-  require_number: true,
-  session_timeout_minutes: 30,
-  max_sessions: 3,
-  revoke_on_password_change: true,
-  auto_logout_idle: true,
-  default_staff_status: 'active',
-  force_password_change_first_login: true,
-  default_role: 'staff',
+const MODULE_ICONS = {
+  general: Settings,
+  features: Sparkles,
+  login: KeyRound,
+  security: ShieldCheck,
+  google_oauth: Globe2,
+  notifications: BellRing,
+  email_smtp: Mail,
+  push_notification: Smartphone,
+  realtime: RadioTower,
+  file_upload: UploadCloud,
+  qr_token: ScanLine,
+  payments: Banknote,
+  patient_portal: HeartPulse,
+  support_sla: Gauge,
+  audit_retention: Archive,
 };
 
-function hydrateSettings(rawValue) {
-  if (!rawValue) return DEFAULT_SETTINGS;
+const SOURCE_LABELS = {
+  db: 'DB',
+  env: 'ENV',
+  default: 'Default',
+  runtime: 'Runtime',
+};
 
-  try {
-    const parsed = JSON.parse(rawValue);
-    return { ...DEFAULT_SETTINGS, ...parsed };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
+function normalizeTab(value) {
+  return String(value || 'general').trim().toLowerCase().replace(/_/g, '-');
 }
 
-function SettingToggle({ icon, label, description, checked, name, onChange }) {
+function routeKeyOf(module = {}) {
+  return module.route_key || String(module.module_key || 'general').replace(/_/g, '-');
+}
+
+function sourceTone(source) {
+  if (source === 'db') return 'success';
+  if (source === 'env') return 'warning';
+  if (source === 'runtime') return 'info';
+  return 'muted';
+}
+
+function riskTone(level) {
+  if (level === 'critical') return 'critical';
+  if (level === 'high') return 'high';
+  if (level === 'medium') return 'medium';
+  return 'low';
+}
+
+function healthTone(status) {
+  if (status === 'critical') return 'critical';
+  if (status === 'warning') return 'warning';
+  return 'healthy';
+}
+
+function formatValue(value) {
+  if (value === undefined || value === null || value === '') return 'Chưa cấu hình';
+  if (typeof value === 'boolean') return value ? 'ON' : 'OFF';
+  if (typeof value === 'number') return formatNumber(value);
+  if (Array.isArray(value)) return value.length ? value.join(', ') : '[]';
+  if (typeof value === 'object') {
+    if (Object.prototype.hasOwnProperty.call(value, 'configured')) {
+      return value.configured ? `configured / ${value.fingerprint || 'no fingerprint'}` : 'not configured';
+    }
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function draftValue(setting) {
+  if (setting.is_sensitive || setting.is_encrypted) return '';
+  const value = setting.setting_value ?? setting.effective_value ?? setting.default_value;
+  if (setting.value_type === 'json' || setting.value_type === 'array') {
+    return JSON.stringify(value ?? (setting.value_type === 'array' ? [] : {}), null, 2);
+  }
+  if (setting.value_type === 'boolean') return Boolean(value);
+  return value ?? '';
+}
+
+function parseDraft(setting, value) {
+  if (setting.value_type === 'number') {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) throw new Error(`${setting.setting_key} phải là số hợp lệ.`);
+    return parsed;
+  }
+  if (setting.value_type === 'boolean') return Boolean(value);
+  if (setting.value_type === 'json') {
+    const parsed = JSON.parse(value || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${setting.setting_key} phải là JSON object.`);
+    }
+    return parsed;
+  }
+  if (setting.value_type === 'array') {
+    const parsed = JSON.parse(value || '[]');
+    if (!Array.isArray(parsed)) throw new Error(`${setting.setting_key} phải là JSON array.`);
+    return parsed;
+  }
+  return String(value ?? '');
+}
+
+function isSettingChanged(setting, drafts, initialDrafts) {
+  const current = drafts[setting.setting_key];
+  const initial = initialDrafts[setting.setting_key];
+  if (setting.is_sensitive || setting.is_encrypted) return String(current || '').trim().length > 0;
+  return JSON.stringify(current) !== JSON.stringify(initial);
+}
+
+function StatusBadge({ children, tone = 'muted' }) {
+  return <span className={`platform-config-badge platform-config-badge--${tone}`}>{children}</span>;
+}
+
+function LoadingBlock() {
   return (
-    <label className="system-config-toggle">
-      <div className="system-config-toggle__copy">
-        <span className="system-config-toggle__icon">{icon}</span>
-        <div>
-          <strong>{label}</strong>
-          {description ? <small>{description}</small> : null}
-        </div>
+    <section className="platform-config-state">
+      <RefreshCw size={18} />
+      <span>Đang tải control plane cấu hình...</span>
+    </section>
+  );
+}
+
+function ErrorBlock({ message, onRetry }) {
+  return (
+    <section className="platform-config-state platform-config-state--error">
+      <AlertTriangle size={18} />
+      <span>{message}</span>
+      <button type="button" onClick={onRetry}>Thử lại</button>
+    </section>
+  );
+}
+
+function SecretField({ setting, value, onChange }) {
+  const status = setting.secret_status || {};
+  return (
+    <div className="platform-config-secret">
+      <div>
+        <span>{status.configured ? 'Secret đã cấu hình' : 'Secret chưa cấu hình'}</span>
+        <strong>{status.fingerprint || 'no fingerprint'}</strong>
       </div>
-      <span className={`system-config-switch ${checked ? 'is-on' : ''}`}>
-        <input name={name} type="checkbox" checked={checked} onChange={onChange} />
+      <input
+        type="password"
+        value={value || ''}
+        placeholder="Nhập secret mới"
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
+function SettingInput({ setting, value, onChange }) {
+  if (setting.is_sensitive || setting.is_encrypted) {
+    return <SecretField setting={setting} value={value} onChange={onChange} />;
+  }
+
+  if (setting.value_type === 'boolean') {
+    return (
+      <button
+        type="button"
+        className={`platform-config-switch${value ? ' is-on' : ''}`}
+        onClick={() => onChange(!value)}
+        aria-pressed={Boolean(value)}
+      >
         <span />
-      </span>
-    </label>
+      </button>
+    );
+  }
+
+  if (setting.value_type === 'json' || setting.value_type === 'array') {
+    return (
+      <textarea
+        rows={setting.value_type === 'json' ? 8 : 5}
+        value={value || ''}
+        spellCheck="false"
+        onChange={(event) => onChange(event.target.value)}
+      />
+    );
+  }
+
+  return (
+    <input
+      type={setting.value_type === 'number' ? 'number' : 'text'}
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+function PlatformMetric({ icon: Icon, label, value, note, tone = 'blue' }) {
+  return (
+    <article className={`platform-config-metric platform-config-metric--${tone}`}>
+      <Icon size={18} />
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {note ? <small>{note}</small> : null}
+    </article>
   );
 }
 
 export function SystemSettingsPage() {
-  const [form, setForm] = useState(DEFAULT_SETTINGS);
-  const [saved, setSaved] = useState(false);
-  const [lastSavedAt, setLastSavedAt] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = normalizeTab(searchParams.get('tab') || 'general');
+  const [overview, setOverview] = useState(null);
+  const [moduleData, setModuleData] = useState(null);
+  const [drift, setDrift] = useState(null);
+  const [secrets, setSecrets] = useState(null);
+  const [drafts, setDrafts] = useState({});
+  const [initialDrafts, setInitialDrafts] = useState({});
+  const [selectedKey, setSelectedKey] = useState('');
+  const [revisions, setRevisions] = useState([]);
+  const [testResult, setTestResult] = useState(null);
+  const [filter, setFilter] = useState('');
+  const [changeReason, setChangeReason] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [moduleLoading, setModuleLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+
+  const activeModule = useMemo(() => {
+    const modules = overview?.modules || [];
+    return modules.find((item) => normalizeTab(routeKeyOf(item)) === activeTab)
+      || modules.find((item) => item.module_key === activeTab.replace(/-/g, '_'))
+      || modules[0]
+      || { module_key: 'general', route_key: 'general', title: 'Cấu hình chung' };
+  }, [activeTab, overview]);
+
+  const settings = moduleData?.settings || [];
+  const validationIssues = moduleData?.validation?.issues || [];
+  const changedSettings = useMemo(
+    () => settings.filter((setting) => isSettingChanged(setting, drafts, initialDrafts)),
+    [settings, drafts, initialDrafts],
+  );
+  const filteredSettings = useMemo(() => {
+    const keyword = filter.trim().toLowerCase();
+    if (!keyword) return settings;
+    return settings.filter((setting) =>
+      `${setting.setting_key} ${setting.setting_name} ${setting.description || ''}`.toLowerCase().includes(keyword),
+    );
+  }, [filter, settings]);
+
+  const selectedSetting = settings.find((setting) => setting.setting_key === selectedKey) || settings[0];
+  const selectedModuleIcon = MODULE_ICONS[activeModule?.module_key] || Settings;
+  const ActiveIcon = selectedModuleIcon;
+
+  async function loadOverview() {
+    setLoading(true);
+    setError('');
+    try {
+      const [overviewData, driftData, secretsData] = await Promise.all([
+        getPlatformConfigOverview(),
+        getPlatformConfigDrift(),
+        getPlatformSecretsStatus(),
+      ]);
+      setOverview(overviewData);
+      setDrift(driftData);
+      setSecrets(secretsData);
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadModule(moduleKey = activeModule?.module_key) {
+    if (!moduleKey) return;
+    setModuleLoading(true);
+    setError('');
+    try {
+      const data = await getPlatformConfigModule(moduleKey);
+      const nextDrafts = Object.fromEntries((data.settings || []).map((setting) => [setting.setting_key, draftValue(setting)]));
+      setModuleData(data);
+      setDrafts(nextDrafts);
+      setInitialDrafts(nextDrafts);
+      setSelectedKey((current) => current && data.settings?.some((setting) => setting.setting_key === current)
+        ? current
+        : data.settings?.[0]?.setting_key || '');
+      setTestResult(null);
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setModuleLoading(false);
+    }
+  }
 
   useEffect(() => {
-    const hydrated = hydrateSettings(localStorage.getItem(STORAGE_KEY));
-    setForm(hydrated);
-    setLastSavedAt(localStorage.getItem(`${STORAGE_KEY}.updatedAt`) || '');
+    loadOverview();
   }, []);
 
-  function handleChange(event) {
-    const { name, value, type, checked } = event.target;
-    setSaved(false);
-    setForm((current) => ({
-      ...current,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+  useEffect(() => {
+    if (activeModule?.module_key) loadModule(activeModule.module_key);
+  }, [activeModule?.module_key]);
+
+  useEffect(() => {
+    if (!selectedSetting?.setting_key) return;
+    getSettingRevisions(selectedSetting.setting_key)
+      .then((data) => setRevisions(data?.items || []))
+      .catch(() => setRevisions([]));
+  }, [selectedSetting?.setting_key]);
+
+  function openModule(module) {
+    setSearchParams(module.route_key === 'general' ? {} : { tab: routeKeyOf(module) });
   }
 
-  function saveSettings() {
-    const updatedAt = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
-    localStorage.setItem(`${STORAGE_KEY}.updatedAt`, updatedAt);
-    setLastSavedAt(updatedAt);
-    setSaved(true);
+  function updateDraft(settingKey, value) {
+    setDrafts((current) => ({ ...current, [settingKey]: value }));
+    setMessage('');
   }
 
-  function resetDefaults() {
-    setForm(DEFAULT_SETTINGS);
-    setSaved(false);
+  async function runValidation() {
+    setSaving(true);
+    try {
+      const data = await validatePlatformConfig({ module_key: activeModule.module_key });
+      setModuleData((current) => current ? { ...current, validation: data } : current);
+      setMessage(data.ok ? 'Validation passed.' : 'Validation có cảnh báo cần xử lý.');
+    } catch (validateError) {
+      setError(validateError.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const passwordStrength = useMemo(() => {
-    let score = 0;
-    if (Number(form.min_password_length) >= 8) score += 1;
-    if (form.require_special) score += 1;
-    if (form.require_uppercase && form.require_lowercase) score += 1;
-    if (form.require_number) score += 1;
-    return Math.min(score, 4);
-  }, [form.min_password_length, form.require_special, form.require_uppercase, form.require_lowercase, form.require_number]);
+  async function runTest() {
+    setSaving(true);
+    try {
+      const result = await testPlatformConfigModule(activeModule.module_key);
+      setTestResult(result);
+      setMessage(`Test module trả về trạng thái ${result.status}.`);
+    } catch (testError) {
+      setError(testError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
-  const strengthLabel = ['Yếu', 'Cơ bản', 'Khá', 'Mạnh'][Math.max(passwordStrength - 1, 0)];
+  async function applyChanges() {
+    setSaving(true);
+    setError('');
+    try {
+      const changes = changedSettings.map((setting) => ({
+        setting_key: setting.setting_key,
+        setting_value: parseDraft(setting, drafts[setting.setting_key]),
+      }));
+
+      if (!changes.length) {
+        setMessage('Không có thay đổi cần áp dụng.');
+        return;
+      }
+
+      await applyPlatformConfig(changes, changeReason || `Update ${activeModule.title}`);
+      setMessage(`Đã áp dụng ${changes.length} thay đổi.`);
+      setChangeReason('');
+      await Promise.all([loadOverview(), loadModule(activeModule.module_key)]);
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function reloadRuntime() {
+    setSaving(true);
+    try {
+      await reloadPlatformConfig();
+      setMessage('Đã đánh dấu reload runtime.');
+      await loadOverview();
+    } catch (reloadError) {
+      setError(reloadError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function rollbackRevision(revisionNo) {
+    if (!selectedSetting?.setting_key) return;
+    setSaving(true);
+    try {
+      await rollbackSetting(selectedSetting.setting_key, revisionNo, `Rollback ${selectedSetting.setting_key} to revision ${revisionNo}`);
+      setMessage(`Đã rollback ${selectedSetting.setting_key} về revision ${revisionNo}.`);
+      await Promise.all([loadOverview(), loadModule(activeModule.module_key)]);
+    } catch (rollbackError) {
+      setError(rollbackError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading && !overview) return <LoadingBlock />;
+  if (error && !overview) return <ErrorBlock message={error} onRetry={loadOverview} />;
+
+  const health = overview?.health || {};
+  const stats = overview?.stats || {};
+  const moduleHealth = healthTone(activeModule?.health || health.status);
+  const restartRequired = changedSettings.filter((setting) => setting.requires_restart);
+  const affectedServices = [...new Set(changedSettings.flatMap((setting) => setting.affected_services || []))];
+  const driftCount = drift?.drift_count || 0;
+  const secretCount = secrets?.items?.filter((item) => item.configured).length || 0;
 
   return (
-    <section className="role-page system-admin-page system-config-page">
-      <section className="role-hero system-config-hero">
-        <div className="role-hero__copy">
-          <p className="admin-page-header__eyebrow">Admin / Cấu hình hệ thống</p>
-          <h1>Cấu hình hệ thống</h1>
-          <p>Thiết lập các thông số nền tảng, bảo mật và mặc định vận hành cho toàn bộ trung tâm Aura Lumina.</p>
+    <section className="platform-config-page">
+      <section className={`platform-config-hero platform-config-hero--${moduleHealth}`}>
+        <div className="platform-config-hero__icon">
+          <ActiveIcon size={26} strokeWidth={2.25} />
         </div>
-        <div className="role-hero__actions system-config-hero__actions">
-          <button type="button" className="staff-button staff-button--ghost" onClick={resetDefaults}>
-            ↻ Khôi phục mặc định
+        <div className="platform-config-hero__copy">
+          <p className="admin-page-header__eyebrow">Quản trị hệ thống / Cấu hình nền tảng</p>
+          <h1>{activeModule?.title || 'Cấu hình nền tảng'}</h1>
+          <div className="platform-config-hero__meta">
+            <StatusBadge tone={healthTone(health.status)}>{health.status || 'healthy'}</StatusBadge>
+            <StatusBadge tone="info">Env {overview?.environment?.node_env || 'development'}</StatusBadge>
+            <StatusBadge tone={overview?.environment?.database_state === 'connected' ? 'success' : 'warning'}>
+              DB {overview?.environment?.database_state || 'unknown'}
+            </StatusBadge>
+            <StatusBadge tone="muted">
+              Reload {overview?.environment?.last_reload_at ? formatDateTime(overview.environment.last_reload_at) : 'chưa có'}
+            </StatusBadge>
+          </div>
+        </div>
+        <div className="platform-config-hero__actions">
+          <button type="button" className="staff-button staff-button--ghost" onClick={runValidation} disabled={saving}>
+            <ShieldAlert size={16} /> Kiểm tra
           </button>
-          <button type="button" className="staff-button staff-button--primary" onClick={saveSettings}>
-            ▣ Lưu thay đổi
+          <button type="button" className="staff-button staff-button--ghost" onClick={runTest} disabled={saving}>
+            <Play size={16} /> Test
+          </button>
+          <button type="button" className="staff-button staff-button--ghost" onClick={reloadRuntime} disabled={saving}>
+            <RefreshCw size={16} /> Reload
+          </button>
+          <button type="button" className="staff-button staff-button--primary" onClick={applyChanges} disabled={saving || !changedSettings.length}>
+            <Save size={16} /> Áp dụng {changedSettings.length ? `(${changedSettings.length})` : ''}
           </button>
         </div>
       </section>
 
-      <section className="system-config-layout">
-        <article className="admin-panel system-config-card system-config-card--wide">
-          <div className="system-config-card__heading">
-            <span className="system-config-card__icon system-config-card__icon--indigo">✚</span>
+      {validationIssues.length > 0 ? (
+        <section className="platform-config-alert-strip">
+          {validationIssues.slice(0, 4).map((item) => (
+            <article key={`${item.setting_key}-${item.message}`} className={`is-${item.severity}`}>
+              <AlertTriangle size={15} />
+              <span>{item.message}</span>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <section className="platform-config-alert-strip platform-config-alert-strip--ok">
+          <article>
+            <CheckCircle2 size={15} />
+            <span>Module hiện tại không có lỗi validation nghiêm trọng.</span>
+          </article>
+        </section>
+      )}
+
+      {error ? <ErrorBlock message={error} onRetry={() => loadModule(activeModule.module_key)} /> : null}
+      {message ? <p className="form-message success">{message}</p> : null}
+
+      <section className="platform-config-nav">
+        {(overview?.modules || []).map((module) => {
+          const Icon = MODULE_ICONS[module.module_key] || Settings;
+          const active = activeModule?.module_key === module.module_key;
+          return (
+            <button key={module.module_key} type="button" className={active ? 'is-active' : ''} onClick={() => openModule(module)}>
+              <Icon size={16} />
+              <span>{module.title}</span>
+              <StatusBadge tone={healthTone(module.health)}>{module.issue_count || 0}</StatusBadge>
+            </button>
+          );
+        })}
+      </section>
+
+      <section className="platform-config-metrics">
+        <PlatformMetric icon={Database} label="Effective settings" value={formatNumber(settings.length)} note={`${formatNumber(activeModule?.db_setting_count || 0)} từ DB`} tone="blue" />
+        <PlatformMetric icon={AlertTriangle} label="Validation" value={formatNumber(validationIssues.length)} note={`${health?.validation?.counts?.critical || 0} critical toàn hệ thống`} tone={validationIssues.length ? 'amber' : 'green'} />
+        <PlatformMetric icon={ServerCog} label="Requires restart" value={formatNumber(activeModule?.requires_restart_count || 0)} note={`${restartRequired.length} thay đổi đang chờ`} tone="violet" />
+        <PlatformMetric icon={Vault} label="Secrets" value={formatNumber(secretCount)} note={`${formatNumber(activeModule?.sensitive_count || 0)} trong module`} tone="slate" />
+        <PlatformMetric icon={Fingerprint} label="Config drift" value={formatNumber(driftCount)} note="DB so với ENV" tone={driftCount ? 'red' : 'green'} />
+        <PlatformMetric icon={Clock3} label="Runtime" value={formatNumber(stats.connected_sockets || 0)} note={`${formatNumber(stats.active_sessions || 0)} phiên active`} tone="cyan" />
+      </section>
+
+      <section className="platform-config-main">
+        <article className="platform-config-panel platform-config-effective">
+          <div className="platform-config-panel__head">
             <div>
-              <h2>Thông tin bệnh viện</h2>
+              <span>Effective configuration</span>
+              <strong>{activeModule?.module_key}</strong>
             </div>
+            <label className="platform-config-search">
+              <Search size={15} />
+              <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Tìm setting key" />
+            </label>
           </div>
 
-          <div className="system-config-form-grid">
-            <label className="system-config-field">
-              <span>Tên đơn vị</span>
-              <input name="hospital_name" value={form.hospital_name} onChange={handleChange} />
-            </label>
-            <label className="system-config-field">
-              <span>Hotline chăm sóc</span>
-              <input name="hotline" value={form.hotline} onChange={handleChange} />
-            </label>
-            <label className="system-config-field">
-              <span>Email hệ thống</span>
-              <input name="email" type="email" value={form.email} onChange={handleChange} />
-            </label>
-            <label className="system-config-field">
-              <span>Mã số thuế</span>
-              <input name="tax_code" value={form.tax_code} onChange={handleChange} />
-            </label>
-            <label className="system-config-field system-config-field--full">
-              <span>Địa chỉ trụ sở</span>
-              <textarea name="address" rows="2" value={form.address} onChange={handleChange} />
-            </label>
+          <div className="platform-config-table">
+            <div className="platform-config-table__head">
+              <span>Setting</span>
+              <span>Value</span>
+              <span>Source</span>
+              <span>Risk</span>
+            </div>
+            {moduleLoading ? (
+              <div className="platform-config-table__empty"><RefreshCw size={16} /> Đang tải module...</div>
+            ) : filteredSettings.map((setting) => (
+              <button
+                type="button"
+                key={setting.setting_key}
+                className={`platform-config-row${selectedSetting?.setting_key === setting.setting_key ? ' is-selected' : ''}`}
+                onClick={() => setSelectedKey(setting.setting_key)}
+              >
+                <span>
+                  <strong>{setting.setting_key}</strong>
+                  <small>{setting.setting_name}</small>
+                </span>
+                <span title={formatValue(setting.effective_value)}>{formatValue(setting.effective_value)}</span>
+                <span><StatusBadge tone={sourceTone(setting.effective_source)}>{SOURCE_LABELS[setting.effective_source] || setting.effective_source}</StatusBadge></span>
+                <span><StatusBadge tone={riskTone(setting.risk_level)}>{setting.risk_level}</StatusBadge></span>
+              </button>
+            ))}
           </div>
         </article>
 
-        <article className="admin-panel system-config-card">
-          <div className="system-config-card__heading">
-            <span className="system-config-card__icon system-config-card__icon--mint">◎</span>
+        <article className="platform-config-panel platform-config-editor">
+          <div className="platform-config-panel__head">
             <div>
-              <h2>Ngôn ngữ & Thời gian</h2>
+              <span>Configuration editor</span>
+              <strong>{selectedSetting?.setting_key || 'Chọn setting'}</strong>
             </div>
+            {selectedSetting ? (
+              <StatusBadge tone={selectedSetting.requires_restart ? 'warning' : 'success'}>
+                {selectedSetting.requires_restart ? 'restart' : 'runtime'}
+              </StatusBadge>
+            ) : null}
           </div>
 
-          <div className="system-config-stack">
-            <label className="system-config-field">
-              <span>Múi giờ hệ thống</span>
-              <select name="timezone" value={form.timezone} onChange={handleChange}>
-                <option value="Asia/Ho_Chi_Minh">(GMT+07:00) Asia/Ho_Chi_Minh</option>
-                <option value="Asia/Bangkok">(GMT+07:00) Asia/Bangkok</option>
-                <option value="UTC">(GMT+00:00) UTC</option>
-              </select>
-            </label>
+          <div className="platform-config-editor__list">
+            {filteredSettings.map((setting) => (
+              <label key={setting.setting_key} className={`platform-config-field${isSettingChanged(setting, drafts, initialDrafts) ? ' is-dirty' : ''}`}>
+                <span>
+                  <strong>{setting.setting_name}</strong>
+                  <small>{setting.setting_key}</small>
+                </span>
+                <SettingInput
+                  setting={setting}
+                  value={drafts[setting.setting_key]}
+                  onChange={(value) => updateDraft(setting.setting_key, value)}
+                />
+              </label>
+            ))}
+          </div>
 
-            <label className="system-config-field">
-              <span>Định dạng ngày</span>
-              <select name="date_format" value={form.date_format} onChange={handleChange}>
-                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                <option value="DD/MM/YYYY HH:mm">DD/MM/YYYY HH:mm</option>
-                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-              </select>
-            </label>
+          <label className="platform-config-reason">
+            <span>Lý do thay đổi</span>
+            <input value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="VD: hardening SMTP production" />
+          </label>
+        </article>
+      </section>
 
-            <div className="system-config-field">
-              <span>Ngôn ngữ mặc định</span>
-              <div className="system-config-segmented">
-                <button
-                  type="button"
-                  className={form.language === 'vi' ? 'is-active' : ''}
-                  onClick={() => {
-                    setSaved(false);
-                    setForm((current) => ({ ...current, language: 'vi' }));
-                  }}
-                >
-                  Tiếng Việt
-                </button>
-                <button
-                  type="button"
-                  className={form.language === 'en' ? 'is-active' : ''}
-                  onClick={() => {
-                    setSaved(false);
-                    setForm((current) => ({ ...current, language: 'en' }));
-                  }}
-                >
-                  Tiếng Anh
-                </button>
-              </div>
+      <section className="platform-config-secondary">
+        <article className="platform-config-panel">
+          <div className="platform-config-panel__head">
+            <div>
+              <span>Test / diagnostic</span>
+              <strong>{testResult?.status || 'Chưa chạy'}</strong>
+            </div>
+            <button type="button" className="platform-config-icon-button" onClick={runTest} disabled={saving} aria-label="Run diagnostic">
+              <Play size={16} />
+            </button>
+          </div>
+          {testResult ? (
+            <pre className="platform-config-json">{JSON.stringify(testResult, null, 2)}</pre>
+          ) : (
+            <div className="platform-config-empty">
+              <ServerCog size={22} />
+              <span>Diagnostic sẽ chạy bằng endpoint backend của module hiện tại.</span>
+            </div>
+          )}
+        </article>
+
+        <article className="platform-config-panel">
+          <div className="platform-config-panel__head">
+            <div>
+              <span>Impact preview</span>
+              <strong>{changedSettings.length} thay đổi</strong>
+            </div>
+            <StatusBadge tone={restartRequired.length ? 'warning' : 'success'}>
+              {restartRequired.length ? 'restart required' : 'runtime reloadable'}
+            </StatusBadge>
+          </div>
+          <div className="platform-config-impact">
+            <div>
+              <span>Settings đổi</span>
+              <strong>{changedSettings.map((item) => item.setting_key).join(', ') || 'Không có'}</strong>
+            </div>
+            <div>
+              <span>Dịch vụ ảnh hưởng</span>
+              <strong>{affectedServices.join(', ') || 'Không có'}</strong>
+            </div>
+            <div>
+              <span>Risk cao nhất</span>
+              <strong>{changedSettings.some((item) => item.risk_level === 'critical') ? 'critical' : changedSettings.some((item) => item.risk_level === 'high') ? 'high' : changedSettings.length ? 'medium' : 'none'}</strong>
             </div>
           </div>
         </article>
 
-        <article className="admin-panel system-config-card">
-          <div className="system-config-card__heading">
-            <span className="system-config-card__icon system-config-card__icon--rose">***</span>
+        <article className="platform-config-panel">
+          <div className="platform-config-panel__head">
             <div>
-              <h2>Chính sách mật khẩu</h2>
+              <span>Validation panel</span>
+              <strong>{validationIssues.length ? `${validationIssues.length} issue` : 'passed'}</strong>
             </div>
+            <button type="button" className="platform-config-icon-button" onClick={runValidation} disabled={saving} aria-label="Validate">
+              <ShieldAlert size={16} />
+            </button>
           </div>
-
-          <div className="system-config-kpi-row">
-            <label className="system-config-mini-field">
-              <span>Độ dài tối thiểu</span>
-              <div>
-                <input name="min_password_length" type="number" min="6" max="32" value={form.min_password_length} onChange={handleChange} />
-                <small>ký tự</small>
-              </div>
-            </label>
-            <label className="system-config-mini-field">
-              <span>Chu kỳ thay đổi</span>
-              <div>
-                <input name="password_rotation_days" type="number" min="0" max="365" value={form.password_rotation_days} onChange={handleChange} />
-                <small>ngày</small>
-              </div>
-            </label>
-          </div>
-
-          <div className="system-config-password-meter">
-            <div className="system-config-password-meter__label">
-              <span>Độ mạnh chính sách</span>
-              <strong>{strengthLabel}</strong>
-            </div>
-            <div className="system-config-password-meter__bars">
-              {[0, 1, 2, 3].map((item) => (
-                <span key={item} className={item < passwordStrength ? 'is-active' : ''} />
-              ))}
-            </div>
-          </div>
-
-          <div className="system-config-toggle-list">
-            <SettingToggle icon="@" label="Yêu cầu ký tự đặc biệt" checked={form.require_special} name="require_special" onChange={handleChange} />
-            <SettingToggle icon="Aa" label="Yêu cầu chữ hoa & chữ thường" checked={form.require_uppercase && form.require_lowercase} name="require_uppercase" onChange={(event) => {
-              const checked = event.target.checked;
-              setSaved(false);
-              setForm((current) => ({ ...current, require_uppercase: checked, require_lowercase: checked }));
-            }} />
-            <SettingToggle icon="123" label="Yêu cầu ít nhất 1 chữ số" checked={form.require_number} name="require_number" onChange={handleChange} />
-          </div>
-        </article>
-
-        <article className="admin-panel system-config-card">
-          <div className="system-config-card__heading">
-            <span className="system-config-card__icon system-config-card__icon--amber">◈</span>
-            <div>
-              <h2>Bảo mật phiên làm việc</h2>
-            </div>
-          </div>
-
-          <div className="system-config-kpi-row">
-            <label className="system-config-mini-field">
-              <span>Thời gian chờ (timeout)</span>
-              <div>
-                <input name="session_timeout_minutes" type="number" min="5" max="240" value={form.session_timeout_minutes} onChange={handleChange} />
-                <small>phút</small>
-              </div>
-            </label>
-            <label className="system-config-mini-field">
-              <span>Số phiên tối đa</span>
-              <div>
-                <input name="max_sessions" type="number" min="1" max="10" value={form.max_sessions} onChange={handleChange} />
-                <small>phiên</small>
-              </div>
-            </label>
-          </div>
-
-          <div className="system-config-session-box">
-            <div>
-              <strong>Tự động đăng xuất khi treo máy</strong>
-              <small>Ngắt kết nối sau khi hết thời gian chờ</small>
-            </div>
-            <span className={`system-config-switch ${form.auto_logout_idle ? 'is-on' : ''}`}>
-              <input name="auto_logout_idle" type="checkbox" checked={form.auto_logout_idle} onChange={handleChange} />
-              <span />
-            </span>
-          </div>
-        </article>
-
-        <article className="admin-panel system-config-card">
-          <div className="system-config-card__heading">
-            <span className="system-config-card__icon system-config-card__icon--violet">⚙</span>
-            <div>
-              <h2>Hành vi tài khoản mặc định</h2>
-            </div>
-          </div>
-
-          <div className="system-config-stack">
-            <div className="system-config-field">
-              <span>Trạng thái khi tạo mới</span>
-              <div className="system-config-segmented">
-                <button
-                  type="button"
-                  className={form.default_staff_status === 'active' ? 'is-active' : ''}
-                  onClick={() => {
-                    setSaved(false);
-                    setForm((current) => ({ ...current, default_staff_status: 'active' }));
-                  }}
-                >
-                  Kích hoạt
-                </button>
-                <button
-                  type="button"
-                  className={form.default_staff_status === 'inactive' ? 'is-active' : ''}
-                  onClick={() => {
-                    setSaved(false);
-                    setForm((current) => ({ ...current, default_staff_status: 'inactive' }));
-                  }}
-                >
-                  Tạm khóa
-                </button>
-              </div>
-            </div>
-
-            <label className="system-config-field">
-            <span>Vai trò mặc định</span>
-              <select name="default_role" value={form.default_role} onChange={handleChange}>
-              <option value="staff">Nhân viên tổng hợp</option>
-              <option value="doctor">Bác sĩ</option>
-                <option value="nurse">Điều dưỡng (Nurse)</option>
-                <option value="receptionist">Lễ tân (Receptionist)</option>
-              </select>
-            </label>
-
-            <SettingToggle
-              icon="!"
-              label="Buộc đổi mật khẩu ở lần đăng nhập đầu"
-              description="Áp dụng cho các tài khoản được tạo mới trong hệ thống."
-              checked={form.force_password_change_first_login}
-              name="force_password_change_first_login"
-              onChange={handleChange}
-            />
-
-            <SettingToggle
-              icon="↺"
-              label="Thu hồi phiên cũ khi đổi mật khẩu"
-              description="Giảm nguy cơ chiếm quyền nếu thiết bị cũ còn đăng nhập."
-              checked={form.revoke_on_password_change}
-              name="revoke_on_password_change"
-              onChange={handleChange}
-            />
+          <div className="platform-config-issues">
+            {validationIssues.length ? validationIssues.map((item) => (
+              <article key={`${item.setting_key}-${item.message}`} className={`is-${item.severity}`}>
+                {item.severity === 'critical' ? <XCircle size={16} /> : <AlertTriangle size={16} />}
+                <span>
+                  <strong>{item.setting_key}</strong>
+                  <small>{item.message}</small>
+                </span>
+              </article>
+            )) : (
+              <article className="is-ok">
+                <CheckCircle2 size={16} />
+                <span><strong>Passed</strong><small>Không có issue trong module hiện tại.</small></span>
+              </article>
+            )}
           </div>
         </article>
       </section>
 
-      <section className="system-config-activity">
-        <div className="system-config-activity__copy">
-          <span className="system-config-activity__icon">⎘</span>
+      <section className="platform-config-panel platform-config-audit">
+        <div className="platform-config-panel__head">
           <div>
-            <strong>Lịch sử thay đổi hệ thống</strong>
-            <p>
-              {lastSavedAt
-                ? `Lần cập nhật cuối cùng vào ${formatDateTime(lastSavedAt)}`
-                : 'Chưa có bản ghi cập nhật nào trong trình duyệt hiện tại'}
-              {saved ? ' bởi Admin Aura.' : '.'}
-            </p>
+            <span>Audit / revision timeline</span>
+            <strong>{selectedSetting?.setting_key || 'Chọn setting'}</strong>
           </div>
+          <button type="button" className="staff-button staff-button--ghost" disabled={!selectedSetting || !revisions.length || saving} onClick={() => rollbackRevision(revisions[0]?.revision_no)}>
+            <RotateCcw size={16} /> Rollback gần nhất
+          </button>
         </div>
-        <button type="button" className="system-config-activity__action">
-          Xem chi tiết nhật ký
-        </button>
+        <div className="platform-config-timeline">
+          {revisions.length ? revisions.map((revision) => (
+            <article key={revision.revision_id}>
+              <FileClock size={17} />
+              <span>
+                <strong>Revision {revision.revision_no} / {revision.action}</strong>
+                <small>{revision.created_at ? formatDateTime(revision.created_at) : 'unknown'} · {(revision.changed_fields || []).join(', ') || 'no diff'}</small>
+              </span>
+              <button type="button" onClick={() => rollbackRevision(revision.revision_no)} disabled={saving || revision.action === 'create'}>
+                Rollback
+              </button>
+            </article>
+          )) : (
+            <div className="platform-config-empty">
+              <FileClock size={22} />
+              <span>Chưa có revision cho setting đang chọn.</span>
+            </div>
+          )}
+        </div>
       </section>
-
-      {saved ? <p className="form-message success">Đã lưu cấu hình hệ thống trên trình duyệt hiện tại.</p> : null}
     </section>
   );
 }

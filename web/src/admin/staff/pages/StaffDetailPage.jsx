@@ -8,9 +8,12 @@ import {
   getAssignableRoles,
   getStaffAccountDetail,
   getStaffAuditLogs,
+  getStaffDependencies,
   getStaffLoginHistory,
   getStaffPermissions,
+  getStaffRiskProfile,
   getStaffRoles,
+  getStaffSessions,
   resetStaffPassword,
   syncStaffRoles,
   unlockStaffAccount,
@@ -24,6 +27,7 @@ const TABS = [
   { id: 'clearance', label: 'Phân quyền hệ thống' },
   { id: 'activity', label: 'Nhật ký hoạt động' },
   { id: 'sessions', label: 'Phiên hoạt động' },
+  { id: 'dependencies', label: 'Phụ thuộc nghiệp vụ' },
 ];
 
 function getPrimaryRole(roles = []) {
@@ -56,6 +60,9 @@ export function StaffDetailPage() {
   const [roleState, setRoleState] = useState([]);
   const [loginHistory, setLoginHistory] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [dependencies, setDependencies] = useState(null);
+  const [riskProfile, setRiskProfile] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [permissionCheck, setPermissionCheck] = useState('');
   const [permissionResult, setPermissionResult] = useState(null);
@@ -67,13 +74,16 @@ export function StaffDetailPage() {
 
     async function loadData() {
       try {
-        const [detailData, rolesData, permissionsData, loginData, auditData, assignableRoles] = await Promise.all([
+        const [detailData, rolesData, permissionsData, loginData, auditData, assignableRoles, sessionsData, dependenciesData, riskData] = await Promise.all([
           getStaffAccountDetail(staffId),
           getStaffRoles(staffId),
           getStaffPermissions(staffId),
           getStaffLoginHistory(staffId),
           getStaffAuditLogs(staffId),
           getAssignableRoles(),
+          getStaffSessions(staffId, 'limit=8'),
+          getStaffDependencies(staffId),
+          getStaffRiskProfile(staffId),
         ]);
 
         if (!active) return;
@@ -87,6 +97,9 @@ export function StaffDetailPage() {
         setLoginHistory(loginData?.items || []);
         setAuditLogs(auditData?.items || []);
         setAvailableRoles(assignableRoles?.items || []);
+        setSessions(sessionsData?.items || []);
+        setDependencies(dependenciesData);
+        setRiskProfile(riskData);
       } catch (loadError) {
         if (!active) return;
         setError(loadError.message);
@@ -104,9 +117,9 @@ export function StaffDetailPage() {
   const roles = detail?.roles || [];
   const permissions = detail?.permissions || [];
   const primaryRole = getPrimaryRole(roles);
-  const securityScore = buildSecurityScore(user, permissions);
+  const securityScore = riskProfile?.risk_score ?? buildSecurityScore(user, permissions);
   const recentAudit = auditLogs.slice(0, 3);
-  const recentSessions = loginHistory.slice(0, 4);
+  const recentSessions = sessions.slice(0, 4);
 
   useEffect(() => {
     const modal = searchParams.get('modal');
@@ -117,12 +130,15 @@ export function StaffDetailPage() {
   }, [searchParams, user]);
 
   async function refreshDetail() {
-    const [detailData, rolesData, permissionsData, loginData, auditData] = await Promise.all([
+    const [detailData, rolesData, permissionsData, loginData, auditData, sessionsData, dependenciesData, riskData] = await Promise.all([
       getStaffAccountDetail(staffId),
       getStaffRoles(staffId),
       getStaffPermissions(staffId),
       getStaffLoginHistory(staffId),
       getStaffAuditLogs(staffId),
+      getStaffSessions(staffId, 'limit=8'),
+      getStaffDependencies(staffId),
+      getStaffRiskProfile(staffId),
     ]);
 
     setDetail({
@@ -133,6 +149,9 @@ export function StaffDetailPage() {
     setRoleState((rolesData?.roles || []).map((item) => item.role_code));
     setLoginHistory(loginData?.items || []);
     setAuditLogs(auditData?.items || []);
+    setSessions(sessionsData?.items || []);
+    setDependencies(dependenciesData);
+    setRiskProfile(riskData);
   }
 
   function openDialog(type) {
@@ -343,14 +362,14 @@ export function StaffDetailPage() {
                 <article className="staff-detail-surface">
                   <div className="staff-detail-surface__header">
                     <h2>Tình trạng bảo mật</h2>
-                    <span className="staff-detail-chip">Rất tốt</span>
+                    <span className="staff-detail-chip">{riskProfile?.risk_level || 'low'}</span>
                   </div>
                   <div className="staff-detail-score-card">
                     <div className="staff-detail-score-card__ring" style={{ '--score': `${securityScore}%` }}>
                       <strong>{securityScore}%</strong>
                     </div>
                     <p>
-                      MFA và trạng thái truy cập đang ổn định. Lần cập nhật mật khẩu gần nhất:{' '}
+                      {riskProfile?.reasons?.[0] || 'Không có tín hiệu rủi ro đáng kể từ dữ liệu hiện có.'} Lần cập nhật mật khẩu gần nhất:{' '}
                       {formatDateTime(user?.password_changed_at)}.
                     </p>
                   </div>
@@ -418,6 +437,8 @@ export function StaffDetailPage() {
                 <div><span>Lần đăng nhập cuối</span><strong>{formatDateTime(user?.last_login_at)}</strong></div>
                 <div><span>IP đăng nhập cuối</span><strong>{user?.last_login_ip || 'Chưa có'}</strong></div>
                 <div><span>Khóa đến lúc</span><strong>{formatDateTime(user?.locked_until)}</strong></div>
+                <div><span>Risk score</span><strong>{riskProfile?.risk_score ?? securityScore}</strong></div>
+                <div><span>Phiên active</span><strong>{riskProfile?.signals?.active_session_count ?? sessions.filter((item) => item.is_active).length}</strong></div>
               </div>
             </article>
 
@@ -527,19 +548,51 @@ export function StaffDetailPage() {
             </div>
             <div className="staff-session-list staff-session-list--large">
               {recentSessions.map((item, index) => (
-                <div key={`${item._id || item.created_at}-${index}`} className="staff-session-card staff-session-card--large">
-                  <div className={`staff-session-card__icon staff-session-card__icon--${item.status === 'failure' ? 'failed' : 'active'}`}>
-                    {item.status === 'failure' ? '!' : '◉'}
+                <div key={`${item.session_id || item.created_at}-${index}`} className="staff-session-card staff-session-card--large">
+                  <div className={`staff-session-card__icon staff-session-card__icon--${item.is_active ? 'active' : 'failed'}`}>
+                    {item.is_active ? '◉' : '!'}
                   </div>
                   <div className="staff-session-card__content">
-                    <strong>{item.user_agent || 'Máy trạm lâm sàng'}</strong>
+                    <strong>{item.device_name || item.browser || item.user_agent || 'Máy trạm lâm sàng'}</strong>
                     <div className="staff-session-card__meta">
-                      <span>{item.ip_address || 'Không rõ IP'}</span>
-                      <span>{formatDateTime(item.created_at)}</span>
-                      <span>{index === 0 ? 'Phiên hiện tại' : 'Phiên trước đó'}</span>
+                      <span>{item.last_ip || item.ip_address || 'Không rõ IP'}</span>
+                      <span>{formatDateTime(item.last_used_at || item.created_at)}</span>
+                      <span>{item.os || item.login_method || 'password'}</span>
                     </div>
                   </div>
-                  <span className="staff-soft-badge">{index === 0 ? 'Đang hoạt động' : 'Gần đây'}</span>
+                  <span className="staff-soft-badge">{item.is_active ? 'Đang hoạt động' : 'Đã thu hồi'}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+        ) : null}
+
+        {tab === 'dependencies' ? (
+          <article className="staff-detail-surface">
+            <div className="staff-detail-surface__header">
+              <div>
+                <h2>Phụ thuộc nghiệp vụ</h2>
+                <p>Preview blocker trước khi xóa mềm, vô hiệu hóa hoặc điều chuyển khoa/phòng.</p>
+              </div>
+            </div>
+            <div className="staff-security-grid">
+              {Object.entries(dependencies?.blockers || {}).map(([key, value]) => (
+                <div key={key}>
+                  <span>{key.replaceAll('_', ' ')}</span>
+                  <strong>{String(value ?? 0)}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="staff-audit-timeline">
+              {(dependencies?.blocking_reasons || dependencies?.recommendations || []).map((item) => (
+                <div key={item} className="staff-audit-timeline__item">
+                  <div className={`staff-audit-timeline__icon ${dependencies?.can_delete ? 'staff-audit-timeline__icon--success' : 'staff-audit-timeline__icon--warning'}`}>
+                    {dependencies?.can_delete ? '+' : '!'}
+                  </div>
+                  <div className="staff-audit-timeline__content">
+                    <strong>{item}</strong>
+                    <p>{dependencies?.can_delete ? 'Không chặn thao tác chính' : 'Cần xử lý trước khi thao tác nhạy cảm'}</p>
+                  </div>
                 </div>
               ))}
             </div>

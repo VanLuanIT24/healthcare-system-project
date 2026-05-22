@@ -35,4 +35,20 @@ module.exports = {
     (req) => auditQueryService.exportAuditLogs(req.query, req.auth, requestMeta(req)),
     'Export audit logs thành công.',
   ),
+  getAuditSummary: wrap(
+    (req) => auditQueryService.getAuditSummary(req.query, req.auth),
+    'Lấy audit summary thành công.',
+  ),
+  getAuditFacets: wrap(
+    (req) => auditQueryService.getAuditFacets(req.query, req.auth),
+    'Lấy audit facets thành công.',
+  ),
+  getRequestTimeline: wrap(
+    (req) => auditQueryService.getRequestTimeline(req.params.requestId, req.query, req.auth),
+    'Lấy request audit timeline thành công.',
+  ),
+  getSessionTimeline: wrap(
+    (req) => auditQueryService.getSessionTimeline(req.params.sessionId, req.query, req.auth),
+    'Lấy session audit timeline thành công.',
+  ),
 };

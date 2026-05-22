@@ -84,6 +84,34 @@ export function checkDepartmentHasFutureAppointments(departmentId) {
   return request(`${API_BASE_URL}/departments/${departmentId}/future-appointments`);
 }
 
+export function getFacilityOverview() {
+  return request(`${API_BASE_URL}/admin/facilities/overview`);
+}
+
+export function getFacilityDepartmentOperationsBoard() {
+  return request(`${API_BASE_URL}/admin/facilities/departments/operations-board`);
+}
+
+export function getFacilityDepartmentOperationalProfile(departmentId) {
+  return request(`${API_BASE_URL}/admin/facilities/departments/${departmentId}/operational-profile`);
+}
+
+export function getFacilityResourceBoard() {
+  return request(`${API_BASE_URL}/admin/facilities/resources`);
+}
+
+export function getFacilityOperationalStatus() {
+  return request(`${API_BASE_URL}/admin/facilities/operational-status`);
+}
+
+export function createDepartmentWithDefaults(payload) {
+  return request(`${API_BASE_URL}/admin/facilities/departments/create-with-defaults`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listSchedulesByDepartment(departmentId, query = 'limit=12') {
   return request(`${API_BASE_URL}/schedules/department/${departmentId}?${query}`);
 }
