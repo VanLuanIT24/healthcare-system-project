@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarPlus, Globe2, HeartPulse, Mail, MapPin, PhoneCall } from 'lucide-react';
+import { CalendarPlus, Globe2, HeartPulse, LayoutDashboard, Mail, MapPin, PhoneCall } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
 import { readStoredSiteLanguage, writeStoredSiteLanguage } from '../lib/storage';
@@ -26,7 +26,19 @@ function getMarketingNavItems(labels) {
     { key: 'faq', label: labels.nav[5], to: '/faq' },
     { key: 'contact', label: labels.nav[6], to: '/contact' },
   ];
-}function MarketingTopbar({ labels, language, setLanguage }) {
+}
+
+function getInitials(name) {
+  return String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'BN'
+}
+
+function MarketingTopbar({ labels, language, setLanguage }) {
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -87,8 +99,33 @@ function getMarketingNavItems(labels) {
   );
 }
 
-export function MarketingHeader({ labels, language, setLanguage, profile, onLogout, activeKey = 'home' }) {
+export function MarketingHeader({
+  labels,
+  language,
+  setLanguage,
+  profile,
+  onLogout,
+  activeKey = 'home',
+  profileMenuVariant = 'inline',
+}) {
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
   const navItems = getMarketingNavItems(labels);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setIsProfileMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+  }, [profile]);
 
   return (
     <>
@@ -112,11 +149,52 @@ export function MarketingHeader({ labels, language, setLanguage, profile, onLogo
 
         <div className="home-header__actions">
           {profile ? <span className="home-header__welcome">{labels.hello}, {profile.full_name}</span> : null}
+          {profile && profileMenuVariant === 'compact' ? (
+            <div className="home-header__profile-menu" ref={profileMenuRef}>
+              <button
+                type="button"
+                className="home-header__profile-trigger"
+                onClick={() => setIsProfileMenuOpen((current) => !current)}
+                aria-expanded={isProfileMenuOpen}
+                aria-haspopup="menu"
+              >
+                <span className="home-header__profile-avatar" aria-hidden="true">
+                  {getInitials(profile.full_name)}
+                </span>
+                <span className="home-header__profile-copy">
+                  <strong>{profile.full_name}</strong>
+                  <small>Bệnh nhân</small>
+                </span>
+                <span className="home-header__profile-caret" aria-hidden="true">
+                  {isProfileMenuOpen ? '⌃' : '⌄'}
+                </span>
+              </button>
+
+              {isProfileMenuOpen ? (
+                <div className="home-header__profile-dropdown" role="menu" aria-label="Menu hồ sơ bệnh nhân">
+                  <Link to="/portal/dashboard" role="menuitem" onClick={() => setIsProfileMenuOpen(false)}>
+                    <LayoutDashboard size={16} aria-hidden="true" />
+                    Dashboard bệnh nhân
+                  </Link>
+                  <Link to="/portal?section=settings" role="menuitem" onClick={() => setIsProfileMenuOpen(false)}>
+                    <span className="home-header__profile-menu-icon" aria-hidden="true">⚙</span>
+                    Hồ sơ và cài đặt
+                  </Link>
+                  {onLogout ? (
+                    <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); onLogout(); }}>
+                      <span className="home-header__profile-menu-icon" aria-hidden="true">↪</span>
+                      Đăng xuất
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <Link className="home-header__button" to="/support">
             <CalendarPlus size={17} aria-hidden="true" />
             {labels.book}
           </Link>
-          {profile && onLogout ? (
+          {profile && onLogout && profileMenuVariant !== 'compact' ? (
             <button type="button" className="home-header__ghost" onClick={onLogout}>
               {labels.logout}
             </button>

@@ -1002,7 +1002,15 @@ function PartnerIcon({ type }) {
 
   return (
     <main className="home-shell" id="top">
-      <MarketingHeader labels={t} language={language} setLanguage={setLanguage} profile={profile} onLogout={handleLogout} activeKey="home" />
+      <MarketingHeader
+        labels={t}
+        language={language}
+        setLanguage={setLanguage}
+        profile={profile}
+        onLogout={handleLogout}
+        activeKey="home"
+        profileMenuVariant="compact"
+      />
 
       <section className="home-hero">
         <div className="home-hero__backdrop" aria-hidden="true" />

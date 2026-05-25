@@ -44,6 +44,20 @@ function getRefreshTokenExpiresInSeconds() {
   return parseDurationToSeconds(env.jwtRefreshExpiresIn, 7 * 24 * 60 * 60);
 }
 
+function buildJwtVerifyOptions() {
+  const options = {};
+
+  if (typeof env.jwtIssuer === 'string' && env.jwtIssuer.trim()) {
+    options.issuer = env.jwtIssuer.trim();
+  }
+
+  if (typeof env.jwtAudience === 'string' && env.jwtAudience.trim()) {
+    options.audience = env.jwtAudience.trim();
+  }
+
+  return options;
+}
+
 function generateAccessToken({ actorId, actorType, sessionId, permissionVersion }) {
   assertJwtSecrets();
   assertActorType(actorType);
@@ -65,8 +79,7 @@ function generateAccessToken({ actorId, actorType, sessionId, permissionVersion 
     env.jwtAccessSecret,
     {
       expiresIn: env.jwtAccessExpiresIn,
-      issuer: env.jwtIssuer || undefined,
-      audience: env.jwtAudience || undefined,
+      ...buildJwtVerifyOptions(),
     },
   );
 }
@@ -81,8 +94,7 @@ function verifyAccessToken(token) {
   let payload;
   try {
     payload = jwt.verify(token, env.jwtAccessSecret, {
-      issuer: env.jwtIssuer || undefined,
-      audience: env.jwtAudience || undefined,
+      ...buildJwtVerifyOptions(),
     });
   } catch (error) {
     throw ApiError.unauthorized('Access token is invalid or expired.');

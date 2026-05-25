@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarPlus, ChevronDown, Globe2, HeartPulse, PhoneCall } from 'lucide-react';
+import { CalendarPlus, ChevronDown, Globe2, HeartPulse, LayoutDashboard, PhoneCall } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppLogo, APP_BRAND_NAME } from '../../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
@@ -215,6 +215,12 @@ export function MarketingPageShell({ activeKey, hero, children }) {
 
         <div className="home-header__actions">
           {profile ? <span className="home-header__welcome">{t.hello}, {profile.full_name}</span> : null}
+          {profile ? (
+            <Link className="home-header__ghost home-header__portal" to="/portal/dashboard">
+              <LayoutDashboard size={17} aria-hidden="true" />
+              Dashboard
+            </Link>
+          ) : null}
           <Link className="home-header__button" to="/support">
             <CalendarPlus size={19} strokeWidth={2.5} aria-hidden="true" />
             <span>{t.book}</span>
