@@ -1,0 +1,1065 @@
+.sched-ops-page,
+.sched-appt-page {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  color: #13243d;
+}
+
+.sched-ops-hero,
+.sched-appt-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(20, 184, 166, 0.12), transparent 9rem),
+    linear-gradient(135deg, #ffffff 0%, #f7fcff 100%);
+  box-shadow: 0 18px 44px rgba(38, 71, 102, 0.08);
+}
+
+.sched-ops-hero span,
+.sched-appt-hero span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #0f766e;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.sched-ops-hero h1,
+.sched-appt-hero h1 {
+  margin: 0.22rem 0 0.42rem;
+  color: #12233f;
+  font-size: clamp(1.55rem, 2.4vw, 2.35rem);
+  letter-spacing: 0;
+}
+
+.sched-ops-hero p,
+.sched-appt-hero p {
+  max-width: 820px;
+  margin: 0;
+  color: #63758d;
+  line-height: 1.55;
+  font-weight: 700;
+}
+
+.sched-ops-hero__tools,
+.sched-appt-hero__tools,
+.sched-ops-actions,
+.sched-appt-secondary-actions,
+.sched-ops-alert-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.sched-ops-hero__tools label,
+.sched-appt-hero__tools label,
+.sched-appt-form-grid label {
+  display: grid;
+  gap: 0.28rem;
+  color: #6b7f99;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.sched-ops-hero__tools input,
+.sched-ops-hero__tools select,
+.sched-appt-hero__tools input,
+.sched-appt-form-grid input,
+.sched-appt-form-grid select {
+  min-height: 38px;
+  min-width: 150px;
+  border: 1px solid #d8e4f0;
+  border-radius: 10px;
+  color: #13243d;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 820;
+  padding: 0 0.7rem;
+}
+
+.sched-ops-hero__tools button,
+.sched-appt-hero__tools button,
+.sched-appt-hero__tools a,
+.sched-ops-actions a,
+.sched-appt-secondary-actions a,
+.sched-appt-secondary-actions button,
+.sched-ops-alert-toolbar button,
+.sched-appt-create__actions button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  padding: 0 0.78rem;
+  border: 1px solid #d8e4f0;
+  border-radius: 10px;
+  color: #15314f;
+  background: #ffffff;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sched-ops-hero__tools button,
+.sched-appt-hero__tools a,
+.sched-appt-create__actions .is-primary {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #0f9f9a, #0f766e);
+}
+
+.sched-ops-sync,
+.sched-appt-sync {
+  min-height: 30px;
+  padding: 0 0.62rem;
+  border-radius: 999px;
+  background: #eefbf8;
+}
+
+.sched-ops-sync i,
+.sched-appt-sync i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #14b8a6;
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12);
+}
+
+.sched-ops-sync.is-demo i,
+.sched-appt-sync.is-demo i {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
+}
+
+.sched-ops-actions,
+.sched-appt-secondary-actions {
+  justify-content: flex-start;
+  padding: 0.72rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 34px rgba(38, 71, 102, 0.06);
+}
+
+.sched-ops-kpis,
+.sched-appt-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.sched-ops-kpis article,
+.sched-appt-kpis article {
+  min-height: 112px;
+  display: grid;
+  align-content: space-between;
+  gap: 0.44rem;
+  padding: 0.85rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(38, 71, 102, 0.07);
+}
+
+.sched-ops-kpis span,
+.sched-appt-kpis span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #63758d;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.sched-ops-kpis strong,
+.sched-appt-kpis strong {
+  color: #13243d;
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.sched-ops-kpis small,
+.sched-appt-kpis small {
+  color: #71829a;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sched-ops-kpis .is-blue svg,
+.sched-appt-kpis .is-blue svg { color: #2563eb; }
+.sched-ops-kpis .is-cyan svg,
+.sched-appt-kpis .is-cyan svg { color: #0891b2; }
+.sched-ops-kpis .is-green svg,
+.sched-appt-kpis .is-green svg { color: #16a34a; }
+.sched-ops-kpis .is-amber svg,
+.sched-appt-kpis .is-amber svg { color: #d97706; }
+.sched-ops-kpis .is-red svg,
+.sched-appt-kpis .is-red svg { color: #dc2626; }
+.sched-ops-kpis .is-violet svg,
+.sched-appt-kpis .is-violet svg { color: #7c3aed; }
+.sched-ops-kpis .is-teal svg,
+.sched-appt-kpis .is-teal svg { color: #0d9488; }
+
+.sched-ops-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+  gap: 1rem;
+}
+
+.sched-ops-grid--wide {
+  grid-template-columns: minmax(0, 1.25fr) minmax(380px, 0.75fr);
+}
+
+.sched-ops-panel,
+.sched-appt-panel,
+.sched-appt-drawer,
+.sched-appt-create {
+  min-width: 0;
+  border: 1px solid #dbe7f3;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 42px rgba(38, 71, 102, 0.08);
+}
+
+.sched-ops-panel,
+.sched-appt-panel {
+  padding: 1rem;
+}
+
+.sched-ops-panel > header,
+.sched-appt-panel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.sched-ops-panel header span,
+.sched-appt-panel header span {
+  display: block;
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 950;
+}
+
+.sched-ops-panel h2,
+.sched-appt-panel h2 {
+  margin: 0.15rem 0 0;
+  color: #12233f;
+  font-size: 1rem;
+}
+
+.sched-ops-flow > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.sched-ops-flow article {
+  display: grid;
+  gap: 0.42rem;
+  padding: 0.72rem;
+  border: 1px solid #e2ebf5;
+  border-radius: 12px;
+  background: #f8fcff;
+}
+
+.sched-ops-flow b {
+  width: 25px;
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #0f766e;
+  background: #dcfbf4;
+  font-size: 0.72rem;
+}
+
+.sched-ops-flow strong,
+.sched-ops-flow em {
+  display: block;
+  color: #13243d;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.sched-ops-flow span,
+.sched-ops-heatmap em,
+.sched-ops-doctor-table em,
+.sched-ops-slot-summary em,
+.sched-appt-table em {
+  height: 7px;
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7eef7;
+}
+
+.sched-ops-flow i,
+.sched-ops-heatmap i,
+.sched-ops-doctor-table i,
+.sched-ops-slot-summary i,
+.sched-appt-table i {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0f9f9a, #38bdf8);
+}
+
+.sched-ops-heatmap,
+.sched-ops-schedule-list > div,
+.sched-ops-doctor-table > div,
+.sched-ops-alerts > div,
+.sched-appt-comm > div,
+.sched-appt-change > div,
+.sched-appt-checkin > div,
+.sched-appt-noshow > div,
+.sched-appt-waitlist > div {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.sched-ops-heatmap article,
+.sched-ops-schedule-list article,
+.sched-ops-doctor-table article,
+.sched-ops-alerts article,
+.sched-appt-comm article,
+.sched-appt-change article,
+.sched-appt-checkin article,
+.sched-appt-noshow article,
+.sched-appt-waitlist article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.72rem;
+  border: 1px solid #e2ebf5;
+  border-left: 4px solid #0ea5e9;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.sched-ops-heatmap article.is-critical,
+.sched-ops-schedule-list article.is-critical,
+.sched-ops-alerts article.is-critical,
+.sched-appt-checkin article.is-red {
+  border-left-color: #dc2626;
+  background: #fff7f7;
+}
+
+.sched-ops-heatmap article.is-warning,
+.sched-ops-schedule-list article.is-warning,
+.sched-ops-alerts article.is-warning,
+.sched-appt-checkin article.is-amber {
+  border-left-color: #d97706;
+  background: #fffaf0;
+}
+
+.sched-ops-heatmap article.is-good,
+.sched-appt-checkin article.is-green {
+  border-left-color: #16a34a;
+}
+
+.sched-ops-heatmap strong,
+.sched-ops-schedule-list strong,
+.sched-ops-alerts strong,
+.sched-appt-comm strong,
+.sched-appt-change strong,
+.sched-appt-checkin strong,
+.sched-appt-noshow strong,
+.sched-appt-waitlist strong {
+  display: block;
+  color: #13243d;
+  font-size: 0.86rem;
+}
+
+.sched-ops-heatmap span,
+.sched-ops-heatmap small,
+.sched-ops-alerts span,
+.sched-ops-alerts small,
+.sched-appt-comm span,
+.sched-appt-change span,
+.sched-appt-checkin span,
+.sched-appt-noshow span,
+.sched-appt-waitlist span,
+.sched-appt-waitlist small {
+  color: #63758d;
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.sched-ops-queue-mini > div,
+.sched-ops-queue-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(170px, 1fr));
+  gap: 0.7rem;
+  overflow-x: auto;
+}
+
+.sched-ops-queue-board {
+  grid-template-columns: repeat(7, minmax(190px, 1fr));
+}
+
+.sched-ops-queue-mini article,
+.sched-ops-queue-board article {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  min-height: 220px;
+  padding: 0.7rem;
+  border: 1px solid #e2ebf5;
+  border-radius: 12px;
+  background: #f8fcff;
+}
+
+.sched-ops-queue-mini h3,
+.sched-ops-queue-board header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin: 0;
+  color: #13243d;
+  font-size: 0.82rem;
+}
+
+.sched-ops-queue-mini button,
+.sched-ops-queue-board button {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.58rem;
+  border: 1px solid #dfe9f5;
+  border-radius: 10px;
+  color: #13243d;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sched-ops-queue-mini button strong,
+.sched-ops-queue-board button strong {
+  color: #0f766e;
+  font-size: 0.9rem;
+}
+
+.sched-ops-queue-mini button span,
+.sched-ops-queue-mini button small,
+.sched-ops-queue-board button span,
+.sched-ops-queue-board button small,
+.sched-ops-queue-board button em {
+  color: #63758d;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.sched-ops-hourly {
+  height: 260px;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.sched-ops-hourly article {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.34rem;
+  min-width: 0;
+  text-align: center;
+}
+
+.sched-ops-hourly article > span {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: 3px;
+  min-height: 170px;
+  padding: 0.35rem;
+  border-radius: 10px;
+  background: #f3f8fd;
+}
+
+.sched-ops-hourly i {
+  width: 8px;
+  min-height: 6px;
+  border-radius: 999px 999px 3px 3px;
+}
+
+.sched-ops-hourly .is-appointments { background: #2563eb; }
+.sched-ops-hourly .is-queue { background: #d97706; }
+.sched-ops-hourly .is-service { background: #0d9488; }
+
+.sched-ops-capacity footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.8rem;
+  color: #63758d;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.sched-ops-capacity footer span,
+.sched-ops-slot-summary a,
+.sched-ops-alerts a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.sched-ops-capacity footer i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.sched-ops-queue-layout,
+.sched-appt-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.36fr);
+  gap: 1rem;
+}
+
+.sched-ops-detail,
+.sched-appt-drawer {
+  position: sticky;
+  top: 76px;
+  align-self: start;
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.sched-ops-detail header span,
+.sched-appt-drawer header span {
+  color: #0f766e;
+  font-size: 0.7rem;
+  font-weight: 950;
+}
+
+.sched-ops-detail h2,
+.sched-appt-drawer h2 {
+  margin: 0.2rem 0;
+  color: #12233f;
+}
+
+.sched-ops-detail__grid,
+.sched-appt-drawer__grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sched-ops-detail__grid span,
+.sched-appt-drawer__grid span {
+  display: grid;
+  gap: 0.12rem;
+  color: #71829a;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sched-ops-detail__grid b,
+.sched-appt-drawer__grid b {
+  color: #13243d;
+  font-size: 0.82rem;
+}
+
+.sched-ops-detail__actions,
+.sched-appt-row-actions,
+.sched-appt-comm article > div:last-child,
+.sched-appt-change article > div:last-child,
+.sched-appt-noshow article > div:last-child,
+.sched-appt-waitlist article > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+}
+
+.sched-ops-detail__actions button,
+.sched-appt-row-actions button,
+.sched-appt-comm button,
+.sched-appt-change button,
+.sched-appt-checkin button,
+.sched-appt-noshow button,
+.sched-appt-waitlist button {
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+  padding: 0 0.55rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 8px;
+  color: #0f766e;
+  background: #f2fffb;
+  font-size: 0.7rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.sched-appt-row-actions .is-danger,
+.sched-appt-change .is-danger {
+  color: #be123c;
+  background: #fff1f2;
+}
+
+.sched-ops-slot-summary {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.sched-ops-slot-summary article {
+  display: grid;
+  gap: 0.36rem;
+  padding: 0.65rem;
+  border: 1px solid #e2ebf5;
+  border-radius: 12px;
+}
+
+.sched-ops-alert-toolbar {
+  justify-content: space-between;
+  padding: 0.75rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.sched-ops-alert-toolbar label,
+.sched-appt-filter label,
+.sched-appt-create__body label:first-of-type {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.48rem;
+  flex: 1 1 360px;
+  padding: 0 0.72rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+.sched-ops-alert-toolbar input,
+.sched-appt-filter input,
+.sched-appt-create__body label:first-of-type input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+}
+
+.sched-ops-toast,
+.sched-appt-toast,
+.sched-ops-notice,
+.sched-appt-notice,
+.sched-ops-loading,
+.sched-appt-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.72rem 0.9rem;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  color: #075985;
+  background: #f0f9ff;
+  font-weight: 850;
+}
+
+.sched-ops-notice,
+.sched-appt-notice {
+  border-color: #fed7aa;
+  color: #9a3412;
+  background: #fff7ed;
+}
+
+.sched-appt-filter {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.1fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.sched-appt-filter > div {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+}
+
+.sched-appt-filter button {
+  min-height: 34px;
+  flex: 0 0 auto;
+  padding: 0 0.65rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 999px;
+  color: #4f637d;
+  background: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.sched-appt-filter button.is-active {
+  color: #ffffff;
+  border-color: transparent;
+  background: #0f766e;
+}
+
+.sched-appt-table {
+  overflow: hidden;
+}
+
+.sched-appt-table__head,
+.sched-appt-table article {
+  display: grid;
+  grid-template-columns: 0.76fr 1fr 1.05fr 0.8fr 0.62fr 0.82fr 0.9fr;
+  gap: 0.62rem;
+  align-items: center;
+  min-width: 920px;
+}
+
+.sched-appt-table__head {
+  padding: 0.58rem 0.72rem;
+  border-radius: 10px;
+  color: #63758d;
+  background: #f3f8fd;
+  font-size: 0.7rem;
+  font-weight: 950;
+}
+
+.sched-appt-table article {
+  padding: 0.72rem;
+  border-bottom: 1px solid #edf3f9;
+  cursor: pointer;
+}
+
+.sched-appt-table article:hover,
+.sched-appt-table article.is-selected {
+  background: #f5fbff;
+}
+
+.sched-appt-table strong,
+.sched-appt-table span,
+.sched-appt-table small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-table strong {
+  color: #13243d;
+  font-size: 0.82rem;
+}
+
+.sched-appt-table span,
+.sched-appt-table small {
+  color: #6b7f99;
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.sched-appt-status {
+  width: max-content;
+  max-width: 100%;
+  min-height: 25px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.48rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 950;
+}
+
+.sched-appt-status.is-slate { color: #475569; background: #f1f5f9; }
+.sched-appt-status.is-blue { color: #1d4ed8; background: #eff6ff; }
+.sched-appt-status.is-green { color: #047857; background: #ecfdf5; }
+.sched-appt-status.is-violet { color: #6d28d9; background: #f5f3ff; }
+.sched-appt-status.is-teal { color: #0f766e; background: #ecfdf9; }
+.sched-appt-status.is-red { color: #be123c; background: #fff1f2; }
+.sched-appt-status.is-orange,
+.sched-appt-status.is-amber { color: #b45309; background: #fffbeb; }
+
+.sched-appt-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.24rem;
+}
+
+.sched-appt-flags span {
+  width: max-content;
+  padding: 0.16rem 0.34rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 950;
+}
+
+.sched-appt-flags .is-red { color: #be123c; background: #fff1f2; }
+.sched-appt-flags .is-amber { color: #b45309; background: #fffbeb; }
+.sched-appt-flags .is-green { color: #047857; background: #ecfdf5; }
+.sched-appt-flags .is-violet { color: #6d28d9; background: #f5f3ff; }
+
+.sched-appt-drawer section {
+  display: grid;
+  gap: 0.38rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #edf3f9;
+}
+
+.sched-appt-drawer h3 {
+  margin: 0;
+  color: #12233f;
+  font-size: 0.9rem;
+}
+
+.sched-appt-drawer p {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  color: #63758d;
+  font-size: 0.74rem;
+  font-weight: 780;
+}
+
+.sched-appt-calendar {
+  overflow-x: auto;
+}
+
+.sched-appt-calendar__grid {
+  display: grid;
+  grid-template-columns: 72px repeat(var(--resource-count), minmax(190px, 1fr));
+  min-width: 900px;
+  border: 1px solid #e2ebf5;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.sched-appt-calendar__corner,
+.sched-appt-calendar__grid > strong,
+.sched-appt-calendar__row > time,
+.sched-appt-calendar__row > span {
+  min-height: 54px;
+  padding: 0.55rem;
+  border-right: 1px solid #e2ebf5;
+  border-bottom: 1px solid #e2ebf5;
+  background: #ffffff;
+}
+
+.sched-appt-calendar__corner,
+.sched-appt-calendar__grid > strong {
+  color: #13243d;
+  background: #f3f8fd;
+  font-size: 0.76rem;
+}
+
+.sched-appt-calendar__row {
+  display: contents;
+}
+
+.sched-appt-calendar__row em {
+  display: block;
+  margin-bottom: 0.26rem;
+  padding: 0.35rem;
+  border-radius: 8px;
+  color: #0f3f5f;
+  background: #eff6ff;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.sched-appt-create {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.sched-appt-create nav {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  padding: 0.9rem;
+  border-right: 1px solid #e2ebf5;
+  background: #f7fbff;
+}
+
+.sched-appt-create nav button {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: #49627d;
+  background: transparent;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sched-appt-create nav button.is-active {
+  color: #0f766e;
+  background: #e6fbf4;
+}
+
+.sched-appt-create nav b {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.sched-appt-create__body {
+  min-height: 470px;
+  padding: 1.1rem;
+}
+
+.sched-appt-create__body section {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.sched-appt-create__body h2 {
+  margin: 0;
+  color: #12233f;
+}
+
+.sched-appt-create__body article,
+.sched-appt-preview-checks p {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.82rem;
+  border: 1px solid #e2ebf5;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.sched-appt-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.sched-appt-slot-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.65rem;
+}
+
+.sched-appt-slot-cards button {
+  display: grid;
+  gap: 0.34rem;
+  min-height: 110px;
+  padding: 0.8rem;
+  border: 1px solid #cfe9e5;
+  border-radius: 12px;
+  color: #13243d;
+  background: #f6fffc;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sched-appt-preview-checks {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.sched-appt-preview-checks p {
+  grid-template-columns: 22px minmax(0, 1fr);
+  color: #31506f;
+  font-weight: 850;
+}
+
+.sched-appt-create__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.sched-appt-comm article,
+.sched-appt-change article,
+.sched-appt-checkin article,
+.sched-appt-waitlist article {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
+
+.sched-appt-noshow article {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.sched-appt-empty,
+.sched-ops-empty {
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  min-height: 180px;
+  color: #71829a;
+  text-align: center;
+}
+
+@media (max-width: 1280px) {
+  .sched-ops-kpis,
+  .sched-appt-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sched-ops-grid,
+  .sched-ops-grid--wide,
+  .sched-ops-queue-layout,
+  .sched-appt-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sched-ops-detail,
+  .sched-appt-drawer {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .sched-ops-hero,
+  .sched-appt-hero {
+    display: grid;
+  }
+
+  .sched-ops-kpis,
+  .sched-appt-kpis,
+  .sched-ops-flow > div,
+  .sched-appt-filter,
+  .sched-appt-form-grid,
+  .sched-appt-create {
+    grid-template-columns: 1fr;
+  }
+
+  .sched-appt-create nav {
+    border-right: 0;
+    border-bottom: 1px solid #e2ebf5;
+  }
+}

@@ -23,6 +23,7 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
+import { downloadClinicalOpsCsv, printClinicalOpsView, promptClinicalOpsText } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { imagingApi, getImagingErrorMessage } from './imagingApi';
 
 const ORDER_STATUS_LABEL = {
@@ -811,7 +812,7 @@ export function ImagingWorklistPage({ pageKey }) {
       if (action === 'start') await imagingApi.startOrder(getId(row), { override_contrast_allergy: true, override_reason: 'Đã xác nhận checklist cản quang tại phòng chụp.' });
       if (action === 'complete') await imagingApi.completeOrder(getId(row), { require_attachment: false, completed_at: new Date().toISOString(), technical_note: 'Complete from imaging workspace.' });
       if (action === 'no_show') {
-        const reason = window.prompt('Lý do no-show', 'Bệnh nhân không đến đúng lịch');
+        const reason = promptClinicalOpsText({ title: 'Ghi nhận no-show', message: 'Lý do no-show', defaultValue: 'Bệnh nhân không đến đúng lịch' });
         if (!reason) return;
         await imagingApi.markNoShow(getId(row), { reason });
       }
@@ -847,7 +848,7 @@ export function ImagingWorklistPage({ pageKey }) {
         return;
       }
       if (action === 'request_correction') {
-        const reason = window.prompt('Lý do yêu cầu sửa report', 'Cần bổ sung impression/critical note');
+        const reason = promptClinicalOpsText({ title: 'Yêu cầu sửa report', message: 'Lý do yêu cầu sửa report', defaultValue: 'Cần bổ sung impression/critical note' });
         if (!reason) return;
         await imagingApi.requestCorrection(getId(row), { reason, correction_type: 'text', severity: row.is_critical ? 'high' : 'medium' });
       }
@@ -892,8 +893,8 @@ export function ImagingWorklistPage({ pageKey }) {
         </div>
         <div className="lab-work-header__actions">
           <button type="button" onClick={() => { listState.refresh(); dashboardState.refresh(); }}><RefreshCw size={16} />Realtime refresh</button>
-          <button type="button"><Printer size={16} />In danh sách</button>
-          <button type="button"><FileText size={16} />Export</button>
+          <button type="button" onClick={() => printClinicalOpsView('In danh sách chẩn đoán hình ảnh')}><Printer size={16} />In danh sách</button>
+          <button type="button" onClick={() => downloadClinicalOpsCsv(`imaging-${pageKey}.csv`, rows, 'Xuất danh sách CĐHA')}><FileText size={16} />Export</button>
         </div>
       </section>
       <ImagingKpis dashboard={dashboardState.data} loading={dashboardState.loading} />

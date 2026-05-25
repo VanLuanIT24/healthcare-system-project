@@ -1,3 +1,4 @@
+import { AppLogo, APP_BRAND_NAME } from '../../app/AppLogo'
 import PatientIcon from './PatientIcon'
 import { sidebarSections } from '../data/patientPageData'
 
@@ -48,11 +49,11 @@ export default function PatientSidebar({ activeSection, onSectionChange, onLogou
     <aside className="patient-sidebar">
       <div className="patient-sidebar__brand">
         <div className="patient-sidebar__brand-mark" aria-hidden="true">
-          <PatientIcon name="monitor_heart" />
+          <AppLogo variant="mark" alt="" aria-hidden="true" />
         </div>
 
         <div className="patient-sidebar__brand-copy">
-          <p className="patient-sidebar__brand-name">HealthCare</p>
+          <p className="patient-sidebar__brand-name">{APP_BRAND_NAME}</p>
           <p className="patient-sidebar__brand-subtitle">CỔNG BỆNH NHÂN</p>
         </div>
       </div>

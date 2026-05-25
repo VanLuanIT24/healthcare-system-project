@@ -806,7 +806,7 @@ export function EmergencyOpenCasesPage() {
   );
 }
 
-function TriageForm({ selected, onComplete }) {
+function TriageForm({ selected, onComplete, onSaveDraft }) {
   const [form, setForm] = useState({
     chief_complaint: selected?.symptoms || '',
     airway_status: 'clear',
@@ -882,7 +882,7 @@ function TriageForm({ selected, onComplete }) {
       </div>
       <label><span>Kết luận</span><textarea value={form.note} onChange={set('note')} /></label>
       <footer>
-        <button type="button"><FileText size={15} /> Lưu nháp</button>
+        <button type="button" onClick={() => onSaveDraft?.(form)}><FileText size={15} /> Lưu nháp</button>
         <button type="submit" className="nurse-em-primary"><CheckCircle2 size={15} /> Hoàn tất phân loại</button>
       </footer>
     </form>
@@ -926,6 +926,25 @@ export function EmergencyTriagePage() {
     load();
   }
 
+  async function saveDraft(form) {
+    if (!selected) return;
+    if (String(itemId(selected)).startsWith('demo')) {
+      setToast(`Đã lưu nháp phân loại · ${selected.case_code}`);
+      return;
+    }
+    try {
+      await nurseMonitoringApi.saveEmergencyTriageDraft(itemId(selected), {
+        ...form,
+        risk_flags: selected.risk_flags || [],
+        draft_saved_from: 'nurse_emergency_triage',
+      });
+      setToast(`Đã lưu nháp phân loại · ${selected.case_code}`);
+      load();
+    } catch (error) {
+      setToast(error?.message || 'Không thể lưu nháp phân loại.');
+    }
+  }
+
   return (
     <section className="nurse-em-page">
       <CommandHeader title="Phân loại cấp cứu" subtitle="ABCDE, sinh hiệu, ESI, bộ quy tắc nguy cơ và quyết định xử trí." loading={state.loading} demo={state.demo} onRefresh={load} />
@@ -937,7 +956,7 @@ export function EmergencyTriagePage() {
       ]} />
       <section className="nurse-em-triage-layout">
         <CaseList items={state.items} selected={selected} setSelected={(item) => setSelectedId(itemId(item))} onAction={runAction} />
-        <TriageForm selected={selected} onComplete={completeTriage} />
+        <TriageForm selected={selected} onComplete={completeTriage} onSaveDraft={saveDraft} />
         <aside className="nurse-em-decision-panel">
           <ClinicalSnapshot item={selected} />
           <TriageSummary item={selected} />

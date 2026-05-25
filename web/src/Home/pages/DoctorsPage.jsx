@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { openHealthcareChatbot } from '../../components/HealthcareChatbot';
 import { MarketingPageShell } from './MarketingPageShell';
 
 const doctorList = [
@@ -92,7 +93,7 @@ export function DoctorsPage() {
       <div className="doctors-page">
         <section className="home-section doctors-hero">
           <div className="doctors-hero__content">
-            <span>Đội ngũ bác sĩ Healthcare Plus+</span>
+            <span>Đội ngũ bác sĩ Bộ Y tế</span>
             <h1>Gặp đúng chuyên gia, bắt đầu đúng hướng điều trị.</h1>
             <p>
               Chọn bác sĩ theo chuyên khoa, kinh nghiệm và lịch trống gần nhất. Đội ngũ điều phối
@@ -165,6 +166,19 @@ export function DoctorsPage() {
                   <div className="doctor-profile-card__actions">
                     <Link to="/contact">Đặt lịch</Link>
                     <Link to="/about">Xem hồ sơ</Link>
+                    <button
+                      className="doctor-profile-card__chat"
+                      type="button"
+                      onClick={() =>
+                        openHealthcareChatbot({
+                          context: 'doctor',
+                          doctorName: doctor.name,
+                          specialty: doctor.specialty,
+                        })
+                      }
+                    >
+                      Hỏi lễ tân ảo
+                    </button>
                   </div>
                 </div>
               </article>
@@ -196,7 +210,7 @@ export function DoctorsPage() {
         <section className="home-section doctors-cta">
           <div>
             <span>Chưa biết nên gặp bác sĩ nào?</span>
-            <h2>Để Healthcare Plus+ tư vấn chuyên gia phù hợp với tình trạng của bạn.</h2>
+            <h2>Để Bộ Y tế tư vấn chuyên gia phù hợp với tình trạng của bạn.</h2>
           </div>
           <div className="doctors-cta__actions">
             <Link to="/contact">Liên hệ tư vấn</Link>

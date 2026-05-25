@@ -27,18 +27,19 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AdminActionConfirmDialog } from '../components/AdminActionConfirmDialog';
 import { portalAdminGet, portalAdminPatch, portalAdminPost } from './patientPortalAdminApi';
 
 const VIEW_CONFIG = {
   dashboard: {
-    title: 'Patient Portal Admin',
-    subtitle: 'Control plane cho tài khoản bệnh nhân, người thân, hồ sơ tự gửi, tài liệu, bảo hiểm và audit.',
+    title: 'Quản trị cổng bệnh nhân',
+    subtitle: 'Bảng điều khiển tài khoản bệnh nhân, người thân, hồ sơ tự gửi, tài liệu, bảo hiểm và audit.',
     icon: HeartPulse,
     endpoint: '/dashboard',
   },
   accounts: {
     title: 'Tài khoản bệnh nhân',
-    subtitle: 'Account security, trạng thái đăng nhập, xác thực email/phone, Google OAuth và force logout.',
+    subtitle: 'Bảo mật tài khoản, trạng thái đăng nhập, xác thực email/số điện thoại, Google OAuth và buộc đăng xuất.',
     icon: UserRound,
     endpoint: '/accounts',
     summaryEndpoint: '/accounts/summary',
@@ -46,7 +47,7 @@ const VIEW_CONFIG = {
   },
   relatives: {
     title: 'Người thân bệnh nhân',
-    subtitle: 'Global registry người thân, xác minh quan hệ, duplicate risk và trạng thái access.',
+    subtitle: 'Danh bạ người thân, xác minh quan hệ, rủi ro trùng lặp và trạng thái truy cập.',
     icon: UsersRound,
     endpoint: '/relatives',
     summaryEndpoint: '/relatives/summary',
@@ -54,7 +55,7 @@ const VIEW_CONFIG = {
   },
   authorizations: {
     title: 'Ủy quyền người thân',
-    subtitle: 'Kanban quyền truy cập người thân, scope matrix, approve/reject/revoke và effective access.',
+    subtitle: 'Quyền truy cập người thân, ma trận phạm vi, phê duyệt/từ chối/thu hồi và quyền hiệu lực.',
     icon: ShieldCheck,
     endpoint: '/authorizations',
     summaryEndpoint: '/authorizations/summary',
@@ -62,22 +63,22 @@ const VIEW_CONFIG = {
   },
   profilePolicies: {
     title: 'Hồ sơ bệnh nhân tự cập nhật',
-    subtitle: 'Field policy center: field nào được sửa, cần duyệt, cần giấy tờ, SLA và risk level.',
+    subtitle: 'Chính sách trường dữ liệu: trường được sửa, cần duyệt, cần giấy tờ, SLA và mức rủi ro.',
     icon: FileText,
     endpoint: '/profile-field-policies',
     detail: (row) => `/profile-field-policies/${row.field_name}`,
   },
   profileChanges: {
     title: 'Yêu cầu cập nhật hồ sơ',
-    subtitle: 'Queue duyệt thay đổi thông tin, diff old/new, risk analysis và quyết định review.',
+    subtitle: 'Hàng đợi duyệt thay đổi thông tin, so sánh trước/sau, phân tích rủi ro và quyết định rà soát.',
     icon: ClipboardCheck,
     endpoint: '/profile-change-requests',
     summaryEndpoint: '/profile-change-requests/summary',
     detail: (row) => `/profile-change-requests/${row.id}`,
   },
   documents: {
-    title: 'Tài liệu bệnh nhân upload',
-    subtitle: 'Document review queue, virus scan status, release control, metadata và access log.',
+    title: 'Tài liệu bệnh nhân tải lên',
+    subtitle: 'Hàng đợi duyệt tài liệu, trạng thái quét virus, kiểm soát phát hành, metadata và nhật ký truy cập.',
     icon: UploadCloud,
     endpoint: '/documents',
     summaryEndpoint: '/documents/summary',
@@ -85,7 +86,7 @@ const VIEW_CONFIG = {
   },
   exports: {
     title: 'Yêu cầu xuất hồ sơ',
-    subtitle: 'Export ZIP requests, worker state, retry, expiry, revoke download và processing logs.',
+    subtitle: 'Yêu cầu xuất ZIP, trạng thái worker, thử lại, hết hạn, thu hồi tải xuống và nhật ký xử lý.',
     icon: Download,
     endpoint: '/document-exports',
     summaryEndpoint: '/document-exports/summary',
@@ -93,22 +94,22 @@ const VIEW_CONFIG = {
   },
   insurance: {
     title: 'Bảo hiểm bệnh nhân gửi',
-    subtitle: 'Queue xác minh bảo hiểm, ảnh thẻ, duplicate policy, verify/reject và request more info.',
+    subtitle: 'Hàng đợi xác minh bảo hiểm, ảnh thẻ, chính sách chống trùng, xác minh/từ chối và yêu cầu bổ sung.',
     icon: ShieldAlert,
     endpoint: '/insurance-submissions',
     summaryEndpoint: '/insurance-submissions/summary',
     detail: (row) => `/insurance-submissions/${row.id}`,
   },
   featureFlags: {
-    title: 'Portal feature flags',
-    subtitle: 'Rollout, dependency, risk level và rollback cho các tính năng self-service portal.',
+    title: 'Cờ tính năng cổng bệnh nhân',
+    subtitle: 'Rollout, phụ thuộc, mức rủi ro và rollback cho các tính năng tự phục vụ.',
     icon: Flag,
     endpoint: '/feature-flags',
     detail: (row) => `/feature-flags/${row.key}`,
   },
   audit: {
-    title: 'Portal audit',
-    subtitle: 'Audit stream cho login, profile change, document, insurance, relative authorization và sensitive access.',
+    title: 'Audit cổng bệnh nhân',
+    subtitle: 'Luồng audit đăng nhập, đổi hồ sơ, tài liệu, bảo hiểm, ủy quyền người thân và truy cập nhạy cảm.',
     icon: FileClock,
     endpoint: '/audit',
     summaryEndpoint: '/audit/summary',
@@ -117,18 +118,57 @@ const VIEW_CONFIG = {
 };
 
 const NAV_ITEMS = [
-  ['dashboard', 'Dashboard', HeartPulse],
+  ['dashboard', 'Tổng quan', HeartPulse],
   ['accounts', 'Tài khoản', UserRound],
   ['relatives', 'Người thân', UsersRound],
   ['authorizations', 'Ủy quyền', ShieldCheck],
-  ['profilePolicies', 'Field policy', FileText],
+  ['profilePolicies', 'Chính sách hồ sơ', FileText],
   ['profileChanges', 'Cập nhật hồ sơ', ClipboardCheck],
-  ['documents', 'Tài liệu upload', UploadCloud],
+  ['documents', 'Tài liệu tải lên', UploadCloud],
   ['exports', 'Xuất hồ sơ', Download],
   ['insurance', 'Bảo hiểm', ShieldAlert],
-  ['featureFlags', 'Feature flags', Flag],
+  ['featureFlags', 'Cờ tính năng', Flag],
   ['audit', 'Audit', FileClock],
 ];
+
+const VALUE_LABELS = {
+  active: 'Đang hoạt động',
+  healthy: 'Ổn định',
+  verified: 'Đã xác minh',
+  accepted: 'Đã chấp nhận',
+  approved: 'Đã duyệt',
+  ready: 'Sẵn sàng',
+  success: 'Thành công',
+  clean: 'Sạch',
+  pending: 'Chờ xử lý',
+  pending_review: 'Chờ duyệt',
+  pending_verification: 'Chờ xác minh',
+  submitted: 'Đã gửi',
+  processing: 'Đang xử lý',
+  medium: 'Trung bình',
+  high: 'Cao',
+  critical: 'Nghiêm trọng',
+  locked: 'Bị khóa',
+  disabled: 'Đã vô hiệu hóa',
+  blocked: 'Bị chặn',
+  rejected: 'Đã từ chối',
+  revoked: 'Đã thu hồi',
+  failed: 'Lỗi',
+  infected: 'Nhiễm mã độc',
+  expired: 'Hết hạn',
+  cancelled: 'Đã hủy',
+  inactive: 'Ngưng hoạt động',
+  skipped: 'Bỏ qua',
+  enabled: 'Đang bật',
+  draft: 'Bản nháp',
+  denied: 'Bị từ chối',
+  patient: 'Bệnh nhân',
+  staff: 'Nhân sự',
+  patient_relative: 'Người thân',
+  google: 'Google',
+  local: 'Nội bộ',
+  live: 'Đang hoạt động',
+};
 
 const STATUS_TONE = {
   active: 'success',
@@ -162,108 +202,108 @@ const STATUS_TONE = {
 
 const COLUMNS = {
   accounts: [
-    ['patient.full_name', 'Patient'],
+    ['patient.full_name', 'Bệnh nhân'],
     ['patient.patient_code', 'MRN'],
     ['username', 'Username'],
     ['email', 'Email'],
-    ['auth_provider', 'Auth'],
-    ['status', 'Status', 'status'],
-    ['failed_login_attempts', 'Failed'],
-    ['active_session_count', 'Sessions'],
-    ['last_login_at', 'Last login'],
-    ['risk_level', 'Risk', 'status'],
+    ['auth_provider', 'Xác thực'],
+    ['status', 'Trạng thái', 'status'],
+    ['failed_login_attempts', 'Lỗi đăng nhập'],
+    ['active_session_count', 'Phiên'],
+    ['last_login_at', 'Đăng nhập gần nhất'],
+    ['risk_level', 'Rủi ro', 'status'],
   ],
   relatives: [
-    ['full_name', 'Relative'],
-    ['relationship', 'Relationship'],
-    ['patient.full_name', 'Patient'],
-    ['phone', 'Phone'],
-    ['relationship_verified', 'Verified'],
-    ['authorization_active_count', 'Active auth'],
-    ['status', 'Status', 'status'],
-    ['created_at', 'Created'],
+    ['full_name', 'Người thân'],
+    ['relationship', 'Quan hệ'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['phone', 'Số điện thoại'],
+    ['relationship_verified', 'Đã xác minh'],
+    ['authorization_active_count', 'Ủy quyền hiệu lực'],
+    ['status', 'Trạng thái', 'status'],
+    ['created_at', 'Ngày tạo'],
   ],
   authorizations: [
-    ['patient.full_name', 'Patient'],
-    ['relative.full_name', 'Relative'],
-    ['relative.relationship', 'Relationship'],
-    ['authorization_type', 'Type'],
-    ['permissions', 'Scopes'],
-    ['valid_to', 'Valid to'],
-    ['status', 'Status', 'status'],
-    ['is_expiring_soon', 'Expiring'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['relative.full_name', 'Người thân'],
+    ['relative.relationship', 'Quan hệ'],
+    ['authorization_type', 'Loại'],
+    ['permissions', 'Phạm vi'],
+    ['valid_to', 'Hiệu lực đến'],
+    ['status', 'Trạng thái', 'status'],
+    ['is_expiring_soon', 'Sắp hết hạn'],
   ],
   profilePolicies: [
-    ['field_name', 'Field'],
-    ['group', 'Group'],
-    ['patient_editable', 'Editable'],
-    ['requires_review', 'Review'],
-    ['requires_attachment', 'Attachment'],
-    ['sensitive', 'Sensitive'],
+    ['field_name', 'Trường'],
+    ['group', 'Nhóm'],
+    ['patient_editable', 'Được sửa'],
+    ['requires_review', 'Cần duyệt'],
+    ['requires_attachment', 'Cần giấy tờ'],
+    ['sensitive', 'Nhạy cảm'],
     ['sla_hours', 'SLA h'],
-    ['risk_level', 'Risk', 'status'],
-    ['enabled', 'Enabled'],
+    ['risk_level', 'Rủi ro', 'status'],
+    ['enabled', 'Đang bật'],
   ],
   profileChanges: [
-    ['patient.full_name', 'Patient'],
-    ['change_type', 'Change type'],
-    ['changed_fields', 'Fields'],
-    ['requested_by_actor.actor_type', 'Requested by'],
-    ['risk_level', 'Risk', 'status'],
-    ['status', 'Status', 'status'],
-    ['created_at', 'Created'],
-    ['reviewed_at', 'Reviewed'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['change_type', 'Loại thay đổi'],
+    ['changed_fields', 'Trường đổi'],
+    ['requested_by_actor.actor_type', 'Người yêu cầu'],
+    ['risk_level', 'Rủi ro', 'status'],
+    ['status', 'Trạng thái', 'status'],
+    ['created_at', 'Ngày tạo'],
+    ['reviewed_at', 'Ngày duyệt'],
   ],
   documents: [
-    ['original_name', 'File'],
-    ['patient.full_name', 'Patient'],
-    ['category', 'Category'],
-    ['review_status', 'Review', 'status'],
-    ['scan_status', 'Scan', 'status'],
-    ['visibility', 'Visibility'],
-    ['released_to_patient', 'Released'],
-    ['file_size', 'Size'],
-    ['created_at', 'Uploaded'],
+    ['original_name', 'Tệp'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['category', 'Danh mục'],
+    ['review_status', 'Duyệt', 'status'],
+    ['scan_status', 'Quét', 'status'],
+    ['visibility', 'Hiển thị'],
+    ['released_to_patient', 'Đã phát hành'],
+    ['file_size', 'Dung lượng'],
+    ['created_at', 'Tải lên'],
   ],
   exports: [
-    ['request_code', 'Request'],
-    ['patient.full_name', 'Patient'],
+    ['request_code', 'Yêu cầu'],
+    ['patient.full_name', 'Bệnh nhân'],
     ['requested_by_actor_type', 'Actor'],
-    ['export_type', 'Type'],
-    ['attachment_count', 'Files'],
-    ['status', 'Status', 'status'],
-    ['created_at', 'Created'],
-    ['expires_at', 'Expires'],
+    ['export_type', 'Loại'],
+    ['attachment_count', 'Tệp'],
+    ['status', 'Trạng thái', 'status'],
+    ['created_at', 'Ngày tạo'],
+    ['expires_at', 'Hết hạn'],
   ],
   insurance: [
-    ['patient.full_name', 'Patient'],
-    ['payer_name', 'Payer'],
-    ['policy_no_masked', 'Policy'],
-    ['coverage_percent', 'Coverage %'],
-    ['valid_to', 'Valid to'],
-    ['verification_status', 'Verify', 'status'],
-    ['missing_front_card', 'No front'],
-    ['missing_back_card', 'No back'],
-    ['submitted_at', 'Submitted'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['payer_name', 'Đơn vị bảo hiểm'],
+    ['policy_no_masked', 'Số thẻ'],
+    ['coverage_percent', 'Mức hưởng %'],
+    ['valid_to', 'Hiệu lực đến'],
+    ['verification_status', 'Xác minh', 'status'],
+    ['missing_front_card', 'Thiếu mặt trước'],
+    ['missing_back_card', 'Thiếu mặt sau'],
+    ['submitted_at', 'Ngày gửi'],
   ],
   featureFlags: [
-    ['key', 'Flag key'],
-    ['name', 'Name'],
-    ['group', 'Group'],
-    ['enabled', 'Enabled', 'status'],
+    ['key', 'Mã cờ'],
+    ['name', 'Tên'],
+    ['group', 'Nhóm'],
+    ['enabled', 'Đang bật', 'status'],
     ['rollout_percentage', 'Rollout %'],
-    ['risk_level', 'Risk', 'status'],
-    ['updated_at', 'Updated'],
+    ['risk_level', 'Rủi ro', 'status'],
+    ['updated_at', 'Cập nhật'],
   ],
   audit: [
-    ['created_at', 'Time'],
+    ['created_at', 'Thời gian'],
     ['actor_type', 'Actor'],
-    ['action', 'Action'],
-    ['target_type', 'Target'],
-    ['status', 'Status', 'status'],
-    ['severity', 'Severity', 'status'],
+    ['action', 'Hành động'],
+    ['target_type', 'Đối tượng'],
+    ['status', 'Trạng thái', 'status'],
+    ['severity', 'Mức độ', 'status'],
     ['ip_address', 'IP'],
-    ['message', 'Message'],
+    ['message', 'Thông báo'],
   ],
 };
 
@@ -278,12 +318,12 @@ function getRowId(row = {}) {
 function formatValue(value) {
   if (value === undefined || value === null || value === '') return '-';
   if (Array.isArray(value)) return value.length ? value.join(', ') : '-';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'boolean') return value ? 'Có' : 'Không';
   if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString('vi-VN') : '-';
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) return new Date(value).toLocaleString('vi-VN');
   if (value instanceof Date) return value.toLocaleString('vi-VN');
   if (typeof value === 'object') return value.full_name || value.patient_code || value.name || value.label || JSON.stringify(value);
-  return String(value);
+  return VALUE_LABELS[String(value).toLowerCase()] || String(value).replace(/_/g, ' ');
 }
 
 function StatusBadge({ value }) {
@@ -326,12 +366,12 @@ function buildKpis(view, data, summary) {
       ['Tài khoản active', kpis.active_accounts, 'success', UserRound],
       ['Tài khoản bị khóa', kpis.locked_accounts, kpis.locked_accounts ? 'danger' : 'neutral', LockKeyhole],
       ['Tài khoản rủi ro', kpis.risk_accounts, kpis.risk_accounts ? 'danger' : 'neutral', ShieldAlert],
-      ['Profile pending', kpis.profile_change_pending, 'warning', ClipboardCheck],
-      ['Document pending', kpis.document_review_pending, 'warning', UploadCloud],
-      ['Insurance review', kpis.insurance_pending_review, 'warning', ShieldCheck],
-      ['Authorization pending', kpis.authorization_pending, 'warning', UsersRound],
-      ['Export failed', kpis.export_failed, kpis.export_failed ? 'danger' : 'neutral', AlertTriangle],
-      ['Sensitive access', kpis.sensitive_access_today, kpis.sensitive_access_today ? 'danger' : 'neutral', FileClock],
+      ['Hồ sơ chờ duyệt', kpis.profile_change_pending, 'warning', ClipboardCheck],
+      ['Tài liệu chờ duyệt', kpis.document_review_pending, 'warning', UploadCloud],
+      ['Bảo hiểm chờ xác minh', kpis.insurance_pending_review, 'warning', ShieldCheck],
+      ['Ủy quyền chờ duyệt', kpis.authorization_pending, 'warning', UsersRound],
+      ['Xuất hồ sơ lỗi', kpis.export_failed, kpis.export_failed ? 'danger' : 'neutral', AlertTriangle],
+      ['Truy cập nhạy cảm', kpis.sensitive_access_today, kpis.sensitive_access_today ? 'danger' : 'neutral', FileClock],
     ];
   }
 
@@ -365,7 +405,7 @@ function DataTable({ view, items, onSelect, onAction }) {
         <thead>
           <tr>
             {columns.map(([, label]) => <th key={label}>{label}</th>)}
-            <th>Actions</th>
+            <th>Thao tác</th>
           </tr>
         </thead>
         <tbody>
@@ -402,41 +442,41 @@ function quickActions(view, row, onAction) {
   if (view === 'accounts') {
     return (
       <>
-        <IconButton icon={row.status === 'locked' ? ShieldCheck : LockKeyhole} label={row.status === 'locked' ? 'Unlock' : 'Lock'} onClick={() => onAction(row.status === 'locked' ? 'unlock' : 'lock', row)} />
-        <IconButton icon={KeyRound} label="Reset password" onClick={() => onAction('resetPassword', row)} />
+        <IconButton icon={row.status === 'locked' ? ShieldCheck : LockKeyhole} label={row.status === 'locked' ? 'Mở khóa' : 'Khóa'} onClick={() => onAction(row.status === 'locked' ? 'unlock' : 'lock', row)} />
+        <IconButton icon={KeyRound} label="Đặt lại mật khẩu" onClick={() => onAction('resetPassword', row)} />
       </>
     );
   }
   if (view === 'relatives') {
-    return <IconButton icon={row.relationship_verified ? ShieldX : ShieldCheck} label={row.relationship_verified ? 'Unverify' : 'Verify'} onClick={() => onAction(row.relationship_verified ? 'unverifyRelative' : 'verifyRelative', row)} />;
+    return <IconButton icon={row.relationship_verified ? ShieldX : ShieldCheck} label={row.relationship_verified ? 'Hủy xác minh' : 'Xác minh'} onClick={() => onAction(row.relationship_verified ? 'unverifyRelative' : 'verifyRelative', row)} />;
   }
   if (view === 'authorizations') {
     return (
       <>
-        {row.status === 'pending' ? <IconButton icon={CheckCircle2} label="Approve" onClick={() => onAction('approveAuthorization', row)} /> : null}
-        <IconButton icon={ShieldX} label="Revoke" onClick={() => onAction('revokeAuthorization', row)} />
+        {row.status === 'pending' ? <IconButton icon={CheckCircle2} label="Duyệt" onClick={() => onAction('approveAuthorization', row)} /> : null}
+        <IconButton icon={ShieldX} label="Thu hồi" onClick={() => onAction('revokeAuthorization', row)} />
       </>
     );
   }
   if (view === 'profileChanges') {
     return (
       <>
-        {row.status === 'pending' ? <IconButton icon={CheckCircle2} label="Approve" onClick={() => onAction('approveProfileChange', row)} /> : null}
-        {row.status === 'pending' ? <IconButton icon={ShieldX} label="Reject" onClick={() => onAction('rejectProfileChange', row)} /> : null}
+        {row.status === 'pending' ? <IconButton icon={CheckCircle2} label="Duyệt" onClick={() => onAction('approveProfileChange', row)} /> : null}
+        {row.status === 'pending' ? <IconButton icon={ShieldX} label="Từ chối" onClick={() => onAction('rejectProfileChange', row)} /> : null}
       </>
     );
   }
   if (view === 'documents') {
     return (
       <>
-        <IconButton icon={ScanLine} label="Rescan" onClick={() => onAction('rescanDocument', row)} />
-        {row.review_status === 'pending' ? <IconButton icon={CheckCircle2} label="Approve" onClick={() => onAction('approveDocument', row)} /> : null}
+        <IconButton icon={ScanLine} label="Quét lại" onClick={() => onAction('rescanDocument', row)} />
+        {row.review_status === 'pending' ? <IconButton icon={CheckCircle2} label="Duyệt" onClick={() => onAction('approveDocument', row)} /> : null}
       </>
     );
   }
-  if (view === 'exports') return <IconButton icon={RefreshCw} label="Retry export" onClick={() => onAction('retryExport', row)} />;
-  if (view === 'insurance') return <IconButton icon={ShieldCheck} label="Verify" onClick={() => onAction('verifyInsurance', row)} />;
-  if (view === 'featureFlags') return <IconButton icon={row.enabled ? ShieldX : CheckCircle2} label={row.enabled ? 'Disable' : 'Enable'} onClick={() => onAction('toggleFlag', row)} />;
+  if (view === 'exports') return <IconButton icon={RefreshCw} label="Thử xuất lại" onClick={() => onAction('retryExport', row)} />;
+  if (view === 'insurance') return <IconButton icon={ShieldCheck} label="Xác minh" onClick={() => onAction('verifyInsurance', row)} />;
+  if (view === 'featureFlags') return <IconButton icon={row.enabled ? ShieldX : CheckCircle2} label={row.enabled ? 'Tắt' : 'Bật'} onClick={() => onAction('toggleFlag', row)} />;
   return null;
 }
 
@@ -444,10 +484,10 @@ function DetailDrawer({ detail, row, view, loading, onClose, onAction }) {
   if (!row) return null;
   const payload = detail || row;
   return (
-    <aside className="ppa-drawer" aria-label="Chi tiết Patient Portal Admin">
+    <aside className="ppa-drawer" aria-label="Chi tiết quản trị cổng bệnh nhân">
       <div className="ppa-drawer__head">
         <div>
-          <span>Detail drawer</span>
+          <span>Chi tiết bản ghi</span>
           <strong>{formatValue(row.patient?.full_name || row.full_name || row.key || row.request_code || row.action || getRowId(row))}</strong>
         </div>
         <button type="button" onClick={onClose} aria-label="Đóng"><X size={18} /></button>
@@ -458,7 +498,7 @@ function DetailDrawer({ detail, row, view, loading, onClose, onAction }) {
       {loading ? <p className="ppa-muted">Đang tải chi tiết...</p> : (
         <div className="ppa-drawer__body">
           <section>
-            <h3>Overview</h3>
+            <h3>Tổng quan</h3>
             <dl className="ppa-detail-grid">
               {Object.entries(payload).filter(([, value]) => typeof value !== 'object' || value === null).slice(0, 18).map(([key, value]) => (
                 <div key={key}>
@@ -469,7 +509,7 @@ function DetailDrawer({ detail, row, view, loading, onClose, onAction }) {
             </dl>
           </section>
           <section>
-            <h3>Raw JSON</h3>
+            <h3>JSON gốc</h3>
             <pre className="ppa-json">{JSON.stringify(payload, null, 2)}</pre>
           </section>
         </div>
@@ -480,15 +520,69 @@ function DetailDrawer({ detail, row, view, loading, onClose, onAction }) {
 
 function drawerActions(view, row, onAction) {
   const actions = [];
-  if (view === 'accounts') actions.push(['forceLogout', 'Force logout', LockKeyhole, 'danger'], ['resetPassword', 'Reset password', KeyRound, 'warning']);
-  if (view === 'documents') actions.push(['rescanDocument', 'Rescan', ScanLine, 'warning'], ['approveDocument', 'Approve', CheckCircle2, 'success'], ['rejectDocument', 'Reject', ShieldX, 'danger']);
-  if (view === 'profileChanges') actions.push(['approveProfileChange', 'Approve', CheckCircle2, 'success'], ['rejectProfileChange', 'Reject', ShieldX, 'danger']);
-  if (view === 'insurance') actions.push(['verifyInsurance', 'Verify', ShieldCheck, 'success'], ['rejectInsurance', 'Reject', ShieldX, 'danger']);
-  if (view === 'exports') actions.push(['retryExport', 'Retry', RefreshCw, 'warning'], ['expireExport', 'Expire', Clock3, 'danger']);
-  if (view === 'featureFlags') actions.push(['toggleFlag', row.enabled ? 'Disable' : 'Enable', row.enabled ? ShieldX : CheckCircle2, row.enabled ? 'danger' : 'success']);
+  if (view === 'accounts') actions.push(['forceLogout', 'Buộc đăng xuất', LockKeyhole, 'danger'], ['resetPassword', 'Đặt lại mật khẩu', KeyRound, 'warning']);
+  if (view === 'documents') actions.push(['rescanDocument', 'Quét lại', ScanLine, 'warning'], ['approveDocument', 'Duyệt', CheckCircle2, 'success'], ['rejectDocument', 'Từ chối', ShieldX, 'danger']);
+  if (view === 'profileChanges') actions.push(['approveProfileChange', 'Duyệt', CheckCircle2, 'success'], ['rejectProfileChange', 'Từ chối', ShieldX, 'danger']);
+  if (view === 'insurance') actions.push(['verifyInsurance', 'Xác minh', ShieldCheck, 'success'], ['rejectInsurance', 'Từ chối', ShieldX, 'danger']);
+  if (view === 'exports') actions.push(['retryExport', 'Thử lại', RefreshCw, 'warning'], ['expireExport', 'Đánh dấu hết hạn', Clock3, 'danger']);
+  if (view === 'featureFlags') actions.push(['toggleFlag', row.enabled ? 'Tắt' : 'Bật', row.enabled ? ShieldX : CheckCircle2, row.enabled ? 'danger' : 'success']);
   return actions.map(([action, label, Icon, variant]) => (
     <ActionButton key={action} icon={Icon} label={label} variant={variant} onClick={() => onAction(action, row)} />
   ));
+}
+
+function portalTargetLabel(row = {}) {
+  return row.patient?.full_name
+    || row.full_name
+    || row.name
+    || row.username
+    || row.email
+    || row.original_name
+    || row.request_code
+    || row.key
+    || row.policy_no_masked
+    || getRowId(row)
+    || 'Bản ghi đã chọn';
+}
+
+function portalActionCopy(action, row = {}) {
+  const flagState = row.enabled ? 'tắt' : 'bật';
+  const copies = {
+    lock: ['Khóa tài khoản bệnh nhân?', 'Tài khoản sẽ không thể tiếp tục đăng nhập cho đến khi được mở khóa.', 'Xác nhận khóa', 'danger', true],
+    unlock: ['Mở khóa tài khoản?', 'Tài khoản sẽ được phép đăng nhập trở lại nếu thỏa chính sách bảo mật.', 'Mở khóa', 'warning', false],
+    resetPassword: ['Đặt lại mật khẩu?', 'Hệ thống sẽ tạo yêu cầu đặt lại mật khẩu cho tài khoản này.', 'Đặt lại mật khẩu', 'warning', true],
+    forceLogout: ['Buộc đăng xuất tài khoản?', 'Tất cả phiên hiện tại của tài khoản sẽ bị thu hồi.', 'Buộc đăng xuất', 'danger', true],
+    verifyRelative: ['Xác minh quan hệ người thân?', 'Người thân này sẽ được đánh dấu đã xác minh quan hệ.', 'Xác minh', 'success', false],
+    unverifyRelative: ['Hủy xác minh quan hệ?', 'Trạng thái xác minh quan hệ của người thân sẽ bị gỡ bỏ.', 'Hủy xác minh', 'warning', true],
+    approveAuthorization: ['Duyệt ủy quyền người thân?', 'Người thân sẽ có quyền truy cập theo phạm vi đã khai báo.', 'Duyệt ủy quyền', 'success', false],
+    revokeAuthorization: ['Thu hồi ủy quyền người thân?', 'Quyền truy cập của người thân sẽ bị thu hồi và có thể ảnh hưởng phiên đang hoạt động.', 'Thu hồi ủy quyền', 'danger', true],
+    approveProfileChange: ['Duyệt yêu cầu cập nhật hồ sơ?', 'Thông tin bệnh nhân sẽ được chấp nhận theo dữ liệu đã gửi.', 'Duyệt thay đổi', 'success', false],
+    rejectProfileChange: ['Từ chối yêu cầu cập nhật hồ sơ?', 'Yêu cầu sẽ bị đóng và cần ghi rõ lý do cho audit.', 'Từ chối', 'danger', true],
+    approveDocument: ['Duyệt tài liệu tải lên?', 'Tài liệu sẽ được chuyển sang trạng thái đã chấp nhận.', 'Duyệt tài liệu', 'success', false],
+    rejectDocument: ['Từ chối tài liệu?', 'Tài liệu sẽ không được phát hành cho bệnh nhân.', 'Từ chối tài liệu', 'danger', true],
+    rescanDocument: ['Quét lại tài liệu?', 'Hệ thống sẽ đưa tài liệu vào hàng đợi quét lại.', 'Quét lại', 'warning', false],
+    retryExport: ['Thử xuất hồ sơ lại?', 'Worker sẽ chạy lại yêu cầu xuất hồ sơ đã chọn.', 'Thử lại', 'warning', true],
+    expireExport: ['Đánh dấu yêu cầu xuất là hết hạn?', 'Liên kết tải xuống hiện có sẽ không còn dùng được.', 'Đánh dấu hết hạn', 'danger', true],
+    verifyInsurance: ['Xác minh bảo hiểm?', 'Hồ sơ bảo hiểm sẽ được đánh dấu đã xác minh.', 'Xác minh', 'success', false],
+    rejectInsurance: ['Từ chối hồ sơ bảo hiểm?', 'Hồ sơ bảo hiểm sẽ bị từ chối và cần lý do rõ ràng.', 'Từ chối', 'danger', true],
+    toggleFlag: [`${row.enabled ? 'Tắt' : 'Bật'} cờ tính năng?`, `Cờ tính năng sẽ được ${flagState} cho cổng bệnh nhân.`, row.enabled ? 'Tắt cờ' : 'Bật cờ', row.enabled ? 'danger' : 'success', true],
+  };
+  const copy = copies[action];
+  if (!copy) return null;
+  const [title, description, confirmLabel, tone, reasonRequired] = copy;
+  return {
+    title,
+    description,
+    confirmLabel,
+    tone,
+    reasonRequired,
+    reasonLabel: 'Lý do thao tác',
+    details: [
+      { label: 'Đối tượng', value: portalTargetLabel(row) },
+      { label: 'ID', value: getRowId(row) },
+      { label: 'Trạng thái hiện tại', value: formatValue(row.status || row.review_status || row.verification_status || row.enabled) },
+    ],
+  };
 }
 
 function DashboardView({ data }) {
@@ -500,7 +594,7 @@ function DashboardView({ data }) {
       <section className="ppa-panel">
         <div className="ppa-panel__head">
           <strong>Việc cần xử lý</strong>
-          <span>Queue hợp nhất theo SLA</span>
+          <span>Hàng đợi hợp nhất theo SLA</span>
         </div>
         <div className="ppa-work-queue">
           {queue.map((item) => (
@@ -516,7 +610,7 @@ function DashboardView({ data }) {
       </section>
       <section className="ppa-panel">
         <div className="ppa-panel__head">
-          <strong>Portal health</strong>
+          <strong>Sức khỏe cổng bệnh nhân</strong>
           <span>API, scan, notification, worker và audit</span>
         </div>
         <div className="ppa-health-list">
@@ -533,8 +627,8 @@ function DashboardView({ data }) {
       </section>
       <section className="ppa-panel ppa-panel--wide">
         <div className="ppa-panel__head">
-          <strong>Realtime activity</strong>
-          <span>Audit stream mới nhất liên quan Patient Portal</span>
+          <strong>Hoạt động thời gian thực</strong>
+          <span>Luồng audit mới nhất liên quan cổng bệnh nhân</span>
         </div>
         <div className="ppa-activity-feed">
           {feed.length === 0 ? <p className="ppa-muted">Chưa có hoạt động mới.</p> : feed.map((item) => (
@@ -559,16 +653,20 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [appliedStatus, setAppliedStatus] = useState('');
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [actionSubmitting, setActionSubmitting] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const params = buildListParams(view, { search, status });
+      const params = buildListParams(view, { search: appliedSearch, status: appliedStatus });
       const [main, nextSummary] = await Promise.all([
         portalAdminGet(config.endpoint, params),
         config.summaryEndpoint ? portalAdminGet(config.summaryEndpoint) : Promise.resolve(null),
@@ -577,15 +675,20 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
       setSummary(nextSummary);
       setLastUpdated(new Date());
     } catch (err) {
-      setError(err.message || 'Không thể tải Patient Portal Admin.');
+      setError(err.message || 'Không thể tải quản trị cổng bệnh nhân.');
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, config.summaryEndpoint, search, status, view]);
+  }, [appliedSearch, appliedStatus, config.endpoint, config.summaryEndpoint, view]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  function applyFilters() {
+    setAppliedSearch(search);
+    setAppliedStatus(status);
+  }
 
   async function selectRow(row) {
     setSelected(row);
@@ -601,10 +704,16 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
     }
   }
 
-  async function handleAction(action, row) {
-    const reasonActions = new Set(['lock', 'resetPassword', 'forceLogout', 'revokeAuthorization', 'rejectProfileChange', 'rejectDocument', 'retryExport', 'expireExport', 'rejectInsurance']);
-    const reason = reasonActions.has(action) ? window.prompt('Nhập lý do thao tác') : undefined;
-    if (reasonActions.has(action) && !reason) return;
+  function handleAction(action, row) {
+    const copy = portalActionCopy(action, row);
+    if (!copy) {
+      executeAction(action, row).catch((err) => setError(err.message || 'Thao tác không thành công.'));
+      return;
+    }
+    setConfirmAction({ action, row, ...copy });
+  }
+
+  async function executeAction(action, row, reason = '') {
     const id = row.id || row._id;
     const key = row.key;
     const body = reason ? { reason } : {};
@@ -629,12 +738,16 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
       toggleFlag: () => portalAdminPatch(`/feature-flags/${key}`, { enabled: !row.enabled }),
     };
     if (!calls[action]) return;
+    setActionSubmitting(true);
     try {
       await calls[action]();
+      setConfirmAction(null);
       await loadData();
       if (selected) await selectRow(selected);
     } catch (err) {
       setError(err.message || 'Thao tác không thành công.');
+    } finally {
+      setActionSubmitting(false);
     }
   }
 
@@ -647,19 +760,19 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
         <div className="ppa-hero__title">
           <span className="ppa-hero__icon"><Icon size={24} strokeWidth={2.35} /></span>
           <div>
-            <p>Quản trị hệ thống / Patient Portal Admin</p>
+            <p>Quản trị hệ thống / Cổng bệnh nhân</p>
             <h1>{config.title}</h1>
             <span>{config.subtitle}</span>
           </div>
         </div>
         <div className="ppa-hero__actions">
-          <span className="ppa-env-badge">production control plane</span>
-          <span className="ppa-health-badge"><Activity size={14} /> {data?.portal_health?.status || data?.status || 'live'}</span>
-          <ActionButton icon={RefreshCw} label="Refresh" onClick={loadData} disabled={loading} />
+          <span className="ppa-env-badge">Bảng điều khiển production</span>
+          <span className="ppa-health-badge"><Activity size={14} /> {formatValue(data?.portal_health?.status || data?.status || 'live')}</span>
+          <ActionButton icon={RefreshCw} label="Làm mới" onClick={loadData} disabled={loading} />
         </div>
       </header>
 
-      <nav className="ppa-nav" aria-label="Patient Portal Admin views">
+      <nav className="ppa-nav" aria-label="Các màn hình quản trị cổng bệnh nhân">
         {NAV_ITEMS.map(([key, label, NavIcon]) => (
           <Link key={key} to={key === 'dashboard' ? '/admin/patient-portal' : `/admin/patient-portal/${routeForView(key)}`} className={key === view ? 'is-active' : ''}>
             <NavIcon size={15} strokeWidth={2.25} />
@@ -676,23 +789,31 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
         <section className="ppa-filter-bar">
           <div className="ppa-search">
             <Search size={16} />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm tên, MRN, email, ID, action, file, policy..." />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') applyFilters();
+              }}
+              placeholder="Tìm tên, MRN, email, ID, action, file, policy..."
+            />
           </div>
           <label>
             <Filter size={15} />
             <select value={status} onChange={(event) => setStatus(event.target.value)}>
               <option value="">Tất cả trạng thái</option>
-              {statusOptions(view).map((option) => <option key={option} value={option}>{option}</option>)}
+              {statusOptions(view).map((option) => <option key={option} value={option}>{formatValue(option)}</option>)}
             </select>
           </label>
-          <span className="ppa-muted">Last refresh: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN') : '-'}</span>
+          <ActionButton icon={Search} label="Áp dụng" onClick={applyFilters} disabled={loading} />
+          <span className="ppa-muted">Cập nhật gần nhất: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN') : '-'}</span>
         </section>
       ) : null}
 
       {error ? <div className="ppa-alert"><AlertTriangle size={16} /> {error}</div> : null}
 
       {loading ? (
-        <div className="ppa-loading"><RefreshCw size={18} /> Đang tải Patient Portal Admin...</div>
+        <div className="ppa-loading"><RefreshCw size={18} /> Đang tải quản trị cổng bệnh nhân...</div>
       ) : view === 'dashboard' ? (
         <DashboardView data={data} />
       ) : (
@@ -700,6 +821,19 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
       )}
 
       <DetailDrawer detail={detail} row={selected} view={view} loading={detailLoading} onClose={() => setSelected(null)} onAction={handleAction} />
+      <AdminActionConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        description={confirmAction?.description}
+        tone={confirmAction?.tone}
+        confirmLabel={confirmAction?.confirmLabel}
+        details={confirmAction?.details}
+        reasonRequired={confirmAction?.reasonRequired}
+        reasonLabel={confirmAction?.reasonLabel}
+        submitting={actionSubmitting}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={(reason) => executeAction(confirmAction.action, confirmAction.row, reason)}
+      />
     </div>
   );
 }

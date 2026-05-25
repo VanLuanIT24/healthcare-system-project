@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AdminActionConfirmDialog } from '../../components/AdminActionConfirmDialog';
 import {
   createWorkspacePolicy,
   explainWorkspaceAccess,
@@ -53,13 +54,13 @@ const VIEW_META = {
   role: { label: 'Theo vai trò', title: 'Workspace theo vai trò', icon: ShieldCheck },
   user: { label: 'Theo người dùng', title: 'Workspace theo người dùng', icon: UsersRound },
   department: { label: 'Theo khoa', title: 'Workspace theo khoa', icon: Building2 },
-  policies: { label: 'Access policy', title: 'Quyền truy cập workspace', icon: KeyRound },
+  policies: { label: 'Chính sách truy cập', title: 'Quyền truy cập workspace', icon: KeyRound },
   sidebar: { label: 'Sidebar', title: 'Cấu hình sidebar theo actor', icon: SlidersHorizontal },
   navigation: { label: 'Điều hướng', title: 'Điều hướng cross-workspace', icon: Router },
-  preferences: { label: 'Preference', title: 'User preference / default workspace', icon: UserCog },
-  check: { label: 'Simulator', title: 'Kiểm tra khả dụng workspace', icon: CheckCircle2 },
-  conflicts: { label: 'Conflicts', title: 'Access policy conflicts', icon: AlertTriangle },
-  diagnostics: { label: 'Diagnostics', title: 'Workspace diagnostics', icon: Activity },
+  preferences: { label: 'Tùy chọn', title: 'Tùy chọn người dùng / workspace mặc định', icon: UserCog },
+  check: { label: 'Mô phỏng', title: 'Kiểm tra khả dụng workspace', icon: CheckCircle2 },
+  conflicts: { label: 'Xung đột', title: 'Xung đột chính sách truy cập', icon: AlertTriangle },
+  diagnostics: { label: 'Chẩn đoán', title: 'Chẩn đoán workspace', icon: Activity },
   audit: { label: 'Audit', title: 'Workspace audit', icon: FileClock },
 };
 
@@ -130,16 +131,16 @@ function OverviewView({ overview }) {
   return (
     <>
       <section className="workspace-access-metrics">
-        <MetricCard label="Workspace" value={summary.total_workspaces} hint="registry active" icon={MonitorCheck} />
-        <MetricCard label="Role" value={summary.role_count} hint="RBAC source" icon={ShieldCheck} tone="green" />
-        <MetricCard label="Policy allow" value={summary.policy_allow} hint="active/draft" icon={ShieldCheck} tone="cyan" />
-        <MetricCard label="Policy deny" value={summary.policy_deny} hint="deny/hide" icon={ShieldBan} tone="red" />
-        <MetricCard label="Conflict" value={summary.policy_conflicts} hint="scan result" icon={AlertTriangle} tone="amber" />
+        <MetricCard label="Workspace" value={summary.total_workspaces} hint="registry đang hoạt động" icon={MonitorCheck} />
+        <MetricCard label="Vai trò" value={summary.role_count} hint="nguồn RBAC" icon={ShieldCheck} tone="green" />
+        <MetricCard label="Policy cho phép" value={summary.policy_allow} hint="active/draft" icon={ShieldCheck} tone="cyan" />
+        <MetricCard label="Policy chặn" value={summary.policy_deny} hint="deny/hide" icon={ShieldBan} tone="red" />
+        <MetricCard label="Xung đột" value={summary.policy_conflicts} hint="kết quả quét" icon={AlertTriangle} tone="amber" />
         <MetricCard label="Preference lỗi" value={summary.invalid_preferences} hint="current/default" icon={UserCog} tone="violet" />
       </section>
 
       <section className="workspace-access-grid workspace-access-grid--two">
-        <Panel title="Workspace coverage" eyebrow="Users by workspace" icon={Network}>
+        <Panel title="Độ phủ workspace" eyebrow="Người dùng theo workspace" icon={Network}>
           <div className="workspace-access-coverage">
             {coverage.map((workspace) => (
               <div key={workspace.code}>
@@ -151,7 +152,7 @@ function OverviewView({ overview }) {
           </div>
         </Panel>
 
-        <Panel title="Risk access panel" eyebrow="Security posture" icon={ShieldAlert}>
+        <Panel title="Bảng rủi ro truy cập" eyebrow="Tư thế bảo mật" icon={ShieldAlert}>
           <div className="workspace-access-risk-list">
             {risks.length ? risks.map((item) => (
               <article key={`${item.type}-${item.subject}-${item.message}`}>
@@ -160,12 +161,12 @@ function OverviewView({ overview }) {
                 <p>{item.message}</p>
                 <small>{item.recommendation}</small>
               </article>
-            )) : <EmptyState label="Không có risk item nổi bật" />}
+            )) : <EmptyState label="Không có rủi ro nổi bật" />}
           </div>
         </Panel>
       </section>
 
-      <Panel title="Role coverage heatmap" eyebrow="Role x Workspace" icon={TableProperties}>
+      <Panel title="Heatmap độ phủ vai trò" eyebrow="Vai trò x Workspace" icon={TableProperties}>
         <RoleMatrix rows={matrix} />
       </Panel>
     </>
@@ -174,10 +175,10 @@ function OverviewView({ overview }) {
 
 function WorkspaceRegistryView({ workspaces }) {
   return (
-    <Panel title="Registry từ workspace-access.service.js" eyebrow="Workspace list" icon={MonitorCheck}>
+    <Panel title="Registry từ workspace-access.service.js" eyebrow="Danh sách workspace" icon={MonitorCheck}>
       <div className="workspace-access-registry">
         <div className="workspace-access-registry__head">
-          <span>Workspace</span><span>Route</span><span>Roles</span><span>Permissions</span><span>Users</span><span>Risk</span>
+          <span>Workspace</span><span>Route</span><span>Vai trò</span><span>Quyền</span><span>Người dùng</span><span>Rủi ro</span>
         </div>
         {workspaces.map((workspace) => (
           <div key={workspace.code} className="workspace-access-registry__row">
@@ -186,7 +187,7 @@ function WorkspaceRegistryView({ workspaces }) {
               <small>{workspace.code} · {workspace.group_key}</small>
             </span>
             <code>{workspace.route}</code>
-            <span>{formatNumber(workspace.roles?.length)} roles</span>
+            <span>{formatNumber(workspace.roles?.length)} vai trò</span>
             <span>{formatNumber(workspace.permissions_any?.length)} direct · {formatNumber(workspace.permission_prefixes?.length)} prefix</span>
             <span>{formatNumber(workspace.user_count)}</span>
             <span className={`workspace-access-severity workspace-access-severity--${workspace.risk_level}`}>{workspace.risk_level}</span>
@@ -199,7 +200,7 @@ function WorkspaceRegistryView({ workspaces }) {
 
 function ActorView({ data }) {
   return (
-    <Panel title="Actor boundary matrix" eyebrow="Actor x Workspace" icon={UserRound}>
+    <Panel title="Ma trận ranh giới actor" eyebrow="Actor x Workspace" icon={UserRound}>
       <div className="workspace-access-actor-grid">
         {(data?.actor_types || []).map((actor) => (
           <article key={actor.actor_type}>
@@ -224,7 +225,7 @@ function RoleMatrix({ rows = [] }) {
   return (
     <div className="workspace-access-matrix">
       <div className="workspace-access-matrix__row workspace-access-matrix__head" style={{ gridTemplateColumns: `220px repeat(${workspaceCodes.length}, 82px)` }}>
-        <span>Role</span>
+        <span>Vai trò</span>
         {workspaceCodes.map((code) => <span key={code}>{code}</span>)}
       </div>
       {rows.map((role) => (
@@ -246,7 +247,7 @@ function RoleMatrix({ rows = [] }) {
 
 function RoleView({ data }) {
   return (
-    <Panel title="Workspace theo vai trò" eyebrow="Role x Workspace matrix" icon={ShieldCheck}>
+    <Panel title="Workspace theo vai trò" eyebrow="Ma trận vai trò x workspace" icon={ShieldCheck}>
       <RoleMatrix rows={data?.roles || []} />
     </Panel>
   );
@@ -255,10 +256,10 @@ function RoleView({ data }) {
 function UserView({ data }) {
   const users = data?.items || [];
   return (
-    <Panel title="Effective workspace theo người dùng" eyebrow="User access" icon={UsersRound}>
+    <Panel title="Workspace hiệu lực theo người dùng" eyebrow="Truy cập người dùng" icon={UsersRound}>
       <div className="workspace-access-user-table">
         <div className="workspace-access-user-table__head">
-          <span>User</span><span>Khoa</span><span>Roles</span><span>Current</span><span>Available</span><span>Validity</span>
+          <span>Người dùng</span><span>Khoa</span><span>Vai trò</span><span>Hiện tại</span><span>Có thể dùng</span><span>Hợp lệ</span>
         </div>
         {users.map((user) => (
           <div key={user.user_id} className="workspace-access-user-table__row">
@@ -267,13 +268,13 @@ function UserView({ data }) {
               <small>{user.employee_code || user.email || user.username}</small>
             </span>
             <span>{user.department_name || 'Chưa có'}</span>
-            <span>{user.roles?.slice(0, 3).join(', ') || 'Không có role'}</span>
+            <span>{user.roles?.slice(0, 3).join(', ') || 'Không có vai trò'}</span>
             <WorkspaceChip workspace={user.current_workspace || 'none'} allowed={!user.invalid_current_workspace} />
             <span className="workspace-access-chip-cloud">
               {user.available_workspaces?.slice(0, 5).map((workspace) => <WorkspaceChip key={workspace.code} workspace={workspace.code} />)}
             </span>
             <span className={`workspace-access-severity workspace-access-severity--${user.invalid_current_workspace ? 'high' : 'low'}`}>
-              {user.invalid_current_workspace ? 'invalid' : 'valid'}
+              {user.invalid_current_workspace ? 'Không hợp lệ' : 'Hợp lệ'}
             </span>
           </div>
         ))}
@@ -316,25 +317,25 @@ function PolicyView({ policies, workspaces, onCreatePolicy, onValidate, submitti
 
   return (
     <section className="workspace-access-grid workspace-access-grid--policy">
-      <Panel title="Tạo policy nhanh" eyebrow="Allow / Deny policy" icon={KeyRound}>
+      <Panel title="Tạo chính sách nhanh" eyebrow="Chính sách cho phép / chặn" icon={KeyRound}>
         <div className="workspace-access-policy-form">
-          <label><span>Tên policy</span><input value={form.policy_name} onChange={(event) => setForm({ ...form, policy_name: event.target.value })} placeholder="Deny cashier billing tạm thời" /></label>
+          <label><span>Tên chính sách</span><input value={form.policy_name} onChange={(event) => setForm({ ...form, policy_name: event.target.value })} placeholder="Chặn cashier khỏi billing tạm thời" /></label>
           <label><span>Workspace</span><select value={form.workspace_code} onChange={(event) => setForm({ ...form, workspace_code: event.target.value })}>{workspaces.map((workspace) => <option key={workspace.code} value={workspace.code}>{workspace.code}</option>)}</select></label>
-          <label><span>Subject type</span><select value={form.subject_type} onChange={(event) => setForm({ ...form, subject_type: event.target.value })}><option value="role">role</option><option value="user">user</option><option value="department">department</option><option value="permission">permission</option><option value="permission_prefix">permission_prefix</option><option value="actor_type">actor_type</option></select></label>
-          <label><span>Subject code</span><input value={form.subject_code} onChange={(event) => setForm({ ...form, subject_code: event.target.value })} /></label>
-          <label><span>Effect</span><select value={form.effect} onChange={(event) => setForm({ ...form, effect: event.target.value })}><option value="allow">allow</option><option value="deny">deny</option><option value="hide">hide</option><option value="readonly">readonly</option></select></label>
-          <label><span>Priority</span><input type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} /></label>
+          <label><span>Loại chủ thể</span><select value={form.subject_type} onChange={(event) => setForm({ ...form, subject_type: event.target.value })}><option value="role">Vai trò</option><option value="user">Người dùng</option><option value="department">Khoa/phòng</option><option value="permission">Quyền</option><option value="permission_prefix">Tiền tố quyền</option><option value="actor_type">Loại actor</option></select></label>
+          <label><span>Mã chủ thể</span><input value={form.subject_code} onChange={(event) => setForm({ ...form, subject_code: event.target.value })} /></label>
+          <label><span>Hiệu lực</span><select value={form.effect} onChange={(event) => setForm({ ...form, effect: event.target.value })}><option value="allow">Cho phép</option><option value="deny">Chặn</option><option value="hide">Ẩn</option><option value="readonly">Chỉ đọc</option></select></label>
+          <label><span>Độ ưu tiên</span><input type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} /></label>
           <label className="workspace-access-policy-form__wide"><span>Lý do</span><textarea value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} /></label>
           <button type="button" className="staff-button staff-button--primary" disabled={submitting} onClick={() => onCreatePolicy(form)}>
-            <KeyRound size={16} strokeWidth={2.25} /> Tạo policy
+            <KeyRound size={16} strokeWidth={2.25} /> Tạo chính sách
           </button>
           <button type="button" className="staff-button staff-button--ghost" disabled={submitting} onClick={onValidate}>
-            <CheckCircle2 size={16} strokeWidth={2.25} /> Validate conflicts
+            <CheckCircle2 size={16} strokeWidth={2.25} /> Kiểm tra xung đột
           </button>
         </div>
       </Panel>
 
-      <Panel title="Policy table" eyebrow="WorkspaceAccessPolicy" icon={Database}>
+      <Panel title="Bảng chính sách" eyebrow="WorkspaceAccessPolicy" icon={Database}>
         <div className="workspace-access-policy-list">
           {(policies?.items || []).map((policy) => (
             <article key={policy.policy_id}>
@@ -352,7 +353,7 @@ function PolicyView({ policies, workspaces, onCreatePolicy, onValidate, submitti
 
 function SidebarView({ data }) {
   return (
-    <Panel title="Sidebar config generated preview" eyebrow="WorkspaceSidebarConfig" icon={SlidersHorizontal}>
+    <Panel title="Xem trước cấu hình sidebar" eyebrow="WorkspaceSidebarConfig" icon={SlidersHorizontal}>
       <div className="workspace-access-sidebar-grid">
         {(data?.items || []).map((config) => (
           <article key={config.workspace_code}>
@@ -370,7 +371,7 @@ function SidebarView({ data }) {
 
 function NavigationView({ data }) {
   return (
-    <Panel title="Cross-workspace navigation map" eyebrow="Navigation rules" icon={Router}>
+    <Panel title="Bản đồ điều hướng cross-workspace" eyebrow="Quy tắc điều hướng" icon={Router}>
       <div className="workspace-access-navigation-list">
         {(data?.items || []).map((rule) => (
           <article key={rule.rule_id}>
@@ -390,10 +391,10 @@ function NavigationView({ data }) {
 
 function PreferenceView({ data }) {
   return (
-    <Panel title="User preference / default workspace" eyebrow="current_workspace validity" icon={UserCog}>
+    <Panel title="Tùy chọn người dùng / workspace mặc định" eyebrow="Tính hợp lệ current_workspace" icon={UserCog}>
       <div className="workspace-access-user-table">
         <div className="workspace-access-user-table__head">
-          <span>User</span><span>Current</span><span>Default</span><span>Pinned</span><span>Hidden</span><span>Validity</span>
+          <span>Người dùng</span><span>Hiện tại</span><span>Mặc định</span><span>Ghim</span><span>Ẩn</span><span>Hợp lệ</span>
         </div>
         {(data?.items || []).map((item) => (
           <div key={item.preference_id} className="workspace-access-user-table__row">
@@ -402,7 +403,7 @@ function PreferenceView({ data }) {
             <WorkspaceChip workspace={item.default_workspace || 'none'} allowed={item.valid} />
             <span>{item.pinned_workspaces?.join(', ') || 'Không có'}</span>
             <span>{item.hidden_workspaces?.join(', ') || 'Không có'}</span>
-            <span className={`workspace-access-severity workspace-access-severity--${item.valid ? 'low' : 'high'}`}>{item.valid ? 'valid' : 'invalid'}</span>
+            <span className={`workspace-access-severity workspace-access-severity--${item.valid ? 'low' : 'high'}`}>{item.valid ? 'Hợp lệ' : 'Không hợp lệ'}</span>
           </div>
         ))}
       </div>
@@ -430,18 +431,18 @@ function CheckView({ workspaces }) {
 
   return (
     <section className="workspace-access-grid workspace-access-grid--two">
-      <Panel title="Access simulator" eyebrow="Explain workspace access" icon={Fingerprint}>
+      <Panel title="Mô phỏng truy cập" eyebrow="Giải thích quyền workspace" icon={Fingerprint}>
         <div className="workspace-access-policy-form">
           <label><span>Workspace</span><select value={form.workspace_code} onChange={(event) => setForm({ ...form, workspace_code: event.target.value })}>{workspaces.map((workspace) => <option key={workspace.code} value={workspace.code}>{workspace.code}</option>)}</select></label>
-          <label><span>Role code</span><input value={form.role_code} onChange={(event) => setForm({ ...form, role_code: event.target.value })} placeholder="cashier" /></label>
-          <label><span>User ID override</span><input value={form.user_id} onChange={(event) => setForm({ ...form, user_id: event.target.value })} placeholder="Mongo user id nếu muốn check user thật" /></label>
+          <label><span>Mã vai trò</span><input value={form.role_code} onChange={(event) => setForm({ ...form, role_code: event.target.value })} placeholder="cashier" /></label>
+          <label><span>User ID thay thế</span><input value={form.user_id} onChange={(event) => setForm({ ...form, user_id: event.target.value })} placeholder="Mongo user id nếu muốn kiểm tra user thật" /></label>
           <button type="button" className="staff-button staff-button--primary" disabled={loading} onClick={handleCheck}>
             <Fingerprint size={16} strokeWidth={2.25} /> Kiểm tra
           </button>
         </div>
         {error ? <p className="form-message error">{error}</p> : null}
       </Panel>
-      <Panel title="Decision tree" eyebrow={result?.final_decision || 'No result'} icon={result?.allowed ? CheckCircle2 : ShieldAlert}>
+      <Panel title="Cây quyết định" eyebrow={result?.final_decision || 'Chưa có kết quả'} icon={result?.allowed ? CheckCircle2 : ShieldAlert}>
         {result ? (
           <div className="workspace-access-explain">
             <span className={`workspace-access-decision ${result.allowed ? 'is-allowed' : 'is-denied'}`}>{result.final_decision}</span>
@@ -462,7 +463,7 @@ function CheckView({ workspaces }) {
 
 function ConflictsView({ data }) {
   return (
-    <Panel title="Access policy conflicts" eyebrow="Conflict scanner" icon={AlertTriangle}>
+    <Panel title="Xung đột chính sách truy cập" eyebrow="Bộ quét xung đột" icon={AlertTriangle}>
       <div className="workspace-access-policy-list">
         {(data?.items || []).length ? data.items.map((item) => (
           <article key={item.conflict_id}>
@@ -481,15 +482,15 @@ function DiagnosticsView({ data, onRun, submitting }) {
   const items = data?.items || [];
   return (
     <Panel
-      title="Workspace diagnostics"
-      eyebrow="Registry, IAM, preference, policy"
+      title="Chẩn đoán workspace"
+      eyebrow="Registry, IAM, tùy chọn, chính sách"
       icon={Activity}
-      action={<button type="button" className="staff-button staff-button--ghost" disabled={submitting} onClick={onRun}><RefreshCw size={15} strokeWidth={2.25} /> Run</button>}
+      action={<button type="button" className="staff-button staff-button--ghost" disabled={submitting} onClick={onRun}><RefreshCw size={15} strokeWidth={2.25} /> Chạy</button>}
     >
       <section className="workspace-access-metrics workspace-access-metrics--compact">
-        <MetricCard label="Failed" value={data?.summary?.failed} hint="must fix" icon={AlertTriangle} tone="red" />
-        <MetricCard label="Warnings" value={data?.summary?.warnings} hint="review" icon={ShieldAlert} tone="amber" />
-        <MetricCard label="OK" value={data?.summary?.ok} hint="passed" icon={CheckCircle2} tone="green" />
+        <MetricCard label="Lỗi" value={data?.summary?.failed} hint="cần sửa" icon={AlertTriangle} tone="red" />
+        <MetricCard label="Cảnh báo" value={data?.summary?.warnings} hint="cần rà soát" icon={ShieldAlert} tone="amber" />
+        <MetricCard label="OK" value={data?.summary?.ok} hint="đạt" icon={CheckCircle2} tone="green" />
       </section>
       <div className="workspace-access-diagnostics">
         {items.length ? items.map((item) => (
@@ -507,7 +508,7 @@ function DiagnosticsView({ data, onRun, submitting }) {
 
 function AuditView({ data }) {
   return (
-    <Panel title="Workspace audit" eyebrow="workspace.* events" icon={FileClock}>
+    <Panel title="Audit workspace" eyebrow="Sự kiện workspace.*" icon={FileClock}>
       <div className="workspace-access-audit-list">
         {(data || []).length ? data.map((item) => (
           <article key={item.audit_log_id}>
@@ -532,6 +533,7 @@ export function WorkspaceAccessControlPlanePage({ view = 'overview' }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [confirmPolicy, setConfirmPolicy] = useState(null);
 
   async function loadView() {
     setLoading(true);
@@ -584,6 +586,22 @@ export function WorkspaceAccessControlPlanePage({ view = 'overview' }) {
     }
   }
 
+  function requestCreatePolicy(payload) {
+    setConfirmPolicy({
+      payload,
+      title: 'Tạo chính sách truy cập workspace?',
+      description: 'Chính sách mới có thể cho phép, chặn, ẩn hoặc giới hạn workspace đối với người dùng/vai trò. Hãy xác nhận phạm vi trước khi tạo.',
+      confirmLabel: 'Tạo chính sách',
+      tone: payload.effect === 'deny' || payload.effect === 'hide' ? 'danger' : 'warning',
+      details: [
+        { label: 'Workspace', value: payload.workspace_code },
+        { label: 'Chủ thể', value: `${payload.subject_type}:${payload.subject_code || payload.subject_id || 'Chưa có'}` },
+        { label: 'Hiệu lực', value: payload.effect },
+        { label: 'Lý do', value: payload.reason || 'Chưa nhập' },
+      ],
+    });
+  }
+
   async function handleValidatePolicies() {
     setSubmitting(true);
     setError('');
@@ -617,16 +635,16 @@ export function WorkspaceAccessControlPlanePage({ view = 'overview' }) {
       <section className="workspace-access-hero">
         <div className="workspace-access-hero__icon"><HeroIcon size={24} strokeWidth={2.3} /></div>
         <div>
-          <span>Workspace Access Control Plane</span>
+          <span>Quản trị hệ thống / Quyền truy cập workspace</span>
           <h1>{meta.title}</h1>
-          <p>Quản trị workspace registry, role/user/department access, allow/deny policy, sidebar, navigation, preference, diagnostics và audit.</p>
+          <p>Quản trị registry workspace, truy cập theo vai trò/người dùng/khoa phòng, policy allow/deny, sidebar, điều hướng, tùy chọn, chẩn đoán và audit.</p>
         </div>
         <div className="workspace-access-hero__actions">
           <button type="button" className="staff-button staff-button--ghost" onClick={loadView} disabled={loading}>
             <RefreshCw size={16} strokeWidth={2.25} /> Làm mới
           </button>
           <button type="button" className="staff-button staff-button--primary" onClick={handleValidatePolicies} disabled={submitting}>
-            <CheckCircle2 size={16} strokeWidth={2.25} /> Validate policy
+            <CheckCircle2 size={16} strokeWidth={2.25} /> Kiểm tra policy
           </button>
         </div>
       </section>
@@ -653,7 +671,7 @@ export function WorkspaceAccessControlPlanePage({ view = 'overview' }) {
       {activeView === 'role' ? <RoleView data={data} /> : null}
       {activeView === 'user' ? <UserView data={data} /> : null}
       {activeView === 'department' ? <DepartmentView data={data} /> : null}
-      {activeView === 'policies' ? <PolicyView policies={data} workspaces={workspaces} onCreatePolicy={handleCreatePolicy} onValidate={handleValidatePolicies} submitting={submitting} /> : null}
+      {activeView === 'policies' ? <PolicyView policies={data} workspaces={workspaces} onCreatePolicy={requestCreatePolicy} onValidate={handleValidatePolicies} submitting={submitting} /> : null}
       {activeView === 'sidebar' ? <SidebarView data={data} /> : null}
       {activeView === 'navigation' ? <NavigationView data={data} /> : null}
       {activeView === 'preferences' ? <PreferenceView data={data} /> : null}
@@ -661,6 +679,21 @@ export function WorkspaceAccessControlPlanePage({ view = 'overview' }) {
       {activeView === 'conflicts' ? <ConflictsView data={data} /> : null}
       {activeView === 'diagnostics' ? <DiagnosticsView data={data} onRun={handleRunDiagnostics} submitting={submitting} /> : null}
       {activeView === 'audit' ? <AuditView data={data} /> : null}
+      <AdminActionConfirmDialog
+        open={Boolean(confirmPolicy)}
+        title={confirmPolicy?.title}
+        description={confirmPolicy?.description}
+        tone={confirmPolicy?.tone}
+        confirmLabel={confirmPolicy?.confirmLabel}
+        details={confirmPolicy?.details}
+        reasonRequired={false}
+        submitting={submitting}
+        onCancel={() => setConfirmPolicy(null)}
+        onConfirm={async () => {
+          await handleCreatePolicy(confirmPolicy.payload);
+          setConfirmPolicy(null);
+        }}
+      />
     </>
   );
 }

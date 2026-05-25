@@ -63,17 +63,6 @@ const PRIORITY_FILTERS = [
   { key: 'new', label: 'Hồ sơ mới' },
 ];
 
-const DEPARTMENTS = [
-  'Tất cả khoa/phòng',
-  'Nội tổng quát',
-  'Tim mạch',
-  'Nhi khoa',
-  'Sản phụ khoa',
-  'Da liễu',
-];
-
-const PRIORITY_GROUPS = ['VIP', 'Người cao tuổi', 'Thai sản', 'Tái khám sớm', 'Theo dõi đặc biệt'];
-
 const CREATE_BODY_FIELDS = [
   'full_name',
   'date_of_birth',
@@ -163,13 +152,15 @@ function getGenderLabel(value) {
   return GENDER_OPTIONS.find((item) => item.value === value)?.label || 'Không rõ';
 }
 
-function getPriorityProfile(patient, index = 0) {
+function getPriorityProfile(patient) {
   const age = calculateAge(patient.date_of_birth);
+  const explicitPriority = patient.priority_group || patient.priority || patient.patient_priority || patient.special_care_group;
+  if (explicitPriority) {
+    return { group: explicitPriority, tone: explicitPriority === 'VIP' ? 'warning' : 'neutral', status: patient.status || 'Đang theo dõi' };
+  }
   if (age !== null && age >= 60) return { group: 'Người cao tuổi', tone: 'blue', status: 'Ổn định' };
-  const group = PRIORITY_GROUPS[index % PRIORITY_GROUPS.length];
-  const status = index % 4 === 0 ? 'Đang theo dõi' : index % 4 === 1 ? 'Ổn định' : 'Cần theo dõi';
-  const tone = group === 'VIP' ? 'warning' : group === 'Thai sản' ? 'danger' : group === 'Theo dõi đặc biệt' ? 'purple' : 'neutral';
-  return { group, tone, status };
+  if (!patient.phone || patient.phone === '--') return { group: 'Thiếu SĐT', tone: 'orange', status: 'Cần bổ sung' };
+  return { group: 'Không có ưu tiên', tone: 'neutral', status: patient.status || 'Ổn định' };
 }
 
 function StatusBadge({ status }) {
@@ -228,27 +219,6 @@ function PatientMetrics({ mode, stats = {} }) {
       <PatientMetricCard icon={CalendarDays} label="Benh nhan co the dat lich" value={formatInteger(active)} note={`${bookableRate}% trong tong so`} tone="purple" />
     </div>
   );
-
-  if (mode === 'priority') {
-    return (
-      <div className="reception-patient-metrics reception-patient-metrics--five">
-        <PatientMetricCard icon={Crown} label="Tổng bệnh nhân ưu tiên" value="2.368" note="Tất cả nhóm ưu tiên" />
-        <PatientMetricCard icon={CalendarDays} label="Lịch hẹn hôm nay" value="156" note="18.2% so với hôm qua" tone="green" />
-        <PatientMetricCard icon={Bell} label="Cần theo dõi" value="64" note="Cần liên hệ / đặt lịch" tone="orange" />
-        <PatientMetricCard icon={CalendarDays} label="Có thể đặt lịch" value="1.842" note="77.8% tổng ưu tiên" tone="purple" />
-        <PatientMetricCard icon={ClockIcon} label="Chờ xác nhận" value="42" note="Chờ BN xác nhận" tone="blue" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="reception-patient-metrics">
-      <PatientMetricCard icon={UserPlus} label="Tổng số bệnh nhân" value={formatInteger(Math.max(total, 58742))} note="Tất cả bệnh nhân đã đăng ký" />
-      <PatientMetricCard icon={UserPlus} label="Bệnh nhân mới (tháng này)" value="1.243" note="12.5% so với tháng trước" tone="green" />
-      <PatientMetricCard icon={ShieldCheck} label="Trùng thông tin cần xử lý" value="87" note="Cần kiểm tra và xác minh" tone="orange" />
-      <PatientMetricCard icon={CalendarDays} label="Bệnh nhân có thể đặt lịch" value="54.102" note="92.1% trong tổng số" tone="purple" />
-    </div>
-  );
 }
 
 function ClockIcon(props) {
@@ -291,12 +261,7 @@ function PatientFilterPanel({ query, setQuery, gender, setGender, status, setSta
               ))}
             </select>
           </label>
-        ) : (
-          <label>
-            <span>Ngày sinh</span>
-            <input type="date" />
-          </label>
-        )}
+        ) : null}
         <label>
           <span>{mode === 'priority' ? 'Trạng thái' : 'Giới tính'}</span>
           {mode === 'priority' ? (
@@ -314,55 +279,20 @@ function PatientFilterPanel({ query, setQuery, gender, setGender, status, setSta
             </select>
           )}
         </label>
-        <label>
-          <span>{mode === 'priority' ? 'Khoa/Phòng' : 'Trạng thái'}</span>
-          {mode === 'priority' ? (
-            <select>
-              {DEPARTMENTS.map((department) => (
-                <option key={department}>{department}</option>
-              ))}
-            </select>
-          ) : (
+        {mode !== 'priority' ? (
+          <label>
+            <span>Trạng thái</span>
             <select value={status} onChange={(event) => setStatus(event.target.value)}>
               <option value="">Tất cả</option>
               <option value="active">Đang hoạt động</option>
               <option value="archived">Tạm khóa</option>
             </select>
-          )}
-        </label>
-        {mode === 'search' ? (
-          <>
-            <label>
-              <span>Khoa/Phòng</span>
-              <select>
-                {DEPARTMENTS.map((department) => (
-                  <option key={department}>{department}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Ngày tạo từ</span>
-              <input type="date" />
-            </label>
-            <label>
-              <span>Đến ngày</span>
-              <input type="date" />
-            </label>
-          </>
-        ) : (
-          <label>
-            <span>Ngày khám gần nhất</span>
-            <input type="date" />
           </label>
-        )}
+        ) : null}
         <div className="reception-patient-filter-actions">
           <button type="button" className="reception-btn reception-btn--ghost" onClick={onReset}>
             <RefreshCw size={16} />
             <span>Đặt lại</span>
-          </button>
-          <button type="button" className="reception-btn reception-btn--primary">
-            <Search size={16} />
-            <span>Tìm kiếm</span>
           </button>
         </div>
       </div>

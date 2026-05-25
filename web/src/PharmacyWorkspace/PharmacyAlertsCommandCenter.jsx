@@ -30,6 +30,7 @@ import {
   X,
 } from 'lucide-react';
 import { getApiErrorMessage } from '../utils/api';
+import { confirmPharmacyAction, notifyPharmacy } from './pharmacyActions';
 import {
   acknowledgePharmacyAlert,
   bulkActionPharmacyAlerts,
@@ -53,6 +54,14 @@ const BOARD_ALIASES = {
   lossWaste: 'waste-loss',
   'loss-waste': 'waste-loss',
   wasteLoss: 'waste-loss',
+};
+
+const ALERT_ACTION_LABELS = {
+  acknowledge: 'Xác nhận cảnh báo',
+  start: 'Bắt đầu xử lý cảnh báo',
+  snooze: 'Snooze cảnh báo',
+  resolve: 'Đóng cảnh báo',
+  dismiss: 'Bỏ qua cảnh báo',
 };
 
 const BOARD_CONFIG = {
@@ -738,6 +747,7 @@ function exportRows(config, rows) {
   link.download = `${config.endpoint}-alerts.csv`;
   link.click();
   URL.revokeObjectURL(url);
+  notifyPharmacy({ tone: 'success', title: 'Xuất cảnh báo dược', message: `Đã xuất ${rows.length} cảnh báo.` });
 }
 
 export function PharmacyAlertsCommandCenterPage({ board = 'low-stock' }) {
@@ -784,20 +794,38 @@ export function PharmacyAlertsCommandCenterPage({ board = 'low-stock' }) {
 
   async function handleAction(action, item) {
     if (!item?.id) return;
+    const label = ALERT_ACTION_LABELS[action] || 'Cập nhật cảnh báo';
+    if (['resolve', 'dismiss'].includes(action)) {
+      const ok = confirmPharmacyAction({
+        title: label,
+        message: `${item.title || item.id} sẽ được cập nhật trên backend.`,
+      });
+      if (!ok) return;
+    }
     try {
       if (action === 'acknowledge') await acknowledgePharmacyAlert(item.id, { note: 'Xác nhận từ Pharmacy Alert Center.' });
       if (action === 'start') await startPharmacyAlert(item.id, { note: 'Bắt đầu xử lý từ Pharmacy Alert Center.' });
       if (action === 'snooze') await snoozePharmacyAlert(item.id, { minutes: 240, reason: 'Snooze 4h từ Pharmacy Alert Center.' });
       if (action === 'resolve') await resolvePharmacyAlert(item.id, { resolution_note: 'Đã xử lý từ Pharmacy Alert Center.' });
       if (action === 'dismiss') await dismissPharmacyAlert(item.id, { reason: 'Bỏ qua từ Pharmacy Alert Center.' });
+      notifyPharmacy({ tone: 'success', title: label, message: 'Cảnh báo đã được cập nhật.' });
       setDrawer(null);
       refresh();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể cập nhật cảnh báo.'));
+      notifyPharmacy({ tone: 'danger', title: label, message: getApiErrorMessage(error, 'Không thể cập nhật cảnh báo.') });
     }
   }
 
   async function handleBulkAction(action) {
+    if (!selectedIds.length) {
+      notifyPharmacy({ tone: 'warning', title: 'Xử lý cảnh báo hàng loạt', message: 'Hãy chọn ít nhất một cảnh báo trước khi thao tác.' });
+      return;
+    }
+    const ok = confirmPharmacyAction({
+      title: 'Xử lý cảnh báo hàng loạt',
+      message: `Áp dụng "${ALERT_ACTION_LABELS[action] || action}" cho ${selectedIds.length} cảnh báo?`,
+    });
+    if (!ok) return;
     try {
       const body = {
         alert_ids: selectedIds,
@@ -806,9 +834,10 @@ export function PharmacyAlertsCommandCenterPage({ board = 'low-stock' }) {
         minutes: 240,
       };
       await bulkActionPharmacyAlerts(body);
+      notifyPharmacy({ tone: 'success', title: 'Xử lý cảnh báo hàng loạt', message: `Đã cập nhật ${selectedIds.length} cảnh báo.` });
       refresh();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể xử lý hàng loạt.'));
+      notifyPharmacy({ tone: 'danger', title: 'Xử lý cảnh báo hàng loạt', message: getApiErrorMessage(error, 'Không thể xử lý hàng loạt.') });
     }
   }
 

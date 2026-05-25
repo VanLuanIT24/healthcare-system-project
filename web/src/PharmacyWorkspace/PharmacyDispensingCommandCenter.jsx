@@ -39,6 +39,7 @@ import {
   loadDispensingQueue,
   loadDispensingQueueSummary,
 } from './pharmacyApi';
+import { confirmPharmacyAction, notifyPharmacy, promptPharmacyText } from './pharmacyActions';
 
 const VIEW_CONFIG = {
   queue: {
@@ -197,7 +198,7 @@ function EmptyState({ loading, title = 'Không có dữ liệu', body = 'Thử �
   );
 }
 
-function PageHeader({ config, filters, setFilters, onRefresh, loading, children }) {
+function PageHeader({ config, filters, setFilters, onRefresh, loading, children, onScan }) {
   const Icon = config.icon;
   return (
     <section className="dispensing-header">
@@ -232,7 +233,7 @@ function PageHeader({ config, filters, setFilters, onRefresh, loading, children 
             </select>
           </label>
           {children}
-          <button type="button" title="Quét barcode" aria-label="Quét barcode">
+          <button type="button" title="Quét barcode" aria-label="Quét barcode" onClick={onScan}>
             <Barcode size={16} />
           </button>
           <button type="button" title="Làm mới" aria-label="Làm mới" onClick={onRefresh} disabled={loading}>
@@ -761,6 +762,7 @@ export function PharmacyDispensingCommandCenterPage({ view = 'queue' }) {
         await prescriptionAPI.unlockDispense(dispenseId, {});
         setToast('Đã mở khóa phiếu.');
       } else if (action === 'ready') {
+        if (!confirmPharmacyAction({ title: 'Chuyển phiếu sẵn sàng bàn giao', message: dispenseNo(row) })) return;
         await prescriptionAPI.changeDispenseStage(dispenseId, { stage: 'ready_to_handover' });
         await prescriptionAPI.completeDispenseChecklist(dispenseId, { override: true, override_reason: 'Hoàn tất từ UI chuẩn bị.' });
         setToast('Phiếu đã sẵn sàng bàn giao.');
@@ -769,7 +771,7 @@ export function PharmacyDispensingCommandCenterPage({ view = 'queue' }) {
         setPreview(unwrapData(response));
         return;
       } else if (action === 'complete') {
-        if (!window.confirm(`Hoàn tất cấp phát phiếu ${dispenseNo(row)}?`)) return;
+        if (!confirmPharmacyAction({ title: 'Hoàn tất cấp phát', message: `Hoàn tất cấp phát phiếu ${dispenseNo(row)}?` })) return;
         await prescriptionAPI.completeDispense(dispenseId, { create_charge: true, allow_zero_price_charge: false });
         setToast('Đã hoàn tất cấp phát.');
       } else if (action === 'hold') {
@@ -778,13 +780,14 @@ export function PharmacyDispensingCommandCenterPage({ view = 'queue' }) {
           setToast('Cần tạo phiếu trước khi tạm giữ.');
           return;
         }
-        const reason = window.prompt('Nhập lý do tạm giữ / từ chối');
+        const reason = promptPharmacyText({ title: 'Tạm giữ / từ chối cấp phát', message: dispenseNo(row), defaultValue: '' });
         if (!reason) return;
         await prescriptionAPI.createDispenseHold(targetDispenseId, { hold_type: 'other', severity: 'medium', reason });
         setToast('Đã tạo hold cấp phát.');
       } else if (action === 'return') {
-        const reason = window.prompt('Nhập lý do hoàn trả thuốc');
+        const reason = promptPharmacyText({ title: 'Hoàn trả thuốc', message: dispenseNo(row), defaultValue: '' });
         if (!reason) return;
+        if (!confirmPharmacyAction({ title: 'Xác nhận hoàn trả thuốc', message: reason })) return;
         await prescriptionAPI.createDispenseReturn(dispenseId, { reason, auto_complete: true });
         setToast('Đã tạo hoàn trả thuốc.');
       } else if (action === 'print_label') {
@@ -797,7 +800,7 @@ export function PharmacyDispensingCommandCenterPage({ view = 'queue' }) {
         await pharmacyOverviewAPI.resolveDispenseHold(row._id || row.id, { resolution_type: 'continue_dispense', note: 'Gỡ hold từ UI.' });
         setToast('Đã gỡ hold.');
       } else if (action === 'reject_hold') {
-        const note = window.prompt('Nhập lý do từ chối');
+        const note = promptPharmacyText({ title: 'Từ chối case hold', message: 'Nhập lý do từ chối.', defaultValue: '' });
         if (!note) return;
         await pharmacyOverviewAPI.rejectDispenseHold(row._id || row.id, { resolution_type: 'rejected', note });
         setToast('Đã từ chối case hold.');
@@ -811,14 +814,23 @@ export function PharmacyDispensingCommandCenterPage({ view = 'queue' }) {
       }
       await refresh();
     } catch (error) {
-      setToast(getApiErrorMessage(error, 'Không thể thực hiện thao tác.'));
+      const message = getApiErrorMessage(error, 'Không thể thực hiện thao tác.');
+      setToast(message);
+      notifyPharmacy({ tone: 'danger', title: 'Cấp phát thuốc', message });
     }
   }
 
   return (
     <div className="dispensing-command-page">
       {toast ? <button type="button" className="dispensing-toast" onClick={() => setToast('')}><span>{toast}</span><X size={14} /></button> : null}
-      <PageHeader config={config} filters={filters} setFilters={setFilters} onRefresh={refresh} loading={state.loading}>
+      <PageHeader
+        config={config}
+        filters={filters}
+        setFilters={setFilters}
+        onRefresh={refresh}
+        loading={state.loading}
+        onScan={() => notifyPharmacy({ title: 'Quét barcode', message: 'Kết nối máy quét hoặc nhập mã vào ô tìm kiếm để mở đúng đơn/phiếu.' })}
+      >
         {view === 'preparing' || view === 'pendingCompletion' ? (
           <label>
             <SlidersHorizontal size={15} />

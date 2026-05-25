@@ -54,27 +54,21 @@ const THEME_COLORS = [
   '#475569',
 ];
 
-const SETTINGS_STORAGE_KEY = 'reception-dashboard-settings';
-
 const DEFAULT_ACCOUNT_SETTINGS = {
   profile: {
-    name: 'Trần Minh Khôi',
-    email: 'tranminhkhoi@medcare.vn',
-    phone: '0901 234 567',
-    role: 'Receptionist',
-    department: 'Phòng khám Đa khoa MedCare',
+    name: '',
+    email: '',
+    phone: '',
+    role: '',
+    department: '',
     avatar: '',
   },
   security: {
-    twoFactor: true,
-    loginNotice: true,
-    sessionLimit: '3 thiết bị',
+    twoFactor: false,
+    loginNotice: false,
+    sessionLimit: '',
   },
-  sessions: [
-    { id: 'desktop', device: 'Windows Desktop', detail: 'Edge - 16/05/2025 08:45', status: 'Hiện tại', current: true },
-    { id: 'phone', device: 'Android Phone', detail: 'Chrome - 15/05/2025 18:20', status: 'Đã xác minh', current: false },
-    { id: 'counter-2', device: 'Laptop quầy 2', detail: 'Chrome - 14/05/2025 07:55', status: 'Đã xác minh', current: false },
-  ],
+  sessions: [],
 };
 
 const DEFAULT_UI_SETTINGS = {
@@ -106,44 +100,24 @@ const DEFAULT_UI_SETTINGS = {
 };
 
 const DEFAULT_SYSTEM_SETTINGS = {
-  clinicName: 'Phòng khám Đa khoa MedCare',
-  address: '123 Đường Lê Lợi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
-  phone: '0901 234 567',
-  email: 'info@medcare.vn',
-  website: 'https://medcare.vn',
-  open: '07:30',
-  close: '17:00',
-  timezone: '(GMT+07:00) Asia/Ho Chi Minh',
+  clinicName: '',
+  address: '',
+  phone: '',
+  email: '',
+  website: '',
+  open: '',
+  close: '',
+  timezone: '',
   logo: '',
-  onlineBooking: true,
-  smsReminder: true,
-  emailReminder: true,
-  preCheckin: true,
-  preCheckinMinutes: 30,
-  queueScreen: true,
-  integrations: {
-    Zalo: true,
-    VNPay: true,
-    'Email SMTP': true,
-    'SMS Gateway': true,
-  },
-  backupLog: ['Sao lưu tự động mỗi ngày', 'Giữ bản sao trong 30 ngày', 'Khôi phục dữ liệu theo yêu cầu'],
+  onlineBooking: false,
+  smsReminder: false,
+  emailReminder: false,
+  preCheckin: false,
+  preCheckinMinutes: 0,
+  queueScreen: false,
+  integrations: {},
+  backupLog: [],
 };
-
-function readStoredSettings() {
-  try {
-    if (typeof window === 'undefined') return {};
-    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function persistSettings(nextSettings) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
-}
 
 function readFileAsDataUrl(file, callback) {
   if (!file) return;
@@ -197,7 +171,7 @@ function normalizeCurrentProfile(payload = {}) {
     role: (profile.roles || user.roles || [])[0] || DEFAULT_ACCOUNT_SETTINGS.profile.role,
     department: department.department_name || department.name || DEFAULT_ACCOUNT_SETTINGS.profile.department,
     avatar: DEFAULT_ACCOUNT_SETTINGS.profile.avatar,
-    username: user.username || 'receptionist',
+    username: user.username || '',
     status: user.status || 'active',
     lastLogin: user.last_login_at || '',
   };
@@ -205,7 +179,7 @@ function normalizeCurrentProfile(payload = {}) {
 
 function normalizeSessions(payload = {}) {
   const items = Array.isArray(payload.items) ? payload.items : [];
-  if (!items.length) return DEFAULT_ACCOUNT_SETTINGS.sessions;
+  if (!items.length) return [];
   return items.map((session) => ({
     id: session.session_id,
     device: session.device_name || session.os || session.browser || 'Thiáº¿t bá»‹',
@@ -349,7 +323,7 @@ function AccountPage({ account, setAccount, onMessage, onChangePassword, onRevok
             </Field>
             <Field label="Phòng ban">
               <select value={profile.department} onChange={(event) => updateProfile('department', event.target.value)}>
-                <option>Phòng khám Đa khoa MedCare</option>
+                <option>Phòng khám Đa khoa Bộ Y tế</option>
                 <option>Quầy tiếp nhận tầng 1</option>
                 <option>Quầy dịch vụ khách hàng</option>
               </select>
@@ -806,7 +780,7 @@ function SystemPage({ settings, setSettings, onMessage }) {
 
 export function ReceptionSettingsPanel({ mode = 'settings-account' }) {
   const resolvedMode = mode === 'settings-permissions' ? 'settings-account' : mode;
-  const storedSettings = useMemo(() => readStoredSettings(), []);
+  const storedSettings = useMemo(() => ({}), []);
   const [account, setAccount] = useState(() => ({
     ...DEFAULT_ACCOUNT_SETTINGS,
     ...(storedSettings.account || {}),
@@ -836,6 +810,7 @@ export function ReceptionSettingsPanel({ mode = 'settings-account' }) {
   const [savedMessage, setSavedMessage] = useState('');
   const [settingSource, setSettingSource] = useState({ uiKey: '', systemKey: '' });
   const [settingsStatus, setSettingsStatus] = useState({ loading: false, error: '' });
+  const [workspacePreferences, setWorkspacePreferences] = useState({});
 
   useEffect(() => {
     const root = document.documentElement;
@@ -851,10 +826,11 @@ export function ReceptionSettingsPanel({ mode = 'settings-account' }) {
     async function loadRemoteSettings() {
       setSettingsStatus({ loading: true, error: '' });
       try {
-        const [profilePayload, sessionsPayload, groupedPayload] = await Promise.all([
+        const [profilePayload, sessionsPayload, groupedPayload, preferencesPayload] = await Promise.all([
           receptionDataApi.getMe().catch(() => null),
           receptionDataApi.listMySessions().catch(() => null),
           receptionDataApi.listSystemSettingsGrouped().catch(() => null),
+          receptionDataApi.getMyPreferences().catch(() => null),
         ]);
 
         if (!active) return;
@@ -898,6 +874,36 @@ export function ReceptionSettingsPanel({ mode = 'settings-account' }) {
           }
           setSettingSource({ uiKey: uiRecord.key, systemKey: systemRecord.key });
         }
+
+        if (preferencesPayload) {
+          const preferences = preferencesPayload.preferences || preferencesPayload;
+          const workspacePrefs = preferences.workspace_preferences || {};
+          const receptionPrefs = workspacePrefs.reception || {};
+          setWorkspacePreferences(workspacePrefs);
+          if (receptionPrefs.ui && typeof receptionPrefs.ui === 'object') {
+            setUiSettings((current) => ({ ...current, ...receptionPrefs.ui }));
+          }
+          if (receptionPrefs.system && typeof receptionPrefs.system === 'object') {
+            setSystemSettings((current) => ({
+              ...current,
+              ...receptionPrefs.system,
+              integrations: {
+                ...current.integrations,
+                ...(receptionPrefs.system.integrations || {}),
+              },
+              backupLog: receptionPrefs.system.backupLog || current.backupLog,
+            }));
+          }
+          if (receptionPrefs.account?.security) {
+            setAccount((current) => ({
+              ...current,
+              security: {
+                ...current.security,
+                ...receptionPrefs.account.security,
+              },
+            }));
+          }
+        }
         setSettingsStatus({ loading: false, error: '' });
       } catch (error) {
         if (!active) return;
@@ -917,12 +923,6 @@ export function ReceptionSettingsPanel({ mode = 'settings-account' }) {
   }
 
   async function handleSave() {
-    persistSettings({
-      account,
-      ui: uiSettings,
-      system: systemSettings,
-      savedAt: new Date().toISOString(),
-    });
     try {
       if (resolvedMode === 'settings-account') {
         await receptionDataApi.updateMe({
@@ -936,6 +936,20 @@ export function ReceptionSettingsPanel({ mode = 'settings-account' }) {
       if (resolvedMode === 'settings-system' && settingSource.systemKey) {
         await receptionDataApi.updateSystemSetting(settingSource.systemKey, { setting_value: systemSettings });
       }
+      const nextWorkspacePreferences = {
+        ...workspacePreferences,
+        reception: {
+          ...(workspacePreferences.reception || {}),
+          account: {
+            ...((workspacePreferences.reception || {}).account || {}),
+            security: account.security,
+          },
+          ui: uiSettings,
+          system: systemSettings,
+        },
+      };
+      await receptionDataApi.updateMyPreferences({ workspace_preferences: nextWorkspacePreferences });
+      setWorkspacePreferences(nextWorkspacePreferences);
     } catch (error) {
       showMessage(error.message || 'Khong the dong bo cau hinh len API');
       return;

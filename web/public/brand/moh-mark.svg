@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 386 330" role="img" aria-label="Bộ Y tế">
+  <defs>
+    <linearGradient id="petal-main" x1="72" y1="280" x2="300" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0737B6"/>
+      <stop offset=".52" stop-color="#0D63D5"/>
+      <stop offset="1" stop-color="#29D3E4"/>
+    </linearGradient>
+    <linearGradient id="petal-side" x1="32" y1="240" x2="330" y2="78" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0738B7"/>
+      <stop offset=".56" stop-color="#0758BF"/>
+      <stop offset="1" stop-color="#0F8CCD"/>
+    </linearGradient>
+    <linearGradient id="petal-light" x1="62" y1="76" x2="288" y2="160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1D68FF"/>
+      <stop offset="1" stop-color="#31D4E4"/>
+    </linearGradient>
+    <linearGradient id="cross-fill" x1="144" y1="198" x2="208" y2="106" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#008B94"/>
+      <stop offset="1" stop-color="#2ED1DF"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(0 8)" fill="none" fill-rule="evenodd">
+    <path d="M193 14c43 43 61 87 55 130-4 35-22 66-55 94-34-28-52-59-56-94-6-43 13-87 56-130Z" fill="url(#petal-main)"/>
+    <path d="M193 61c26 32 38 62 35 90-2 23-13 44-35 63-22-19-33-40-35-63-3-28 9-58 35-90Z" fill="#FFFFFF" opacity=".97"/>
+    <path d="M136 95c-47-12-87 1-119 39 34 8 66 5 96-10 28-14 51-31 68-51-14 10-29 18-45 22Z" fill="url(#petal-light)"/>
+    <path d="M250 95c47-12 87 1 119 39-34 8-66 5-96-10-28-14-51-31-68-51 14 10 29 18 45 22Z" fill="url(#petal-light)"/>
+    <path d="M55 174c57-7 103 11 139 54-45 1-87-10-124-32-21-13-38-27-50-42 11 8 23 15 35 20Z" fill="#0738B7"/>
+    <path d="M331 174c-57-7-103 11-139 54 45 1 87-10 124-32 21-13 38-27 50-42-11 8-23 15-35 20Z" fill="#0757BF"/>
+    <path d="M82 230c43 3 80 19 111 48 31-29 68-45 111-48-19 32-56 59-111 81-55-22-92-49-111-81Z" fill="url(#petal-side)"/>
+    <path d="M171 105h44v43h43v43h-43v44h-44v-44h-43v-43h43v-43Z" fill="#FFFFFF"/>
+    <path d="M181 115h24v43h43v23h-43v44h-24v-44h-43v-23h43v-43Z" fill="url(#cross-fill)"/>
+  </g>
+</svg>

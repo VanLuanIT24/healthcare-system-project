@@ -532,7 +532,7 @@ function QualityView({ quality }) {
   );
 }
 
-function EntityView({ config, data, selectedItem, setSelectedItem, searchTerm, setSearchTerm, statusFilter, setStatusFilter }) {
+function EntityView({ config, data, selectedItem, setSelectedItem, searchTerm, setSearchTerm, statusFilter, setStatusFilter, onApplyFilters, isLoading }) {
   const entity = config.entity;
   const items = data?.items || [];
   const summary = data?.summary || {};
@@ -554,6 +554,9 @@ function EntityView({ config, data, selectedItem, setSelectedItem, searchTerm, s
             type="search"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') onApplyFilters();
+            }}
             placeholder="Tìm mã, tên, loại, mapping..."
           />
         </label>
@@ -566,6 +569,9 @@ function EntityView({ config, data, selectedItem, setSelectedItem, searchTerm, s
           <option value="draft">Draft</option>
           <option value="blocked">Blocked</option>
         </select>
+        <button type="button" className="staff-button staff-button--primary" onClick={onApplyFilters} disabled={isLoading}>
+          Áp dụng
+        </button>
         <div className="master-data-pro-commandbar__chips">
           {(ENTITY_ACTIONS[entity] || ['Create', 'Export', 'Audit']).map((action) => (
             <span key={action}>{action}</span>
@@ -755,16 +761,23 @@ export function MasterDataControlPlanePage({ view = 'overview' }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   const entity = config.entity;
   const entityQuery = useMemo(() => {
     const params = new URLSearchParams({ limit: '80' });
-    if (searchTerm.trim()) params.set('search', searchTerm.trim());
-    if (statusFilter) params.set('status', statusFilter);
+    if (appliedSearchTerm.trim()) params.set('search', appliedSearchTerm.trim());
+    if (appliedStatusFilter) params.set('status', appliedStatusFilter);
     return params.toString();
-  }, [searchTerm, statusFilter]);
+  }, [appliedSearchTerm, appliedStatusFilter]);
+
+  function applyEntityFilters() {
+    setAppliedSearchTerm(searchTerm);
+    setAppliedStatusFilter(statusFilter);
+  }
 
   async function loadData() {
     setIsLoading(true);
@@ -860,6 +873,8 @@ export function MasterDataControlPlanePage({ view = 'overview' }) {
           setSearchTerm={setSearchTerm}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
+          onApplyFilters={applyEntityFilters}
+          isLoading={isLoading}
         />
       ) : null}
       {!isLoading && view === 'audit' ? <AuditView recentChanges={recentChanges} /> : null}

@@ -28,6 +28,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { nurseMonitoringApi } from './nurseApi';
+import { downloadNurseJson, notifyNurse, printNurseView, promptNurseText, runNurseAction } from './nurseActions';
 
 const nowIso = () => new Date().toISOString();
 const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
@@ -274,6 +275,135 @@ function useClinicalCommand() {
   return { ...state, refresh: load };
 }
 
+function clinicalId(item = {}, keys = []) {
+  for (const key of keys) {
+    const value = item?.[key];
+    if (value) return String(value);
+  }
+  return String(item?.id || item?._id || '');
+}
+
+function isDemoClinical(item = {}, explicitDemo = false, id = '') {
+  return explicitDemo || String(id || item?.id || '').startsWith('demo');
+}
+
+async function runClinicalAction(action, item = {}, context = {}) {
+  if (action === 'record_vital') return window.location.assign('/nurse/vitals-records/entry');
+  if (action === 'add_note') return window.location.assign('/nurse/vitals-records/nursing-notes');
+  if (action === 'print') return printNurseView(context.title || 'In bảng theo dõi');
+  if (action === 'export') return downloadNurseJson(context.filename || 'theo-doi-dieu-duong.json', { items: context.items || [], selected: item }, context.title || 'Xuất dữ liệu theo dõi');
+  if (action === 'open_timeline') {
+    notifyNurse({ title: 'Dòng thời gian', message: 'Chọn bệnh nhân trong bảng để xem chi tiết và SBAR ở panel bên.' });
+    return null;
+  }
+  if (action === 'triage') return window.location.assign('/nurse/emergency/triage');
+  if (action === 'dispatch') return window.location.assign('/nurse/emergency/dispatch');
+  if (action === 'create_allergy') {
+    notifyNurse({ tone: 'warning', title: 'Tạo dị ứng', message: 'Cần biểu mẫu dị ứng chuyên trách để tránh ghi sai hồ sơ. Hãy mở tab Dị ứng / vấn đề trong tra cứu bệnh nhân.' });
+    return null;
+  }
+
+  let id = clinicalId(item, ['monitoring_session_id', 'monitoring_id', 'procedure_order_id', 'procedure_id', 'administration_id', 'medication_administration_id', 'alert_id', 'clinical_alert_id', 'case_id', 'doctor_notification_id', 'request_id']);
+  const payload = { note: 'Thao tác từ workspace Monitoring/Reporting điều dưỡng.' };
+  const labelByAction = {
+    observe: 'Ghi nhận kiểm tra',
+    notify_doctor: 'Báo bác sĩ',
+    create_emergency: 'Tạo ca khẩn',
+    mark_stable: 'Đánh dấu ổn định',
+    acknowledge: 'Nhận xử lý',
+    escalate: 'Báo khẩn',
+    resolve: 'Xử lý xong',
+    dismiss: 'Bỏ qua cảnh báo',
+    record_reaction: 'Ghi phản ứng thuốc',
+    send_sbar: 'Gửi SBAR',
+    save_draft: 'Lưu nháp SBAR',
+  };
+
+  if (action === 'save_draft') {
+    notifyNurse({ title: 'Lưu nháp SBAR', message: 'Bản nháp đang được giữ trong biểu mẫu hiện tại. Gửi bác sĩ khi đã đủ S/B/A/R.' });
+    return null;
+  }
+
+  if (action === 'send_sbar') {
+    id = clinicalId(item, ['doctor_notification_id', 'request_id', 'monitoring_session_id', 'case_id']);
+  }
+
+  const demo = isDemoClinical(item, context.demo, id);
+  let extra = {};
+  if (!demo && action === 'record_reaction') {
+    const symptoms = promptNurseText({ title: 'Ghi phản ứng thuốc', message: 'Nhập triệu chứng, cách nhau bằng dấu phẩy.', defaultValue: item.latest_reaction?.symptoms?.join(', ') || '' });
+    if (symptoms === null) return null;
+    extra = { symptoms: symptoms.split(',').map((entry) => entry.trim()).filter(Boolean), suspected_allergy: true };
+  }
+
+  return runNurseAction({
+    label: labelByAction[action] || 'Thao tác theo dõi',
+    isDemo: demo,
+    demoMessage: 'Dữ liệu mẫu hoặc thiếu ID thật nên thao tác chưa gửi hệ thống.',
+    confirm: ['create_emergency', 'escalate', 'resolve', 'dismiss', 'send_sbar'].includes(action)
+      ? { title: labelByAction[action] || 'Xác nhận thao tác', message: 'Xác nhận gửi cập nhật này lên hệ thống?' }
+      : undefined,
+    run: async () => {
+      if (action === 'observe') {
+        if (item.procedure_order_id || item.procedure_id) return nurseMonitoringApi.addPostProcedureObservation(id, { ...payload, status: 'checked' });
+        return nurseMonitoringApi.addMonitoringCheck(id, { ...payload, status: 'checked' });
+      }
+      if (action === 'notify_doctor') {
+        if (item.procedure_order_id || item.procedure_id) return nurseMonitoringApi.notifyDoctorPostProcedure(id, payload);
+        if (item.alert_id || item.clinical_alert_id) return nurseMonitoringApi.notifyDoctorClinicalAlert(id, payload);
+        if (item.case_id) return nurseMonitoringApi.notifyEmergencyDoctor(id, payload);
+        if (item.doctor_notification_id || item.request_id) return nurseMonitoringApi.sendDoctorNotification(id, payload);
+        return nurseMonitoringApi.notifyDoctorFromMonitoring(id, payload);
+      }
+      if (action === 'create_emergency') {
+        if (item.procedure_order_id || item.procedure_id) return nurseMonitoringApi.createEmergencyFromPostProcedure(id, payload);
+        return nurseMonitoringApi.createEmergencyCase({ patient_id: item.patient_id, encounter_id: item.encounter_id, type: 'clinical_deterioration', symptoms: item.reason || item.message || 'Cần đánh giá khẩn', priority: item.priority || item.severity || 'high', note: payload.note });
+      }
+      if (action === 'mark_stable') {
+        if (item.procedure_order_id || item.procedure_id) return nurseMonitoringApi.markPostProcedureStable(id, payload);
+        return nurseMonitoringApi.markMonitoringStable(id, payload);
+      }
+      if (action === 'acknowledge') {
+        if (item.alert_id || item.clinical_alert_id) return nurseMonitoringApi.acknowledgeClinicalAlert(id, payload);
+        return nurseMonitoringApi.acknowledgeEmergency(id, payload);
+      }
+      if (action === 'escalate') {
+        if (item.alert_id || item.clinical_alert_id) return nurseMonitoringApi.escalateClinicalAlert(id, payload);
+        if (item.case_id) return nurseMonitoringApi.escalateEmergency(id, payload);
+        if (item.doctor_notification_id || item.request_id) return nurseMonitoringApi.escalateDoctorNotification(id, payload);
+        return nurseMonitoringApi.escalateMonitoring(id, payload);
+      }
+      if (action === 'resolve') {
+        if (item.alert_id || item.clinical_alert_id) return nurseMonitoringApi.resolveClinicalAlert(id, payload);
+        if (item.case_id) return nurseMonitoringApi.resolveEmergency(id, payload);
+        return nurseMonitoringApi.resolveMonitoring(id, payload);
+      }
+      if (action === 'dismiss') return nurseMonitoringApi.dismissClinicalAlert(id, payload);
+      if (action === 'record_reaction') return nurseMonitoringApi.addMedicationReaction(id, { ...payload, ...extra });
+      if (action === 'send_sbar') {
+        if (item.doctor_notification_id || item.request_id) return nurseMonitoringApi.sendDoctorNotification(id, payload);
+        return nurseMonitoringApi.createDoctorNotification({
+          patient_id: item.patient_id,
+          encounter_id: item.encounter_id,
+          priority: context.priority || item.priority || 'urgent',
+          category: context.category || item.category || item.source_type || 'manual',
+          send: true,
+          sbar: context.sbar || item.sbar || {
+            situation: item.reason || item.message || 'Cần bác sĩ đánh giá.',
+            background: item.encounter_code || patientCode(item),
+            assessment: item.latest_vital ? `SpO2 ${item.latest_vital.spo2 ?? '--'}, mạch ${item.latest_vital.heart_rate ?? '--'}` : 'Điều dưỡng cần bác sĩ xem lại.',
+            recommendation: 'Vui lòng phản hồi hướng xử trí.',
+          },
+        });
+      }
+      return null;
+    },
+    successMessage: 'Đã cập nhật hệ thống theo dõi.',
+    errorMessage: 'Không thể cập nhật thao tác theo dõi.',
+    onSuccess: () => context.refresh?.(),
+  });
+}
+
 function SeverityBadge({ value }) {
   const normalized = value || 'medium';
   return <span className={`nurse-mr-badge nurse-mr-badge--${normalized}`}>{severityLabel[normalized] || normalized}</span>;
@@ -306,7 +436,7 @@ function CommandHeader({ title, subtitle, kpis, loading, demo, onRefresh, action
           Làm mới
         </button>
         {actions.map(({ label, icon: Icon, onClick }) => (
-          <button key={label} type="button" onClick={onClick}>
+          <button key={label} type="button" onClick={onClick || (() => notifyNurse({ title: label, message: 'Chọn một dòng bệnh nhân hoặc dùng thao tác nhanh trong bảng để thực hiện.' }))}>
             <Icon size={16} />
             {label}
           </button>
@@ -370,7 +500,7 @@ function LatestVitalStrip({ vital }) {
   );
 }
 
-function ActionBar({ actions = [], compact = false }) {
+function ActionBar({ actions = [], compact = false, item, onAction }) {
   const iconByAction = {
     record_vital: HeartPulse,
     add_note: FileText,
@@ -406,7 +536,7 @@ function ActionBar({ actions = [], compact = false }) {
       {actions.slice(0, compact ? 4 : 6).map((action) => {
         const Icon = iconByAction[action] || ChevronRight;
         return (
-          <button key={action} type="button" title={labelByAction[action] || action}>
+          <button key={action} type="button" title={labelByAction[action] || action} onClick={(event) => { event.stopPropagation(); onAction?.(action, item); }}>
             <Icon size={14} />
             <span>{labelByAction[action] || action}</span>
           </button>
@@ -416,7 +546,7 @@ function ActionBar({ actions = [], compact = false }) {
   );
 }
 
-function PatientDrawer({ item, onClose }) {
+function PatientDrawer({ item, onClose, onAction }) {
   const [tab, setTab] = useState('overview');
   if (!item) return null;
   const tabs = [
@@ -483,7 +613,7 @@ function PatientDrawer({ item, onClose }) {
         {tab === 'notes' ? (
           <section>
             <h3><MessageSquarePlus size={16} /> Ghi chú & báo bác sĩ</h3>
-            <SBARMiniComposer item={item} />
+            <SBARMiniComposer item={item} onAction={onAction} />
           </section>
         ) : null}
       </main>
@@ -491,19 +621,19 @@ function PatientDrawer({ item, onClose }) {
   );
 }
 
-function SBARMiniComposer({ item }) {
+function SBARMiniComposer({ item, onAction }) {
   return (
     <div className="nurse-mr-sbar-mini">
       <label><span>S</span><textarea defaultValue={item.sbar?.situation || item.reason || item.message || ''} /></label>
       <label><span>B</span><textarea defaultValue={item.sbar?.background || item.encounter_code || ''} /></label>
       <label><span>A</span><textarea defaultValue={item.sbar?.assessment || (item.latest_vital ? `SpO2 ${item.latest_vital.spo2 ?? '--'}, mạch ${item.latest_vital.heart_rate ?? '--'}` : '')} /></label>
       <label><span>R</span><textarea defaultValue={item.sbar?.recommendation || 'Bác sĩ vui lòng đánh giá và phản hồi hướng xử trí.'} /></label>
-      <button type="button"><Send size={15} /> Gửi SBAR</button>
+      <button type="button" onClick={() => onAction?.('send_sbar', item)}><Send size={15} /> Gửi SBAR</button>
     </div>
   );
 }
 
-function MonitoringTable({ items, onSelect }) {
+function MonitoringTable({ items, onSelect, onAction }) {
   return (
     <div className="nurse-mr-table-wrap">
       <table className="nurse-mr-table">
@@ -535,7 +665,7 @@ function MonitoringTable({ items, onSelect }) {
               <td><strong>{item.last_checked_minutes !== null && item.last_checked_minutes !== undefined ? `${item.last_checked_minutes} phút trước` : 'Chưa kiểm tra'}</strong><small>Tiếp theo: {minutesText(item.next_check_minutes)}</small></td>
               <td><StatusPill value={item.doctor_notified_at ? 'doctor_notified' : item.status} /></td>
               <td><span className={item.sla_breached ? 'nurse-mr-sla is-breached' : 'nurse-mr-sla'}>{minutesText(item.sla_minutes)}</span></td>
-              <td><ActionBar actions={item.actions || ['record_vital', 'add_note', 'notify_doctor']} compact /></td>
+              <td><ActionBar actions={item.actions || ['record_vital', 'add_note', 'notify_doctor']} item={item} onAction={onAction} compact /></td>
             </tr>
           ))}
         </tbody>
@@ -564,6 +694,8 @@ export function MonitoringPatientsPage() {
     });
   }, [data, search, risk, source]);
   const k = data.kpis || {};
+  const active = selected || items[0];
+  const onAction = (action, item = active) => runClinicalAction(action, item, { demo, refresh, items, title: 'Theo dõi bệnh nhân' });
 
   return (
     <section className="nurse-mr-page">
@@ -581,12 +713,12 @@ export function MonitoringPatientsPage() {
           { label: 'quá SLA', value: k.sla_breached ?? 0 },
         ]}
         actions={[
-          { label: 'Tạo ghi chú', icon: MessageSquarePlus },
-          { label: 'Đo sinh hiệu', icon: HeartPulse },
-          { label: 'Báo bác sĩ', icon: Send },
-          { label: 'Tạo ca khẩn', icon: ShieldAlert },
-          { label: 'In danh sách', icon: Printer },
-          { label: 'Xuất file', icon: Download },
+          { label: 'Tạo ghi chú', icon: MessageSquarePlus, onClick: () => onAction('add_note') },
+          { label: 'Đo sinh hiệu', icon: HeartPulse, onClick: () => onAction('record_vital') },
+          { label: 'Báo bác sĩ', icon: Send, onClick: () => onAction('notify_doctor') },
+          { label: 'Tạo ca khẩn', icon: ShieldAlert, onClick: () => onAction('create_emergency') },
+          { label: 'In danh sách', icon: Printer, onClick: () => onAction('print') },
+          { label: 'Xuất file', icon: Download, onClick: () => onAction('export') },
         ]}
       />
       <KpiStrip
@@ -607,13 +739,13 @@ export function MonitoringPatientsPage() {
           { key: 'source', label: 'Nguồn theo dõi', value: source, onChange: setSource, options: [{ value: 'all', label: 'Tất cả' }, { value: 'abnormal_vital', label: 'Sinh hiệu' }, { value: 'post_procedure', label: 'Sau thủ thuật' }, { value: 'post_medication', label: 'Sau dùng thuốc' }, { value: 'lab_critical', label: 'Xét nghiệm nguy kịch' }, { value: 'imaging_critical', label: 'CĐHA nguy kịch' }] },
         ]}
       />
-      {items.length ? <MonitoringTable items={items} onSelect={setSelected} /> : <EmptyState />}
-      <PatientDrawer item={selected} onClose={() => setSelected(null)} />
+      {items.length ? <MonitoringTable items={items} onSelect={setSelected} onAction={onAction} /> : <EmptyState />}
+      <PatientDrawer item={selected} onClose={() => setSelected(null)} onAction={onAction} />
     </section>
   );
 }
 
-function ProcedureCard({ item, onSelect }) {
+function ProcedureCard({ item, onSelect, onAction }) {
   const obs = item.latest_observation || {};
   return (
     <article className={`nurse-mr-procedure-card nurse-mr-procedure-card--${item.severity || 'watch'}`} onClick={() => onSelect(item)}>
@@ -635,7 +767,7 @@ function ProcedureCard({ item, onSelect }) {
       </dl>
       <footer>
         <span>Lần kiểm tra tiếp: {minutesText(minutesUntilIso(item.next_check_at))}</span>
-        <ActionBar actions={['observe', 'record_vital', 'notify_doctor', 'create_emergency', 'mark_stable']} compact />
+        <ActionBar actions={['observe', 'record_vital', 'notify_doctor', 'create_emergency', 'mark_stable']} item={item} onAction={onAction} compact />
       </footer>
     </article>
   );
@@ -663,6 +795,8 @@ export function PostProcedureMonitoringPage() {
     return true;
   });
   const summary = data.post_procedure?.summary || {};
+  const active = selected || items[0];
+  const onAction = (action, item = active) => runClinicalAction(action, item, { demo, refresh, items, title: 'Theo dõi sau thủ thuật' });
   return (
     <section className="nurse-mr-page">
       <CommandHeader
@@ -679,11 +813,11 @@ export function PostProcedureMonitoringPage() {
           { label: 'đã báo bác sĩ', value: summary.doctor_notified ?? 0 },
         ]}
         actions={[
-          { label: 'Ghi nhận hậu thủ thuật', icon: ClipboardCheck },
-          { label: 'Đo sinh hiệu', icon: HeartPulse },
-          { label: 'Báo bác sĩ', icon: Send },
-          { label: 'Tạo ca khẩn', icon: ShieldAlert },
-          { label: 'In bảng kiểm', icon: Printer },
+          { label: 'Ghi nhận hậu thủ thuật', icon: ClipboardCheck, onClick: () => onAction('observe') },
+          { label: 'Đo sinh hiệu', icon: HeartPulse, onClick: () => onAction('record_vital') },
+          { label: 'Báo bác sĩ', icon: Send, onClick: () => onAction('notify_doctor') },
+          { label: 'Tạo ca khẩn', icon: ShieldAlert, onClick: () => onAction('create_emergency') },
+          { label: 'In bảng kiểm', icon: Printer, onClick: () => onAction('print') },
         ]}
       />
       <div className="nurse-mr-tabs">
@@ -699,10 +833,10 @@ export function PostProcedureMonitoringPage() {
         ].map(([value, label]) => <button key={value} type="button" className={tab === value ? 'is-active' : ''} onClick={() => setTab(value)}>{label}</button>)}
       </div>
       <section className="nurse-mr-card-grid">
-        {items.map((item) => <ProcedureCard key={item.id} item={item} onSelect={setSelected} />)}
+        {items.map((item) => <ProcedureCard key={item.id} item={item} onSelect={setSelected} onAction={onAction} />)}
       </section>
       {!items.length ? <EmptyState /> : null}
-      <PatientDrawer item={selected} onClose={() => setSelected(null)} />
+      <PatientDrawer item={selected} onClose={() => setSelected(null)} onAction={onAction} />
     </section>
   );
 }
@@ -724,6 +858,8 @@ export function PostMedicationMonitoringPage() {
     return `${patientName(item)} ${patientCode(item)} ${item.medication_name || ''}`.toLowerCase().includes(query);
   });
   const summary = data.post_medication?.summary || {};
+  const active = selected || items[0];
+  const onAction = (action, item = active) => runClinicalAction(action, item, { demo, refresh, items, title: 'Theo dõi sau dùng thuốc' });
   return (
     <section className="nurse-mr-page">
       <CommandHeader
@@ -740,11 +876,11 @@ export function PostMedicationMonitoringPage() {
           { label: 'hoãn/từ chối', value: summary.held_refused_omitted ?? 8 },
         ]}
         actions={[
-          { label: 'Ghi phản ứng', icon: Pill },
-          { label: 'Đo sinh hiệu', icon: HeartPulse },
-          { label: 'Báo bác sĩ', icon: Send },
-          { label: 'Tạo dị ứng', icon: AlertTriangle },
-          { label: 'Báo khẩn', icon: ShieldAlert },
+          { label: 'Ghi phản ứng', icon: Pill, onClick: () => onAction('record_reaction') },
+          { label: 'Đo sinh hiệu', icon: HeartPulse, onClick: () => onAction('record_vital') },
+          { label: 'Báo bác sĩ', icon: Send, onClick: () => onAction('notify_doctor') },
+          { label: 'Tạo dị ứng', icon: AlertTriangle, onClick: () => onAction('create_allergy') },
+          { label: 'Báo khẩn', icon: ShieldAlert, onClick: () => onAction('create_emergency') },
         ]}
       />
       <div className="nurse-mr-tabs">
@@ -773,13 +909,13 @@ export function PostMedicationMonitoringPage() {
                 <td>{item.latest_reaction?.suspected_allergy ? <SeverityBadge value="high" /> : <span className="nurse-mr-muted">Chưa ghi nhận</span>}</td>
                 <td><div className="nurse-mr-risk-chips">{(item.latest_reaction?.symptoms || ['Không triệu chứng']).map((symptom) => <span key={symptom}>{symptom}</span>)}</div></td>
                 <td><StatusPill value={item.status} /></td>
-                <td><ActionBar actions={['record_reaction', 'record_vital', 'notify_doctor', 'create_allergy', 'create_emergency']} compact /></td>
+                <td><ActionBar actions={['record_reaction', 'record_vital', 'notify_doctor', 'create_allergy', 'create_emergency']} item={item} onAction={onAction} compact /></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <PatientDrawer item={selected} onClose={() => setSelected(null)} />
+      <PatientDrawer item={selected} onClose={() => setSelected(null)} onAction={onAction} />
     </section>
   );
 }
@@ -797,6 +933,8 @@ export function AbnormalAlertsCommandPage() {
     ['dismissed', 'Bỏ qua hợp lệ'],
   ];
   const summary = data.alerts?.summary || {};
+  const active = selected || items[0];
+  const onAction = (action, item = active) => runClinicalAction(action, item, { demo, refresh, items, title: 'Cảnh báo bất thường' });
   return (
     <section className="nurse-mr-page">
       <CommandHeader
@@ -813,10 +951,10 @@ export function AbnormalAlertsCommandPage() {
           { label: 'quá SLA', value: summary.breached ?? 3 },
         ]}
         actions={[
-          { label: 'Nhận cảnh báo', icon: UserCheck },
-          { label: 'Báo bác sĩ', icon: Send },
-          { label: 'Tạo ca khẩn', icon: ShieldAlert },
-          { label: 'Xử lý xong', icon: CheckCircle2 },
+          { label: 'Nhận cảnh báo', icon: UserCheck, onClick: () => onAction('acknowledge') },
+          { label: 'Báo bác sĩ', icon: Send, onClick: () => onAction('notify_doctor') },
+          { label: 'Tạo ca khẩn', icon: ShieldAlert, onClick: () => onAction('create_emergency') },
+          { label: 'Xử lý xong', icon: CheckCircle2, onClick: () => onAction('resolve') },
         ]}
       />
       <section className="nurse-mr-kanban">
@@ -832,14 +970,14 @@ export function AbnormalAlertsCommandPage() {
                   <span>{patientName(item)} · {item.encounter_id || patientCode(item)}</span>
                   <p>{item.message}</p>
                   <footer><small>Nguồn: {sourceTypeLabel[item.source_type] || item.source_type}</small><em>SLA: {minutesText(item.sla_minutes)}</em></footer>
-                  <ActionBar actions={['acknowledge', 'notify_doctor', 'create_emergency', 'resolve']} compact />
+                  <ActionBar actions={['acknowledge', 'notify_doctor', 'create_emergency', 'resolve']} item={item} onAction={onAction} compact />
                 </button>
               ))}
             </div>
           );
         })}
       </section>
-      <PatientDrawer item={selected} onClose={() => setSelected(null)} />
+      <PatientDrawer item={selected} onClose={() => setSelected(null)} onAction={onAction} />
     </section>
   );
 }
@@ -853,6 +991,7 @@ export function UrgentCasesCommandPage() {
   useEffect(() => {
     if (!selectedId && items[0]?.id) setSelectedId(items[0].id);
   }, [items, selectedId]);
+  const onAction = (action, item = selected) => runClinicalAction(action, item, { demo, refresh, items, title: 'Ca cần báo khẩn' });
 
   return (
     <section className="nurse-mr-page">
@@ -870,10 +1009,10 @@ export function UrgentCasesCommandPage() {
           { label: 'quá SLA', value: summary.breached ?? 1 },
         ]}
         actions={[
-          { label: 'Nhận ca', icon: UserCheck },
-          { label: 'Phân loại', icon: ClipboardCheck },
-          { label: 'Điều phối', icon: Zap },
-          { label: 'Báo khẩn', icon: ShieldAlert },
+          { label: 'Nhận ca', icon: UserCheck, onClick: () => onAction('acknowledge') },
+          { label: 'Phân loại', icon: ClipboardCheck, onClick: () => onAction('triage') },
+          { label: 'Điều phối', icon: Zap, onClick: () => onAction('dispatch') },
+          { label: 'Báo khẩn', icon: ShieldAlert, onClick: () => onAction('escalate') },
         ]}
       />
       <section className="nurse-mr-split">
@@ -912,7 +1051,7 @@ export function UrgentCasesCommandPage() {
                   </article>
                 ))}
               </section>
-              <ActionBar actions={['acknowledge', 'notify_doctor', 'escalate', 'record_vital', 'add_note', 'resolve']} />
+              <ActionBar actions={['acknowledge', 'notify_doctor', 'escalate', 'record_vital', 'add_note', 'resolve']} item={selected} onAction={onAction} />
             </>
           ) : <EmptyState />}
         </main>
@@ -928,6 +1067,8 @@ export function DoctorReportingCommandPage() {
   const items = getItems(data, 'doctor_notifications');
   const summary = data.doctor_notifications?.summary || {};
   const waiting = items.filter((item) => ['sent', 'delivered', 'seen', 'acknowledged', 'escalated'].includes(item.status));
+  const active = selected || waiting[0] || items[0];
+  const onAction = (action, item = active, extra = {}) => runClinicalAction(action, item, { demo, refresh, items, title: 'Báo bác sĩ', priority: draft.priority, category: draft.category, ...extra });
 
   return (
     <section className="nurse-mr-page">
@@ -945,10 +1086,10 @@ export function DoctorReportingCommandPage() {
           { label: 'quá SLA', value: summary.breached ?? 3 },
         ]}
         actions={[
-          { label: 'Lưu nháp', icon: FileText },
-          { label: 'Gửi bác sĩ', icon: Send },
-          { label: 'Gửi khẩn', icon: ShieldAlert },
-          { label: 'Tạo cảnh báo', icon: Bell },
+          { label: 'Lưu nháp', icon: FileText, onClick: () => onAction('save_draft') },
+          { label: 'Gửi bác sĩ', icon: Send, onClick: () => onAction('send_sbar') },
+          { label: 'Gửi khẩn', icon: ShieldAlert, onClick: () => onAction('send_sbar', active, { priority: 'critical' }) },
+          { label: 'Tạo cảnh báo', icon: Bell, onClick: () => onAction('create_emergency') },
         ]}
       />
       <section className="nurse-mr-doctor-grid">
@@ -969,9 +1110,9 @@ export function DoctorReportingCommandPage() {
             </label>
           ))}
           <footer>
-            <button type="button"><FileText size={15} /> Lưu nháp</button>
-            <button type="button" className="nurse-mr-primary"><Send size={15} /> Gửi bác sĩ</button>
-            <button type="button"><ShieldAlert size={15} /> Gửi khẩn</button>
+            <button type="button" onClick={() => onAction('save_draft')}><FileText size={15} /> Lưu nháp</button>
+            <button type="button" className="nurse-mr-primary" onClick={() => onAction('send_sbar')}><Send size={15} /> Gửi bác sĩ</button>
+            <button type="button" onClick={() => onAction('send_sbar', active, { priority: 'critical' })}><ShieldAlert size={15} /> Gửi khẩn</button>
           </footer>
         </form>
         <section className="nurse-mr-waiting-board">
@@ -1002,13 +1143,13 @@ export function DoctorReportingCommandPage() {
                 <td><StatusPill value={item.seen_at ? 'seen' : item.status} /></td>
                 <td><span className={item.sla_breached ? 'nurse-mr-sla is-breached' : 'nurse-mr-sla'}>{minutesText(item.sla_minutes)}</span></td>
                 <td>{item.doctor_response || <span className="nurse-mr-muted">Chưa phản hồi</span>}</td>
-                <td><ActionBar actions={['notify_doctor', 'escalate', 'add_note', 'create_emergency']} compact /></td>
+                <td><ActionBar actions={['notify_doctor', 'escalate', 'add_note', 'create_emergency']} item={item} onAction={onAction} compact /></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <PatientDrawer item={selected} onClose={() => setSelected(null)} />
+      <PatientDrawer item={selected} onClose={() => setSelected(null)} onAction={onAction} />
     </section>
   );
 }

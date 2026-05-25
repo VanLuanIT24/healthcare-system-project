@@ -22,6 +22,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
+import { promptClinicalOpsText } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { clinicalBillingApi, getClinicalBillingErrorMessage } from './clinicalBillingApi';
 
 const SERVICE_LABEL = {
@@ -832,7 +833,7 @@ export function ClinicalBillingPage({ pageKey = 'dashboard' }) {
         setToast('Đã tạo invoice draft từ các charge đã chọn.');
       }
       if (action === 'invoice_encounter') {
-        const encounterId = filters.encounter_id || window.prompt('Encounter ID cần lập invoice');
+        const encounterId = filters.encounter_id || promptClinicalOpsText({ title: 'Invoice encounter', message: 'Encounter ID cần lập invoice' });
         if (!encounterId) return;
         await clinicalBillingApi.createInvoiceFromEncounter({ encounter_id: encounterId, include_posted_only: true });
         setToast('Đã tạo invoice draft theo encounter.');
@@ -843,7 +844,7 @@ export function ClinicalBillingPage({ pageKey = 'dashboard' }) {
       }
       if (action === 'collect_payment') {
         const invoiceId = row._id || row.invoice_id || row.invoice?._id;
-        const amount = window.prompt('Số tiền thu', String(row.balance_due || row.invoice?.balance_due || 0));
+        const amount = promptClinicalOpsText({ title: 'Ghi nhận thanh toán', message: 'Số tiền thu', defaultValue: String(row.balance_due || row.invoice?.balance_due || 0) });
         if (!amount) return;
         await clinicalBillingApi.createPayment(invoiceId, { amount: Number(amount), payment_method: 'cash', payment_source: 'clinical_billing_workspace' });
         setToast('Đã ghi nhận payment.');
@@ -854,7 +855,7 @@ export function ClinicalBillingPage({ pageKey = 'dashboard' }) {
         setToast('Đã tạo payment intent/QR cho invoice.');
       }
       if (action === 'void_charge') {
-        const reason = window.prompt('Lý do void charge', 'Charge sai hoặc order không thực hiện');
+        const reason = promptClinicalOpsText({ title: 'Void charge', message: 'Lý do void charge', defaultValue: 'Charge sai hoặc order không thực hiện' });
         if (!reason) return;
         await clinicalBillingApi.voidCharge(getRowId(row), { reason });
         setToast('Đã void charge.');

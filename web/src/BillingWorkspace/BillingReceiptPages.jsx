@@ -298,7 +298,7 @@ function ReceiptPreview({ payment, receipt, invoiceDetail }) {
       </header>
       <div className="br-receipt-paper">
         <div className="br-receipt-paper__hospital">
-          <strong>MEDCARE HEALTH SYSTEM</strong>
+          <strong>BỘ Y TẾ</strong>
           <span>BIÊN LAI THU TIỀN</span>
         </div>
         <dl>

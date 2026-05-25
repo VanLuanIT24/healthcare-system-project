@@ -1040,7 +1040,7 @@ export const checkoutItems = [
 export const paymentMethods = [
   {
     id: 'healthcare-wallet',
-    label: 'Ví HealthCare',
+    label: 'Ví Bộ Y tế',
     subLabel: 'Số dư: 1.250.000 đ',
     icon: 'account_balance_wallet',
     iconTone: 'blue',

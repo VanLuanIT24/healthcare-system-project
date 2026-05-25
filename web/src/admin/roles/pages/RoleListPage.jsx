@@ -57,6 +57,7 @@ export function RoleListPage() {
     risk: searchParams.get('risk') || '',
     scope: searchParams.get('scope') || '',
   });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [roles, setRoles] = useState([]);
   const [matrix, setMatrix] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -69,8 +70,8 @@ export function RoleListPage() {
     setError('');
     try {
       const query = new URLSearchParams({ limit: '120' });
-      if (filters.keyword) query.set('search', filters.keyword);
-      if (filters.status) query.set('status', filters.status);
+      if (appliedFilters.keyword) query.set('search', appliedFilters.keyword);
+      if (appliedFilters.status) query.set('status', appliedFilters.status);
       const [rolesData, matrixData] = await Promise.all([listRoles(query.toString()), getIamMatrix()]);
       setMatrix(matrixData);
       setRoles(mergeRoleData(rolesData?.items || [], matrixData?.roles || []));
@@ -83,15 +84,15 @@ export function RoleListPage() {
 
   useEffect(() => {
     load();
-  }, [filters.keyword, filters.status]);
+  }, [appliedFilters.keyword, appliedFilters.status]);
 
   const visibleRoles = useMemo(() => roles.filter((role) => {
-    if (filters.risk && riskTone(role.risk?.max_level) !== filters.risk) return false;
-    if (filters.scope === 'system' && !role.is_system) return false;
-    if (filters.scope === 'custom' && role.is_system) return false;
-    if (filters.scope === 'locked' && role.is_mutable) return false;
+    if (appliedFilters.risk && riskTone(role.risk?.max_level) !== appliedFilters.risk) return false;
+    if (appliedFilters.scope === 'system' && !role.is_system) return false;
+    if (appliedFilters.scope === 'custom' && role.is_system) return false;
+    if (appliedFilters.scope === 'locked' && role.is_mutable) return false;
     return true;
-  }), [roles, filters]);
+  }), [roles, appliedFilters]);
 
   const stats = useMemo(() => {
     const active = roles.filter((role) => role.status === 'active').length;
@@ -110,6 +111,11 @@ export function RoleListPage() {
 
   function updateFilters(next) {
     setFilters(next);
+  }
+
+  function applyFilters(next = filters) {
+    setFilters(next);
+    setAppliedFilters(next);
     const params = new URLSearchParams();
     if (next.keyword) params.set('keyword', next.keyword);
     if (next.status) params.set('status', next.status);
@@ -168,7 +174,14 @@ export function RoleListPage() {
       <section className="role-pro-toolbar">
         <label>
           <Search size={16} />
-          <input value={filters.keyword} onChange={(event) => updateFilters({ ...filters, keyword: event.target.value })} placeholder="Tìm role_name hoặc role_code..." />
+          <input
+            value={filters.keyword}
+            onChange={(event) => updateFilters({ ...filters, keyword: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') applyFilters();
+            }}
+            placeholder="Tìm role_name hoặc role_code..."
+          />
         </label>
         <select value={filters.status} onChange={(event) => updateFilters({ ...filters, status: event.target.value })}>
           <option value="">Mọi trạng thái</option>
@@ -188,6 +201,9 @@ export function RoleListPage() {
           <option value="custom">Custom</option>
           <option value="locked">Locked</option>
         </select>
+        <button type="button" className="staff-button staff-button--ghost" onClick={() => applyFilters()} disabled={loading}>
+          Áp dụng
+        </button>
       </section>
 
       <section className="role-pro-layout">

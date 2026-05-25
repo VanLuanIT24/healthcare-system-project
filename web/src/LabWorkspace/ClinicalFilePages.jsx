@@ -19,6 +19,7 @@ import {
   Undo2,
   UploadCloud,
 } from 'lucide-react';
+import { downloadClinicalOpsJson, promptClinicalOpsText } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { clinicalFilesApi, getClinicalFilesErrorMessage } from './clinicalFilesApi';
 
 const MODULE_LABEL = {
@@ -473,30 +474,30 @@ export function ClinicalFilePage({ pageKey = 'imaging' }) {
     try {
       if (action === 'release') await clinicalFilesApi.release(getId(item));
       if (action === 'revoke') {
-        const reason = window.prompt('Lý do thu hồi release');
+        const reason = promptClinicalOpsText({ title: 'Thu hồi release file', message: 'Lý do thu hồi release' });
         if (!reason) return;
         await clinicalFilesApi.revokeRelease(getId(item), { reason });
       }
       if (action === 'review_accept') await clinicalFilesApi.review(getId(item), { decision: 'accepted', review_note: 'Accepted from file workspace' });
       if (action === 'review_reject') {
-        const reason = window.prompt('Lý do reject file');
+        const reason = promptClinicalOpsText({ title: 'Reject file', message: 'Lý do reject file' });
         if (!reason) return;
         await clinicalFilesApi.review(getId(item), { decision: 'rejected', reason });
       }
       if (action === 'rescan') await clinicalFilesApi.rescan(getId(item), { reason: 'manual_rescan' });
       if (action === 'quarantine') {
-        const reason = window.prompt('Lý do quarantine file');
+        const reason = promptClinicalOpsText({ title: 'Quarantine file', message: 'Lý do quarantine file' });
         if (!reason) return;
         await clinicalFilesApi.quarantine(getId(item), { reason });
       }
       if (action === 'archive') await clinicalFilesApi.archive(getId(item), { reason: 'workspace_archive' });
       if (action === 'delete') {
-        const reason = window.prompt('Lý do xóa mềm file');
+        const reason = promptClinicalOpsText({ title: 'Xóa mềm file', message: 'Lý do xóa mềm file' });
         if (!reason) return;
         await clinicalFilesApi.delete(getId(item), { reason });
       }
       if (action === 'waive_missing') {
-        const reason = window.prompt('Lý do waive file thiếu');
+        const reason = promptClinicalOpsText({ title: 'Waive file thiếu', message: 'Lý do waive file thiếu' });
         if (!reason) return;
         await clinicalFilesApi.waiveMissing(getId(item), { reason });
       }
@@ -528,7 +529,7 @@ export function ClinicalFilePage({ pageKey = 'imaging' }) {
         <div className="clinical-file-hero-actions">
           <button type="button" onClick={loadData}><RefreshCw size={17} /> Làm mới</button>
           {config.source === 'missing' && <button type="button" onClick={recomputeMissing}><AlertTriangle size={17} /> Recompute</button>}
-          <button type="button"><Download size={17} /> Export</button>
+          <button type="button" onClick={() => downloadClinicalOpsJson(`clinical-files-${pageKey}.json`, { filters, items, summary }, 'Xuất file cận lâm sàng')}><Download size={17} /> Export</button>
         </div>
       </header>
       <FileKpis summary={summary} />

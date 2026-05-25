@@ -26,12 +26,13 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AdminActionConfirmDialog } from '../components/AdminActionConfirmDialog';
 import { adminToolsGet, adminToolsPost } from './adminToolsApi';
 
 const TOOL_VIEWS = {
   overview: {
-    title: 'Admin Tools Overview',
-    subtitle: 'Technical Control Plane cho route guard, RBAC, permission, data consistency, indexes, migration, cleanup, cache, export và diagnostics.',
+    title: 'Tổng quan công cụ quản trị',
+    subtitle: 'Bảng điều khiển kỹ thuật cho route guard, RBAC, quyền, nhất quán dữ liệu, chỉ mục, migration, dọn dẹp, cache, export và chẩn đoán.',
     icon: FileCog,
   },
   routeGuards: {
@@ -43,28 +44,28 @@ const TOOL_VIEWS = {
   },
   rbacIntegrity: {
     code: 'rbac-integrity',
-    title: 'Kiểm tra RBAC integrity',
+    title: 'Kiểm tra toàn vẹn RBAC',
     subtitle: 'So khớp constants, DB roles, permissions và role-permission links với repair evidence.',
     icon: ShieldCheck,
     route: '/admin/admin-tools/rbac-integrity',
   },
   permissionMap: {
     code: 'permission-map',
-    title: 'Kiểm tra permission map',
+    title: 'Kiểm tra bản đồ quyền',
     subtitle: 'Quét PERMISSION.* trong source, phát hiện missing references và quyền dùng nhưng chưa gán role.',
     icon: TableProperties,
     route: '/admin/admin-tools/permission-map',
   },
   dataConsistency: {
     code: 'data-consistency',
-    title: 'Kiểm tra data consistency',
+    title: 'Kiểm tra nhất quán dữ liệu',
     subtitle: 'Kiểm tra lệch invoice, slot, bed, stock, lab/order, appointment và document export.',
     icon: Database,
     route: '/admin/admin-tools/data-consistency',
   },
   indexes: {
     code: 'indexes',
-    title: 'Đồng bộ indexes',
+    title: 'Đồng bộ chỉ mục',
     subtitle: 'Diff schema indexes với MongoDB indexes, xem risk trước khi sync.',
     icon: RefreshCw,
     route: '/admin/admin-tools/indexes',
@@ -78,28 +79,28 @@ const TOOL_VIEWS = {
   },
   migrations: {
     code: 'migrations',
-    title: 'Migration tools',
+    title: 'Công cụ migration',
     subtitle: 'Catalog migration nội bộ với dry-run, impact preview, approval và run history.',
     icon: GitBranch,
     route: '/admin/admin-tools/migrations',
   },
   demoData: {
     code: 'demo-data',
-    title: 'Demo data tools',
+    title: 'Công cụ dữ liệu demo',
     subtitle: 'Preview seed packs, namespace demo data và khóa production cho dữ liệu demo.',
     icon: Sparkles,
     route: '/admin/admin-tools/demo-data',
   },
   cleanup: {
     code: 'cleanup',
-    title: 'Cleanup tools',
+    title: 'Công cụ dọn dẹp',
     subtitle: 'Dry-run cleanup expired sessions, QR tokens, idempotency records, job logs, notifications và outbox.',
     icon: Archive,
     route: '/admin/admin-tools/cleanup',
   },
   cache: {
     code: 'cache',
-    title: 'Rebuild cache',
+    title: 'Tạo lại cache',
     subtitle: 'Quan sát và clear/rebuild authorization cache, access context cache và related cache types.',
     icon: RefreshCw,
     route: '/admin/admin-tools/cache',
@@ -113,7 +114,7 @@ const TOOL_VIEWS = {
   },
   developerDiagnostics: {
     code: 'developer-diagnostics',
-    title: 'Developer diagnostics',
+    title: 'Chẩn đoán cho lập trình viên',
     subtitle: 'Runtime, database, worker health, integrations và backend diagnostics evidence.',
     icon: HardDrive,
     route: '/admin/admin-tools/developer-diagnostics',
@@ -122,18 +123,18 @@ const TOOL_VIEWS = {
 
 const NAV_ITEMS = [
   ['overview', 'Tổng quan', FileCog],
-  ['routeGuards', 'Route guards', Router],
+  ['routeGuards', 'Bảo vệ route', Router],
   ['rbacIntegrity', 'RBAC', ShieldCheck],
-  ['permissionMap', 'Permission map', TableProperties],
-  ['dataConsistency', 'Data consistency', Database],
-  ['indexes', 'Indexes', RefreshCw],
-  ['systemAccessSync', 'System access', KeyRound],
-  ['migrations', 'Migrations', GitBranch],
-  ['demoData', 'Demo data', Sparkles],
-  ['cleanup', 'Cleanup', Archive],
+  ['permissionMap', 'Bản đồ quyền', TableProperties],
+  ['dataConsistency', 'Nhất quán dữ liệu', Database],
+  ['indexes', 'Chỉ mục', RefreshCw],
+  ['systemAccessSync', 'Quyền hệ thống', KeyRound],
+  ['migrations', 'Migration', GitBranch],
+  ['demoData', 'Dữ liệu demo', Sparkles],
+  ['cleanup', 'Dọn dẹp', Archive],
   ['cache', 'Cache', RefreshCw],
-  ['exports', 'Exports', CloudUpload],
-  ['developerDiagnostics', 'Diagnostics', HardDrive],
+  ['exports', 'Xuất dữ liệu', CloudUpload],
+  ['developerDiagnostics', 'Chẩn đoán', HardDrive],
 ];
 
 const STATUS_TONE = {
@@ -154,27 +155,75 @@ const STATUS_TONE = {
 };
 
 const RISK_TEXT = {
-  info: 'INFO',
-  low: 'LOW',
-  medium: 'MEDIUM',
-  high: 'HIGH',
-  critical: 'CRITICAL',
-  danger: 'DANGEROUS',
+  info: 'Thông tin',
+  low: 'Thấp',
+  medium: 'Trung bình',
+  high: 'Cao',
+  critical: 'Nghiêm trọng',
+  danger: 'Nguy hiểm',
 };
 
 const TAB_ITEMS = [
-  ['findings', 'Findings'],
+  ['findings', 'Phát hiện'],
   ['technical', 'Chi tiết kỹ thuật'],
-  ['actions', 'Actions / Fix plan'],
-  ['runs', 'Run history'],
-  ['audit', 'Audit trail'],
+  ['actions', 'Thao tác / kế hoạch sửa'],
+  ['runs', 'Lịch sử chạy'],
+  ['audit', 'Dấu vết audit'],
 ];
+
+const VALUE_LABELS = {
+  success: 'Thành công',
+  success_with_warnings: 'Thành công có cảnh báo',
+  failed: 'Lỗi',
+  cancelled: 'Đã hủy',
+  running: 'Đang chạy',
+  queued: 'Trong hàng đợi',
+  requires_approval: 'Cần phê duyệt',
+  partially_applied: 'Áp dụng một phần',
+  critical: 'Nghiêm trọng',
+  high: 'Cao',
+  medium: 'Trung bình',
+  low: 'Thấp',
+  info: 'Thông tin',
+  danger: 'Nguy hiểm',
+  not_run: 'Chưa chạy',
+  open: 'Đang mở',
+  resolved: 'Đã xử lý',
+  ignored: 'Đã bỏ qua',
+  accepted_risk: 'Đã chấp nhận rủi ro',
+  manual: 'Thủ công',
+};
+
+const COLUMN_LABELS = {
+  severity: 'Mức độ',
+  type: 'Loại',
+  status: 'Trạng thái',
+  tool_code: 'Công cụ',
+  mode: 'Chế độ',
+  started_at: 'Bắt đầu',
+  finished_at: 'Kết thúc',
+  duration_ms: 'Thời lượng',
+  file: 'Tệp',
+  route: 'Route',
+  message: 'Thông báo',
+  object_id: 'Object ID',
+  domain: 'Lĩnh vực',
+  risk: 'Rủi ro',
+  risk_level: 'Mức rủi ro',
+  auto_fixable: 'Tự sửa',
+};
+
+function labelFor(value) {
+  const text = String(value || '');
+  return COLUMN_LABELS[text] || VALUE_LABELS[text] || text.replace(/_/g, ' ');
+}
 
 function formatValue(value) {
   if (value === null || value === undefined || value === '') return '-';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'boolean') return value ? 'Có' : 'Không';
   if (typeof value === 'number') return value.toLocaleString('vi-VN');
   const text = String(value);
+  if (VALUE_LABELS[text]) return VALUE_LABELS[text];
   if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
     return new Date(text).toLocaleString('vi-VN');
   }
@@ -223,7 +272,7 @@ function ObjectTable({ rows = [], columns = [] }) {
     <div className="at-table-wrap">
       <table className="at-table">
         <thead>
-          <tr>{keys.map((key) => <th key={key}>{key.replace(/_/g, ' ')}</th>)}</tr>
+          <tr>{keys.map((key) => <th key={key}>{labelFor(key)}</th>)}</tr>
         </thead>
         <tbody>
           {rows.slice(0, 12).map((row, index) => (
@@ -255,35 +304,35 @@ function TechnicalResult({ result = {} }) {
 function FindingDrawer({ finding, onClose, onAction }) {
   if (!finding) return null;
   return (
-    <aside className="at-drawer" aria-label="Finding detail">
+    <aside className="at-drawer" aria-label="Chi tiết phát hiện">
       <div className="at-drawer__header">
         <div>
           <Badge value={finding.severity} />
           <h2>{finding.type}</h2>
           <p>{finding.message}</p>
         </div>
-        <button type="button" className="at-icon-button" onClick={onClose} aria-label="Close drawer"><X size={18} /></button>
+        <button type="button" className="at-icon-button" onClick={onClose} aria-label="Đóng ngăn chi tiết"><X size={18} /></button>
       </div>
       <div className="at-drawer__grid">
-        <span>Tool</span><strong>{finding.tool_code}</strong>
-        <span>Domain</span><strong>{formatValue(finding.domain)}</strong>
-        <span>File</span><strong>{formatValue(finding.file)}</strong>
+        <span>Công cụ</span><strong>{finding.tool_code}</strong>
+        <span>Lĩnh vực</span><strong>{formatValue(finding.domain)}</strong>
+        <span>Tệp</span><strong>{formatValue(finding.file)}</strong>
         <span>Route</span><strong>{[finding.method, finding.route].filter(Boolean).join(' ') || '-'}</strong>
         <span>Object</span><strong>{[finding.object_type, finding.object_id].filter(Boolean).join(' / ') || '-'}</strong>
-        <span>Status</span><strong>{finding.status}</strong>
+        <span>Trạng thái</span><strong>{formatValue(finding.status)}</strong>
       </div>
       <section>
-        <h3>Evidence</h3>
+        <h3>Bằng chứng</h3>
         <pre className="at-json">{compactJson(finding.evidence, 1800)}</pre>
       </section>
       <section>
-        <h3>Suggested fix</h3>
+        <h3>Gợi ý sửa</h3>
         <pre className="at-json">{compactJson(finding.suggested_fix, 1200)}</pre>
       </section>
       <div className="at-drawer__actions">
-        <button type="button" onClick={() => onAction('resolve', finding)}>Mark resolved</button>
-        <button type="button" onClick={() => onAction('ignore', finding)}>Ignore</button>
-        <button type="button" className="danger" onClick={() => onAction('accept-risk', finding)}>Accept risk</button>
+        <button type="button" onClick={() => onAction('resolve', finding)}>Đánh dấu đã xử lý</button>
+        <button type="button" onClick={() => onAction('ignore', finding)}>Bỏ qua</button>
+        <button type="button" className="danger" onClick={() => onAction('accept-risk', finding)}>Chấp nhận rủi ro</button>
       </div>
     </aside>
   );
@@ -305,6 +354,7 @@ export function AdminToolsPage({ view = 'overview' }) {
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const loadOverview = useCallback(async () => {
     const data = await adminToolsGet('');
@@ -373,12 +423,33 @@ export function AdminToolsPage({ view = 'overview' }) {
     }
   }
 
+  function requestRunTool(mode) {
+    if (mode !== 'apply') {
+      runTool(mode);
+      return;
+    }
+    setConfirmAction({
+      kind: 'run-tool',
+      mode,
+      title: 'Chạy áp dụng thay đổi?',
+      description: 'Công cụ sẽ áp dụng thay đổi thật vào hệ thống. Hãy kiểm tra kết quả chạy thử hoặc diff trước khi xác nhận.',
+      confirmLabel: 'Chạy áp dụng',
+      tone: 'danger',
+      reasonRequired: true,
+      details: [
+        { label: 'Công cụ', value: config.title },
+        { label: 'Mã công cụ', value: toolCode },
+        { label: 'Rủi ro', value: RISK_TEXT[tool?.risk_level] || tool?.risk_level || 'Chưa rõ' },
+      ],
+    });
+  }
+
   async function handleFindingAction(action, finding) {
     setActionBusy(true);
     setError('');
     try {
       await adminToolsPost(`/findings/${finding._id || finding.id}/${action}`, {
-        reason: action === 'accept-risk' ? 'Accepted from Admin Tools console.' : undefined,
+        reason: action === 'accept-risk' ? 'Chấp nhận từ bảng công cụ quản trị.' : undefined,
       });
       await loadTool();
       setSelectedFinding(null);
@@ -389,6 +460,30 @@ export function AdminToolsPage({ view = 'overview' }) {
     }
   }
 
+  function requestFindingAction(action, finding) {
+    if (!['ignore', 'accept-risk'].includes(action)) {
+      handleFindingAction(action, finding);
+      return;
+    }
+    setConfirmAction({
+      kind: 'finding',
+      action,
+      finding,
+      title: action === 'accept-risk' ? 'Chấp nhận rủi ro này?' : 'Bỏ qua phát hiện này?',
+      description: action === 'accept-risk'
+        ? 'Phát hiện sẽ được ghi nhận là rủi ro đã chấp nhận. Chỉ dùng khi đã có đánh giá kỹ thuật rõ ràng.'
+        : 'Phát hiện sẽ được đánh dấu bỏ qua và không còn nằm trong hàng đợi xử lý chính.',
+      confirmLabel: action === 'accept-risk' ? 'Chấp nhận rủi ro' : 'Bỏ qua',
+      tone: action === 'accept-risk' ? 'danger' : 'warning',
+      reasonRequired: true,
+      details: [
+        { label: 'Loại', value: finding.type },
+        { label: 'Mức độ', value: formatValue(finding.severity) },
+        { label: 'Thông báo', value: finding.message },
+      ],
+    });
+  }
+
   const heroTone = tool?.risk_level === 'danger' || tool?.risk_level === 'critical' ? 'danger' : tool?.risk_level === 'high' ? 'warning' : 'default';
 
   return (
@@ -396,25 +491,25 @@ export function AdminToolsPage({ view = 'overview' }) {
       <header className={`at-hero at-hero--${heroTone}`}>
         <div className="at-hero__icon"><Icon size={30} /></div>
         <div className="at-hero__copy">
-          <span>Quản trị hệ thống / Admin Tools</span>
+          <span>Quản trị hệ thống / Công cụ quản trị</span>
           <h1>{config.title}</h1>
           <p>{config.subtitle}</p>
           <div className="at-hero__badges">
-            <Badge value={tool?.risk_level ? RISK_TEXT[tool.risk_level] : 'CONTROL PLANE'} tone={STATUS_TONE[tool?.risk_level] || 'info'} />
-            <span>{tool?.tool_type || 'Technical DevOps Console'}</span>
-            <span>Last run: {formatValue(currentRun?.created_at || currentRun?.started_at)}</span>
-            <span>Environment: {currentRun?.environment || 'current'}</span>
+            <Badge value={tool?.risk_level ? RISK_TEXT[tool.risk_level] : 'Bảng điều khiển'} tone={STATUS_TONE[tool?.risk_level] || 'info'} />
+            <span>{tool?.tool_type || 'Bảng điều khiển kỹ thuật DevOps'}</span>
+            <span>Lần chạy gần nhất: {formatValue(currentRun?.created_at || currentRun?.started_at)}</span>
+            <span>Môi trường: {currentRun?.environment || 'hiện tại'}</span>
           </div>
         </div>
         <div className="at-hero__actions">
-          <button type="button" onClick={loadData} disabled={loading || actionBusy}><RefreshCw size={16} /> Refresh</button>
-          {toolCode ? <button type="button" onClick={() => runTool(tool?.modes?.includes('diagnostic') ? 'diagnostic' : 'scan')} disabled={actionBusy}><Play size={16} /> Run scan</button> : null}
-          {toolCode && tool?.modes?.includes('dry_run') ? <button type="button" onClick={() => runTool('dry_run')} disabled={actionBusy}><Eye size={16} /> Dry-run</button> : null}
-          {toolCode && tool?.modes?.includes('export') ? <button type="button" onClick={() => runTool('export')} disabled={actionBusy}><Download size={16} /> Export</button> : null}
+          <button type="button" onClick={loadData} disabled={loading || actionBusy}><RefreshCw size={16} /> Làm mới</button>
+          {toolCode ? <button type="button" onClick={() => runTool(tool?.modes?.includes('diagnostic') ? 'diagnostic' : 'scan')} disabled={actionBusy}><Play size={16} /> Chạy quét</button> : null}
+          {toolCode && tool?.modes?.includes('dry_run') ? <button type="button" onClick={() => runTool('dry_run')} disabled={actionBusy}><Eye size={16} /> Chạy thử</button> : null}
+          {toolCode && tool?.modes?.includes('export') ? <button type="button" onClick={() => runTool('export')} disabled={actionBusy}><Download size={16} /> Xuất</button> : null}
         </div>
       </header>
 
-      <nav className="at-nav" aria-label="Admin Tools navigation">
+      <nav className="at-nav" aria-label="Điều hướng công cụ quản trị">
         {NAV_ITEMS.map(([key, label, NavIcon]) => (
           <Link key={key} className={`at-nav__item ${key === view ? 'is-active' : ''}`} to={toolPath(key)}>
             <NavIcon size={16} /> {label}
@@ -427,21 +522,21 @@ export function AdminToolsPage({ view = 'overview' }) {
       <section className="at-kpi-grid">
         {toolCode ? (
           <>
-            <KpiCard icon={Code2} label="Total scanned" value={kpis.route_files_scanned || kpis.files_scanned || kpis.models_loaded || kpis.checked_records || kpis.collections_checked || kpis.cleanup_categories || kpis.tools || 0} />
-            <KpiCard icon={AlertTriangle} label="Critical" value={kpis.critical_count || kpis.critical_findings || 0} tone="danger" />
-            <KpiCard icon={AlertTriangle} label="Warnings / High" value={(kpis.high_count || kpis.high_findings || 0) + (kpis.medium_count || 0)} tone="warning" />
-            <KpiCard icon={CheckCircle2} label="Auto-fixable" value={kpis.auto_fixable_count || kpis.auto_fixable_issues || kpis.safe_records || 0} tone="success" />
-            <KpiCard icon={Timer} label="Duration" value={formatDuration(currentRun?.duration_ms)} />
-            <KpiCard icon={Activity} label="Status" value={currentRun?.status || 'not_run'} tone={STATUS_TONE[currentRun?.status] || 'muted'} />
+            <KpiCard icon={Code2} label="Tổng đã quét" value={kpis.route_files_scanned || kpis.files_scanned || kpis.models_loaded || kpis.checked_records || kpis.collections_checked || kpis.cleanup_categories || kpis.tools || 0} />
+            <KpiCard icon={AlertTriangle} label="Nghiêm trọng" value={kpis.critical_count || kpis.critical_findings || 0} tone="danger" />
+            <KpiCard icon={AlertTriangle} label="Cảnh báo / cao" value={(kpis.high_count || kpis.high_findings || 0) + (kpis.medium_count || 0)} tone="warning" />
+            <KpiCard icon={CheckCircle2} label="Có thể tự sửa" value={kpis.auto_fixable_count || kpis.auto_fixable_issues || kpis.safe_records || 0} tone="success" />
+            <KpiCard icon={Timer} label="Thời lượng" value={formatDuration(currentRun?.duration_ms)} />
+            <KpiCard icon={Activity} label="Trạng thái" value={currentRun?.status || 'not_run'} tone={STATUS_TONE[currentRun?.status] || 'muted'} />
           </>
         ) : (
           <>
-            <KpiCard icon={FileCog} label="Tools" value={kpis.tools || 0} />
-            <KpiCard icon={AlertTriangle} label="Critical findings" value={kpis.critical_findings || 0} tone="danger" />
-            <KpiCard icon={AlertTriangle} label="High findings" value={kpis.high_findings || 0} tone="warning" />
-            <KpiCard icon={FileJson} label="Open findings" value={kpis.open_findings || 0} />
-            <KpiCard icon={ShieldCheck} label="Requires approval" value={kpis.requires_approval || 0} tone="danger" />
-            <KpiCard icon={HardDrive} label="Notification failed" value={kpis.notification_failed || 0} tone={kpis.notification_failed ? 'warning' : 'success'} />
+            <KpiCard icon={FileCog} label="Công cụ" value={kpis.tools || 0} />
+            <KpiCard icon={AlertTriangle} label="Phát hiện nghiêm trọng" value={kpis.critical_findings || 0} tone="danger" />
+            <KpiCard icon={AlertTriangle} label="Phát hiện mức cao" value={kpis.high_findings || 0} tone="warning" />
+            <KpiCard icon={FileJson} label="Phát hiện đang mở" value={kpis.open_findings || 0} />
+            <KpiCard icon={ShieldCheck} label="Cần phê duyệt" value={kpis.requires_approval || 0} tone="danger" />
+            <KpiCard icon={HardDrive} label="Thông báo lỗi" value={kpis.notification_failed || 0} tone={kpis.notification_failed ? 'warning' : 'success'} />
           </>
         )}
       </section>
@@ -450,8 +545,8 @@ export function AdminToolsPage({ view = 'overview' }) {
         <main className="at-overview">
           <section className="at-panel">
             <div className="at-panel__header">
-              <h2>Tool grid</h2>
-              <p>Mỗi tool có risk, status lần chạy gần nhất và primary action riêng.</p>
+              <h2>Lưới công cụ</h2>
+              <p>Mỗi công cụ có mức rủi ro, trạng thái lần chạy gần nhất và thao tác chính riêng.</p>
             </div>
             <div className="at-tool-grid">
               {(overview?.tools || []).map((item) => {
@@ -473,11 +568,11 @@ export function AdminToolsPage({ view = 'overview' }) {
           </section>
           <section className="at-two-col">
             <div className="at-panel">
-              <div className="at-panel__header"><h2>Việc cần xử lý</h2><p>Open/regressed findings mới nhất.</p></div>
+              <div className="at-panel__header"><h2>Việc cần xử lý</h2><p>Phát hiện đang mở hoặc tái phát mới nhất.</p></div>
               <ObjectTable rows={overview?.work_queue || []} columns={['severity', 'tool_code', 'type', 'message', 'file', 'object_id', 'status']} />
             </div>
             <div className="at-panel">
-              <div className="at-panel__header"><h2>Activity timeline</h2><p>Run gần nhất trên toàn bộ tool.</p></div>
+              <div className="at-panel__header"><h2>Dòng thời gian hoạt động</h2><p>Lần chạy gần nhất trên toàn bộ công cụ.</p></div>
               <ObjectTable rows={overview?.recent_runs || []} columns={['tool_code', 'mode', 'status', 'started_at', 'finished_at', 'duration_ms']} />
             </div>
           </section>
@@ -487,24 +582,24 @@ export function AdminToolsPage({ view = 'overview' }) {
           <section className="at-command">
             <label className="at-search">
               <Search size={16} />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search finding, file, route, object..." />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm phát hiện, tệp, route, object..." />
             </label>
             <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
-              <option value="">All severity</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-              <option value="info">Info</option>
+              <option value="">Tất cả mức độ</option>
+              <option value="critical">Nghiêm trọng</option>
+              <option value="high">Cao</option>
+              <option value="medium">Trung bình</option>
+              <option value="low">Thấp</option>
+              <option value="info">Thông tin</option>
             </select>
             <select value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="">All status</option>
-              <option value="open">Open</option>
-              <option value="resolved">Resolved</option>
-              <option value="ignored">Ignored</option>
-              <option value="accepted_risk">Accepted risk</option>
+              <option value="">Tất cả trạng thái</option>
+              <option value="open">Đang mở</option>
+              <option value="resolved">Đã xử lý</option>
+              <option value="ignored">Đã bỏ qua</option>
+              <option value="accepted_risk">Đã chấp nhận rủi ro</option>
             </select>
-            {tool?.modes?.includes('apply') ? <button type="button" className="danger" onClick={() => runTool('apply')} disabled={actionBusy}>Run apply</button> : null}
+            {tool?.modes?.includes('apply') ? <button type="button" className="danger" onClick={() => requestRunTool('apply')} disabled={actionBusy}>Chạy áp dụng</button> : null}
           </section>
 
           <section className="at-panel">
@@ -519,13 +614,13 @@ export function AdminToolsPage({ view = 'overview' }) {
                 <table className="at-table">
                   <thead>
                     <tr>
-                      <th>Severity</th>
-                      <th>Type</th>
-                      <th>Module / domain</th>
-                      <th>File / route</th>
+                      <th>Mức độ</th>
+                      <th>Loại</th>
+                      <th>Module / lĩnh vực</th>
+                      <th>Tệp / route</th>
                       <th>Object</th>
-                      <th>Status</th>
-                      <th>Auto fix</th>
+                      <th>Trạng thái</th>
+                      <th>Tự sửa</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -537,10 +632,10 @@ export function AdminToolsPage({ view = 'overview' }) {
                         <td>{finding.file || '-'}<small>{[finding.method, finding.route].filter(Boolean).join(' ')}</small></td>
                         <td>{[finding.object_type, finding.object_id].filter(Boolean).join(' / ') || '-'}</td>
                         <td><Badge value={finding.status} /></td>
-                        <td>{finding.auto_fixable ? 'Yes' : 'Manual'}</td>
+                        <td>{finding.auto_fixable ? 'Có' : 'Thủ công'}</td>
                       </tr>
                     ))}
-                    {!filteredFindings.length ? <tr><td colSpan="7"><div className="at-empty">Không có finding phù hợp bộ lọc.</div></td></tr> : null}
+                    {!filteredFindings.length ? <tr><td colSpan="7"><div className="at-empty">Không có phát hiện phù hợp bộ lọc.</div></td></tr> : null}
                   </tbody>
                 </table>
               </div>
@@ -548,7 +643,7 @@ export function AdminToolsPage({ view = 'overview' }) {
 
             {activeTab === 'technical' ? (
               <div className="at-technical">
-                <div className="at-panel__header"><h2>Chi tiết kỹ thuật lần chạy gần nhất</h2><p>{currentRun?.tool_code || toolCode} / {currentRun?.mode || 'scan'} / {currentRun?.status || 'not_run'}</p></div>
+                <div className="at-panel__header"><h2>Chi tiết kỹ thuật lần chạy gần nhất</h2><p>{currentRun?.tool_code || toolCode} / {formatValue(currentRun?.mode || 'scan')} / {formatValue(currentRun?.status || 'not_run')}</p></div>
                 <TechnicalResult result={currentRun?.result || tool?.latest_run?.result || {}} />
               </div>
             ) : null}
@@ -556,12 +651,12 @@ export function AdminToolsPage({ view = 'overview' }) {
             {activeTab === 'actions' ? (
               <div className="at-action-grid">
                 <article>
-                  <h3>Safety gate</h3>
-                  <p>Tool risk: <Badge value={RISK_TEXT[tool?.risk_level] || tool?.risk_level} tone={STATUS_TONE[tool?.risk_level] || 'info'} /></p>
-                  <p>Dangerous action cần quyền `admin_tools.run_apply` và production write nếu chạy production.</p>
+                  <h3>Cổng an toàn</h3>
+                  <p>Rủi ro công cụ: <Badge value={RISK_TEXT[tool?.risk_level] || tool?.risk_level} tone={STATUS_TONE[tool?.risk_level] || 'info'} /></p>
+                  <p>Thao tác nguy hiểm cần quyền `admin_tools.run_apply` và quyền ghi production nếu chạy trên production.</p>
                 </article>
                 <article>
-                  <h3>Fix plan / export evidence</h3>
+                  <h3>Kế hoạch sửa / bằng chứng export</h3>
                   <pre className="at-json">{compactJson(currentRun?.result?.fix_plan || currentRun?.result?.diff || currentRun?.result?.export_manifest || currentRun?.result || {}, 1800)}</pre>
                 </article>
               </div>
@@ -574,11 +669,11 @@ export function AdminToolsPage({ view = 'overview' }) {
             {activeTab === 'audit' ? (
               <div className="at-action-grid">
                 <article>
-                  <h3>Audit posture</h3>
+                  <h3>Tư thế audit</h3>
                   <p>Mỗi run/finding action được ghi audit qua backend service, giữ request meta, actor và target id.</p>
                 </article>
                 <article>
-                  <h3>Latest run raw</h3>
+                  <h3>Dữ liệu gốc lần chạy mới nhất</h3>
                   <pre className="at-json">{compactJson(currentRun, 2200)}</pre>
                 </article>
               </div>
@@ -587,8 +682,24 @@ export function AdminToolsPage({ view = 'overview' }) {
         </main>
       )}
 
-      {loading ? <div className="at-loading">Đang tải Admin Tools...</div> : null}
-      <FindingDrawer finding={selectedFinding} onClose={() => setSelectedFinding(null)} onAction={handleFindingAction} />
+      {loading ? <div className="at-loading">Đang tải công cụ quản trị...</div> : null}
+      <FindingDrawer finding={selectedFinding} onClose={() => setSelectedFinding(null)} onAction={requestFindingAction} />
+      <AdminActionConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        description={confirmAction?.description}
+        tone={confirmAction?.tone}
+        confirmLabel={confirmAction?.confirmLabel}
+        details={confirmAction?.details}
+        reasonRequired={confirmAction?.reasonRequired}
+        submitting={actionBusy}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={async () => {
+          if (confirmAction?.kind === 'run-tool') await runTool(confirmAction.mode);
+          if (confirmAction?.kind === 'finding') await handleFindingAction(confirmAction.action, confirmAction.finding);
+          setConfirmAction(null);
+        }}
+      />
     </div>
   );
 }

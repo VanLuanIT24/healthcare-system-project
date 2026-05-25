@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 300" role="img" aria-label="Bo Y te - Ministry of Health">
+  <defs>
+    <linearGradient id="moh-blue" x1="60" y1="138" x2="174" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0D47A1"/>
+      <stop offset="0.55" stop-color="#1565C0"/>
+      <stop offset="1" stop-color="#26C6DA"/>
+    </linearGradient>
+    <linearGradient id="moh-teal" x1="96" y1="112" x2="154" y2="62" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#009688"/>
+      <stop offset="1" stop-color="#26C6DA"/>
+    </linearGradient>
+    <linearGradient id="moh-light" x1="66" y1="70" x2="176" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#64B5F6"/>
+      <stop offset="1" stop-color="#7FD8D6"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" fill-rule="evenodd">
+    <g transform="translate(48 16) scale(1.25)">
+      <path d="M66 0c13 14 19 28 17 42-2 13-8 23-17 31-9-8-15-18-17-31-2-14 4-28 17-42Z" fill="url(#moh-blue)"/>
+      <path d="M66 15c7 10 10 20 9 29-1 8-4 15-9 21-5-6-8-13-9-21-1-9 2-19 9-29Z" fill="#FFFFFF" opacity=".92"/>
+      <path d="M53 30c-16-4-29 1-38 15 11 3 22 2 32-4 7-4 12-8 17-14-4 2-7 3-11 3Z" fill="url(#moh-light)"/>
+      <path d="M79 30c16-4 29 1 38 15-11 3-22 2-32-4-7-4-12-8-17-14 4 2 7 3 11 3Z" fill="url(#moh-light)"/>
+      <path d="M21 59c18-2 32 3 43 15-14 1-27-2-39-9-5-3-8-5-10-7 2 1 4 1 6 1Z" fill="#0D47A1"/>
+      <path d="M111 59c-18-2-32 3-43 15 14 1 27-2 39-9 5-3 8-5 10-7-2 1-4 1-6 1Z" fill="#1565C0"/>
+      <path d="M29 77c14 1 26 6 37 17 11-11 23-16 37-17-6 12-19 22-37 30-18-8-31-18-37-30Z" fill="url(#moh-blue)"/>
+      <path d="M57 35h18v16h16v18H75v17H57V69H41V51h16V35Z" fill="#FFFFFF"/>
+      <path d="M61 39h10v16h16v10H71v17H61V65H45V55h16V39Z" fill="url(#moh-teal)"/>
+    </g>
+    <text x="130" y="210" text-anchor="middle" fill="#0D47A1" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="45" font-weight="800" letter-spacing="5">BỘ Y TẾ</text>
+    <text x="130" y="247" text-anchor="middle" fill="#009688" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="8">MINISTRY OF HEALTH</text>
+  </g>
+</svg>

@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react';
+import { AppLogo } from '../../app/AppLogo';
 import { API_BASE_URL } from '../../lib/api';
 import { resolvePostLoginRedirect } from '../../lib/authSession';
 import { readStoredAuth, writeStoredAuth } from '../../lib/storage';
@@ -101,16 +102,8 @@ function BackgroundArtwork() {
 function BrandHeader() {
   return (
     <header className="patient-register-brand patient-login-brand">
-      <Link className="patient-register-logo" to="/home" aria-label="MedCare Portal">
-        <span className="patient-register-logo__mark" aria-hidden="true">
-          <span />
-        </span>
-        <span>
-          <strong>
-            MedCare <em>Portal</em>
-          </strong>
-          <small>Cổng thông tin chăm sóc sức khỏe của bạn</small>
-        </span>
+      <Link className="patient-register-logo" to="/home" aria-label="Bộ Y tế">
+        <AppLogo variant="horizontal" />
       </Link>
     </header>
   );

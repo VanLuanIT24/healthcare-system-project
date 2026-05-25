@@ -84,7 +84,7 @@ export default function PatientSupportPage({ onOpenSupportChat }) {
           <h2>{supportCta.title}</h2>
           <p>{supportCta.body}</p>
           <div className="patient-support-cta-actions">
-            <button className="patient-support-cta-primary" type="button" onClick={onOpenSupportChat}>
+            <button className="patient-support-cta-primary" type="button" onClick={() => onOpenSupportChat?.()}>
               {supportCta.primaryAction}
             </button>
             <button className="patient-support-cta-secondary" type="button">

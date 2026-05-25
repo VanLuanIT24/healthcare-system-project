@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AdminActionConfirmDialog } from '../components/AdminActionConfirmDialog';
 import {
   supportCommDelete,
   supportCommGet,
@@ -36,7 +37,7 @@ import {
 
 const VIEW_CONFIG = {
   tickets: {
-    title: 'Support tickets',
+    title: 'Ticket hỗ trợ',
     subtitle: 'Support inbox cho ticket bệnh nhân, người thân và nhân sự nội bộ với SLA, assignment, conversation và audit.',
     icon: TicketCheck,
     endpoint: '/tickets',
@@ -44,7 +45,7 @@ const VIEW_CONFIG = {
   },
   sla: {
     title: 'Ticket quá SLA',
-    subtitle: 'SLA War Room: ticket quá hạn, sắp quá hạn, unassigned risk và rescue action.',
+    subtitle: 'Phòng xử lý SLA: ticket quá hạn, sắp quá hạn, rủi ro chưa gán và hành động cứu SLA.',
     icon: AlertTriangle,
     endpoint: '/tickets/overdue',
     summaryEndpoint: '/sla/overview',
@@ -53,7 +54,7 @@ const VIEW_CONFIG = {
   },
   technical: {
     title: 'Ticket kỹ thuật',
-    subtitle: 'Technical Support Desk cho auth, OAuth, RBAC, realtime, notification, payment và file upload.',
+    subtitle: 'Bàn hỗ trợ kỹ thuật cho xác thực, OAuth, RBAC, realtime, thông báo, thanh toán và tải tệp.',
     icon: ServerCog,
     endpoint: '/technical/tickets',
     summaryEndpoint: '/technical/overview',
@@ -61,57 +62,57 @@ const VIEW_CONFIG = {
   },
   account: {
     title: 'Ticket liên quan tài khoản',
-    subtitle: 'Account Support cho login, password, locked account, Google OAuth, permission denied và portal authorization.',
+    subtitle: 'Hỗ trợ tài khoản cho đăng nhập, mật khẩu, tài khoản bị khóa, Google OAuth, từ chối quyền và ủy quyền portal.',
     icon: UserRound,
     endpoint: '/account/tickets',
     detail: (row) => `/tickets/${row.id}`,
   },
   billing: {
     title: 'Ticket liên quan thanh toán',
-    subtitle: 'Billing Support Desk kết nối ticket với invoice, payment intent, QR, bank transaction và reconciliation.',
+    subtitle: 'Bàn hỗ trợ thanh toán kết nối ticket với hóa đơn, payment intent, QR, giao dịch ngân hàng và đối soát.',
     icon: ReceiptText,
     endpoint: '/billing/tickets',
     detail: (row) => `/tickets/${row.id}`,
   },
   conversations: {
     title: 'Hội thoại nội bộ',
-    subtitle: 'Conversation center cho internal, support, billing, insurance, pharmacy, lab, imaging và emergency.',
+    subtitle: 'Trung tâm hội thoại cho nội bộ, hỗ trợ, thanh toán, bảo hiểm, nhà thuốc, xét nghiệm, chẩn đoán hình ảnh và khẩn cấp.',
     icon: MessageSquare,
     endpoint: '/conversations',
     detail: (row) => `/conversations/${row.id}`,
   },
   systemMessages: {
     title: 'Tin nhắn hệ thống',
-    subtitle: 'System message explorer cho event, linked object, acknowledgement và conversation context.',
+    subtitle: 'Tra cứu tin nhắn hệ thống theo sự kiện, đối tượng liên kết, xác nhận đọc và ngữ cảnh hội thoại.',
     icon: BellRing,
     endpoint: '/system-messages',
     detail: (row) => row.conversation_id?._id ? `/conversations/${row.conversation_id._id}` : null,
   },
   notifications: {
     title: 'Thông báo hệ thống',
-    subtitle: 'Notification operations: create, dispatch, retry, cancel, failed delivery và channel health.',
+    subtitle: 'Vận hành thông báo: tạo, gửi, thử lại, hủy, lượt gửi lỗi và sức khỏe kênh.',
     icon: BellRing,
     endpoint: '/notifications',
     summaryEndpoint: '/notifications/overview',
     detail: (row) => `/notifications/${row.id}`,
   },
   broadcast: {
-    title: 'Broadcast notification',
+    title: 'Thông báo broadcast',
     subtitle: 'Wizard gửi thông báo hàng loạt theo audience, channel, schedule, safety check và campaign delivery.',
     icon: RadioTower,
     endpoint: '/broadcasts',
     detail: (row) => `/broadcasts/${row.id}`,
   },
   notificationTemplates: {
-    title: 'Notification templates',
-    subtitle: 'CRUD template tự động theo event_type, language, channels, preview và validation.',
+    title: 'Mẫu thông báo',
+    subtitle: 'Quản lý mẫu tự động theo loại sự kiện, ngôn ngữ, kênh, xem trước và kiểm tra hợp lệ.',
     icon: FileText,
     endpoint: '/notification-templates',
     detail: (row) => `/notification-templates/${row.id}`,
   },
   replyTemplates: {
     title: 'Mẫu phản hồi hỗ trợ',
-    subtitle: 'Quick reply/canned response cho support agent theo category, tone, variables, usage và approval.',
+    subtitle: 'Câu trả lời nhanh cho nhân sự hỗ trợ theo danh mục, giọng điệu, biến, mức sử dụng và duyệt.',
     icon: BookOpen,
     endpoint: '/reply-templates',
     detail: (row) => `/reply-templates/${row.id}`,
@@ -119,18 +120,59 @@ const VIEW_CONFIG = {
 };
 
 const NAV_ITEMS = [
-  ['tickets', 'Support tickets', TicketCheck],
+  ['tickets', 'Ticket hỗ trợ', TicketCheck],
   ['sla', 'Quá SLA', AlertTriangle],
   ['technical', 'Kỹ thuật', ServerCog],
   ['account', 'Tài khoản', UserRound],
   ['billing', 'Thanh toán', ReceiptText],
   ['conversations', 'Hội thoại', MessageSquare],
-  ['systemMessages', 'System messages', BellRing],
-  ['notifications', 'Notifications', BellRing],
+  ['systemMessages', 'Tin nhắn hệ thống', BellRing],
+  ['notifications', 'Thông báo', BellRing],
   ['broadcast', 'Broadcast', RadioTower],
-  ['notificationTemplates', 'Notification templates', FileText],
-  ['replyTemplates', 'Reply templates', BookOpen],
+  ['notificationTemplates', 'Mẫu thông báo', FileText],
+  ['replyTemplates', 'Mẫu phản hồi', BookOpen],
 ];
+
+const VALUE_LABELS = {
+  open: 'Đang mở',
+  waiting_staff: 'Chờ nhân sự',
+  waiting_patient: 'Chờ bệnh nhân',
+  resolved: 'Đã xử lý',
+  closed: 'Đã đóng',
+  cancelled: 'Đã hủy',
+  breached: 'Quá hạn',
+  warning: 'Cảnh báo',
+  ok: 'Ổn định',
+  urgent: 'Khẩn cấp',
+  high: 'Cao',
+  normal: 'Bình thường',
+  low: 'Thấp',
+  sent: 'Đã gửi',
+  delivered: 'Đã nhận',
+  read: 'Đã đọc',
+  queued: 'Trong hàng đợi',
+  failed: 'Lỗi',
+  draft: 'Bản nháp',
+  pending_approval: 'Chờ duyệt',
+  approved: 'Đã duyệt',
+  sending: 'Đang gửi',
+  active: 'Đang hoạt động',
+  disabled: 'Đã tắt',
+  needs_review: 'Cần rà soát',
+  live: 'Đang chạy',
+  degraded: 'Suy giảm',
+  staff: 'Nhân sự',
+  patient: 'Bệnh nhân',
+  patient_relative: 'Người thân',
+  appointment: 'Lịch hẹn',
+  billing: 'Thanh toán',
+  insurance: 'Bảo hiểm',
+  medical_record: 'Hồ sơ y tế',
+  technical: 'Kỹ thuật',
+  complaint: 'Khiếu nại',
+  pharmacy: 'Nhà thuốc',
+  other: 'Khác',
+};
 
 const STATUS_TONE = {
   open: 'info',
@@ -163,114 +205,114 @@ const STATUS_TONE = {
 const COLUMNS = {
   tickets: [
     ['ticket_code', 'Ticket'],
-    ['subject', 'Subject'],
-    ['patient.full_name', 'Patient'],
-    ['category', 'Category'],
-    ['priority', 'Priority', 'status'],
-    ['status', 'Status', 'status'],
+    ['subject', 'Tiêu đề'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['category', 'Danh mục'],
+    ['priority', 'Ưu tiên', 'status'],
+    ['status', 'Trạng thái', 'status'],
     ['sla_state', 'SLA', 'status'],
-    ['assigned_user.full_name', 'Assignee'],
-    ['updated_at', 'Last activity'],
+    ['assigned_user.full_name', 'Người phụ trách'],
+    ['updated_at', 'Hoạt động gần nhất'],
   ],
   sla: [
     ['ticket_code', 'Ticket'],
-    ['subject', 'Subject'],
-    ['patient.full_name', 'Patient'],
-    ['priority', 'Priority', 'status'],
-    ['status', 'Status', 'status'],
-    ['sla_due_at', 'SLA due'],
-    ['overdue_ms', 'Overdue'],
-    ['assigned_department.department_name', 'Department'],
-    ['assigned_user.full_name', 'Assignee'],
+    ['subject', 'Tiêu đề'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['priority', 'Ưu tiên', 'status'],
+    ['status', 'Trạng thái', 'status'],
+    ['sla_due_at', 'Hạn SLA'],
+    ['overdue_ms', 'Quá hạn'],
+    ['assigned_department.department_name', 'Khoa/phòng'],
+    ['assigned_user.full_name', 'Người phụ trách'],
   ],
   technical: [
     ['ticket_code', 'Ticket'],
-    ['subject', 'Subject'],
+    ['subject', 'Tiêu đề'],
     ['metadata.module', 'Module'],
-    ['metadata.severity', 'Severity', 'status'],
-    ['metadata.impact', 'Impact'],
-    ['metadata.error_code', 'Error code'],
-    ['metadata.request_id', 'Request ID'],
-    ['priority', 'Priority', 'status'],
-    ['status', 'Status', 'status'],
+    ['metadata.severity', 'Mức độ', 'status'],
+    ['metadata.impact', 'Ảnh hưởng'],
+    ['metadata.error_code', 'Mã lỗi'],
+    ['metadata.request_id', 'ID yêu cầu'],
+    ['priority', 'Ưu tiên', 'status'],
+    ['status', 'Trạng thái', 'status'],
   ],
   account: [
     ['ticket_code', 'Ticket'],
-    ['subject', 'Subject'],
-    ['patient.full_name', 'Patient'],
-    ['metadata.issue_type', 'Issue'],
-    ['metadata.linked_user_id', 'User'],
-    ['metadata.linked_patient_account_id', 'Portal account'],
-    ['priority', 'Priority', 'status'],
-    ['status', 'Status', 'status'],
+    ['subject', 'Tiêu đề'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['metadata.issue_type', 'Vấn đề'],
+    ['metadata.linked_user_id', 'Người dùng'],
+    ['metadata.linked_patient_account_id', 'Tài khoản portal'],
+    ['priority', 'Ưu tiên', 'status'],
+    ['status', 'Trạng thái', 'status'],
   ],
   billing: [
     ['ticket_code', 'Ticket'],
-    ['subject', 'Subject'],
-    ['patient.full_name', 'Patient'],
-    ['metadata.invoice_id', 'Invoice'],
+    ['subject', 'Tiêu đề'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['metadata.invoice_id', 'Hóa đơn'],
     ['metadata.payment_intent_id', 'Payment intent'],
-    ['metadata.intent_code', 'Intent code'],
-    ['metadata.payment_action_taken', 'Action'],
-    ['status', 'Status', 'status'],
+    ['metadata.intent_code', 'Mã intent'],
+    ['metadata.payment_action_taken', 'Hành động'],
+    ['status', 'Trạng thái', 'status'],
   ],
   conversations: [
-    ['conversation_code', 'Conversation'],
-    ['title', 'Title'],
-    ['type', 'Type'],
-    ['priority', 'Priority', 'status'],
-    ['status', 'Status', 'status'],
-    ['patient.full_name', 'Patient'],
-    ['assigned_user.full_name', 'Assignee'],
-    ['last_message_at', 'Last message'],
+    ['conversation_code', 'Hội thoại'],
+    ['title', 'Tiêu đề'],
+    ['type', 'Loại'],
+    ['priority', 'Ưu tiên', 'status'],
+    ['status', 'Trạng thái', 'status'],
+    ['patient.full_name', 'Bệnh nhân'],
+    ['assigned_user.full_name', 'Người phụ trách'],
+    ['last_message_at', 'Tin gần nhất'],
   ],
   systemMessages: [
-    ['created_at', 'Time'],
-    ['body', 'Message'],
-    ['conversation_id.conversation_code', 'Conversation'],
-    ['sender_actor_type', 'Actor'],
-    ['requires_acknowledgement', 'Ack'],
-    ['status', 'Status', 'status'],
+    ['created_at', 'Thời gian'],
+    ['body', 'Tin nhắn'],
+    ['conversation_id.conversation_code', 'Hội thoại'],
+    ['sender_actor_type', 'Đối tượng gửi'],
+    ['requires_acknowledgement', 'Cần xác nhận'],
+    ['status', 'Trạng thái', 'status'],
   ],
   notifications: [
-    ['title', 'Notification'],
-    ['recipient_type', 'Recipient type'],
-    ['channel', 'Channel'],
-    ['notification_type', 'Type'],
-    ['event_type', 'Event'],
-    ['priority', 'Priority', 'status'],
-    ['status', 'Status', 'status'],
-    ['failure_reason', 'Failure'],
-    ['created_at', 'Created'],
+    ['title', 'Thông báo'],
+    ['recipient_type', 'Loại người nhận'],
+    ['channel', 'Kênh'],
+    ['notification_type', 'Loại'],
+    ['event_type', 'Sự kiện'],
+    ['priority', 'Ưu tiên', 'status'],
+    ['status', 'Trạng thái', 'status'],
+    ['failure_reason', 'Lý do lỗi'],
+    ['created_at', 'Ngày tạo'],
   ],
   broadcast: [
-    ['campaign_code', 'Campaign'],
-    ['name', 'Name'],
-    ['audience_type', 'Audience'],
-    ['resolved_recipient_count', 'Recipients'],
-    ['channels', 'Channels'],
-    ['status', 'Status', 'status'],
-    ['scheduled_at', 'Schedule'],
-    ['completed_at', 'Completed'],
+    ['campaign_code', 'Chiến dịch'],
+    ['name', 'Tên'],
+    ['audience_type', 'Đối tượng nhận'],
+    ['resolved_recipient_count', 'Người nhận'],
+    ['channels', 'Kênh'],
+    ['status', 'Trạng thái', 'status'],
+    ['scheduled_at', 'Lịch gửi'],
+    ['completed_at', 'Hoàn tất'],
   ],
   notificationTemplates: [
-    ['template_code', 'Code'],
-    ['event_type', 'Event type'],
-    ['language', 'Lang'],
-    ['priority', 'Priority', 'status'],
-    ['channels', 'Channels'],
-    ['active', 'Active'],
-    ['updated_at', 'Updated'],
+    ['template_code', 'Mã'],
+    ['event_type', 'Loại sự kiện'],
+    ['language', 'Ngôn ngữ'],
+    ['priority', 'Ưu tiên', 'status'],
+    ['channels', 'Kênh'],
+    ['active', 'Hoạt động'],
+    ['updated_at', 'Cập nhật'],
   ],
   replyTemplates: [
-    ['template_code', 'Code'],
-    ['name', 'Name'],
-    ['category', 'Category'],
-    ['language', 'Lang'],
-    ['tone', 'Tone'],
-    ['usage_count', 'Used'],
-    ['status', 'Status', 'status'],
-    ['active', 'Active'],
+    ['template_code', 'Mã'],
+    ['name', 'Tên'],
+    ['category', 'Danh mục'],
+    ['language', 'Ngôn ngữ'],
+    ['tone', 'Giọng điệu'],
+    ['usage_count', 'Số lần dùng'],
+    ['status', 'Trạng thái', 'status'],
+    ['active', 'Hoạt động'],
   ],
 };
 
@@ -284,7 +326,7 @@ function getNested(row, path) {
 
 function formatValue(value) {
   if (value === undefined || value === null || value === '') return '—';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'boolean') return value ? 'Có' : 'Không';
   if (typeof value === 'number') {
     if (value > 1000000 && value % 1000 !== 0) return `${Math.round(value / 60000).toLocaleString('vi-VN')}m`;
     return value.toLocaleString('vi-VN');
@@ -292,7 +334,7 @@ function formatValue(value) {
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T/)) return new Date(value).toLocaleString('vi-VN');
   if (typeof value === 'object') return value.full_name || value.name || value.title || value.ticket_code || value.conversation_code || value.id || JSON.stringify(value);
-  return String(value);
+  return VALUE_LABELS[String(value).toLowerCase()] || String(value).replace(/_/g, ' ');
 }
 
 function StatusBadge({ value }) {
@@ -349,22 +391,22 @@ function buildKpis(view, overview, summary, rows) {
     const kpis = summary?.kpis || {};
     return [
       ['Quá SLA', kpis.breached ?? rows.length, 'danger', AlertTriangle],
-      ['Urgent breach', kpis.urgent_breached, 'danger', ShieldAlert],
-      ['High breach', kpis.high_breached, 'warning', AlertTriangle],
-      ['Risk < 15m', kpis.warning_15m, 'warning', Clock3],
-      ['Risk < 60m', kpis.warning_60m, 'info', Clock3],
-      ['Unassigned risk', kpis.unassigned_risk, 'danger', UserRound],
+      ['Khẩn cấp quá hạn', kpis.urgent_breached, 'danger', ShieldAlert],
+      ['Ưu tiên cao quá hạn', kpis.high_breached, 'warning', AlertTriangle],
+      ['Rủi ro < 15p', kpis.warning_15m, 'warning', Clock3],
+      ['Rủi ro < 60p', kpis.warning_60m, 'info', Clock3],
+      ['Rủi ro chưa gán', kpis.unassigned_risk, 'danger', UserRound],
     ];
   }
   if (view === 'notifications') {
     const kpis = summary?.kpis || {};
     return [
-      ['Created today', kpis.created_today, 'info', BellRing],
-      ['Queued', kpis.queued, 'warning', Clock3],
-      ['Delivered', kpis.delivered, 'success', CheckCircle2],
-      ['Read', kpis.read, 'success', Eye],
-      ['Failed', kpis.failed, 'danger', ShieldAlert],
-      ['Cancelled', kpis.cancelled, 'muted', X],
+      ['Tạo hôm nay', kpis.created_today, 'info', BellRing],
+      ['Trong hàng đợi', kpis.queued, 'warning', Clock3],
+      ['Đã nhận', kpis.delivered, 'success', CheckCircle2],
+      ['Đã đọc', kpis.read, 'success', Eye],
+      ['Lỗi', kpis.failed, 'danger', ShieldAlert],
+      ['Đã hủy', kpis.cancelled, 'muted', X],
     ];
   }
   const base = overview?.kpis || {};
@@ -374,16 +416,16 @@ function buildKpis(view, overview, summary, rows) {
     ['Chờ nhân sự', base.waiting_staff, 'warning', Clock3],
     ['Chưa gán', base.unassigned, 'danger', UserRound],
     ['Quá SLA', base.overdue, 'danger', AlertTriangle],
-    ['Failed notify', Number(base.failed_notifications || 0) + Number(base.failed_deliveries || 0), 'danger', ShieldAlert],
-    ['Conversations', base.open_conversations, 'info', MessageSquare],
-    ['Templates', Number(base.active_templates || 0) + Number(base.active_reply_templates || 0), 'success', FileText],
+    ['Thông báo lỗi', Number(base.failed_notifications || 0) + Number(base.failed_deliveries || 0), 'danger', ShieldAlert],
+    ['Hội thoại', base.open_conversations, 'info', MessageSquare],
+    ['Mẫu đang dùng', Number(base.active_templates || 0) + Number(base.active_reply_templates || 0), 'success', FileText],
   ];
 }
 
 function DetailDrawer({ view, detail, row, onClose, onAction }) {
   if (!row) return null;
   const ticket = detail?.ticket || row;
-  const title = ticket.ticket_code || ticket.conversation_code || ticket.title || ticket.name || ticket.template_code || 'Detail';
+  const title = ticket.ticket_code || ticket.conversation_code || ticket.title || ticket.name || ticket.template_code || 'Chi tiết';
   const messages = detail?.messages || [];
   const deliveries = detail?.deliveries || [];
   const context = detail?.context || {};
@@ -392,26 +434,26 @@ function DetailDrawer({ view, detail, row, onClose, onAction }) {
     <aside className="scm-drawer">
       <div className="scm-drawer__header">
         <div>
-          <span>Detail drawer</span>
+          <span>Chi tiết bản ghi</span>
           <strong>{title}</strong>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close detail"><X size={18} /></button>
+        <button type="button" onClick={onClose} aria-label="Đóng chi tiết"><X size={18} /></button>
       </div>
 
       {['tickets', 'sla', 'technical', 'account', 'billing'].includes(view) ? (
         <>
           <section className="scm-drawer-card">
-            <h3>Ticket summary</h3>
+            <h3>Tóm tắt ticket</h3>
             <div className="scm-pairs">
-              <span>Subject</span><strong>{formatValue(ticket.subject)}</strong>
-              <span>Priority</span><StatusBadge value={ticket.priority} />
-              <span>Status</span><StatusBadge value={ticket.status} />
+              <span>Tiêu đề</span><strong>{formatValue(ticket.subject)}</strong>
+              <span>Ưu tiên</span><StatusBadge value={ticket.priority} />
+              <span>Trạng thái</span><StatusBadge value={ticket.status} />
               <span>SLA</span><StatusBadge value={ticket.sla_state} />
-              <span>Assignee</span><strong>{formatValue(ticket.assigned_user?.full_name)}</strong>
+              <span>Người phụ trách</span><strong>{formatValue(ticket.assigned_user?.full_name)}</strong>
             </div>
           </section>
           <section className="scm-drawer-card">
-            <h3>Patient context</h3>
+            <h3>Ngữ cảnh bệnh nhân</h3>
             <div className="scm-patient-mini">
               <strong>{formatValue(ticket.patient?.full_name || context.patient?.full_name)}</strong>
               <span>{formatValue(ticket.patient?.patient_code || context.patient?.patient_code)}</span>
@@ -424,33 +466,33 @@ function DetailDrawer({ view, detail, row, onClose, onAction }) {
             </div>
           </section>
           <section className="scm-drawer-card">
-            <h3>Conversation</h3>
+            <h3>Hội thoại</h3>
             <div className="scm-message-stream">
               {messages.slice(-6).map((message) => (
                 <div key={message.id || message._id} className={`scm-message${message.is_internal_note ? ' is-internal' : ''}`}>
-                  <span>{message.sender_actor_type}</span>
+                  <span>{formatValue(message.sender_actor_type)}</span>
                   <p>{message.body || message.message_type}</p>
                 </div>
               ))}
-              {messages.length === 0 ? <span className="scm-muted">Chưa có message trong drawer.</span> : null}
+              {messages.length === 0 ? <span className="scm-muted">Chưa có tin nhắn trong chi tiết.</span> : null}
             </div>
           </section>
           <div className="scm-drawer-actions">
-            <ActionButton icon={Send} label="Reply" onClick={() => onAction('reply', ticket)} />
-            <ActionButton icon={UserRound} label="Assign" onClick={() => onAction('assign', ticket)} />
-            <ActionButton icon={CheckCircle2} label="Resolve" onClick={() => onAction('resolve', ticket)} variant="success" />
-            <ActionButton icon={AlertTriangle} label="Escalate" onClick={() => onAction('escalate', ticket)} variant="danger" />
+            <ActionButton icon={Send} label="Phản hồi" onClick={() => onAction('reply', ticket)} />
+            <ActionButton icon={UserRound} label="Gán xử lý" onClick={() => onAction('assign', ticket)} />
+            <ActionButton icon={CheckCircle2} label="Đánh dấu xử lý" onClick={() => onAction('resolve', ticket)} variant="success" />
+            <ActionButton icon={AlertTriangle} label="Nâng mức ưu tiên" onClick={() => onAction('escalate', ticket)} variant="danger" />
           </div>
         </>
       ) : null}
 
       {view === 'conversations' ? (
         <section className="scm-drawer-card">
-          <h3>Conversation stream</h3>
+          <h3>Luồng hội thoại</h3>
           <div className="scm-message-stream scm-message-stream--tall">
             {(detail?.messages || []).map((message) => (
               <div key={message.id || message._id} className={`scm-message${message.is_internal_note ? ' is-internal' : ''}`}>
-                <span>{message.sender_actor_type} · {formatValue(message.created_at)}</span>
+                <span>{formatValue(message.sender_actor_type)} · {formatValue(message.created_at)}</span>
                 <p>{message.body || message.message_type}</p>
               </div>
             ))}
@@ -461,7 +503,7 @@ function DetailDrawer({ view, detail, row, onClose, onAction }) {
       {view === 'notifications' ? (
         <>
           <section className="scm-drawer-card">
-            <h3>Delivery attempts</h3>
+            <h3>Lần gửi</h3>
             <div className="scm-mini-table">
               {deliveries.map((delivery) => (
                 <div key={delivery.id || delivery._id}>
@@ -474,14 +516,14 @@ function DetailDrawer({ view, detail, row, onClose, onAction }) {
             </div>
           </section>
           <div className="scm-drawer-actions">
-            <ActionButton icon={RefreshCw} label="Retry" onClick={() => onAction('retryNotification', row)} />
-            <ActionButton icon={Play} label="Dispatch" onClick={() => onAction('dispatchNotification', row)} />
+            <ActionButton icon={RefreshCw} label="Thử lại" onClick={() => onAction('retryNotification', row)} />
+            <ActionButton icon={Play} label="Gửi ngay" onClick={() => onAction('dispatchNotification', row)} />
           </div>
         </>
       ) : null}
 
       <section className="scm-drawer-card">
-        <h3>Raw JSON</h3>
+        <h3>JSON gốc</h3>
         <JsonBlock value={detail || row} />
       </section>
     </aside>
@@ -498,17 +540,20 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
   const [selectedRow, setSelectedRow] = useState(null);
   const [detail, setDetail] = useState(null);
   const [filters, setFilters] = useState({ search: '', status: '', priority: '', category: '' });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [actionResult, setActionResult] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const query = useMemo(() => ({
-    search: filters.search,
-    status: filters.status,
-    priority: filters.priority,
-    category: filters.category,
+    search: appliedFilters.search,
+    status: appliedFilters.status,
+    priority: appliedFilters.priority,
+    category: appliedFilters.category,
     limit: 30,
-  }), [filters]);
+  }), [appliedFilters]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -540,6 +585,10 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
     setActionResult('');
   }, [view]);
 
+  const applyFilters = () => {
+    setAppliedFilters(filters);
+  };
+
   const openDetail = async (row) => {
     setSelectedRow(row);
     setDetail(null);
@@ -555,9 +604,50 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
     }
   };
 
+  const actionCopy = (action, row = selectedRow) => {
+    const target = row?.ticket_code || row?.campaign_code || row?.template_code || row?.title || row?.name || getRowId(row) || config.title;
+    const copies = {
+      scanSla: ['Quét lại SLA?', 'Hệ thống sẽ rà soát tối đa 200 ticket để cập nhật trạng thái SLA và hàng đợi cứu SLA.', 'Quét SLA', 'warning', false],
+      dispatchQueued: ['Gửi thông báo đang chờ?', 'Hệ thống sẽ gửi tối đa 100 thông báo trong hàng đợi ngay bây giờ.', 'Gửi hàng đợi', 'warning', false],
+      seedNotificationTemplates: ['Seed mẫu thông báo mặc định?', 'Các mẫu mặc định sẽ được tạo hoặc cập nhật theo cấu hình backend.', 'Seed mẫu', 'warning', false],
+      seedReplyTemplates: ['Seed mẫu phản hồi mặc định?', 'Các mẫu phản hồi nhanh sẽ được tạo hoặc cập nhật theo cấu hình backend.', 'Seed mẫu', 'warning', false],
+      sendBroadcast: ['Gửi broadcast?', 'Chiến dịch sẽ bắt đầu gửi tới nhóm người nhận đã cấu hình.', 'Gửi broadcast', 'danger', true],
+      resolve: ['Đánh dấu ticket đã xử lý?', 'Ticket sẽ chuyển sang trạng thái đã xử lý và ghi nhật ký hỗ trợ.', 'Đánh dấu xử lý', 'success', false],
+      escalate: ['Nâng mức ưu tiên ticket?', 'Ticket sẽ được đẩy lên mức khẩn cấp để xử lý nhanh hơn.', 'Nâng mức ưu tiên', 'danger', true],
+      retryNotification: ['Thử gửi lại thông báo?', 'Thông báo lỗi sẽ được đưa lại vào pipeline gửi.', 'Thử lại', 'warning', false],
+      dispatchNotification: ['Gửi thông báo ngay?', 'Thông báo được chọn sẽ được dispatch ngay qua kênh cấu hình.', 'Gửi ngay', 'warning', false],
+      deleteNotificationTemplate: ['Xóa mẫu thông báo?', 'Mẫu sẽ bị xóa khỏi hệ thống và không còn dùng cho sự kiện mới.', 'Xóa mẫu', 'danger', true],
+      toggleReplyTemplate: ['Đổi trạng thái mẫu phản hồi?', 'Mẫu phản hồi sẽ được bật hoặc tắt theo trạng thái hiện tại.', 'Đổi trạng thái', 'warning', false],
+    };
+    const copy = copies[action];
+    if (!copy) return null;
+    const [title, description, confirmLabel, tone, reasonRequired] = copy;
+    return {
+      title,
+      description,
+      confirmLabel,
+      tone,
+      reasonRequired,
+      details: [
+        { label: 'Đối tượng', value: target },
+        { label: 'Mã', value: row ? getRowId(row) : config.endpoint },
+      ],
+    };
+  };
+
   const runAction = async (action, row = selectedRow) => {
+    const copy = actionCopy(action, row);
+    if (copy) {
+      setConfirmAction({ action, row, ...copy });
+      return null;
+    }
+    return executeAction(action, row);
+  };
+
+  const executeAction = async (action, row = selectedRow, reasonInput = '') => {
     if (!row && !['scanSla', 'dispatchQueued', 'seedNotificationTemplates', 'seedReplyTemplates', 'createBroadcastDraft'].includes(action)) return;
     setActionResult('');
+    setActionBusy(true);
     try {
       let result = null;
       if (action === 'scanSla') result = await supportCommPost('/sla/scan', { limit: 200 });
@@ -578,21 +668,24 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
       }
       if (action === 'reply') result = await supportCommPost(`/tickets/${getRowId(row)}/reply`, { body: 'Chúng tôi đã ghi nhận và đang xử lý ticket của bạn.' });
       if (action === 'assign') result = await supportCommPost(`/tickets/${getRowId(row)}/internal-note`, { body: 'Ticket cần được điều phối/gán nhân sự phụ trách.' });
-      if (action === 'resolve') result = await supportCommPost(`/tickets/${getRowId(row)}/resolve`, { reason: 'Đã xử lý từ Support & Communication.' });
-      if (action === 'escalate') result = await supportCommPost(`/tickets/${getRowId(row)}/escalate`, { reason: 'Escalate từ command center.', priority: 'urgent' });
+      if (action === 'resolve') result = await supportCommPost(`/tickets/${getRowId(row)}/resolve`, { reason: reasonInput || 'Đã xử lý từ Support & Communication.' });
+      if (action === 'escalate') result = await supportCommPost(`/tickets/${getRowId(row)}/escalate`, { reason: reasonInput || 'Nâng mức ưu tiên từ trung tâm hỗ trợ.', priority: 'urgent' });
       if (action === 'retryNotification') result = await supportCommPost(`/notifications/${getRowId(row)}/retry`);
       if (action === 'dispatchNotification') result = await supportCommPost(`/notifications/${getRowId(row)}/dispatch`);
       if (action === 'sendBroadcast') result = await supportCommPost(`/broadcasts/${getRowId(row)}/send`);
-      if (action === 'approveBroadcast') result = await supportCommPost(`/broadcasts/${getRowId(row)}/approve`, { note: 'Approved from admin UI.' });
+      if (action === 'approveBroadcast') result = await supportCommPost(`/broadcasts/${getRowId(row)}/approve`, { note: 'Đã duyệt từ giao diện quản trị.' });
       if (action === 'deleteNotificationTemplate') result = await supportCommDelete(`/notification-templates/${getRowId(row)}`);
       if (action === 'toggleReplyTemplate') result = await supportCommPatch(`/reply-templates/${getRowId(row)}`, { active: !row.active });
-      setActionResult(`Đã thực hiện: ${action}`);
+      setConfirmAction(null);
+      setActionResult('Thao tác đã hoàn tất.');
       await loadData();
       if (row) await openDetail(row);
       return result;
     } catch (err) {
-      setActionResult(err.message || 'Action thất bại.');
+      setActionResult(err.message || 'Thao tác thất bại.');
       return null;
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -606,23 +699,23 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
           <Icon size={28} strokeWidth={2.25} />
         </div>
         <div className="scm-hero__copy">
-          <span>Quản trị hệ thống / Support & Communication</span>
+          <span>Quản trị hệ thống / Hỗ trợ & Truyền thông</span>
           <h1>{config.title}</h1>
           <p>{config.subtitle}</p>
           <div className="scm-hero__badges">
             <StatusBadge value={error ? 'degraded' : 'live'} />
-            <span>Realtime ready</span>
+            <span>Sẵn sàng realtime</span>
             <span>Admin API: /api/admin/support-communication</span>
           </div>
         </div>
         <div className="scm-hero__actions">
-          <ActionButton icon={RefreshCw} label="Refresh" onClick={loadData} disabled={loading} />
-          {view === 'sla' ? <ActionButton icon={Play} label="Scan SLA" onClick={() => runAction('scanSla')} variant="danger" /> : null}
-          {view === 'notifications' ? <ActionButton icon={Send} label="Dispatch queued" onClick={() => runAction('dispatchQueued')} /> : null}
-          {view === 'broadcast' ? <ActionButton icon={RadioTower} label="New draft" onClick={() => runAction('createBroadcastDraft')} /> : null}
-          {view === 'notificationTemplates' ? <ActionButton icon={FileText} label="Seed defaults" onClick={() => runAction('seedNotificationTemplates')} /> : null}
-          {view === 'replyTemplates' ? <ActionButton icon={BookOpen} label="Seed defaults" onClick={() => runAction('seedReplyTemplates')} /> : null}
-          <ActionButton icon={Download} label="Export" onClick={() => setActionResult('Export sẽ dùng endpoint logs/export khi cần file thực tế.')} />
+          <ActionButton icon={RefreshCw} label="Làm mới" onClick={loadData} disabled={loading} />
+          {view === 'sla' ? <ActionButton icon={Play} label="Quét SLA" onClick={() => runAction('scanSla')} variant="danger" disabled={actionBusy} /> : null}
+          {view === 'notifications' ? <ActionButton icon={Send} label="Gửi hàng đợi" onClick={() => runAction('dispatchQueued')} disabled={actionBusy} /> : null}
+          {view === 'broadcast' ? <ActionButton icon={RadioTower} label="Tạo bản nháp" onClick={() => runAction('createBroadcastDraft')} disabled={actionBusy} /> : null}
+          {view === 'notificationTemplates' ? <ActionButton icon={FileText} label="Seed mẫu mặc định" onClick={() => runAction('seedNotificationTemplates')} disabled={actionBusy} /> : null}
+          {view === 'replyTemplates' ? <ActionButton icon={BookOpen} label="Seed mẫu mặc định" onClick={() => runAction('seedReplyTemplates')} disabled={actionBusy} /> : null}
+          <ActionButton icon={Download} label="Xuất dữ liệu" onClick={() => setActionResult('Tính năng xuất sẽ dùng endpoint logs/export khi cần file thực tế.')} />
         </div>
       </header>
 
@@ -644,21 +737,28 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
       <section className="scm-command">
         <div className="scm-search">
           <Search size={17} strokeWidth={2.25} />
-          <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search ticket, patient, request_id, event_type, template..." />
+          <input
+            value={filters.search}
+            onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') applyFilters();
+            }}
+            placeholder="Tìm ticket, bệnh nhân, request_id, event_type, mẫu..."
+          />
         </div>
         <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
-          <option value="">All status</option>
-          {['open', 'waiting_staff', 'waiting_patient', 'resolved', 'closed', 'queued', 'sent', 'delivered', 'failed', 'draft', 'active'].map((status) => <option key={status} value={status}>{status}</option>)}
+          <option value="">Mọi trạng thái</option>
+          {['open', 'waiting_staff', 'waiting_patient', 'resolved', 'closed', 'queued', 'sent', 'delivered', 'failed', 'draft', 'active'].map((status) => <option key={status} value={status}>{formatValue(status)}</option>)}
         </select>
         <select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value }))}>
-          <option value="">All priority</option>
-          {['urgent', 'high', 'normal', 'low', 'critical'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+          <option value="">Mọi mức ưu tiên</option>
+          {['urgent', 'high', 'normal', 'low', 'critical'].map((priority) => <option key={priority} value={priority}>{formatValue(priority)}</option>)}
         </select>
         <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}>
-          <option value="">All category</option>
-          {['appointment', 'billing', 'insurance', 'medical_record', 'technical', 'complaint', 'pharmacy', 'other'].map((category) => <option key={category} value={category}>{category}</option>)}
+          <option value="">Mọi danh mục</option>
+          {['appointment', 'billing', 'insurance', 'medical_record', 'technical', 'complaint', 'pharmacy', 'other'].map((category) => <option key={category} value={category}>{formatValue(category)}</option>)}
         </select>
-        <button type="button" onClick={loadData}><Filter size={16} /> Apply</button>
+        <button type="button" onClick={applyFilters} disabled={loading}><Filter size={16} /> Áp dụng</button>
       </section>
 
       {error ? <div className="scm-alert"><ShieldAlert size={18} />{error}</div> : null}
@@ -668,7 +768,7 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
         <section className="scm-main-panel">
           {view === 'broadcast' ? (
             <div className="scm-wizard">
-              {['Audience', 'Compose', 'Channel', 'Schedule', 'Safety check', 'Result'].map((step, index) => (
+              {['Đối tượng nhận', 'Soạn nội dung', 'Kênh', 'Lịch gửi', 'Kiểm tra an toàn', 'Kết quả'].map((step, index) => (
                 <article key={step}>
                   <span>{index + 1}</span>
                   <strong>{step}</strong>
@@ -698,7 +798,7 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
               <thead>
                 <tr>
                   {columns.map(([, label]) => <th key={label}>{label}</th>)}
-                  <th>Actions</th>
+                  <th>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -714,10 +814,10 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
                     })}
                     <td>
                       <div className="scm-row-actions">
-                        <IconButton icon={Eye} label="View" onClick={(event) => { event.stopPropagation(); openDetail(row); }} />
-                        <IconButton icon={Copy} label="Copy ID" onClick={(event) => { event.stopPropagation(); navigator.clipboard?.writeText(String(getRowId(row))); }} />
-                        {view === 'broadcast' ? <IconButton icon={Play} label="Send" onClick={(event) => { event.stopPropagation(); runAction('sendBroadcast', row); }} /> : null}
-                        {['tickets', 'sla', 'technical', 'account', 'billing'].includes(view) ? <IconButton icon={CheckCircle2} label="Resolve" onClick={(event) => { event.stopPropagation(); runAction('resolve', row); }} /> : null}
+                        <IconButton icon={Eye} label="Xem" onClick={(event) => { event.stopPropagation(); openDetail(row); }} />
+                        <IconButton icon={Copy} label="Sao chép ID" onClick={(event) => { event.stopPropagation(); navigator.clipboard?.writeText(String(getRowId(row))); }} />
+                        {view === 'broadcast' ? <IconButton icon={Play} label="Gửi" onClick={(event) => { event.stopPropagation(); runAction('sendBroadcast', row); }} /> : null}
+                        {['tickets', 'sla', 'technical', 'account', 'billing'].includes(view) ? <IconButton icon={CheckCircle2} label="Đánh dấu xử lý" onClick={(event) => { event.stopPropagation(); runAction('resolve', row); }} /> : null}
                       </div>
                     </td>
                   </tr>
@@ -728,8 +828,8 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
           </div>
 
           <footer className="scm-table-footer">
-            <span>{formatValue(pagination?.total ?? rows.length)} records</span>
-            <span>{loading ? 'Đang tải...' : `Page ${pagination?.page || 1}/${pagination?.total_pages || 1}`}</span>
+            <span>{formatValue(pagination?.total ?? rows.length)} bản ghi</span>
+            <span>{loading ? 'Đang tải...' : `Trang ${pagination?.page || 1}/${pagination?.total_pages || 1}`}</span>
           </footer>
         </section>
 
@@ -745,16 +845,16 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
             ))}
           </section>
           <section>
-            <h2>Realtime activity</h2>
+            <h2>Hoạt động realtime</h2>
             <div className="scm-activity">
-              <div><BellRing size={15} /><span>notification.delivery_failed → failed inbox</span></div>
-              <div><TicketCheck size={15} /><span>support_ticket.created → inbox prepend</span></div>
-              <div><AlertTriangle size={15} /><span>support_ticket.sla_breached → SLA War Room</span></div>
-              <div><MessageSquare size={15} /><span>message.sent → conversation stream</span></div>
+              <div><BellRing size={15} /><span>notification.delivery_failed {'->'} hộp lỗi</span></div>
+              <div><TicketCheck size={15} /><span>support_ticket.created {'->'} thêm vào inbox</span></div>
+              <div><AlertTriangle size={15} /><span>support_ticket.sla_breached {'->'} phòng xử lý SLA</span></div>
+              <div><MessageSquare size={15} /><span>message.sent {'->'} luồng hội thoại</span></div>
             </div>
           </section>
           <section>
-            <h2>Health</h2>
+            <h2>Sức khỏe</h2>
             {Object.entries(overview?.health || {}).map(([key, value]) => (
               <div key={key} className="scm-health-row">
                 <span>{key.replace(/_/g, ' ')}</span>
@@ -766,6 +866,18 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
       </main>
 
       <DetailDrawer view={view} row={selectedRow} detail={detail} onClose={() => setSelectedRow(null)} onAction={runAction} />
+      <AdminActionConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        description={confirmAction?.description}
+        tone={confirmAction?.tone}
+        confirmLabel={confirmAction?.confirmLabel}
+        details={confirmAction?.details}
+        reasonRequired={confirmAction?.reasonRequired}
+        submitting={actionBusy}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={(reason) => executeAction(confirmAction.action, confirmAction.row, reason)}
+      />
     </div>
   );
 }

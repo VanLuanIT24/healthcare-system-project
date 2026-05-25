@@ -27,7 +27,15 @@ import {
   WifiOff,
   Zap,
 } from 'lucide-react';
-import { nurseVitalsApi } from './nurseApi';
+import { nurseMonitoringApi, nurseOperationsApi, nurseTaskHandoverApi, nurseVitalsApi } from './nurseApi';
+import {
+  confirmNurseAction,
+  downloadNurseJson,
+  notifyNurse,
+  printNurseView,
+  promptNurseText,
+  runNurseAction,
+} from './nurseActions';
 
 const severityLabels = {
   normal: 'Bình thường',
@@ -196,6 +204,17 @@ function patientObjectId(item = {}) {
 
 function queueTicketObjectId(item = {}) {
   return backendId(item.queue_ticket_id || item.queue_ticket || item.task?.queue_ticket_id);
+}
+
+function vitalObjectId(item = {}) {
+  return backendId(item.vital_sign_id || item.vital_sign || item.latest_vital_sign || item.latest_vital || item);
+}
+
+function goNursePath(path, title = 'Điều hướng') {
+  notifyNurse({ tone: 'info', title, message: 'Đang mở màn hình phù hợp để tiếp tục thao tác.' });
+  window.setTimeout(() => {
+    window.location.assign(path);
+  }, 80);
 }
 
 function queueNumber(item = {}) {
@@ -429,7 +448,7 @@ function KpiStrip({ items }) {
       {items.map((item) => {
         const Icon = item.icon || Activity;
         return (
-          <button key={item.label} type="button" className={`nurse-vitals-kpi nurse-vitals-kpi--${item.tone || 'teal'}`} onClick={item.onClick}>
+          <button key={item.label} type="button" className={`nurse-vitals-kpi nurse-vitals-kpi--${item.tone || 'teal'}`} onClick={item.onClick || (() => notifyNurse({ title: item.label, message: item.detail || 'Đã chọn chỉ số để rà soát.' }))}>
             <Icon size={19} />
             <span>{item.label}</span>
             <strong>{item.value ?? 0}</strong>
@@ -476,7 +495,7 @@ function VitalMiniStrip({ vital = {} }) {
   );
 }
 
-function PatientClinicalSidebar({ item, latestVital, actions }) {
+function PatientClinicalSidebar({ item, latestVital, actions, onAction }) {
   const vital = latestVital || item?.latest_vital_sign || item?.latest_vital || item?.vital_sign;
   const allergies = listOf(item?.active_allergies || item?.allergies);
   const problems = listOf(item?.active_problems || item?.problems);
@@ -522,14 +541,18 @@ function PatientClinicalSidebar({ item, latestVital, actions }) {
       <section>
         <h3>Thao tác nhanh</h3>
         <div className="nurse-row-actions nurse-row-actions--wrap">
-          {(actions || ['Nhập sinh hiệu', 'Ghi chú', 'Báo bác sĩ', 'Dòng thời gian', 'Tạo việc đo lại']).map((label) => <button key={label} type="button">{label}</button>)}
+          {(actions || ['Nhập sinh hiệu', 'Ghi chú', 'Báo bác sĩ', 'Dòng thời gian', 'Tạo việc đo lại']).map((label) => (
+            <button key={label} type="button" onClick={() => (onAction ? onAction(label, item) : notifyNurse({ title: label, message: 'Chọn bệnh nhân hoặc mở màn hình chi tiết để tiếp tục.' }))}>
+              {label}
+            </button>
+          ))}
         </div>
       </section>
     </aside>
   );
 }
 
-function PatientQueueCard({ item, selected, onSelect, mode = 'waiting' }) {
+function PatientQueueCard({ item, selected, onSelect, onAction, mode = 'waiting' }) {
   const vital = item.latest_vital_sign || item.latest_vital || item.vital_sign;
   return (
     <article className={`nurse-vitals-patient-card nurse-vitals-patient-card--${item.priority || vital?.severity || 'normal'}${selected ? ' is-selected' : ''}`}>
@@ -550,10 +573,10 @@ function PatientQueueCard({ item, selected, onSelect, mode = 'waiting' }) {
         </footer>
       </button>
       <div className="nurse-vitals-card-actions">
-        <button type="button">Gọi đo</button>
-        <button type="button">Nhập nhanh</button>
-        <button type="button">Ghi chú</button>
-        <button type="button">Báo BS</button>
+        <button type="button" onClick={() => onAction?.('call', item)}>Gọi đo</button>
+        <button type="button" onClick={() => onAction?.('entry', item)}>Nhập nhanh</button>
+        <button type="button" onClick={() => onAction?.('note', item)}>Ghi chú</button>
+        <button type="button" onClick={() => onAction?.('notify_doctor', item)}>Báo BS</button>
       </div>
     </article>
   );
@@ -602,7 +625,7 @@ function AbnormalFlagList({ flags = [] }) {
   );
 }
 
-function VitalTimelineTable({ items = [], onSelect }) {
+function VitalTimelineTable({ items = [], onSelect, onAction }) {
   return (
     <div className="nurse-vitals-table-wrap">
       <table className="nurse-vitals-table">
@@ -638,7 +661,12 @@ function VitalTimelineTable({ items = [], onSelect }) {
                 <td>{vital.bmi ?? '--'}</td>
                 <td><SeverityBadge value={vital.severity || vital.overall_severity || 'normal'} /></td>
                 <td><StatusBadge value={vital.status || 'recorded'} /></td>
-                <td><div className="nurse-row-actions"><button type="button" onClick={() => onSelect?.(entry)}>Chi tiết</button><button type="button">Sửa</button></div></td>
+                <td>
+                  <div className="nurse-row-actions">
+                    <button type="button" onClick={() => onSelect?.(entry)}>Chi tiết</button>
+                    <button type="button" onClick={() => onAction?.('request_correction', entry)}>Sửa</button>
+                  </div>
+                </td>
               </tr>
             );
           })}
@@ -689,21 +717,61 @@ export function WaitingVitalsPage() {
   const { data, loading, isDemo, error } = useWaitingVitals(filters, refresh);
   const items = filterItems(listOf(data.items), filters);
   const summary = data.summary || {};
+  const active = selected || items[0];
 
   useEffect(() => {
     if (!selected && items[0]) setSelected(items[0]);
   }, [items, selected]);
 
+  async function handleWaitingAction(action, item = active) {
+    if (!item) return;
+    if (action === 'entry') {
+      goNursePath('/nurse/vitals-records/entry', 'Nhập sinh hiệu');
+      return;
+    }
+    if (action === 'note') {
+      goNursePath('/nurse/vitals-records/nursing-notes', 'Ghi chú điều dưỡng');
+      return;
+    }
+    const ticketId = queueTicketObjectId(item);
+    const vitalId = vitalObjectId(item);
+    if (action === 'call') {
+      await runNurseAction({
+        label: 'Gọi đo sinh hiệu',
+        isDemo: isDemo || !ticketId,
+        demoMessage: 'Bệnh nhân mẫu hoặc chưa có queue_ticket_id nên chưa thể gọi số.',
+        confirm: { title: 'Gọi bệnh nhân đo sinh hiệu', message: `${patientName(item)} - ${queueNumber(item)} sẽ được gọi vào khu đo.` },
+        run: () => nurseOperationsApi.callQueue(ticketId, { reason: 'vital_sign_measurement' }),
+        successMessage: 'Đã gọi bệnh nhân vào khu đo sinh hiệu.',
+        onSuccess: () => setRefresh((value) => value + 1),
+      });
+      return;
+    }
+    if (action === 'notify_doctor') {
+      await runNurseAction({
+        label: 'Báo bác sĩ',
+        isDemo: isDemo || (!vitalId && !ticketId),
+        demoMessage: 'Chưa có sinh hiệu hoặc queue hợp lệ để gửi báo bác sĩ.',
+        confirm: { title: 'Báo bác sĩ', message: `Gửi cảnh báo lâm sàng cho ${patientName(item)}?` },
+        run: () => (vitalId
+          ? nurseVitalsApi.notifyDoctorOfVital(vitalId)
+          : nurseOperationsApi.notifyDoctor(ticketId, { message: 'Bệnh nhân chờ đo sinh hiệu cần bác sĩ xem lại.' })),
+        successMessage: 'Đã gửi thông báo bác sĩ.',
+        onSuccess: () => setRefresh((value) => value + 1),
+      });
+    }
+  }
+
   return (
     <section className="nurse-vitals-page">
-      <VitalsHeader eyebrow="Danh sách chờ, SLA và nguy cơ lâm sàng" title="Chờ đo sinh hiệu" description="Điều phối bệnh nhân cần đo sinh hiệu, phát hiện quá SLA, ưu tiên nguy cơ cao và mở thao tác nhanh trong một màn hình." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={loading} actions={<><button type="button"><Bell size={16} />Gọi bệnh nhân</button><button type="button"><HeartPulse size={16} />Nhập nhanh</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <VitalsHeader eyebrow="Danh sách chờ, SLA và nguy cơ lâm sàng" title="Chờ đo sinh hiệu" description="Điều phối bệnh nhân cần đo sinh hiệu, phát hiện quá SLA, ưu tiên nguy cơ cao và mở thao tác nhanh trong một màn hình." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => handleWaitingAction('call')}><Bell size={16} />Gọi bệnh nhân</button><button type="button" onClick={() => handleWaitingAction('entry')}><HeartPulse size={16} />Nhập nhanh</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {loading ? <div className="nurse-operation-loading"><Loader2 className="is-spinning" size={18} />Đang tải danh sách sinh hiệu...</div> : null}
       <VitalsFilters filters={filters} setFilters={setFilters} />
       <KpiStrip items={[
-        { label: 'Chờ đo', value: summary.total_waiting ?? summary.pending ?? items.length, detail: 'Bệnh nhân trong danh sách', icon: Clock3, tone: 'blue' },
-        { label: 'Chưa từng đo', value: summary.no_vitals ?? items.filter((item) => !item.latest_vital_sign).length, detail: 'Cần nhập bộ đầu tiên', icon: HeartPulse, tone: 'cyan' },
-        { label: 'Quá SLA', value: summary.overdue ?? items.filter((item) => item.sla?.state === 'breached').length, detail: 'Cần xử lý ngay', icon: AlertTriangle, tone: 'red' },
+        { label: 'Chờ đo', value: summary.total_waiting ?? summary.pending ?? items.length, detail: 'Bệnh nhân trong danh sách', icon: Clock3, tone: 'blue', onClick: () => setFilters((current) => ({ ...current, severity: 'all' })) },
+        { label: 'Chưa từng đo', value: summary.no_vitals ?? items.filter((item) => !item.latest_vital_sign).length, detail: 'Cần nhập bộ đầu tiên', icon: HeartPulse, tone: 'cyan', onClick: () => notifyNurse({ title: 'Lọc nhanh', message: 'Các thẻ chưa từng đo đang được ưu tiên ở danh sách chính.' }) },
+        { label: 'Quá SLA', value: summary.overdue ?? items.filter((item) => item.sla?.state === 'breached').length, detail: 'Cần xử lý ngay', icon: AlertTriangle, tone: 'red', onClick: () => notifyNurse({ tone: 'warning', title: 'Quá SLA', message: 'Ưu tiên gọi bệnh nhân đang quá SLA trong danh sách.' }) },
         { label: 'Cần đo lại', value: summary.recheck_due ?? 0, detail: 'Theo dõi sau bất thường', icon: RefreshCw, tone: 'amber' },
         { label: 'Nguy cơ cao', value: summary.high_priority ?? items.filter((item) => item.priority === 'critical' || item.priority === 'high').length, detail: 'Ưu tiên lâm sàng', icon: ShieldAlert, tone: 'violet' },
         { label: 'Bất thường', value: summary.abnormal_latest ?? items.filter((item) => item.latest_vital_sign?.severity && item.latest_vital_sign.severity !== 'normal').length, detail: 'Sinh hiệu mới cần xem', icon: Zap, tone: 'red' },
@@ -716,12 +784,12 @@ export function WaitingVitalsPage() {
             ['Quá SLA', items.filter((item) => item.sla?.state === 'breached').length, Clock3],
             ['Cần đo lại', summary.recheck_due ?? 0, RefreshCw],
             ['Có nguy cơ', items.filter((item) => ['critical', 'high'].includes(item.priority)).length, ShieldAlert],
-          ].map(([label, value, Icon]) => <button key={label} type="button"><Icon size={16} /><span>{label}</span><strong>{value}</strong></button>)}
+          ].map(([label, value, Icon]) => <button key={label} type="button" onClick={() => notifyNurse({ title: label, message: 'Đã chọn nhóm để điều dưỡng rà soát trong danh sách.' })}><Icon size={16} /><span>{label}</span><strong>{value}</strong></button>)}
         </aside>
         <main className="nurse-vitals-worklist">
-          {items.map((item) => <PatientQueueCard key={subjectId(item)} item={item} selected={subjectId(item) === subjectId(selected)} onSelect={setSelected} />)}
+          {items.map((item) => <PatientQueueCard key={subjectId(item)} item={item} selected={subjectId(item) === subjectId(selected)} onSelect={setSelected} onAction={handleWaitingAction} />)}
         </main>
-        <PatientClinicalSidebar item={selected || items[0]} />
+        <PatientClinicalSidebar item={selected || items[0]} onAction={(label, item) => handleWaitingAction(label === 'Báo bác sĩ' ? 'notify_doctor' : label === 'Ghi chú' ? 'note' : 'entry', item)} />
       </section>
     </section>
   );
@@ -795,6 +863,14 @@ export function VitalEntryPage() {
   }, [form, selected]);
 
   async function saveVitals(extra = {}) {
+    if ((extra.notify_doctor || extra.mark_ready_for_doctor || extra.request_recheck) && !confirmNurseAction({
+      title: 'Xác nhận lưu sinh hiệu',
+      message: extra.notify_doctor
+        ? 'Lưu bản ghi và gửi báo bác sĩ cho chỉ số này?'
+        : extra.mark_ready_for_doctor
+          ? 'Lưu bản ghi và đánh dấu bệnh nhân sẵn sàng gặp bác sĩ?'
+          : 'Lưu bản ghi và tạo nhắc đo lại?',
+    })) return;
     setSaving(true);
     setNotice('');
     try {
@@ -809,9 +885,11 @@ export function VitalEntryPage() {
         ...extra,
       });
       setNotice('Đã lưu sinh hiệu và cập nhật trạng thái điều dưỡng.');
+      notifyNurse({ tone: 'success', title: 'Lưu sinh hiệu', message: 'Đã lưu bản ghi và đồng bộ với backend.' });
       setRefresh((value) => value + 1);
     } catch (saveError) {
       setNotice(saveError?.message || 'Không thể lưu sinh hiệu.');
+      notifyNurse({ tone: 'danger', title: 'Lưu sinh hiệu', message: saveError?.message || 'Không thể lưu sinh hiệu.' });
     } finally {
       setSaving(false);
     }
@@ -819,14 +897,19 @@ export function VitalEntryPage() {
 
   return (
     <section className="nurse-vitals-page">
-      <VitalsHeader eyebrow="Màn nhập sinh hiệu" title="Nhập sinh hiệu" description="Nhập nhanh, kiểm tra thời gian thực, so sánh lần trước, đánh giá bất thường và nối chuỗi thao tác ghi chú, báo bác sĩ, tạo đo lại." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={saving} actions={<><button type="button" onClick={() => saveVitals()} disabled={saving}><CheckCircle2 size={16} />Lưu</button><button type="button" onClick={() => saveVitals({ create_note: true })}><FileText size={16} />Lưu & ghi chú</button><button type="button" onClick={() => setForm(emptyVitalForm)}><RefreshCw size={16} />Đặt lại</button></>} />
+      <VitalsHeader eyebrow="Màn nhập sinh hiệu" title="Nhập sinh hiệu" description="Nhập nhanh, kiểm tra thời gian thực, so sánh lần trước, đánh giá bất thường và nối chuỗi thao tác ghi chú, báo bác sĩ, tạo đo lại." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={saving} actions={<><button type="button" onClick={() => saveVitals()} disabled={saving}><CheckCircle2 size={16} />Lưu</button><button type="button" onClick={() => saveVitals({ create_note: true })}><FileText size={16} />Lưu & ghi chú</button><button type="button" onClick={() => { if (confirmNurseAction({ title: 'Đặt lại biểu mẫu', message: 'Xóa các giá trị đang nhập và quay về mặc định?' })) setForm(emptyVitalForm); }}><RefreshCw size={16} />Đặt lại</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <section className="nurse-vitals-entry-layout">
         <aside className="nurse-vitals-selector">
           <VitalsFilters filters={filters} setFilters={setFilters} />
           <div className="nurse-vitals-selector-list">
-            {waitingItems.slice(0, 10).map((item) => <PatientQueueCard key={subjectId(item)} item={item} selected={subjectId(item) === subjectId(selected)} onSelect={setSelected} />)}
+            {waitingItems.slice(0, 10).map((item) => <PatientQueueCard key={subjectId(item)} item={item} selected={subjectId(item) === subjectId(selected)} onSelect={setSelected} onAction={(action, row) => {
+              if (action === 'entry') setSelected(row);
+              if (action === 'note') goNursePath('/nurse/vitals-records/nursing-notes', 'Ghi chú điều dưỡng');
+              if (action === 'call') notifyNurse({ title: 'Đã chọn bệnh nhân', message: 'Bệnh nhân đã được đưa vào biểu mẫu nhập sinh hiệu.' });
+              if (action === 'notify_doctor') saveVitals({ notify_doctor: true });
+            }} />)}
           </div>
         </aside>
 
@@ -885,7 +968,12 @@ export function VitalEntryPage() {
               <span><strong>{preview.deltas?.spo2 ?? '--'}</strong>Chênh lệch SpO2</span>
             </div>
           </section>
-          <PatientClinicalSidebar item={selected} latestVital={selected?.latest_vital_sign} actions={['Lịch sử', 'Ghi chú', 'Báo bác sĩ', 'Tạo đo lại']} />
+          <PatientClinicalSidebar item={selected} latestVital={selected?.latest_vital_sign} actions={['Lịch sử', 'Ghi chú', 'Báo bác sĩ', 'Tạo đo lại']} onAction={(label) => {
+            if (label === 'Lịch sử') goNursePath('/nurse/vitals-records/history', 'Lịch sử sinh hiệu');
+            if (label === 'Ghi chú') goNursePath('/nurse/vitals-records/nursing-notes', 'Ghi chú điều dưỡng');
+            if (label === 'Báo bác sĩ') saveVitals({ notify_doctor: true });
+            if (label === 'Tạo đo lại') saveVitals({ request_recheck: true });
+          }} />
         </aside>
       </section>
     </section>
@@ -921,9 +1009,41 @@ export function VitalHistoryPage() {
   const items = normalizeHistoryItems(data);
   const latest = unwrapVital(items[0] || {});
 
+  async function handleHistoryAction(action, entry) {
+    const vital = unwrapVital(entry);
+    const vitalId = vitalObjectId(vital);
+    if (action !== 'request_correction') return;
+    if (!vitalId) {
+      notifyNurse({ tone: 'warning', title: 'Yêu cầu sửa', message: 'Bản ghi này chưa có vital_sign_id hợp lệ.' });
+      return;
+    }
+    const input = promptNurseText({
+      title: 'Yêu cầu sửa sinh hiệu',
+      message: 'Nhập trường và giá trị mới theo dạng: temperature=37.2',
+      defaultValue: 'temperature=',
+    });
+    if (!input) return;
+    const [field, rawValue] = input.split('=').map((part) => part.trim());
+    if (!field || rawValue === undefined || rawValue === '') {
+      notifyNurse({ tone: 'warning', title: 'Yêu cầu sửa', message: 'Cần nhập đúng dạng field=value.' });
+      return;
+    }
+    await runNurseAction({
+      label: 'Yêu cầu sửa sinh hiệu',
+      confirm: { title: 'Gửi yêu cầu sửa?', message: `${fieldLabels[field] || field}: ${rawValue}` },
+      run: () => nurseVitalsApi.requestCorrection(vitalId, {
+        reason: `Điều dưỡng yêu cầu sửa ${fieldLabels[field] || field}.`,
+        reason_category: 'wrong_value',
+        proposed_values: { [field]: Number.isNaN(Number(rawValue)) ? rawValue : Number(rawValue) },
+      }),
+      successMessage: 'Đã tạo yêu cầu sửa sinh hiệu.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
+
   return (
     <section className="nurse-vitals-page">
-      <VitalsHeader eyebrow="Dòng thời gian, xu hướng, so sánh và kiểm tra" title="Lịch sử sinh hiệu" description="Xem lịch sử sinh hiệu theo bệnh nhân/lượt khám, phân tích xu hướng, so sánh lần trước và mở kiểm tra/sửa khi cần." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={loading} actions={<><button type="button"><Download size={16} />Xuất</button><button type="button"><Table2 size={16} />In bảng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <VitalsHeader eyebrow="Dòng thời gian, xu hướng, so sánh và kiểm tra" title="Lịch sử sinh hiệu" description="Xem lịch sử sinh hiệu theo bệnh nhân/lượt khám, phân tích xu hướng, so sánh lần trước và mở kiểm tra/sửa khi cần." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => downloadNurseJson('lich-su-sinh-hieu.json', { patient: selected, items })}><Download size={16} />Xuất</button><button type="button" onClick={() => printNurseView('In bảng sinh hiệu')}><Table2 size={16} />In bảng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       <VitalsFilters filters={filters} setFilters={setFilters} />
       <KpiStrip items={[
@@ -946,9 +1066,13 @@ export function VitalHistoryPage() {
             <TrendChart title="Xu hướng SpO2" series={seriesFromVitals(items, 'spo2')} unit="%" tone="blue" />
             <TrendChart title="Huyết áp tâm thu" series={seriesFromVitals(items, 'systolic_bp')} unit=" mmHg" tone="violet" />
           </div>
-          <VitalTimelineTable items={items} />
+          <VitalTimelineTable items={items} onAction={handleHistoryAction} />
         </main>
-        <PatientClinicalSidebar item={selected} latestVital={latest} />
+        <PatientClinicalSidebar item={selected} latestVital={latest} onAction={(label) => {
+          if (label === 'Báo bác sĩ') goNursePath('/nurse/vitals-records/abnormal', 'Báo bác sĩ');
+          else if (label === 'Ghi chú') goNursePath('/nurse/vitals-records/nursing-notes', 'Ghi chú điều dưỡng');
+          else notifyNurse({ title: label, message: 'Đang xem lịch sử sinh hiệu của bệnh nhân.' });
+        }} />
       </section>
     </section>
   );
@@ -966,19 +1090,84 @@ export function AbnormalVitalsPage() {
   const activeVital = unwrapVital(active);
 
   async function alertAction(action, item = active) {
-    const vitalId = item.vital_sign_id || unwrapVital(item)._id;
-    if (!vitalId) {
+    const vitalId = vitalObjectId(item);
+    const patientId = patientObjectId(item);
+    const encounter = encounterObjectId(item);
+    const queue = queueTicketObjectId(item);
+    if (['acknowledge', 'notify_doctor'].includes(action) && !vitalId) {
       setNotice('Bản ghi mẫu chưa có vital_sign_id thực.');
+      notifyNurse({ tone: 'warning', title: 'Sinh hiệu bất thường', message: 'Bản ghi mẫu chưa có vital_sign_id thực.' });
       return;
     }
-    try {
-      if (action === 'acknowledge') await nurseVitalsApi.acknowledgeVital(vitalId);
-      if (action === 'notify_doctor') await nurseVitalsApi.notifyDoctorOfVital(vitalId);
-      setNotice(action === 'acknowledge' ? 'Đã xác nhận cảnh báo sinh hiệu.' : 'Đã ghi nhận báo bác sĩ.');
-      setRefresh((value) => value + 1);
-    } catch (actionError) {
-      setNotice(actionError?.message || 'Không thể cập nhật cảnh báo.');
+
+    if (action === 'request_recheck') {
+      await runNurseAction({
+        label: 'Tạo việc đo lại',
+        isDemo: isDemo || !patientId,
+        demoMessage: 'Cần patient_id hợp lệ để tạo nhiệm vụ đo lại trên backend.',
+        confirm: { title: 'Tạo nhiệm vụ đo lại?', message: `Tạo việc đo lại sinh hiệu cho ${patientName(item)}.` },
+        run: () => nurseTaskHandoverApi.createTask({
+          patient_id: patientId,
+          encounter_id: encounter || undefined,
+          queue_ticket_id: queue || undefined,
+          source_type: 'vital_sign',
+          source_id: vitalId || undefined,
+          task_type: 'vital_sign',
+          title: `Đo lại sinh hiệu - ${patientName(item)}`,
+          description: vitalText(unwrapVital(item)),
+          priority: (item.severity || unwrapVital(item).severity) === 'critical' ? 'stat' : 'urgent',
+          sla_minutes: 15,
+        }),
+        successMessage: 'Đã tạo việc đo lại sinh hiệu.',
+        onSuccess: () => setRefresh((value) => value + 1),
+      });
+      return;
     }
+
+    if (action === 'create_note') {
+      await runNurseAction({
+        label: 'Tạo ghi chú',
+        isDemo: isDemo || !encounter,
+        demoMessage: 'Cần encounter_id hợp lệ để tạo ghi chú điều dưỡng.',
+        confirm: { title: 'Tạo ghi chú điều dưỡng?', message: `Ghi chú cảnh báo sinh hiệu cho ${patientName(item)}.` },
+        run: () => nurseVitalsApi.createNursingNote(encounter, {
+          title: 'Theo dõi sinh hiệu bất thường',
+          note_type: 'nursing_abnormal_vital',
+          priority: (item.severity || unwrapVital(item).severity) === 'critical' ? 'urgent' : 'important',
+          status: 'signed',
+          content: `Sinh hiệu bất thường: ${vitalText(unwrapVital(item))}. Đã ghi nhận trên bảng cảnh báo điều dưỡng.`,
+          linked_vital_sign_ids: [vitalId].filter(Boolean),
+          tags: ['abnormal_vital', 'nursing'],
+        }),
+        successMessage: 'Đã tạo ghi chú điều dưỡng.',
+        onSuccess: () => setRefresh((value) => value + 1),
+      });
+      return;
+    }
+
+    if (action === 'emergency') {
+      await runNurseAction({
+        label: 'Báo khẩn',
+        isDemo: isDemo || !vitalId,
+        demoMessage: 'Cần vital_sign_id hợp lệ để báo khẩn.',
+        confirm: { title: 'Báo khẩn sinh hiệu?', message: `Gửi cảnh báo khẩn cho ${patientName(item)} và thông báo bác sĩ ngay.` },
+        run: () => nurseVitalsApi.notifyDoctorOfVital(vitalId),
+        successMessage: 'Đã gửi báo khẩn đến bác sĩ.',
+        onSuccess: () => setRefresh((value) => value + 1),
+      });
+      return;
+    }
+
+    await runNurseAction({
+      label: action === 'acknowledge' ? 'Xác nhận cảnh báo' : 'Báo bác sĩ',
+      confirm: action === 'notify_doctor' ? { title: 'Báo bác sĩ?', message: `Gửi thông báo cho ${patientName(item)}.` } : null,
+      run: () => (action === 'acknowledge' ? nurseVitalsApi.acknowledgeVital(vitalId) : nurseVitalsApi.notifyDoctorOfVital(vitalId)),
+      successMessage: action === 'acknowledge' ? 'Đã xác nhận cảnh báo sinh hiệu.' : 'Đã ghi nhận báo bác sĩ.',
+      onSuccess: () => {
+        setNotice(action === 'acknowledge' ? 'Đã xác nhận cảnh báo sinh hiệu.' : 'Đã ghi nhận báo bác sĩ.');
+        setRefresh((value) => value + 1);
+      },
+    });
   }
 
   return (
@@ -1021,13 +1210,19 @@ export function AbnormalVitalsPage() {
           </section>
           <footer>
             <button type="button" onClick={() => alertAction('acknowledge')}><CheckCircle2 size={16} />Xác nhận đã xem</button>
-            <button type="button"><RefreshCw size={16} />Tạo việc đo lại</button>
+            <button type="button" onClick={() => alertAction('request_recheck')}><RefreshCw size={16} />Tạo việc đo lại</button>
             <button type="button" onClick={() => alertAction('notify_doctor')}><Send size={16} />Báo bác sĩ</button>
-            <button type="button"><FileText size={16} />Tạo ghi chú</button>
-            <button type="button"><ShieldAlert size={16} />Báo khẩn</button>
+            <button type="button" onClick={() => alertAction('create_note')}><FileText size={16} />Tạo ghi chú</button>
+            <button type="button" onClick={() => alertAction('emergency')}><ShieldAlert size={16} />Báo khẩn</button>
           </footer>
         </main>
-        <PatientClinicalSidebar item={active} latestVital={activeVital} />
+        <PatientClinicalSidebar item={active} latestVital={activeVital} onAction={(label) => {
+          if (label === 'Báo bác sĩ') alertAction('notify_doctor');
+          else if (label === 'Tạo việc đo lại') alertAction('request_recheck');
+          else if (label === 'Ghi chú') alertAction('create_note');
+          else if (label === 'Dòng thời gian') goNursePath('/nurse/vitals-records/history', 'Dòng thời gian sinh hiệu');
+          else goNursePath('/nurse/vitals-records/entry', 'Nhập sinh hiệu');
+        }} />
       </section>
     </section>
   );
@@ -1043,26 +1238,36 @@ export function VitalCorrectionsPage() {
   const [notice, setNotice] = useState('');
   const active = selected || items[0] || demoCorrections[0];
 
-  async function updateCorrection(action) {
-    if (!active?._id || String(active._id).startsWith('demo')) {
+  async function updateCorrection(action, target = active) {
+    if (!target?._id || String(target._id).startsWith('demo')) {
       setNotice('Bản ghi mẫu chưa thể thao tác trên hệ thống.');
+      notifyNurse({ tone: 'warning', title: 'Sửa sinh hiệu', message: 'Bản ghi mẫu chưa thể thao tác trên hệ thống.' });
       return;
     }
+    const confirmLabels = {
+      approve: 'Duyệt yêu cầu sửa này?',
+      reject: 'Từ chối yêu cầu sửa này?',
+      apply: 'Áp dụng giá trị sửa vào bản ghi sinh hiệu?',
+      cancel: 'Hủy yêu cầu sửa này?',
+    };
+    if (!confirmNurseAction({ title: 'Xác nhận sửa sinh hiệu', message: confirmLabels[action] || 'Tiếp tục cập nhật yêu cầu sửa?' })) return;
     try {
-      if (action === 'approve') await nurseVitalsApi.approveCorrection(active._id, { review_note: 'Đồng ý sửa theo đề xuất.' });
-      if (action === 'reject') await nurseVitalsApi.rejectCorrection(active._id, { review_note: 'Cần bổ sung lý do.' });
-      if (action === 'apply') await nurseVitalsApi.applyCorrection(active._id);
-      if (action === 'cancel') await nurseVitalsApi.cancelCorrection(active._id, { reason: 'Hủy theo yêu cầu điều dưỡng.' });
+      if (action === 'approve') await nurseVitalsApi.approveCorrection(target._id, { review_note: 'Đồng ý sửa theo đề xuất.' });
+      if (action === 'reject') await nurseVitalsApi.rejectCorrection(target._id, { review_note: 'Cần bổ sung lý do.' });
+      if (action === 'apply') await nurseVitalsApi.applyCorrection(target._id);
+      if (action === 'cancel') await nurseVitalsApi.cancelCorrection(target._id, { reason: 'Hủy theo yêu cầu điều dưỡng.' });
       setNotice('Đã cập nhật yêu cầu sửa sinh hiệu.');
+      notifyNurse({ tone: 'success', title: 'Sửa sinh hiệu', message: 'Đã cập nhật yêu cầu sửa sinh hiệu.' });
       setRefresh((value) => value + 1);
     } catch (actionError) {
       setNotice(actionError?.message || 'Không thể cập nhật yêu cầu sửa.');
+      notifyNurse({ tone: 'danger', title: 'Sửa sinh hiệu', message: actionError?.message || 'Không thể cập nhật yêu cầu sửa.' });
     }
   }
 
   return (
     <section className="nurse-vitals-page">
-      <VitalsHeader eyebrow="Quy trình chất lượng dữ liệu, so sánh trước/sau và kiểm tra" title="Bản ghi cần sửa" description="Quản lý yêu cầu sửa sinh hiệu, duyệt sửa, áp dụng sửa, đánh dấu nhập sai và xem dòng thời gian kiểm tra." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={loading} actions={<><button type="button"><Plus size={16} />Tạo yêu cầu</button><button type="button" onClick={() => updateCorrection('approve')}><CheckCircle2 size={16} />Duyệt</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <VitalsHeader eyebrow="Quy trình chất lượng dữ liệu, so sánh trước/sau và kiểm tra" title="Bản ghi cần sửa" description="Quản lý yêu cầu sửa sinh hiệu, duyệt sửa, áp dụng sửa, đánh dấu nhập sai và xem dòng thời gian kiểm tra." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => goNursePath('/nurse/vitals-records/history', 'Tạo yêu cầu sửa')}><Plus size={16} />Tạo yêu cầu</button><button type="button" onClick={() => updateCorrection('approve')}><CheckCircle2 size={16} />Duyệt</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <VitalsFilters filters={filters} setFilters={setFilters} />
@@ -1081,7 +1286,7 @@ export function VitalCorrectionsPage() {
               <thead><tr><th>Bệnh nhân</th><th>Lượt khám</th><th>Trường nghi sai</th><th>Người yêu cầu</th><th>Lý do</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
               <tbody>{items.map((item) => {
                 const changed = Object.keys(item.proposed_values || {});
-                return <tr key={item._id} onClick={() => setSelected(item)}><td><strong>{patientName(item)}</strong><small>{patientCode(item)}</small></td><td>{textValue(item.encounter_id, '--')}</td><td>{changed.map((field) => fieldLabels[field] || field).join(', ') || '--'}</td><td>{textValue(item.requested_by, '--')}</td><td>{item.reason}</td><td><StatusBadge value={item.status} /></td><td><div className="nurse-row-actions"><button type="button" onClick={(event) => { event.stopPropagation(); setSelected(item); }}>Xem</button><button type="button" onClick={(event) => { event.stopPropagation(); setSelected(item); updateCorrection('apply'); }}>Áp dụng</button></div></td></tr>;
+                return <tr key={item._id} onClick={() => setSelected(item)}><td><strong>{patientName(item)}</strong><small>{patientCode(item)}</small></td><td>{textValue(item.encounter_id, '--')}</td><td>{changed.map((field) => fieldLabels[field] || field).join(', ') || '--'}</td><td>{textValue(item.requested_by, '--')}</td><td>{item.reason}</td><td><StatusBadge value={item.status} /></td><td><div className="nurse-row-actions"><button type="button" onClick={(event) => { event.stopPropagation(); setSelected(item); }}>Xem</button><button type="button" onClick={(event) => { event.stopPropagation(); setSelected(item); updateCorrection('apply', item); }}>Áp dụng</button></div></td></tr>;
               })}</tbody>
             </table>
           </div>
@@ -1149,6 +1354,7 @@ export function NursingNotesPage() {
   const [form, setForm] = useState({ title: noteTemplates[0].title, note_type: 'nursing_vital_routine', priority: 'normal', content: noteTemplates[0].content });
   const [notice, setNotice] = useState('');
   const notes = listOf(data.items).filter((note) => !filters.search || `${note.title} ${note.content}`.toLowerCase().includes(filters.search.toLowerCase()));
+  const latestVitalId = vitalObjectId(selected);
 
   function applyTemplate(template) {
     setForm((current) => ({ ...current, title: template.title, content: template.content, note_type: template.key === 'abnormal' ? 'nursing_abnormal_vital' : `nursing_${template.key}` }));
@@ -1159,23 +1365,51 @@ export function NursingNotesPage() {
       setNotice('Chưa có lượt khám hợp lệ từ hệ thống để lưu ghi chú.');
       return;
     }
+    if (status === 'signed' && !confirmNurseAction({ title: 'Ký ghi chú điều dưỡng', message: 'Ghi chú sau khi ký sẽ được lưu chính thức vào hồ sơ lâm sàng.' })) return;
     try {
       await nurseVitalsApi.createNursingNote(targetEncounterId, {
         ...form,
         status,
-        linked_vital_sign_ids: [demoVitals[0]._id].filter(Boolean),
+        linked_vital_sign_ids: [latestVitalId].filter(Boolean),
         tags: ['vital_sign', form.priority],
       });
       setNotice('Đã lưu ghi chú điều dưỡng.');
+      notifyNurse({ tone: 'success', title: 'Ghi chú điều dưỡng', message: 'Đã lưu ghi chú vào hồ sơ lâm sàng.' });
       setRefresh((value) => value + 1);
     } catch (saveError) {
       setNotice(saveError?.message || 'Không thể lưu ghi chú.');
+      notifyNurse({ tone: 'danger', title: 'Ghi chú điều dưỡng', message: saveError?.message || 'Không thể lưu ghi chú.' });
     }
+  }
+
+  async function notifyDoctorAboutNote() {
+    await runNurseAction({
+      label: 'Báo bác sĩ',
+      isDemo: isDemo || (!targetEncounterId && !patientObjectId(selected)),
+      demoMessage: 'Cần encounter_id hoặc patient_id hợp lệ để tạo yêu cầu báo bác sĩ.',
+      confirm: { title: 'Báo bác sĩ về ghi chú?', message: `Tạo yêu cầu bác sĩ xem ghi chú cho ${patientName(selected)}.` },
+      run: () => nurseMonitoringApi.createDoctorNotification({
+        encounter_id: targetEncounterId || undefined,
+        patient_id: patientObjectId(selected) || undefined,
+        priority: form.priority === 'urgent' ? 'urgent' : 'normal',
+        category: 'nursing_note',
+        latest_vital_sign_id: latestVitalId || undefined,
+        send: true,
+        sbar: {
+          situation: form.title,
+          background: `Bệnh nhân ${patientName(selected)} - ${patientCode(selected)}.`,
+          assessment: form.content,
+          recommendation: 'Bác sĩ vui lòng xem ghi chú điều dưỡng và phản hồi hướng xử trí.',
+        },
+      }),
+      successMessage: 'Đã gửi yêu cầu báo bác sĩ.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
   }
 
   return (
     <section className="nurse-vitals-page">
-      <VitalsHeader eyebrow="Ghi chú điều dưỡng, mẫu nhanh và sinh hiệu liên kết" title="Ghi chú điều dưỡng" description="Không gian ghi chú điều dưỡng có mẫu nhanh, liên kết sinh hiệu/cảnh báo, trạng thái ký và luồng báo bác sĩ." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => saveNote('draft')}><FileText size={16} />Lưu nháp</button><button type="button" onClick={() => saveNote('signed')}><CheckCircle2 size={16} />Hoàn tất/ký</button><button type="button"><Send size={16} />Báo bác sĩ</button></>} />
+      <VitalsHeader eyebrow="Ghi chú điều dưỡng, mẫu nhanh và sinh hiệu liên kết" title="Ghi chú điều dưỡng" description="Không gian ghi chú điều dưỡng có mẫu nhanh, liên kết sinh hiệu/cảnh báo, trạng thái ký và luồng báo bác sĩ." meta={data.meta || metaFrom(filters)} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => saveNote('draft')}><FileText size={16} />Lưu nháp</button><button type="button" onClick={() => saveNote('signed')}><CheckCircle2 size={16} />Hoàn tất/ký</button><button type="button" onClick={notifyDoctorAboutNote}><Send size={16} />Báo bác sĩ</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <VitalsFilters filters={filters} setFilters={setFilters} />
@@ -1202,7 +1436,7 @@ export function NursingNotesPage() {
             <label><span>Ưu tiên</span><select value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}><option value="normal">Bình thường</option><option value="important">Quan trọng</option><option value="urgent">Khẩn</option></select></label>
           </div>
           <label className="nurse-vitals-note-content"><span>Nội dung</span><textarea value={form.content} onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))} rows={12} /></label>
-          <footer><button type="button" onClick={() => setForm((current) => ({ ...current, content: `${current.content}\nSinh hiệu mới nhất: ${vitalText(demoVitals[0])}.` }))}>Chèn sinh hiệu mới nhất</button><button type="button">Chèn dấu hiệu bất thường</button><button type="button" onClick={() => saveNote('draft')}>Lưu nháp</button><button type="button" onClick={() => saveNote('signed')}>Ký ghi chú</button></footer>
+          <footer><button type="button" onClick={() => setForm((current) => ({ ...current, content: `${current.content}\nSinh hiệu mới nhất: ${vitalText(selected?.latest_vital_sign || demoVitals[0])}.` }))}>Chèn sinh hiệu mới nhất</button><button type="button" onClick={() => applyTemplate(noteTemplates.find((template) => template.key === 'abnormal'))}>Chèn dấu hiệu bất thường</button><button type="button" onClick={() => saveNote('draft')}>Lưu nháp</button><button type="button" onClick={() => saveNote('signed')}>Ký ghi chú</button></footer>
         </main>
         <PatientClinicalSidebar item={selected} latestVital={demoVitals[0]} />
       </section>

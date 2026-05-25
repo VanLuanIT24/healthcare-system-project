@@ -7,6 +7,7 @@ import {
   appointmentTimeSlots,
 } from '../data/patientPageData'
 import { appointmentAPI, scheduleAPI } from '../../utils/api'
+import { HealthcareChatAssistCard } from '../../components/HealthcareChatbot'
 import '../styles/appointments.css'
 
 const weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
@@ -34,7 +35,7 @@ const appointmentShowcaseRows = [
     specialty: 'Tim mạch',
     date: '28/05/2024',
     time: '09:30',
-    facility: 'Bệnh viện Đa khoa HealthCare',
+    facility: 'Bệnh viện Đa khoa Bộ Y tế',
     location: 'Phòng 302 - Tầng 3',
     status: 'Sắp tới',
     tone: 'upcoming',
@@ -47,7 +48,7 @@ const appointmentShowcaseRows = [
     specialty: 'Nội tổng quát',
     date: '31/05/2024',
     time: '10:00',
-    facility: 'Bệnh viện Đa khoa HealthCare',
+    facility: 'Bệnh viện Đa khoa Bộ Y tế',
     location: 'Phòng 201 - Tầng 2',
     status: 'Sắp tới',
     tone: 'upcoming',
@@ -60,7 +61,7 @@ const appointmentShowcaseRows = [
     specialty: 'Khám tổng quát',
     date: '10/06/2024',
     time: '08:00',
-    facility: 'Bệnh viện Đa khoa HealthCare',
+    facility: 'Bệnh viện Đa khoa Bộ Y tế',
     location: 'Phòng 101 - Tầng 1',
     status: 'Đã xác nhận',
     tone: 'good',
@@ -73,7 +74,7 @@ const appointmentShowcaseRows = [
     specialty: 'Hô hấp',
     date: '20/05/2024',
     time: '09:00',
-    facility: 'Bệnh viện Đa khoa HealthCare',
+    facility: 'Bệnh viện Đa khoa Bộ Y tế',
     location: 'Phòng 205 - Tầng 2',
     status: 'Đã hoàn thành',
     tone: 'good',
@@ -502,7 +503,7 @@ function mapApiAppointment(appointment) {
     startsAt,
     isPast: Boolean(isTerminalAppointmentStatus(statusKey) || (startsAt && startsAt.getTime() <= Date.now())),
     dateParts: getAppointmentDateParts(startsAt),
-    facility: appointment.facility_name || appointment.hospital_name || 'Bệnh viện Đa khoa HealthCare',
+    facility: appointment.facility_name || appointment.hospital_name || 'Bệnh viện Đa khoa Bộ Y tế',
     location:
       appointment.room_name ||
       appointment.room ||
@@ -543,7 +544,7 @@ function mapLegacyAppointment(appointment) {
     startsAt,
     isPast: appointment.isPast ?? Boolean(startsAt && startsAt.getTime() <= Date.now()),
     dateParts: getAppointmentDateParts(startsAt),
-    facility: appointment.facility || 'Bệnh viện Đa khoa HealthCare',
+    facility: appointment.facility || 'Bệnh viện Đa khoa Bộ Y tế',
     location: appointment.location || appointment.specialty || 'Khu khám chuyên khoa',
     title: appointment.title || `Khám chuyên khoa ${appointment.specialty || ''}`.trim(),
     doctor: appointment.doctor,
@@ -1400,7 +1401,7 @@ export default function PatientAppointmentsPage({
         .filter(Boolean)
         .join('\n'),
       fileName: `lich-kham-${appointmentId || formatIcsDate(startDate).slice(0, 8)}.ics`,
-      location: 'Cơ sở y tế St. Jude, 245 Healthcare Plaza, Quận 1, TP. Hồ Chí Minh',
+      location: 'Cơ sở y tế St. Jude, 245 Đường Y tế, Quận 1, TP. Hồ Chí Minh',
       startDate,
       endDate,
     }
@@ -1417,7 +1418,7 @@ export default function PatientAppointmentsPage({
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
       'CALSCALE:GREGORIAN',
-      'PRODID:-//HealthCare//Patient Portal//VI',
+      'PRODID:-//BoYTe//Patient Portal//VI',
       'BEGIN:VEVENT',
       `UID:${uid}`,
       `DTSTAMP:${formatIcsDate(new Date())}`,
@@ -1908,7 +1909,7 @@ export default function PatientAppointmentsPage({
             </div>
             <div>
               <span>Cơ sở</span>
-              <strong>{detailAppointmentRow?.facility || 'Bệnh viện Đa khoa HealthCare'}</strong>
+              <strong>{detailAppointmentRow?.facility || 'Bệnh viện Đa khoa Bộ Y tế'}</strong>
             </div>
             <div>
               <span>Địa điểm</span>
@@ -2279,6 +2280,14 @@ export default function PatientAppointmentsPage({
                   ) : null}
                 </div>
               </div>
+
+              <HealthcareChatAssistCard
+                compact
+                context="booking"
+                title="Chatbot hỗ trợ đặt lịch"
+                description="Có thể đặt theo chuyên khoa, bác sĩ, triệu chứng, dịch vụ hoặc ngày giờ mong muốn."
+                prompts={['Chuyên khoa', 'Bác sĩ', 'Triệu chứng', 'Dịch vụ', 'Ngày giờ']}
+              />
 
               <div className="patient-booking-perks">
                 <div className="patient-booking-perk">
@@ -2866,6 +2875,14 @@ export default function PatientAppointmentsPage({
                   Hủy hoặc đổi lịch trước ít nhất 4 giờ để tránh phí.
                 </p>
               </div>
+
+              <HealthcareChatAssistCard
+                compact
+                context="booking"
+                title="Cần kiểm tra trước khi xác nhận?"
+                description="Chatbot có thể nhắc giấy tờ, hướng dẫn thanh toán và chuyển nhân viên khi cần."
+                prompts={['Giấy tờ cần mang', 'Phí khám', 'Thanh toán QR', 'Gặp nhân viên']}
+              />
             </div>
           </div>
         </div>
@@ -2995,7 +3012,7 @@ export default function PatientAppointmentsPage({
             <div className="patient-location-row">
               <div>
                 <p className="patient-location-name">Cơ sở y tế St. Jude</p>
-                <p className="patient-location-address">245 Healthcare Plaza, Quận 1, TP. Hồ Chí Minh</p>
+                <p className="patient-location-address">245 Đường Y tế, Quận 1, TP. Hồ Chí Minh</p>
               </div>
               <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="patient-map-link">
                 <PatientIcon name="map" aria-hidden="true" />

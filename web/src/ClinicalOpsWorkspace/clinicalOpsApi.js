@@ -39,7 +39,7 @@ export const clinicalOpsAPI = {
     }).then(unwrap),
 };
 
-export function getClinicalOpsErrorMessage(error, fallback = 'Không thể tải dữ liệu Clinical Operations.') {
+export function getClinicalOpsErrorMessage(error, fallback = 'Không thể tải dữ liệu vận hành cận lâm sàng.') {
   return (
     error?.response?.data?.message ||
     error?.response?.data?.error?.message ||

@@ -17,6 +17,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
+import { promptClinicalOpsText } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { clinicalPaymentApi, getClinicalPaymentErrorMessage } from './clinicalPaymentApi';
 
 const SERVICE_LABEL = {
@@ -479,7 +480,7 @@ export function ClinicalPaymentPage({ pageKey = 'dashboard' }) {
   };
 
   const override = (row) => {
-    const reason = window.prompt('Lý do cho phép thực hiện trước thanh toán');
+    const reason = promptClinicalOpsText({ title: 'Override thanh toán', message: 'Lý do cho phép thực hiện trước thanh toán' });
     if (!reason) return null;
     return runAction(() => clinicalPaymentApi.createOverride(row.order._id, { reason, override_type: 'manager_approved' }), 'Đã tạo payment override.');
   };
@@ -487,7 +488,7 @@ export function ClinicalPaymentPage({ pageKey = 'dashboard' }) {
   const confirm = (row) => {
     const intentId = row.payment_intent?._id || row.payment_intent?.payment_intent_id;
     if (!intentId) return setToast('Không có payment intent để xác nhận.');
-    const transactionRef = window.prompt('Mã giao dịch / transaction ref') || `manual:${row.payment_intent?.intent_code || Date.now()}`;
+    const transactionRef = promptClinicalOpsText({ title: 'Xác nhận thanh toán', message: 'Mã giao dịch / transaction ref', defaultValue: `manual:${row.payment_intent?.intent_code || Date.now()}` }) || `manual:${row.payment_intent?.intent_code || Date.now()}`;
     return runAction(() => clinicalPaymentApi.confirmIntent(intentId, {
       transaction_ref: transactionRef,
       received_amount: row.payment_intent?.amount || row.payment_gate?.balance_due,
@@ -497,7 +498,7 @@ export function ClinicalPaymentPage({ pageKey = 'dashboard' }) {
 
   const reject = (row) => {
     const intentId = row.payment_intent?._id || row.payment_intent?.payment_intent_id;
-    const reason = window.prompt('Lý do từ chối payment');
+    const reason = promptClinicalOpsText({ title: 'Từ chối thanh toán', message: 'Lý do từ chối payment' });
     if (!intentId || !reason) return null;
     return runAction(() => clinicalPaymentApi.rejectIntent(intentId, { reason }), 'Đã từ chối payment.');
   };

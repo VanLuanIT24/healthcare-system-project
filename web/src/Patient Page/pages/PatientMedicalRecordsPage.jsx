@@ -92,7 +92,7 @@ function mapEncounter(encounter, index) {
     doctor,
     specialty,
     reason,
-    location: encounter.location || encounter.facility_name || 'Bệnh viện Đa khoa HealthCare',
+    location: encounter.location || encounter.facility_name || 'Bệnh viện Đa khoa Bộ Y tế',
     diagnosis: encounter.diagnosis || 'Đang cập nhật chẩn đoán',
     notes:
       encounter.clinical_notes ||

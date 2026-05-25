@@ -31,6 +31,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { downloadClinicalOpsJson, notifyClinicalOps, printClinicalOpsView } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { patientClinicalLookupAPI, getPatientClinicalLookupError } from './patientClinicalLookupApi';
 import './patientClinicalLookup.css';
 
@@ -272,7 +273,7 @@ function SearchRail({ searchTerm, setSearchTerm, searchResults, selectedPatient,
   );
 }
 
-function PageHeader({ config, loading, onRefresh }) {
+function PageHeader({ config, loading, onRefresh, onPrint, onExport }) {
   const Icon = config.icon;
   return (
     <header className={cx('patient-lookup-page-header', `is-${config.tone}`)}>
@@ -285,11 +286,11 @@ function PageHeader({ config, loading, onRefresh }) {
         <p>{config.description}</p>
       </div>
       <div className="patient-lookup-header-actions">
-        <button type="button">
+        <button type="button" onClick={onPrint}>
           <Printer size={16} strokeWidth={2.25} />
           In tổng hợp
         </button>
-        <button type="button">
+        <button type="button" onClick={onExport}>
           <Download size={16} strokeWidth={2.25} />
           Export PDF
         </button>
@@ -816,7 +817,13 @@ export function PatientClinicalLookupPage({ pageKey = 'byPatient' }) {
   return (
     <div className={cx('patient-lookup-page', `is-${config.tone}`)}>
       <Toast message={toast} onClose={() => setToast('')} />
-      <PageHeader config={config} loading={loading} onRefresh={refresh} />
+      <PageHeader
+        config={config}
+        loading={loading}
+        onRefresh={refresh}
+        onPrint={() => printClinicalOpsView('In tổng hợp cận lâm sàng bệnh nhân')}
+        onExport={() => downloadClinicalOpsJson('patient-clinical-summary.json', { pageKey, filters, data, selectedRow }, 'Xuất tổng hợp cận lâm sàng')}
+      />
       <section className="patient-lookup-shell">
         <SearchRail
           searchTerm={searchTerm}
@@ -847,8 +854,8 @@ export function PatientClinicalLookupPage({ pageKey = 'byPatient' }) {
                   <strong>{formatNumber(visibleRows.length)} dòng cận lâm sàng</strong>
                 </div>
                 <div>
-                  <button type="button"><UploadCloud size={15} strokeWidth={2.25} /> Upload file</button>
-                  <button type="button"><BellRing size={15} strokeWidth={2.25} /> Notify</button>
+                  <button type="button" onClick={() => notifyClinicalOps({ title: 'Upload file', message: 'Upload file cần chọn order/result cụ thể trong detail để gắn đúng hồ sơ.' })}><UploadCloud size={15} strokeWidth={2.25} /> Upload file</button>
+                  <button type="button" onClick={() => notifyClinicalOps({ title: 'Notify', message: 'Thông báo sẽ được gửi từ action trên từng kết quả/critical cụ thể.' })}><BellRing size={15} strokeWidth={2.25} /> Notify</button>
                 </div>
               </header>
               <ResultMatrix

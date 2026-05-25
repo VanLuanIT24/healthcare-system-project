@@ -58,57 +58,57 @@ import { IamPermissionMatrixView, IamRoleAssignmentView } from './IamMatrixAssig
 
 const VIEW_META = {
   overview: {
-    title: 'IAM Command Center',
+    title: 'Trung tâm điều phối IAM',
     eyebrow: 'Admin / IAM & phân quyền / Tổng quan',
     description: 'Tình trạng role, permission, deny policy, cache, audit và rủi ro truy cập trong toàn hệ thống.',
     icon: Gauge,
   },
   matrix: {
     title: 'Ma trận quyền',
-    eyebrow: 'Admin / IAM & phân quyền / Matrix',
-    description: 'Rà soát role-permission theo module, preview tác động và áp dụng bằng API sync có audit.',
+    eyebrow: 'Admin / IAM & phân quyền / Ma trận',
+    description: 'Rà soát role-permission theo module, xem trước tác động và áp dụng bằng API đồng bộ có audit.',
     icon: TableProperties,
   },
   assignment: {
     title: 'Gán vai trò',
-    eyebrow: 'Admin / IAM & phân quyền / Role assignment',
-    description: 'Gán role cho nhân sự với preview quyền hiệu lực, workspace thay đổi và session impact.',
+    eyebrow: 'Admin / IAM & phân quyền / Gán vai trò',
+    description: 'Gán vai trò cho nhân sự với xem trước quyền hiệu lực, thay đổi workspace và tác động phiên.',
     icon: UserCog,
   },
   effective: {
     title: 'Quyền hiệu lực theo người dùng',
-    eyebrow: 'Admin / IAM & phân quyền / Effective permissions',
+    eyebrow: 'Admin / IAM & phân quyền / Quyền hiệu lực',
     description: 'Xem permission thực tế của user, nguồn cấp từ role, deny policy và workspace được mở.',
     icon: Fingerprint,
   },
   accessCheck: {
     title: 'Kiểm tra quyền truy cập',
-    eyebrow: 'Admin / IAM & phân quyền / Access explain',
+    eyebrow: 'Admin / IAM & phân quyền / Giải thích truy cập',
     description: 'Giải thích allow hoặc deny theo permission, role, workspace và deny policy.',
     icon: ShieldAlert,
   },
   context: {
-    title: 'Access context viewer',
+    title: 'Trình xem ngữ cảnh truy cập',
     eyebrow: 'Admin / IAM & phân quyền / Context',
-    description: 'Xem actor context runtime: user, role details, permission source, workspace và raw JSON.',
+    description: 'Xem ngữ cảnh actor runtime: user, chi tiết vai trò, nguồn quyền, workspace và JSON gốc.',
     icon: KeyRound,
   },
   cache: {
-    title: 'Permission cache operations',
+    title: 'Vận hành cache quyền',
     eyebrow: 'Admin / IAM & phân quyền / Cache',
     description: 'Theo dõi cache authorization và rebuild permission context theo user, role hoặc toàn hệ thống.',
     icon: RefreshCw,
   },
   denyPermissions: {
-    title: 'Deny permissions',
-    eyebrow: 'Admin / IAM & phân quyền / Deny permission',
-    description: 'Tạo chính sách chặn permission/module theo user, role hoặc department, có impact preview.',
+    title: 'Chặn quyền',
+    eyebrow: 'Admin / IAM & phân quyền / Chặn quyền',
+    description: 'Tạo chính sách chặn permission/module theo user, vai trò hoặc khoa phòng, có xem trước tác động.',
     icon: Ban,
   },
   denyRoles: {
-    title: 'Deny roles',
-    eyebrow: 'Admin / IAM & phân quyền / Deny role',
-    description: 'Tạo chính sách chặn role động theo subject và thời gian hiệu lực.',
+    title: 'Chặn vai trò',
+    eyebrow: 'Admin / IAM & phân quyền / Chặn vai trò',
+    description: 'Tạo chính sách chặn vai trò động theo chủ thể và thời gian hiệu lực.',
     icon: LockKeyhole,
   },
   audit: {
@@ -118,26 +118,47 @@ const VIEW_META = {
     icon: FileClock,
   },
   seed: {
-    title: 'Seed system access',
+    title: 'Seed quyền hệ thống',
     eyebrow: 'Admin / IAM & phân quyền / Seed',
-    description: 'Dry-run và chạy seed role-permission canonical với báo cáo drift trước khi áp dụng.',
+    description: 'Chạy thử và seed role-permission chuẩn với báo cáo drift trước khi áp dụng.',
     icon: Database,
   },
 };
 
 const IAM_NAV = [
   ['overview', 'Tổng quan'],
-  ['matrix', 'Matrix'],
-  ['assignment', 'Gán role'],
-  ['effective', 'Effective'],
-  ['accessCheck', 'Access check'],
-  ['context', 'Context'],
+  ['matrix', 'Ma trận'],
+  ['assignment', 'Gán vai trò'],
+  ['effective', 'Quyền hiệu lực'],
+  ['accessCheck', 'Kiểm tra truy cập'],
+  ['context', 'Ngữ cảnh'],
   ['cache', 'Cache'],
-  ['denyPermissions', 'Deny permission'],
-  ['denyRoles', 'Deny role'],
+  ['denyPermissions', 'Chặn quyền'],
+  ['denyRoles', 'Chặn vai trò'],
   ['audit', 'Audit'],
   ['seed', 'Seed'],
 ];
+
+const IAM_LABELS = {
+  active: 'Đang hoạt động',
+  inactive: 'Ngưng hoạt động',
+  draft: 'Bản nháp',
+  low: 'Thấp',
+  medium: 'Trung bình',
+  high: 'Cao',
+  critical: 'Nghiêm trọng',
+  user: 'Người dùng',
+  role: 'Vai trò',
+  department: 'Khoa/phòng',
+  workspace: 'Workspace',
+  success: 'Thành công',
+  failed: 'Lỗi',
+};
+
+function labelValue(value) {
+  if (value === undefined || value === null || value === '') return 'Không rõ';
+  return IAM_LABELS[String(value).toLowerCase()] || String(value).replace(/_/g, ' ');
+}
 
 const WORKSPACES = ['admin', 'scheduling', 'reception', 'doctor', 'nursing', 'lab', 'pharmacy', 'billing', 'reports'];
 
@@ -166,11 +187,11 @@ function riskTone(level = 'low') {
 }
 
 function StatusPill({ status }) {
-  return <span className={`admin-status-badge admin-status-badge--${getRoleStatusTone(status)}`}>{status || 'unknown'}</span>;
+  return <span className={`admin-status-badge admin-status-badge--${getRoleStatusTone(status)}`}>{labelValue(status)}</span>;
 }
 
 function RiskPill({ level }) {
-  return <span className={`iam-risk-pill iam-risk-pill--${riskTone(level)}`}>{level || 'low'}</span>;
+  return <span className={`iam-risk-pill iam-risk-pill--${riskTone(level)}`}>{labelValue(level || 'low')}</span>;
 }
 
 function IamPageShell({ view, children, actions = null }) {
@@ -473,11 +494,11 @@ function MatrixView() {
         </select>
         <button type="button" className="staff-button staff-button--ghost" onClick={runPreview}>
           <ShieldAlert size={17} />
-          <span>Preview impact</span>
+          <span>Xem trước tác động</span>
         </button>
         <button type="button" className="staff-button staff-button--primary" onClick={save} disabled={saving}>
           <Save size={17} />
-          <span>{saving ? 'Đang lưu...' : 'Apply sync'}</span>
+          <span>{saving ? 'Đang lưu...' : 'Áp dụng đồng bộ'}</span>
         </button>
       </section>
 
@@ -527,17 +548,17 @@ function MatrixView() {
         </article>
 
         <aside className="admin-panel iam-impact-panel">
-          <div className="admin-panel__heading"><h2>Impact preview</h2></div>
+          <div className="admin-panel__heading"><h2>Xem trước tác động</h2></div>
           {preview ? (
             <>
               <div className="iam-impact-grid">
-                <div><span>Added</span><strong>{formatNumber(preview.diff?.added_permission_codes?.length)}</strong></div>
-                <div><span>Removed</span><strong>{formatNumber(preview.diff?.removed_permission_codes?.length)}</strong></div>
-                <div><span>Affected users</span><strong>{formatNumber(preview.impact?.affected_user_count)}</strong></div>
-                <div><span>Sessions</span><strong>{formatNumber(preview.impact?.sessions_to_revoke_estimate)}</strong></div>
+                <div><span>Thêm</span><strong>{formatNumber(preview.diff?.added_permission_codes?.length)}</strong></div>
+                <div><span>Gỡ</span><strong>{formatNumber(preview.diff?.removed_permission_codes?.length)}</strong></div>
+                <div><span>User ảnh hưởng</span><strong>{formatNumber(preview.impact?.affected_user_count)}</strong></div>
+                <div><span>Phiên</span><strong>{formatNumber(preview.impact?.sessions_to_revoke_estimate)}</strong></div>
               </div>
-              <PermissionDiff title="Added permissions" items={preview.diff?.added_permission_codes || []} />
-              <PermissionDiff title="Removed permissions" items={preview.diff?.removed_permission_codes || []} tone="removed" />
+              <PermissionDiff title="Quyền thêm" items={preview.diff?.added_permission_codes || []} />
+              <PermissionDiff title="Quyền gỡ" items={preview.diff?.removed_permission_codes || []} tone="removed" />
             </>
           ) : (
             <p className="permission-side-empty">Chưa có preview cho tập thay đổi hiện tại.</p>
@@ -658,11 +679,11 @@ function AssignmentView() {
             </label>
             <button type="button" className="staff-button staff-button--ghost" onClick={runPreview}>
               <ShieldAlert size={17} />
-              <span>Preview role change</span>
+              <span>Xem trước đổi vai trò</span>
             </button>
             <button type="button" className="staff-button staff-button--primary" onClick={save} disabled={saving || !selectedUserId}>
               <Save size={17} />
-              <span>{saving ? 'Đang lưu...' : 'Sync role'}</span>
+              <span>{saving ? 'Đang lưu...' : 'Đồng bộ vai trò'}</span>
             </button>
           </div>
 
@@ -967,26 +988,26 @@ function CacheView() {
       <ErrorBlock message={error} />
       <section className="iam-kpi-grid">
         <KpiCard icon={RefreshCw} label="Cache entries" value={formatNumber(status?.authorization_cache?.entries)} note={`${formatNumber(status?.authorization_cache?.ttl_ms)}ms TTL`} tone="blue" />
-        <KpiCard icon={KeyRound} label="Expired entries" value={formatNumber(status?.authorization_cache?.expired_entries)} note={status?.authorization_cache?.strategy} tone="amber" />
-        <KpiCard icon={ShieldCheck} label="Active sessions" value={formatNumber(status?.sessions?.active_staff_sessions)} note="staff sessions" tone="teal" />
+        <KpiCard icon={KeyRound} label="Entry hết hạn" value={formatNumber(status?.authorization_cache?.expired_entries)} note={status?.authorization_cache?.strategy} tone="amber" />
+        <KpiCard icon={ShieldCheck} label="Phiên hoạt động" value={formatNumber(status?.sessions?.active_staff_sessions)} note="phiên nhân sự" tone="teal" />
       </section>
       <section className="iam-cache-grid">
         <article className="admin-panel iam-cache-action">
-          <h2>User context</h2>
+          <h2>Ngữ cảnh người dùng</h2>
           <StaffSelector value={selectedUserId} onChange={setSelectedUserId} staff={staff} />
-          <button type="button" className="staff-button staff-button--primary" onClick={() => run('user')} disabled={!selectedUserId}><RefreshCw size={17} /> Rebuild user</button>
+          <button type="button" className="staff-button staff-button--primary" onClick={() => run('user')} disabled={!selectedUserId}><RefreshCw size={17} /> Tạo lại user</button>
         </article>
         <article className="admin-panel iam-cache-action">
-          <h2>Role users</h2>
+          <h2>User theo vai trò</h2>
           <select value={selectedRoleId} onChange={(event) => setSelectedRoleId(event.target.value)}>
             {roles.map((role) => <option key={role.role_id} value={role.role_id}>{role.role_name} · {role.role_code}</option>)}
           </select>
-          <button type="button" className="staff-button staff-button--primary" onClick={() => run('role')} disabled={!selectedRoleId}><RefreshCw size={17} /> Rebuild role</button>
+          <button type="button" className="staff-button staff-button--primary" onClick={() => run('role')} disabled={!selectedRoleId}><RefreshCw size={17} /> Tạo lại vai trò</button>
         </article>
         <article className="admin-panel iam-cache-action iam-cache-action--danger">
-          <h2>Global refresh</h2>
+          <h2>Làm mới toàn hệ thống</h2>
           <p>Clear in-memory authorization cache và bump permission_version cho mọi user đang tồn tại.</p>
-          <button type="button" className="staff-button staff-button--danger" onClick={() => run('all')}><AlertTriangle size={17} /> Rebuild all</button>
+          <button type="button" className="staff-button staff-button--danger" onClick={() => run('all')}><AlertTriangle size={17} /> Tạo lại toàn bộ</button>
         </article>
       </section>
       {result ? <pre className="iam-json iam-json--wide">{JSON.stringify(result, null, 2)}</pre> : null}
@@ -1078,40 +1099,40 @@ function DenyPolicyView({ denyType = 'permission' }) {
       <section className="iam-deny-grid">
         <article className="admin-panel iam-deny-form">
           <div className="iam-form-row">
-            <label><span>Subject type</span><select value={form.subject_type} onChange={(event) => updateForm('subject_type', event.target.value)}><option value="user">User</option><option value="role">Role</option><option value="department">Department</option><option value="workspace">Workspace</option></select></label>
-            <label><span>Subject</span>{form.subject_type === 'user' ? <StaffSelector value={form.subject_id} onChange={(value) => updateForm('subject_id', value)} staff={staff} /> : form.subject_type === 'role' ? <select value={form.subject_id} onChange={(event) => updateForm('subject_id', event.target.value)}><option value="">Chọn role</option>{roles.map((role) => <option key={role.role_id} value={role.role_code}>{role.role_name} · {role.role_code}</option>)}</select> : <input value={form.subject_id} onChange={(event) => updateForm('subject_id', event.target.value)} placeholder="ObjectId hoặc workspace code" />}</label>
+            <label><span>Loại chủ thể</span><select value={form.subject_type} onChange={(event) => updateForm('subject_type', event.target.value)}><option value="user">Người dùng</option><option value="role">Vai trò</option><option value="department">Khoa/phòng</option><option value="workspace">Workspace</option></select></label>
+            <label><span>Chủ thể</span>{form.subject_type === 'user' ? <StaffSelector value={form.subject_id} onChange={(value) => updateForm('subject_id', value)} staff={staff} /> : form.subject_type === 'role' ? <select value={form.subject_id} onChange={(event) => updateForm('subject_id', event.target.value)}><option value="">Chọn vai trò</option>{roles.map((role) => <option key={role.role_id} value={role.role_code}>{role.role_name} · {role.role_code}</option>)}</select> : <input value={form.subject_id} onChange={(event) => updateForm('subject_id', event.target.value)} placeholder="ObjectId hoặc workspace code" />}</label>
           </div>
           <div className="iam-form-row">
             <label><span>{isRole ? 'Role bị chặn' : 'Permission/module bị chặn'}</span>{isRole ? <select value={form.deny_value} onChange={(event) => updateForm('deny_value', event.target.value)}><option value="">Chọn role</option>{roles.map((role) => <option key={role.role_id} value={role.role_code}>{role.role_code}</option>)}</select> : <input list="iam-permission-options" value={form.deny_value} onChange={(event) => updateForm('deny_value', event.target.value)} placeholder="payments.refund hoặc payments" />}</label>
             <datalist id="iam-permission-options">{permissions.map((permission) => <option key={permission.permission_id} value={permission.permission_code} />)}</datalist>
-            <label><span>Severity</span><select value={form.severity} onChange={(event) => updateForm('severity', event.target.value)}><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="critical">critical</option></select></label>
-            <label><span>Status</span><select value={form.status} onChange={(event) => updateForm('status', event.target.value)}><option value="draft">draft</option><option value="active">active</option></select></label>
+            <label><span>Mức độ</span><select value={form.severity} onChange={(event) => updateForm('severity', event.target.value)}><option value="low">Thấp</option><option value="medium">Trung bình</option><option value="high">Cao</option><option value="critical">Nghiêm trọng</option></select></label>
+            <label><span>Trạng thái</span><select value={form.status} onChange={(event) => updateForm('status', event.target.value)}><option value="draft">Bản nháp</option><option value="active">Đang hoạt động</option></select></label>
           </div>
-          <label><span>Reason</span><textarea value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} placeholder="Lý do kiểm soát truy cập" /></label>
+          <label><span>Lý do</span><textarea value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} placeholder="Lý do kiểm soát truy cập" /></label>
           <div className="iam-form-actions">
-            <button type="button" className="staff-button staff-button--ghost" onClick={runPreview}><ShieldAlert size={17} /> Preview impact</button>
+            <button type="button" className="staff-button staff-button--ghost" onClick={runPreview}><ShieldAlert size={17} /> Xem trước tác động</button>
             <button type="button" className="staff-button staff-button--primary" onClick={create}><Save size={17} /> Tạo policy</button>
           </div>
           {preview ? (
             <div className="iam-impact-grid">
-              <div><span>Affected users</span><strong>{formatNumber(preview.impact?.affected_user_count)}</strong></div>
-              <div><span>Refresh required</span><strong>{preview.impact?.authorization_refresh_required ? 'Yes' : 'No'}</strong></div>
+              <div><span>User ảnh hưởng</span><strong>{formatNumber(preview.impact?.affected_user_count)}</strong></div>
+              <div><span>Cần refresh</span><strong>{preview.impact?.authorization_refresh_required ? 'Có' : 'Không'}</strong></div>
             </div>
           ) : null}
         </article>
 
         <article className="admin-panel iam-deny-table-panel">
-          <div className="admin-panel__heading"><h2>{isRole ? 'Role deny policies' : 'Permission deny policies'}</h2></div>
+          <div className="admin-panel__heading"><h2>{isRole ? 'Policy chặn vai trò' : 'Policy chặn quyền'}</h2></div>
           <div className="iam-deny-table">
-            <div className="iam-deny-table__head"><span>Subject</span><span>Deny</span><span>Severity</span><span>Status</span><span>Impact</span><span>Action</span></div>
+            <div className="iam-deny-table__head"><span>Chủ thể</span><span>Chặn</span><span>Mức độ</span><span>Trạng thái</span><span>Tác động</span><span>Thao tác</span></div>
             {items.map((policy) => (
               <div key={policy.deny_policy_id} className="iam-deny-table__row">
                 <div><strong>{policy.subject_type}</strong><small>{policy.subject_label || policy.subject_id}</small></div>
                 <code>{policy.deny_value}</code>
                 <RiskPill level={policy.severity} />
                 <StatusPill status={policy.status} />
-                <span>{formatNumber(policy.affected_user_count)} users</span>
-                <button type="button" onClick={() => toggle(policy)}>{policy.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+                <span>{formatNumber(policy.affected_user_count)} user</span>
+                <button type="button" onClick={() => toggle(policy)}>{policy.status === 'active' ? 'Tắt' : 'Bật'}</button>
               </div>
             ))}
           </div>
@@ -1150,7 +1171,7 @@ function AuditView() {
       </section>
       <section className="admin-panel iam-audit-panel">
         <div className="iam-audit-table">
-          <div className="iam-audit-table__head"><span>Time</span><span>Actor</span><span>Action</span><span>Target</span><span>Status</span><span>Message</span></div>
+          <div className="iam-audit-table__head"><span>Thời gian</span><span>Actor</span><span>Hành động</span><span>Đích</span><span>Trạng thái</span><span>Thông báo</span></div>
           {items.map((item) => (
             <div key={item.audit_log_id} className="iam-audit-table__row">
               <span>{formatDateTime(item.created_at)}</span>
@@ -1210,12 +1231,12 @@ function SeedView() {
             <p>Thao tác này upsert core roles, canonical permissions, retire legacy permissions và sync ROLE_PERMISSION_MAP.</p>
           </div>
           <div className="iam-form-actions">
-            <button type="button" className="staff-button staff-button--ghost" onClick={runDry}><ShieldAlert size={17} /> Dry-run</button>
-            <button type="button" className="staff-button staff-button--danger" onClick={runSeed} disabled={running}><Database size={17} /> {running ? 'Đang seed...' : 'Run seed'}</button>
+            <button type="button" className="staff-button staff-button--ghost" onClick={runDry}><ShieldAlert size={17} /> Chạy thử</button>
+            <button type="button" className="staff-button staff-button--danger" onClick={runSeed} disabled={running}><Database size={17} /> {running ? 'Đang seed...' : 'Chạy seed'}</button>
           </div>
         </article>
         <article className="admin-panel iam-seed-summary">
-          <div className="admin-panel__heading"><h2>Dry-run summary</h2></div>
+          <div className="admin-panel__heading"><h2>Tóm tắt chạy thử</h2></div>
           <div className="iam-impact-grid">
             {Object.entries(dryRun?.summary || {}).map(([key, value]) => <div key={key}><span>{key}</span><strong>{formatNumber(value)}</strong></div>)}
           </div>

@@ -24,6 +24,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
 import { API_BASE_URL } from '../lib/api';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { authAPI, notificationAPI, preferenceAPI, unwrapData } from '../utils/api';
@@ -393,6 +394,25 @@ function NotificationCenter({ open, items, counters, tab, setTab, onNavigate, on
   );
 }
 
+function NurseToastStack({ items, onClose }) {
+  if (!items.length) return null;
+  return (
+    <div className="nurse-toast-stack" role="status" aria-live="polite">
+      {items.map((item) => (
+        <article key={item.id} className={`nurse-toast nurse-toast--${item.tone || 'info'}`}>
+          <div>
+            <strong>{item.title || 'Thông báo điều dưỡng'}</strong>
+            {item.message ? <span>{item.message}</span> : null}
+          </div>
+          <button type="button" aria-label="Đóng thông báo" onClick={() => onClose(item.id)}>
+            <X size={14} />
+          </button>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function QuickVitalModal({ open, pendingItems, onClose, onSaved }) {
   const [selectedId, setSelectedId] = useState('');
   const [filter, setFilter] = useState('');
@@ -643,6 +663,7 @@ export function NurseShell({ children }) {
   const [notificationTab, setNotificationTab] = useState('all');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quickVitalOpen, setQuickVitalOpen] = useState(false);
+  const [shellToasts, setShellToasts] = useState([]);
   const [bootstrap, setBootstrap] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [counters, setCounters] = useState({});
@@ -697,6 +718,27 @@ export function NurseShell({ children }) {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
     };
   }, [refreshTopbar]);
+
+  useEffect(() => {
+    function handleToast(event) {
+      const detail = event.detail || {};
+      const id = detail.id || `${Date.now()}-${Math.random()}`;
+      setShellToasts((current) => [
+        ...current.slice(-3),
+        {
+          id,
+          tone: detail.tone || 'info',
+          title: detail.title || 'Thông báo điều dưỡng',
+          message: detail.message || '',
+        },
+      ]);
+      window.setTimeout(() => {
+        setShellToasts((current) => current.filter((item) => item.id !== id));
+      }, Number(detail.timeout || 5200));
+    }
+    window.addEventListener('nurse:toast', handleToast);
+    return () => window.removeEventListener('nurse:toast', handleToast);
+  }, []);
 
   useEffect(() => {
     const activeItem = allMenuItems.find((item) => item.to === location.pathname);
@@ -870,11 +912,11 @@ export function NurseShell({ children }) {
         <div className="nurse-sidebar__brand">
           <Link to="/staff/select-workspace" className="nurse-sidebar__brand-link" onClick={closeMobileSidebar}>
             <span className="nurse-sidebar__brand-mark" aria-hidden="true">
-              <HeartPulse size={25} strokeWidth={2.4} />
+              <AppLogo variant="mark" alt="" aria-hidden="true" />
             </span>
             {!isSidebarCollapsed ? (
               <span className="nurse-sidebar__brand-copy">
-                <strong>Điều dưỡng</strong>
+                <strong>{APP_BRAND_NAME}</strong>
                 <small>{bootstrap?.workspace?.current_department_name || 'Không gian điều dưỡng'}</small>
               </span>
             ) : null}
@@ -1039,6 +1081,10 @@ export function NurseShell({ children }) {
         pendingItems={pendingVitals}
         onClose={() => setQuickVitalOpen(false)}
         onSaved={refreshTopbar}
+      />
+      <NurseToastStack
+        items={shellToasts}
+        onClose={(id) => setShellToasts((current) => current.filter((item) => item.id !== id))}
       />
     </main>
   );

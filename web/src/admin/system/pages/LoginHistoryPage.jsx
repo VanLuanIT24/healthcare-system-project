@@ -55,6 +55,7 @@ function formatRelativeMinutes(value) {
 
 export function LoginHistoryPage() {
   const [filters, setFilters] = useState({ keyword: '', status: '', actorType: '', range: '7' });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
@@ -78,13 +79,13 @@ export function LoginHistoryPage() {
   const filtered = useMemo(
     () =>
       items.filter((item) => {
-        if (filters.keyword && !JSON.stringify(item).toLowerCase().includes(filters.keyword.toLowerCase())) return false;
-        if (filters.status && item.status !== filters.status) return false;
-        if (filters.actorType && item.actor_type !== filters.actorType) return false;
-        if (item.created_at && new Date(item.created_at) < getTimeWindowDate(filters.range)) return false;
+        if (appliedFilters.keyword && !JSON.stringify(item).toLowerCase().includes(appliedFilters.keyword.toLowerCase())) return false;
+        if (appliedFilters.status && item.status !== appliedFilters.status) return false;
+        if (appliedFilters.actorType && item.actor_type !== appliedFilters.actorType) return false;
+        if (item.created_at && new Date(item.created_at) < getTimeWindowDate(appliedFilters.range)) return false;
         return true;
       }),
-    [filters, items],
+    [appliedFilters, items],
   );
 
   const stats = useMemo(() => {
@@ -112,7 +113,12 @@ export function LoginHistoryPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filters]);
+  }, [appliedFilters]);
+
+  function applyFilters() {
+    setAppliedFilters(filters);
+    setPage(1);
+  }
 
   const pageNumbers = useMemo(() => {
     const pages = [];
@@ -159,6 +165,9 @@ export function LoginHistoryPage() {
             <input
               value={filters.keyword}
               onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') applyFilters();
+              }}
               placeholder="Tìm theo tên, email, IP hoặc thiết bị..."
             />
           </label>
@@ -184,6 +193,9 @@ export function LoginHistoryPage() {
               <option value="90">90 ngày qua</option>
             </select>
           </label>
+          <button type="button" className="staff-button staff-button--primary login-history-export" onClick={applyFilters}>
+            Áp dụng
+          </button>
         </div>
       </section>
 

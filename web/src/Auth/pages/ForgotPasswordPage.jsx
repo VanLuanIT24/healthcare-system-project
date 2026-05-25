@@ -10,6 +10,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AppLogo } from '../../app/AppLogo';
 import { API_BASE_URL } from '../../lib/api';
 import { getRecoveryActor } from '../recovery/recoveryConfig';
 import { buildRecoveryPath, parseRetryAfterSeconds, readJsonResponse, resolveRecoveryActorFromPath } from '../recovery/recoveryUtils';
@@ -164,16 +165,8 @@ export function ForgotPasswordPage() {
 
       <section className="auth-recovery-layout">
         <aside className="auth-recovery-hero">
-          <Link className="patient-register-logo auth-recovery-logo" to="/home" aria-label="MediCare HMS">
-            <span className="patient-register-logo__mark" aria-hidden="true">
-              <span />
-            </span>
-            <span>
-              <strong>
-                MediCare <em>HMS</em>
-              </strong>
-              <small>Hệ thống quản lý bệnh viện</small>
-            </span>
+          <Link className="patient-register-logo auth-recovery-logo" to="/home" aria-label="Bộ Y tế">
+            <AppLogo variant="horizontal" />
           </Link>
 
           <div className="auth-recovery-hero__copy">
@@ -181,7 +174,7 @@ export function ForgotPasswordPage() {
               <span>Quản lý thông minh</span>
               <span>Nâng tầm chăm sóc</span>
             </h1>
-            <p>MediCare HMS giúp tối ưu quy trình vận hành bệnh viện, nâng cao hiệu suất và chất lượng dịch vụ y tế.</p>
+            <p>Hệ thống y tế số giúp tối ưu quy trình vận hành, nâng cao hiệu suất và chất lượng dịch vụ y tế.</p>
           </div>
 
           <div className="auth-recovery-hero__chips">

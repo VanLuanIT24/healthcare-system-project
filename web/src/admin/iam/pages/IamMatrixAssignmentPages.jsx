@@ -47,7 +47,8 @@ function riskTone(level = 'low') {
 }
 
 function RiskBadge({ level }) {
-  return <span className={`iam-pro-risk iam-pro-risk--${riskTone(level)}`}>{level || 'low'}</span>;
+  const labels = { low: 'Thấp', medium: 'Trung bình', high: 'Cao', critical: 'Nghiêm trọng' };
+  return <span className={`iam-pro-risk iam-pro-risk--${riskTone(level)}`}>{labels[level] || labels.low}</span>;
 }
 
 function PermissionModuleBar({ modules = [], active, onChange }) {
@@ -179,7 +180,7 @@ export function IamPermissionMatrixView() {
             <RefreshCw size={16} /> Làm mới
           </button>
           <button type="button" className="staff-button staff-button--primary" onClick={applyChanges} disabled={saving || !pendingItems.length}>
-            <Save size={16} /> {saving ? 'Đang sync...' : `Apply ${pendingItems.length} thay đổi`}
+            <Save size={16} /> {saving ? 'Đang sync...' : `Áp dụng ${pendingItems.length} thay đổi`}
           </button>
         </div>
       </section>
@@ -187,10 +188,10 @@ export function IamPermissionMatrixView() {
       {error ? <p className="form-message error">{error}</p> : null}
 
       <section className="iam-pro-metrics">
-        <article><ShieldCheck size={18} /><span>Roles</span><strong>{formatNumber(matrix?.roles?.length)}</strong></article>
-        <article><KeyRound size={18} /><span>Permissions</span><strong>{formatNumber(matrix?.permissions?.length)}</strong></article>
-        <article><CheckCircle2 size={18} /><span>Grant pending</span><strong>{formatNumber(addedCount)}</strong></article>
-        <article><XCircle size={18} /><span>Remove pending</span><strong>{formatNumber(removedCount)}</strong></article>
+        <article><ShieldCheck size={18} /><span>Vai trò</span><strong>{formatNumber(matrix?.roles?.length)}</strong></article>
+        <article><KeyRound size={18} /><span>Quyền</span><strong>{formatNumber(matrix?.permissions?.length)}</strong></article>
+        <article><CheckCircle2 size={18} /><span>Đang chờ cấp</span><strong>{formatNumber(addedCount)}</strong></article>
+        <article><XCircle size={18} /><span>Đang chờ gỡ</span><strong>{formatNumber(removedCount)}</strong></article>
       </section>
 
       <section className="iam-pro-toolbar">
@@ -203,7 +204,7 @@ export function IamPermissionMatrixView() {
           <input value={roleSearch} onChange={(event) => setRoleSearch(event.target.value)} placeholder="Lọc role hiển thị..." />
         </label>
         <button type="button" onClick={() => setPending({})} disabled={!pendingItems.length}>
-          Reset diff
+          Đặt lại diff
         </button>
       </section>
 
@@ -212,7 +213,7 @@ export function IamPermissionMatrixView() {
       <section className="iam-pro-matrix-panel">
         <div className="iam-pro-matrix" style={{ '--iam-role-count': visibleRoleIds.length }}>
           <div className="iam-pro-matrix__row iam-pro-matrix__head">
-            <span className="iam-pro-matrix__permission-col">Permission</span>
+            <span className="iam-pro-matrix__permission-col">Quyền</span>
             {roles.map((role) => (
               <span key={role.role_id} className="iam-pro-matrix__role-head" title={role.role_name}>
                 <strong>{role.role_code}</strong>
@@ -370,10 +371,10 @@ export function IamRoleAssignmentView() {
         </div>
         <div className="iam-pro-hero__actions">
           <button type="button" className="staff-button staff-button--ghost" onClick={runPreview} disabled={!selectedUserId}>
-            <ShieldAlert size={16} /> Preview
+            <ShieldAlert size={16} /> Xem trước
           </button>
           <button type="button" className="staff-button staff-button--primary" onClick={save} disabled={saving || !selectedUserId}>
-            <Save size={16} /> {saving ? 'Đang sync...' : 'Sync role'}
+            <Save size={16} /> {saving ? 'Đang sync...' : 'Đồng bộ vai trò'}
           </button>
         </div>
       </section>
@@ -409,11 +410,11 @@ export function IamRoleAssignmentView() {
               <small>{selectedUser?.email || selectedUser?.employee_code || 'Chọn một nhân sự để gán role'}</small>
             </div>
             <div>
-              <span>Role selected</span>
+              <span>Vai trò đã chọn</span>
               <strong>{formatNumber(selectedRoleCodes.length)}</strong>
             </div>
             <div>
-              <span>Max priority</span>
+              <span>Ưu tiên cao nhất</span>
               <strong>{formatNumber(maxPriority)}</strong>
             </div>
           </article>

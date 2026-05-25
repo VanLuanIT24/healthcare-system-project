@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BarChart3,
@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   LogOut,
   MapPin,
+  Menu,
   Monitor,
   RefreshCw,
   Search,
@@ -23,8 +24,10 @@ import {
   Stethoscope,
   Users,
   UserSquare2,
+  X,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AppLogo, APP_BRAND_NAME } from '../../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
 import { getStaffActorName } from '../workspaceAccess';
 import { receptionDashboardApi } from '../api/receptionDashboardApi';
@@ -37,22 +40,82 @@ import { ReceptionPatientsPanel } from './ReceptionPatientsPanel';
 import { ReceptionPaymentsPanel } from './ReceptionPaymentsPanel';
 import { ReceptionReportsPanel } from './ReceptionReportsPanel';
 import { ReceptionSettingsPanel } from './ReceptionSettingsPanel';
+import {
+  PatientQuickDrawer,
+  ReceptionGlobalSearch,
+  ReceptionWorkspacePage,
+  RECEPTION_WORKSPACE_PAGE_KEYS,
+} from './ReceptionWorkspaceExperience';
 
 const SIDEBAR_SECTIONS = [
-  { key: 'overview', label: 'Tổng quan', icon: LayoutGrid },
   {
-    key: 'appointments',
-    label: 'Lịch hẹn',
+    key: 'overview',
+    label: 'Tổng quan tiếp đón',
+    icon: LayoutGrid,
+    children: [
+      { key: 'overview-dashboard', label: 'Dashboard tiếp đón' },
+      { key: 'overview-tasks', label: 'Việc cần xử lý' },
+      { key: 'appointments-upcoming', label: 'Lịch hẹn sắp tới' },
+      { key: 'overview-waiting-patients', label: 'Bệnh nhân đang chờ' },
+      { key: 'checkin-done', label: 'Check-in gần đây' },
+      { key: 'overview-queue-counter', label: 'Queue tại quầy' },
+      { key: 'notifications-all', label: 'Thông báo tại quầy' },
+    ],
+  },
+  {
+    key: 'patient-identification',
+    label: 'Tìm kiếm & định danh',
+    icon: Search,
+    children: [
+      { key: 'patients-search', label: 'Tìm bệnh nhân' },
+      { key: 'patients-qr-scan', label: 'Quét QR bệnh nhân' },
+      { key: 'patients-identity-lookup', label: 'Tra cứu theo CCCD / SĐT' },
+      { key: 'patients-duplicate-check', label: 'Kiểm tra trùng hồ sơ' },
+      { key: 'patients-duplicate-review', label: 'Hồ sơ nghi trùng' },
+      { key: 'patients-recent-lookups', label: 'Lịch sử tra cứu gần đây' },
+    ],
+  },
+  {
+    key: 'patient-administration',
+    label: 'Hồ sơ hành chính',
+    icon: UserSquare2,
+    children: [
+      { key: 'patients-create', label: 'Tạo bệnh nhân mới' },
+      { key: 'patients-record', label: 'Hồ sơ hành chính' },
+      { key: 'patients-contact', label: 'Thông tin liên hệ' },
+      { key: 'patients-emergency-contact', label: 'Người thân / liên hệ khẩn cấp' },
+      { key: 'patients-identifiers', label: 'Định danh bệnh nhân' },
+      { key: 'patients-portal-account', label: 'Tài khoản portal' },
+      { key: 'patients-basic-insurance', label: 'Bảo hiểm cơ bản' },
+      { key: 'patients-profile-update-requests', label: 'Yêu cầu cập nhật hồ sơ' },
+    ],
+  },
+  {
+    key: 'patient-completion',
+    label: 'Hồ sơ cần bổ sung',
+    icon: ShieldAlert,
+    children: [
+      { key: 'patients-missing-personal-info', label: 'Thiếu thông tin cá nhân' },
+      { key: 'patients-missing-documents', label: 'Thiếu giấy tờ' },
+      { key: 'patients-missing-insurance', label: 'Thiếu bảo hiểm' },
+      { key: 'patients-unverified-contact', label: 'Chưa xác minh SĐT / email' },
+      { key: 'patients-uploaded-documents', label: 'Tài liệu bệnh nhân gửi lên' },
+      { key: 'patients-edit-requests', label: 'Yêu cầu chỉnh sửa chờ duyệt' },
+    ],
+  },
+  {
+    key: 'frontdesk-appointments',
+    label: 'Lịch hẹn tại quầy',
     icon: CalendarDays,
     children: [
-      { key: 'appointments-all', label: 'Tất cả lịch hẹn' },
-      { key: 'appointments-today', label: 'Lịch hôm nay' },
-      { key: 'appointments-upcoming', label: 'Lịch sắp tới' },
+      { key: 'appointments-today', label: 'Lịch hẹn hôm nay' },
       { key: 'appointments-create', label: 'Tạo lịch hẹn' },
       { key: 'appointments-confirm', label: 'Xác nhận lịch' },
       { key: 'appointments-reschedule', label: 'Dời lịch' },
-      { key: 'appointments-cancelled', label: 'Lịch đã hủy' },
-      { key: 'appointments-no-show', label: 'Lịch no-show' },
+      { key: 'appointments-cancelled', label: 'Hủy lịch' },
+      { key: 'appointments-waitlist', label: 'Danh sách chờ' },
+      { key: 'appointments-slot-check', label: 'Kiểm tra slot trống' },
+      { key: 'appointments-conflict-check', label: 'Kiểm tra xung đột lịch' },
     ],
   },
   {
@@ -61,92 +124,91 @@ const SIDEBAR_SECTIONS = [
     icon: CheckCircle2,
     children: [
       { key: 'checkin-quick', label: 'Check-in nhanh' },
-      { key: 'checkin-waiting', label: 'Danh sách chờ check-in' },
-      { key: 'checkin-done', label: 'Đã check-in' },
-      { key: 'checkin-print', label: 'In phiếu tiếp nhận' },
+      { key: 'checkin-appointment', label: 'Check-in theo lịch hẹn' },
+      { key: 'checkin-qr', label: 'Check-in theo QR' },
+      { key: 'checkin-walkin', label: 'Check-in vãng lai' },
+      { key: 'checkin-errors', label: 'Check-in lỗi / cần xử lý' },
+      { key: 'checkin-print', label: 'In số thứ tự' },
+      { key: 'checkin-history', label: 'Lịch sử check-in' },
     ],
   },
   {
     key: 'queue',
-    label: 'Hàng đợi',
+    label: 'Queue tiếp nhận',
     icon: Users,
     children: [
-      { key: 'queue-board', label: 'Bảng hàng đợi' },
-      { key: 'queue-call', label: 'Gọi số tiếp theo' },
-      { key: 'queue-waiting', label: 'Đang chờ' },
-      { key: 'queue-called', label: 'Đang gọi' },
-      { key: 'queue-in_service', label: 'Đang phục vụ' },
-      { key: 'queue-skipped', label: 'Bỏ qua' },
-      { key: 'queue-completed', label: 'Đã hoàn tất' },
-      { key: 'queue-cancelled', label: 'Đã hủy' },
-      { key: 'queue-transfer', label: 'Chuyển hàng đợi' },
+      { key: 'queue-board', label: 'Queue hiện tại' },
+      { key: 'queue-call', label: 'Gọi bệnh nhân' },
+      { key: 'queue-recall', label: 'Gọi lại' },
+      { key: 'queue-missed', label: 'Missed call' },
+      { key: 'queue-priority', label: 'Ưu tiên' },
+      { key: 'queue-transfer', label: 'Chuyển khoa / chuyển phòng' },
+      { key: 'queue-cancel', label: 'Hủy queue ticket' },
+      { key: 'queue-public-board', label: 'Bảng queue công khai' },
     ],
   },
   {
-    key: 'patients',
-    label: 'Bệnh nhân',
-    icon: UserSquare2,
-    children: [
-      { key: 'patients-search', label: 'Tìm bệnh nhân' },
-      { key: 'patients-create', label: 'Tạo bệnh nhân mới' },
-      { key: 'patients-record', label: 'Hồ sơ bệnh nhân' },
-      { key: 'patients-priority', label: 'Bệnh nhân ưu tiên' },
-    ],
-  },
-  {
-    key: 'doctors',
-    label: 'Bác sĩ trực',
+    key: 'internal-transfer',
+    label: 'Chuyển tuyến nội bộ',
     icon: Stethoscope,
     children: [
-      { key: 'doctors-schedule', label: 'Lịch bác sĩ hôm nay' },
-      { key: 'doctors-departments', label: 'Theo khoa' },
-      { key: 'doctors-rooms', label: 'Theo phòng' },
-      { key: 'doctors-active', label: 'Bác sĩ đang trực' },
+      { key: 'transfer-nursing', label: 'Chuyển sang Điều dưỡng' },
+      { key: 'transfer-doctor', label: 'Chuyển sang Bác sĩ' },
+      { key: 'transfer-cashier', label: 'Chuyển sang Thu ngân' },
+      { key: 'transfer-clinical-service', label: 'Chuyển sang Cận lâm sàng' },
+      { key: 'transfer-pharmacy', label: 'Chuyển sang Nhà thuốc' },
+      { key: 'transfer-history', label: 'Lịch sử chuyển tuyến' },
     ],
   },
   {
     key: 'payments',
-    label: 'Thanh toán',
+    label: 'Thanh toán liên quan',
     icon: CreditCard,
     children: [
-      { key: 'payments-collect', label: 'Thu thanh toán' },
-      { key: 'payments-pending', label: 'Hóa đơn chờ xử lý' },
-      { key: 'payments-complete', label: 'Đã thanh toán' },
-      { key: 'payments-refund', label: 'Hoàn tiền' },
+      { key: 'payments-pending', label: 'Hóa đơn chờ thu' },
+      { key: 'payments-status', label: 'Trạng thái thanh toán' },
+      { key: 'payments-qr-guide', label: 'Hướng dẫn QR thanh toán' },
+      { key: 'payments-confirmation', label: 'Payment cần xác nhận' },
+      { key: 'payments-transfer-cashier', label: 'Chuyển sang thu ngân' },
     ],
   },
   {
-    key: 'notifications',
-    label: 'Thông báo',
-    icon: Bell,
-    badge: '5',
+    key: 'patient-support',
+    label: 'Hỗ trợ bệnh nhân',
+    icon: Headset,
     children: [
-      { key: 'notifications-all', label: 'Tất cả thông báo' },
-      { key: 'notifications-unread', label: 'Chưa đọc' },
-      { key: 'notifications-appointments', label: 'Lịch hẹn' },
-      { key: 'notifications-payments', label: 'Thanh toán' },
-      { key: 'notifications-system', label: 'Hệ thống' },
+      { key: 'support-tickets', label: 'Support tickets' },
+      { key: 'support-patient-messages', label: 'Tin nhắn bệnh nhân' },
+      { key: 'support-send-notification', label: 'Gửi thông báo' },
+      { key: 'support-portal-guide', label: 'Hướng dẫn portal' },
+      { key: 'support-booking-guide', label: 'Hướng dẫn đặt lịch' },
+      { key: 'support-complaints', label: 'Khiếu nại / yêu cầu hỗ trợ' },
     ],
   },
   {
     key: 'reports',
-    label: 'Báo cáo',
+    label: 'Báo cáo tại quầy',
     icon: BarChart3,
     children: [
       { key: 'reports-daily', label: 'Tổng quan ngày' },
-      { key: 'reports-appointments', label: 'Lịch hẹn' },
+      { key: 'reports-reception-volume', label: 'Số lượt tiếp đón' },
       { key: 'reports-checkin', label: 'Check-in' },
-      { key: 'reports-revenue', label: 'Doanh thu' },
+      { key: 'reports-no-show', label: 'No-show' },
+      { key: 'reports-wait-time', label: 'Thời gian chờ' },
+      { key: 'reports-transfer', label: 'Chuyển tuyến' },
+      { key: 'reports-counter-performance', label: 'Hiệu suất quầy' },
     ],
   },
   {
     key: 'settings',
-    label: 'Cài đặt',
+    label: 'Cài đặt cá nhân',
     icon: Settings,
     children: [
-      { key: 'settings-account', label: 'Tài khoản' },
+      { key: 'settings-account', label: 'Tài khoản của tôi' },
       { key: 'settings-ui', label: 'Giao diện' },
-      { key: 'settings-system', label: 'Tùy chọn hệ thống' },
+      { key: 'settings-printer', label: 'Máy in / mẫu in' },
+      { key: 'settings-shortcuts', label: 'Phím tắt thao tác' },
+      { key: 'settings-notifications', label: 'Tùy chọn thông báo' },
     ],
   },
 ];
@@ -159,7 +221,73 @@ const APPOINTMENT_MENU_MODES = {
   'appointments-confirm': 'confirm',
   'appointments-reschedule': 'reschedule',
   'appointments-cancelled': 'cancelled',
-  'appointments-no-show': 'no_show',
+  'appointments-waitlist': 'upcoming',
+  'appointments-slot-check': 'upcoming',
+  'appointments-conflict-check': 'reschedule',
+};
+
+const WORKFLOW_MENU_MODE_ALIASES = {
+  'overview-waiting-patients': 'queue-waiting',
+  'overview-queue-counter': 'queue-board',
+  'checkin-appointment': 'checkin-waiting',
+  'checkin-qr': 'checkin-quick',
+  'checkin-walkin': 'checkin-quick',
+  'checkin-errors': 'checkin-waiting',
+  'checkin-history': 'checkin-done',
+  'queue-current': 'queue-board',
+  'queue-recall': 'queue-called',
+  'queue-missed': 'queue-skipped',
+  'queue-priority': 'queue-waiting',
+  'queue-cancel': 'queue-cancelled',
+  'queue-public-board': 'queue-board',
+  'transfer-nursing': 'queue-transfer',
+  'transfer-doctor': 'queue-transfer',
+  'transfer-cashier': 'queue-transfer',
+  'transfer-clinical-service': 'queue-transfer',
+  'transfer-pharmacy': 'queue-transfer',
+  'transfer-history': 'queue-transfer',
+};
+
+const PAYMENT_MENU_MODE_ALIASES = {
+  'payments-status': 'payments-complete',
+  'payments-qr-guide': 'payments-collect',
+  'payments-confirmation': 'payments-pending',
+  'payments-transfer-cashier': 'payments-collect',
+};
+
+const NOTIFICATION_MENU_MODE_ALIASES = {
+  'support-tickets': 'notifications-system',
+  'support-patient-messages': 'notifications-all',
+  'support-send-notification': 'notifications-all',
+  'support-portal-guide': 'notifications-system',
+  'support-booking-guide': 'notifications-appointments',
+  'support-complaints': 'notifications-unread',
+};
+
+const REPORT_MENU_MODE_ALIASES = {
+  'reports-reception-volume': 'reports-daily',
+  'reports-no-show': 'reports-appointments',
+  'reports-wait-time': 'reports-checkin',
+  'reports-transfer': 'reports-checkin',
+  'reports-counter-performance': 'reports-daily',
+};
+
+const SETTING_MENU_MODE_ALIASES = {
+  'settings-printer': 'settings-system',
+  'settings-shortcuts': 'settings-ui',
+  'settings-notifications': 'settings-system',
+};
+
+const MENU_PARENT_BY_CHILD = SIDEBAR_SECTIONS.reduce((map, section) => {
+  safeArray(section.children).forEach((child) => {
+    map[child.key] = section.key;
+  });
+  return map;
+}, {});
+
+const MENU_PARENT_ALIASES = {
+  'appointments-all': 'frontdesk-appointments',
+  'queue-current': 'queue',
 };
 
 const STATUS_META = {
@@ -430,8 +558,8 @@ async function safeOptionalRequest(factory) {
 }
 
 function mapNotifications(items = []) {
-  return safeArray(items).slice(0, 4).map((item) => ({
-    id: item?._id || item?.notification_id || item?.id || Math.random().toString(36).slice(2),
+  return safeArray(items).slice(0, 4).map((item, index) => ({
+    id: item?._id || item?.notification_id || item?.id || `notification-${index}`,
     title: item?.title || 'Thông báo hệ thống',
     message: item?.message || '',
     created_at: item?.created_at || item?.scheduled_at || null,
@@ -469,6 +597,132 @@ function mapQueueRows(items = []) {
       status: item?.status || 'waiting',
       statusLabel: (STATUS_META.queue[item?.status] || {}).label || item?.status || 'Unknown',
     }));
+}
+
+function mapReceptionDashboardData(payload = {}) {
+  const kpis = payload.kpis || {};
+  const counters = payload.counters || {};
+  const appointmentItems = safeArray(payload.appointments);
+  const queueItems = safeArray(payload.waiting_patients);
+  const notifications = safeArray(payload.notifications);
+
+  return {
+    today: payload.date,
+    metrics: [
+      {
+        key: 'appointments',
+        label: 'Lịch hẹn hôm nay',
+        value: toNumber(kpis.appointments_today),
+        icon: CalendarDays,
+        tone: 'info',
+        delta: { text: 'Từ /api/reception/dashboard', trend: 'neutral' },
+        spark: createSparkPoints([kpis.appointments_confirmed, kpis.appointments_today]),
+      },
+      {
+        key: 'checked-in',
+        label: 'Đã check-in hôm nay',
+        value: toNumber(kpis.checked_in),
+        icon: CheckCircle2,
+        tone: 'success',
+        delta: { text: 'Theo lịch, QR và vãng lai', trend: 'neutral' },
+        spark: createSparkPoints([kpis.appointment_checkins, kpis.checked_in]),
+      },
+      {
+        key: 'queue',
+        label: 'Queue đang chờ',
+        value: toNumber(kpis.queue_waiting),
+        icon: Users,
+        tone: 'warning',
+        delta: { text: `${formatInteger(kpis.queue_missed)} missed call`, trend: toNumber(kpis.queue_missed) ? 'up' : 'neutral' },
+        spark: createSparkPoints([kpis.queue_called, kpis.queue_waiting]),
+      },
+      {
+        key: 'missing-profile',
+        label: 'Hồ sơ cần bổ sung',
+        value: toNumber(kpis.missing_profile),
+        icon: ShieldAlert,
+        tone: 'danger',
+        delta: { text: 'Giấy tờ và yêu cầu cập nhật', trend: toNumber(kpis.missing_profile) ? 'up' : 'neutral' },
+        spark: createSparkPoints([counters.missing_documents, counters.profile_change_requests]),
+      },
+      {
+        key: 'payments',
+        label: 'Thanh toán liên quan',
+        value: toNumber(kpis.unpaid_invoices) + toNumber(kpis.payment_reviews),
+        icon: CreditCard,
+        tone: 'warning',
+        delta: { text: 'Chỉ hướng dẫn hoặc chuyển thu ngân', trend: 'neutral' },
+        spark: createSparkPoints([kpis.unpaid_invoices, kpis.payment_reviews]),
+      },
+      {
+        key: 'notifications',
+        label: 'Thông báo chưa đọc',
+        value: toNumber(kpis.notifications_unread),
+        icon: Bell,
+        tone: 'info',
+        delta: { text: toNumber(kpis.notifications_unread) ? 'Cần rà soát trong ca' : 'Không có cảnh báo mới', trend: toNumber(kpis.notifications_unread) ? 'up' : 'neutral' },
+        spark: createSparkPoints([notifications.length, kpis.notifications_unread]),
+      },
+    ],
+    appointmentStatus: buildBreakdownFromSummary(
+      {
+        total: kpis.appointments_today,
+        confirmed: kpis.appointments_confirmed,
+        checked_in: kpis.checked_in,
+        no_show: kpis.appointments_no_show_risk,
+      },
+      [
+        { status: 'confirmed', field: 'confirmed' },
+        { status: 'checked_in', field: 'checked_in' },
+        { status: 'no_show', field: 'no_show' },
+      ],
+      'appointment',
+    ),
+    queueStatus: buildBreakdownFromSummary(
+      {
+        waiting: kpis.queue_waiting,
+        called: kpis.queue_called,
+        skipped: kpis.queue_missed,
+      },
+      [
+        { status: 'waiting', field: 'waiting' },
+        { status: 'called', field: 'called' },
+        { status: 'skipped', field: 'skipped' },
+      ],
+      'queue',
+    ),
+    encounterStatus: [],
+    revenue: { total: 0, series: [] },
+    tables: {
+      appointments: mapAppointmentRows(appointmentItems),
+      queue: mapQueueRows(queueItems),
+      encounters: [],
+    },
+    scheduleOverview: {
+      overview: null,
+      todaySchedules: [],
+      topDoctors: [],
+      departments: [],
+      rangeSeries: [],
+    },
+    departments: { summary: null, items: [] },
+    systemReport: {
+      cards: [
+        { key: 'worklist', label: 'Việc cần xử lý', value: formatInteger(counters.worklist), tone: 'warning' },
+        { key: 'support', label: 'Support mở', value: formatInteger(kpis.support_open), tone: 'info' },
+        { key: 'payment', label: 'Payment reviews', value: formatInteger(kpis.payment_reviews), tone: 'warning' },
+      ],
+      events: safeArray(payload.activity_feed).map((item) => ({
+        id: item.activity_id,
+        title: item.title,
+        time: item.created_at,
+      })),
+    },
+    notifications: mapNotifications(notifications),
+    worklist: safeArray(payload.worklist),
+    paymentAlerts: safeArray(payload.payment_alerts),
+    scopedDashboard: payload,
+  };
 }
 
 function mapEncounterRows(items = []) {
@@ -551,8 +805,8 @@ function mapSystemEvents(auditEvents = [], operationAlerts = []) {
     time: item?.created_at,
     title: item?.message || item?.action || 'Hoạt động hệ thống',
   }));
-  const alertItems = safeArray(operationAlerts).map((item) => ({
-    id: item?.id || item?.key || item?.message || Math.random().toString(36).slice(2),
+  const alertItems = safeArray(operationAlerts).map((item, index) => ({
+    id: item?.id || item?.key || item?.message || `operation-alert-${index}`,
     time: item?.created_at || item?.time || null,
     title: item?.message || item?.title || item?.label || 'Cảnh báo vận hành',
   }));
@@ -605,15 +859,26 @@ function SidebarMenuItem({
 }) {
   const Icon = item.icon;
   const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+  const submenuId = `reception-sidebar-${item.key}`;
 
   return (
     <div className={`reception-sidebar__item ${isActive ? 'is-active' : ''} ${hasChildren ? 'has-children' : ''} ${isOpen ? 'is-open' : ''}`}>
       <button
         type="button"
         className="reception-sidebar__button"
+        aria-expanded={hasChildren && !collapsed ? isOpen : undefined}
+        aria-controls={hasChildren && !collapsed ? submenuId : undefined}
+        title={collapsed ? item.label : undefined}
         onClick={() => {
+          if (hasChildren) {
+            if (collapsed) {
+              onActivate(item.defaultKey || item.children[0]?.key || item.key);
+              return;
+            }
+            onToggle(item.key);
+            return;
+          }
           onActivate(item.key);
-          if (hasChildren) onToggle(item.key);
         }}
       >
         <span className="reception-sidebar__icon" aria-hidden="true">
@@ -629,15 +894,16 @@ function SidebarMenuItem({
       </button>
 
       {!collapsed && hasChildren && isOpen ? (
-        <div className="reception-sidebar__submenu">
-          {item.children.map((child) => (
+        <div className="reception-sidebar__submenu" id={submenuId}>
+          {item.children.map((child, index) => (
             <button
               key={child.key}
               type="button"
               className={`reception-sidebar__submenu-item ${activeKey === child.key ? 'is-active' : ''}`}
+              aria-current={activeKey === child.key ? 'page' : undefined}
               onClick={() => onActivate(child.key)}
             >
-              <span />
+              <span className="reception-sidebar__submenu-index">{String(index + 1).padStart(2, '0')}</span>
               <span>{child.label}</span>
             </button>
           ))}
@@ -739,8 +1005,10 @@ export function ReceptionDashboardPage() {
   const actorName = getStaffActorName(auth);
   const actorDepartmentId = getActorDepartmentId(auth);
   const [collapsedSidebar, setCollapsedSidebar] = useState(false);
-  const [activeMenu, setActiveMenu] = useState('overview');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeMenu, setActiveMenu] = useState('overview-dashboard');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [quickPatient, setQuickPatient] = useState(null);
   const [authContext, setAuthContext] = useState({
     loading: true,
     error: '',
@@ -751,13 +1019,16 @@ export function ReceptionDashboardPage() {
     loginHistory: [],
   });
   const [openMenus, setOpenMenus] = useState({
-    appointments: true,
-    checkin: true,
-    queue: true,
-    patients: false,
-    doctors: true,
+    overview: true,
+    'patient-identification': false,
+    'patient-administration': false,
+    'patient-completion': false,
+    'frontdesk-appointments': false,
+    checkin: false,
+    queue: false,
+    'internal-transfer': false,
     payments: false,
-    notifications: false,
+    'patient-support': false,
     reports: false,
     settings: false,
   });
@@ -819,10 +1090,7 @@ export function ReceptionDashboardPage() {
     };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadDashboard() {
+  const loadDashboard = useCallback(async ({ shouldApply = () => true } = {}) => {
       setDashboardState((current) => ({
         ...current,
         loading: true,
@@ -833,6 +1101,17 @@ export function ReceptionDashboardPage() {
         const today = getDateKey(0);
         const yesterday = getDateKey(-1);
         const last7Days = buildDateRange(7);
+        const receptionDashboard = await safeOptionalRequest(() => receptionDashboardApi.getReceptionDashboard({ date: today }));
+
+        if (receptionDashboard) {
+          if (!shouldApply()) return;
+          setDashboardState({
+            loading: false,
+            error: '',
+            data: mapReceptionDashboardData(receptionDashboard),
+          });
+          return;
+        }
 
         const [departmentDashboard, systemDashboard] = await Promise.all([
           actorDepartmentId
@@ -1064,7 +1343,7 @@ export function ReceptionDashboardPage() {
           scopedDashboard,
         };
 
-        if (!isMounted) return;
+        if (!shouldApply()) return;
 
         setDashboardState({
           loading: false,
@@ -1072,7 +1351,7 @@ export function ReceptionDashboardPage() {
           data: normalizedData,
         });
       } catch (error) {
-        if (!isMounted) return;
+        if (!shouldApply()) return;
 
         setDashboardState({
           loading: false,
@@ -1080,14 +1359,17 @@ export function ReceptionDashboardPage() {
           data: null,
         });
       }
-    }
+  }, [actorDepartmentId]);
 
-    loadDashboard();
+  useEffect(() => {
+    let isMounted = true;
+
+    loadDashboard({ shouldApply: () => isMounted });
 
     return () => {
       isMounted = false;
     };
-  }, [actorDepartmentId]);
+  }, [loadDashboard]);
 
   const data = dashboardState.data;
   const todayLabel = useMemo(() => formatDateLabel(new Date()), []);
@@ -1115,8 +1397,11 @@ export function ReceptionDashboardPage() {
     || (actorDepartmentId ? 'Khoa phụ trách' : 'Toàn hệ thống');
   const latestLogin = authContext.loginHistory[0];
   const appointmentMode = APPOINTMENT_MENU_MODES[activeMenu] || null;
-  const workflowMode = !appointmentMode && (activeMenu.startsWith('checkin-') || activeMenu.startsWith('queue-'))
-    ? activeMenu
+  const workflowMode = !appointmentMode && (
+    WORKFLOW_MENU_MODE_ALIASES[activeMenu]
+    || (activeMenu.startsWith('checkin-') || activeMenu.startsWith('queue-') ? activeMenu : '')
+  )
+    ? WORKFLOW_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
   const patientMode = !appointmentMode && !workflowMode && activeMenu.startsWith('patients-')
     ? activeMenu
@@ -1124,18 +1409,33 @@ export function ReceptionDashboardPage() {
   const doctorMode = !appointmentMode && !workflowMode && !patientMode && activeMenu.startsWith('doctors-')
     ? activeMenu
     : null;
-  const paymentMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && activeMenu.startsWith('payments-')
-    ? activeMenu
+  const paymentMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && (
+    PAYMENT_MENU_MODE_ALIASES[activeMenu]
+    || (activeMenu.startsWith('payments-') ? activeMenu : '')
+  )
+    ? PAYMENT_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const notificationMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && activeMenu.startsWith('notifications-')
-    ? activeMenu
+  const notificationMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && (
+    NOTIFICATION_MENU_MODE_ALIASES[activeMenu]
+    || (activeMenu.startsWith('notifications-') ? activeMenu : '')
+  )
+    ? NOTIFICATION_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const reportMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !notificationMode && activeMenu.startsWith('reports-')
-    ? activeMenu
+  const reportMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !notificationMode && (
+    REPORT_MENU_MODE_ALIASES[activeMenu]
+    || (activeMenu.startsWith('reports-') ? activeMenu : '')
+  )
+    ? REPORT_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const settingMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !notificationMode && !reportMode && activeMenu.startsWith('settings-')
-    ? activeMenu
+  const settingMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !notificationMode && !reportMode && (
+    SETTING_MENU_MODE_ALIASES[activeMenu]
+    || (activeMenu.startsWith('settings-') ? activeMenu : '')
+  )
+    ? SETTING_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
+  const hasSpecializedPanel = Boolean(appointmentMode || workflowMode || patientMode || doctorMode || paymentMode || notificationMode || reportMode || settingMode);
+  const workspacePageMode = !hasSpecializedPanel && RECEPTION_WORKSPACE_PAGE_KEYS.has(activeMenu) ? activeMenu : null;
+  const isSidebarCollapsed = collapsedSidebar && !mobileSidebarOpen;
 
   function handleToggleMenu(key) {
     setOpenMenus((current) => ({
@@ -1146,6 +1446,15 @@ export function ReceptionDashboardPage() {
 
   function handleActivateMenu(key) {
     setActiveMenu(key);
+    setIsProfileOpen(false);
+    setMobileSidebarOpen(false);
+    const parentKey = MENU_PARENT_BY_CHILD[key] || MENU_PARENT_ALIASES[key];
+    if (parentKey) {
+      setOpenMenus((current) => ({
+        ...current,
+        [parentKey]: true,
+      }));
+    }
   }
 
   async function handleLogout() {
@@ -1162,25 +1471,39 @@ export function ReceptionDashboardPage() {
   }
 
   return (
-    <main className={`reception-dashboard ${collapsedSidebar ? 'is-sidebar-collapsed' : ''}`}>
+    <main className={`reception-dashboard ${isSidebarCollapsed ? 'is-sidebar-collapsed' : ''} ${mobileSidebarOpen ? 'is-sidebar-open' : ''}`}>
+      <button
+        type="button"
+        className="reception-sidebar-backdrop"
+        aria-label="Đóng menu lễ tân"
+        onClick={() => setMobileSidebarOpen(false)}
+      />
       <aside className="reception-sidebar" aria-label="Menu lễ tân">
         <div className="reception-sidebar__brand">
           <Link className="reception-sidebar__brand-link" to="/staff/select-workspace">
             <span className="reception-sidebar__brand-mark" aria-hidden="true">
-              <span />
+              <AppLogo variant="mark" alt="" aria-hidden="true" />
             </span>
-            {!collapsedSidebar ? (
+            {!isSidebarCollapsed ? (
               <span className="reception-sidebar__brand-text">
-                <strong>MedCare HMS</strong>
-                <small>Reception Workspace</small>
+                <strong>{APP_BRAND_NAME}</strong>
+                <small>Không gian tiếp nhận</small>
               </span>
             ) : null}
           </Link>
+          <button
+            type="button"
+            className="reception-sidebar__mobile-close"
+            aria-label="Đóng menu lễ tân"
+            onClick={() => setMobileSidebarOpen(false)}
+          >
+            <X size={18} />
+          </button>
         </div>
 
         <nav className="reception-sidebar__nav">
           {SIDEBAR_SECTIONS.map((item) => {
-            const resolvedItem = item.key === 'notifications'
+            const resolvedItem = item.key === 'patient-support'
               ? { ...item, badge: unreadCount === '0' ? '' : unreadCount }
               : item;
             const isOpen = Boolean(openMenus[item.key]);
@@ -1190,7 +1513,7 @@ export function ReceptionDashboardPage() {
               <SidebarMenuItem
                 key={item.key}
                 item={resolvedItem}
-                collapsed={collapsedSidebar}
+                collapsed={isSidebarCollapsed}
                 activeKey={activeMenu}
                 isActive={isActive}
                 isOpen={isOpen}
@@ -1202,7 +1525,7 @@ export function ReceptionDashboardPage() {
         </nav>
 
         <div className="reception-sidebar__support">
-          {!collapsedSidebar ? (
+          {!isSidebarCollapsed ? (
             <div className="reception-sidebar__support-card">
               <Headset size={18} />
               <div>
@@ -1216,23 +1539,33 @@ export function ReceptionDashboardPage() {
             className="reception-sidebar__collapse"
             onClick={() => setCollapsedSidebar((current) => !current)}
           >
-            <ChevronLeft size={18} className={collapsedSidebar ? 'is-rotated' : ''} />
-            {!collapsedSidebar ? <span>Thu gọn menu</span> : null}
+            <ChevronLeft size={18} className={isSidebarCollapsed ? 'is-rotated' : ''} />
+            {!isSidebarCollapsed ? <span>Thu gọn menu</span> : null}
           </button>
         </div>
       </aside>
 
       <div className="reception-main">
         <header className="reception-header">
+          <button
+            type="button"
+            className="reception-header__menu"
+            aria-label="Mở menu lễ tân"
+            aria-expanded={mobileSidebarOpen}
+            onClick={() => setMobileSidebarOpen(true)}
+          >
+            <Menu size={19} />
+          </button>
+
           <div className="reception-header__heading">
-            <h1>Dashboard Receptionist</h1>
+            <h1>Lễ tân & Tiếp đón</h1>
             <p>{departmentName} · {formatInteger(permissionCount)} quyền khả dụng</p>
           </div>
 
-          <div className="reception-header__search">
-            <Search size={18} />
-            <input type="search" placeholder="Tìm bệnh nhân, lịch hẹn, mã hồ sơ..." />
-          </div>
+          <ReceptionGlobalSearch
+            onNavigate={handleActivateMenu}
+            onSelectPatient={setQuickPatient}
+          />
 
           <div className="reception-header__filters">
             <button type="button" className="reception-toolbar-pill">
@@ -1328,7 +1661,15 @@ export function ReceptionDashboardPage() {
           </div>
         </header>
 
-        {appointmentMode ? (
+        {workspacePageMode ? (
+          <ReceptionWorkspacePage
+            mode={workspacePageMode}
+            data={data}
+            onNavigate={handleActivateMenu}
+            onSelectPatient={setQuickPatient}
+            onRefresh={loadDashboard}
+          />
+        ) : appointmentMode ? (
           <ReceptionAppointmentsPanel mode={appointmentMode} onNavigate={handleActivateMenu} />
         ) : workflowMode ? (
           <ReceptionCheckInQueuePanel mode={workflowMode} onNavigate={handleActivateMenu} />
@@ -1777,6 +2118,11 @@ export function ReceptionDashboardPage() {
           </>
         )}
       </div>
+      <PatientQuickDrawer
+        patient={quickPatient}
+        onClose={() => setQuickPatient(null)}
+        onNavigate={handleActivateMenu}
+      />
     </main>
   );
 }

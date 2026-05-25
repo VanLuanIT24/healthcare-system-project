@@ -32,6 +32,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { nurseTaskHandoverApi } from './nurseApi';
+import { confirmNurseAction, downloadNurseJson, notifyNurse, printNurseView, promptNurseText, runNurseAction } from './nurseActions';
 
 const priorityLabels = {
   low: 'Thấp',
@@ -399,7 +400,7 @@ function KpiStrip({ items }) {
       {items.map((item) => {
         const Icon = item.icon || Activity;
         return (
-          <button key={item.label} type="button" className={`nurse-th-kpi nurse-th-kpi--${item.tone || 'teal'}`} onClick={item.onClick}>
+          <button key={item.label} type="button" className={`nurse-th-kpi nurse-th-kpi--${item.tone || 'teal'}`} onClick={item.onClick || (() => notifyNurse({ title: item.label, message: item.detail || 'Đã chọn chỉ số để rà soát.' }))}>
             <Icon size={18} />
             <span>{item.label}</span>
             <strong>{item.value ?? 0}</strong>
@@ -569,23 +570,56 @@ function taskFilter(tasks, tab, filters) {
 
 function makeTaskAction(setRefresh, setToast, isDemo) {
   return async function handleAction(action, task, item) {
-    if (isDemo) {
-      setToast('Dữ liệu mẫu: thao tác API chưa được gửi.');
+    const taskId = task?.id || task?.task_id || task?._id;
+    if (!taskId) {
+      const message = 'Chưa chọn nhiệm vụ hợp lệ để thao tác.';
+      setToast(message);
+      notifyNurse({ tone: 'warning', title: 'Nhiệm vụ điều dưỡng', message });
       return;
     }
-    try {
-      if (action === 'accept') await nurseTaskHandoverApi.acceptTask(task.id || task.task_id);
-      if (action === 'start') await nurseTaskHandoverApi.startTask(task.id || task.task_id);
-      if (action === 'complete') await nurseTaskHandoverApi.completeTask(task.id || task.task_id, { result_note: 'Hoàn tất từ trung tâm điều phối điều dưỡng.' });
-      if (action === 'block') await nurseTaskHandoverApi.blockTask(task.id || task.task_id, { blocked_reason: 'Cần thêm thông tin trước khi xử lý.' });
-      if (action === 'note') await nurseTaskHandoverApi.addTaskNote(task.id || task.task_id, { note: 'Ghi chú nhanh từ workspace điều dưỡng.' });
-      if (action === 'doctor') await nurseTaskHandoverApi.reportDoctor(task.id || task.task_id, { message: task.description || task.title });
-      if (action === 'escalate') await nurseTaskHandoverApi.escalateTask(task.id || task.task_id, { reason: 'Báo khẩn từ trung tâm điều phối điều dưỡng.' });
-      if (action === 'check' && item) await nurseTaskHandoverApi.checkChecklistItem(task.id || task.task_id, item.id || item._id);
-      setToast('Đã cập nhật nhiệm vụ.');
-      setRefresh((value) => value + 1);
-    } catch (error) {
-      setToast(error?.message || 'Không thể cập nhật nhiệm vụ.');
+
+    const actionNames = {
+      accept: 'Nhận nhiệm vụ',
+      start: 'Bắt đầu nhiệm vụ',
+      complete: 'Hoàn tất nhiệm vụ',
+      block: 'Chặn nhiệm vụ',
+      note: 'Thêm ghi chú',
+      doctor: 'Báo bác sĩ',
+      escalate: 'Báo khẩn',
+      handoff: 'Đưa vào bàn giao',
+      check: 'Cập nhật checklist',
+    };
+    const confirmActions = ['complete', 'block', 'doctor', 'escalate', 'handoff'];
+    const note = action === 'note'
+      ? promptNurseText({ title: 'Ghi chú nhiệm vụ', message: task.title, defaultValue: task.latest_note || 'Ghi chú nhanh từ workspace điều dưỡng.' })
+      : null;
+    if (action === 'note' && !note) return;
+
+    await runNurseAction({
+      label: actionNames[action] || 'Cập nhật nhiệm vụ',
+      isDemo,
+      demoMessage: 'Dữ liệu mẫu: thao tác API chưa được gửi.',
+      confirm: confirmActions.includes(action) ? { title: actionNames[action], message: `Thực hiện với nhiệm vụ: ${task.title}` } : null,
+      run: async () => {
+        if (action === 'accept') return nurseTaskHandoverApi.acceptTask(taskId);
+        if (action === 'start') return nurseTaskHandoverApi.startTask(taskId);
+        if (action === 'complete') return nurseTaskHandoverApi.completeTask(taskId, { result_note: 'Hoàn tất từ trung tâm điều phối điều dưỡng.' });
+        if (action === 'block') return nurseTaskHandoverApi.blockTask(taskId, { blocked_reason: 'Cần thêm thông tin trước khi xử lý.' });
+        if (action === 'note') return nurseTaskHandoverApi.addTaskNote(taskId, { note });
+        if (action === 'doctor') return nurseTaskHandoverApi.reportDoctor(taskId, { message: task.description || task.title });
+        if (action === 'escalate') return nurseTaskHandoverApi.escalateTask(taskId, { reason: 'Báo khẩn từ trung tâm điều phối điều dưỡng.' });
+        if (action === 'handoff') return nurseTaskHandoverApi.addToHandoff(taskId, { reason: 'Đưa vào bàn giao từ workspace điều dưỡng.' });
+        if (action === 'check' && item) return nurseTaskHandoverApi.checkChecklistItem(taskId, item.id || item._id);
+        return nurseTaskHandoverApi.getTask(taskId);
+      },
+      successMessage: 'Đã cập nhật nhiệm vụ.',
+      onSuccess: () => {
+        setToast('Đã cập nhật nhiệm vụ.');
+        setRefresh((value) => value + 1);
+      },
+    });
+    if (!isDemo) {
+      setToast((current) => current || 'Thao tác đã được gửi.');
     }
   };
 }
@@ -601,8 +635,40 @@ export function AssignedTasksPage() {
   const activeTask = selected || tasks[0];
   const handleAction = makeTaskAction(setRefresh, setToast, isDemo);
 
+  async function createQuickTask(kind = 'manual') {
+    const baseTask = activeTask || {};
+    const patientId = baseTask.patient_id?._id || baseTask.patient_id || baseTask.patient?._id || baseTask.patient?.id;
+    if (isDemo || !patientId) {
+      notifyNurse({ tone: 'warning', title: 'Tạo nhiệm vụ', message: 'Cần chọn bệnh nhân có patient_id hợp lệ để tạo nhiệm vụ.' });
+      return;
+    }
+    const title = promptNurseText({
+      title: kind === 'template' ? 'Tạo nhiệm vụ từ mẫu' : 'Tạo nhiệm vụ điều dưỡng',
+      message: 'Nhập tiêu đề nhiệm vụ mới.',
+      defaultValue: kind === 'template' ? 'Theo dõi lại sinh hiệu sau 15 phút' : '',
+    });
+    if (!title) return;
+    await runNurseAction({
+      label: 'Tạo nhiệm vụ',
+      confirm: { title: 'Tạo nhiệm vụ mới?', message: title },
+      run: () => nurseTaskHandoverApi.createTask({
+        patient_id: patientId,
+        encounter_id: baseTask.encounter_id || undefined,
+        admission_id: baseTask.admission_id || undefined,
+        queue_ticket_id: baseTask.queue_ticket_id || undefined,
+        title,
+        task_type: kind === 'template' ? 'vital_sign' : 'other',
+        source_type: 'manual',
+        priority: baseTask.priority || 'normal',
+        sla_minutes: kind === 'template' ? 15 : 60,
+      }),
+      successMessage: 'Đã tạo nhiệm vụ điều dưỡng.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
+
   return (
-    <CommandPage eyebrow="Trung tâm điều phối điều dưỡng" title="Nhiệm vụ được giao" description="Bảng điều phối nhiệm vụ theo SLA, bệnh nhân, sinh hiệu, thuốc và bàn giao." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Plus size={16} />Tạo nhiệm vụ</button><button type="button"><ClipboardCheck size={16} />Từ mẫu</button><button type="button"><ArrowRightLeft size={16} />Bàn giao nhanh</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <CommandPage eyebrow="Trung tâm điều phối điều dưỡng" title="Nhiệm vụ được giao" description="Bảng điều phối nhiệm vụ theo SLA, bệnh nhân, sinh hiệu, thuốc và bàn giao." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => createQuickTask('manual')}><Plus size={16} />Tạo nhiệm vụ</button><button type="button" onClick={() => createQuickTask('template')}><ClipboardCheck size={16} />Từ mẫu</button><button type="button" onClick={() => handleAction('handoff', activeTask)}><ArrowRightLeft size={16} />Bàn giao nhanh</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       {toast ? <div className="nurse-th-toast">{toast}<button type="button" onClick={() => setToast('')}><X size={14} /></button></div> : null}
       <KpiStrip items={[
         { label: 'Tổng nhiệm vụ', value: data.summary?.total, detail: 'Trong ca', icon: ClipboardList, tone: 'blue' },
@@ -622,7 +688,7 @@ export function AssignedTasksPage() {
           ['Bệnh nhân nguy cơ cao', tasks.filter((task) => task.flags?.includes('critical_vitals')).length, ShieldAlert],
           ['Chưa có người nhận', tasks.filter((task) => !task.assigned_to).length, Users],
           ['Nhiệm vụ từ bàn giao', data.summary?.handoff, ArrowRightLeft],
-        ].map(([label, value, Icon]) => <button key={label} type="button"><Icon size={16} /><span>{label}</span><strong>{value || 0}</strong></button>)}
+        ].map(([label, value, Icon]) => <button key={label} type="button" onClick={() => setTab(label.includes('Thuốc') ? 'medication' : label.includes('Sinh hiệu') ? 'vitals' : label.includes('bác sĩ') ? 'doctor' : label.includes('bàn giao') ? 'handoff' : 'immediate')}><Icon size={16} /><span>{label}</span><strong>{value || 0}</strong></button>)}
       </section>
       <FilterBar filters={filters} setFilters={setFilters}>
         <label><span>Loại nhiệm vụ</span><select value={filters.type} onChange={(event) => setFilters((current) => ({ ...current, type: event.target.value }))}><option value="all">Tất cả</option><option value="vital_sign">Sinh hiệu</option><option value="medication_admin">Thuốc</option><option value="post_medication_monitor">Sau thuốc</option><option value="pre_lab">Xét nghiệm</option><option value="doctor_report">Báo bác sĩ</option><option value="handoff_followup">Bàn giao</option></select></label>
@@ -632,7 +698,7 @@ export function AssignedTasksPage() {
       <section className="nurse-th-task-layout">
         <aside className="nurse-th-side-filter">
           <h3><Filter size={16} /> Bộ lọc nhanh</h3>
-          {['Có dị ứng', 'Sinh hiệu bất thường', 'Liên quan thuốc', 'Cần báo bác sĩ', 'Nằm trong bàn giao'].map((label) => <button key={label} type="button">{label}</button>)}
+          {['Có dị ứng', 'Sinh hiệu bất thường', 'Liên quan thuốc', 'Cần báo bác sĩ', 'Nằm trong bàn giao'].map((label) => <button key={label} type="button" onClick={() => setTab(label.includes('thuốc') ? 'medication' : label.includes('bác sĩ') ? 'doctor' : label.includes('bàn giao') ? 'handoff' : 'immediate')}>{label}</button>)}
         </aside>
         <main className="nurse-th-task-board">{tasks.map((task) => <TaskCard key={task.id || task.task_id} task={task} selected={(activeTask?.id || activeTask?.task_id) === (task.id || task.task_id)} onSelect={setSelected} onAction={handleAction} />)}</main>
         <TaskDrawer task={activeTask} onClose={() => setSelected(null)} onAction={handleAction} />
@@ -650,8 +716,36 @@ export function PatientTasksPage() {
   const patients = safeList(data.items).filter((row) => !filters.search || `${row.patient?.full_name} ${row.patient?.patient_code}`.toLowerCase().includes(filters.search.toLowerCase()));
   const active = selected || patients[0];
 
+  async function createPatientTask(template = false) {
+    const patientId = active?.patient_id?._id || active?.patient_id || active?.patient?._id || active?.patient?.id;
+    if (isDemo || !patientId) {
+      notifyNurse({ tone: 'warning', title: 'Tạo nhiệm vụ theo bệnh nhân', message: 'Cần chọn bệnh nhân có patient_id hợp lệ.' });
+      return;
+    }
+    const title = promptNurseText({
+      title: template ? 'Tạo từ mẫu' : 'Tạo nhiệm vụ theo bệnh nhân',
+      message: active?.patient?.full_name || 'Bệnh nhân đang chọn',
+      defaultValue: template ? 'Theo dõi sinh hiệu định kỳ' : '',
+    });
+    if (!title) return;
+    await runNurseAction({
+      label: 'Tạo nhiệm vụ theo bệnh nhân',
+      confirm: { title: 'Tạo nhiệm vụ?', message: title },
+      run: () => nurseTaskHandoverApi.createTask({
+        patient_id: patientId,
+        title,
+        task_type: template ? 'vital_sign' : 'other',
+        priority: active?.acuity_level === 'critical' ? 'stat' : 'normal',
+        source_type: 'manual',
+        sla_minutes: template ? 30 : 60,
+      }),
+      successMessage: 'Đã tạo nhiệm vụ theo bệnh nhân.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
+
   return (
-    <CommandPage eyebrow="Danh sách việc theo bệnh nhân" title="Nhiệm vụ theo bệnh nhân" description="Ma trận nhiệm vụ theo bệnh nhân, phòng giường, nguy cơ và nhóm công việc." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Plus size={16} />Tạo nhiệm vụ theo BN</button><button type="button"><ClipboardCheck size={16} />Từ mẫu</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <CommandPage eyebrow="Danh sách việc theo bệnh nhân" title="Nhiệm vụ theo bệnh nhân" description="Ma trận nhiệm vụ theo bệnh nhân, phòng giường, nguy cơ và nhóm công việc." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => createPatientTask(false)}><Plus size={16} />Tạo nhiệm vụ theo BN</button><button type="button" onClick={() => createPatientTask(true)}><ClipboardCheck size={16} />Từ mẫu</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       <KpiStrip items={[
         { label: 'BN có nhiệm vụ', value: data.summary?.patients, detail: 'Đang theo dõi', icon: Users, tone: 'blue' },
         { label: 'BN có quá hạn', value: data.summary?.with_overdue, detail: 'Cần ưu tiên', icon: AlertTriangle, tone: 'red' },
@@ -693,8 +787,23 @@ export function OverdueTasksPage() {
   const handleAction = makeTaskAction(setRefresh, setToast, isDemo);
   const active = selected || tasks[0];
 
+  async function autoReassignOverdue() {
+    const ids = tasks.slice(0, 10).map((task) => task.id || task.task_id).filter(Boolean);
+    const assignee = promptNurseText({ title: 'Tự phân bổ nhiệm vụ quá hạn', message: 'Nhập user_id điều dưỡng nhận việc. Tối đa 10 nhiệm vụ quá hạn đầu tiên sẽ được phân bổ.', defaultValue: '' });
+    if (!assignee) return;
+    await runNurseAction({
+      label: 'Tự phân bổ',
+      isDemo: isDemo || !ids.length,
+      demoMessage: 'Không có task_id hợp lệ để phân bổ.',
+      confirm: { title: 'Xác nhận phân bổ?', message: `Phân bổ ${ids.length} nhiệm vụ cho ${assignee}.` },
+      run: () => nurseTaskHandoverApi.bulkReassign({ task_ids: ids, assigned_to: assignee, reason: 'Tự phân bổ từ bảng nhiệm vụ quá hạn.' }),
+      successMessage: 'Đã gửi phân bổ nhiệm vụ quá hạn.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
+
   return (
-    <CommandPage eyebrow="Trung tâm rủi ro thời gian thực" title="Nhiệm vụ quá hạn" description="Trung tâm kiểm soát rủi ro nhiệm vụ quá hạn, báo khẩn và phân bổ lại khối lượng công việc." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button><button type="button"><ArrowRightLeft size={16} />Tự phân bổ</button><button type="button"><Download size={16} />Xuất báo cáo</button></>}>
+    <CommandPage eyebrow="Trung tâm rủi ro thời gian thực" title="Nhiệm vụ quá hạn" description="Trung tâm kiểm soát rủi ro nhiệm vụ quá hạn, báo khẩn và phân bổ lại khối lượng công việc." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button><button type="button" onClick={autoReassignOverdue}><ArrowRightLeft size={16} />Tự phân bổ</button><button type="button" onClick={() => downloadNurseJson('nhiem-vu-qua-han.json', { filters, summary: data.summary, items: tasks })}><Download size={16} />Xuất báo cáo</button></>}>
       {toast ? <div className="nurse-th-toast">{toast}<button type="button" onClick={() => setToast('')}><X size={14} /></button></div> : null}
       <KpiStrip items={[
         { label: 'Tổng quá hạn', value: data.summary?.total || tasks.length, detail: 'Đang mở', icon: AlertTriangle, tone: 'red' },
@@ -732,8 +841,21 @@ export function CompletedTasksPage() {
   const tasks = taskFilter(data.items, 'all', filters);
   const active = selected || tasks[0];
 
+  async function requestQualityReview() {
+    const taskId = active?.id || active?.task_id || active?._id;
+    await runNurseAction({
+      label: 'Rà soát chất lượng',
+      isDemo: isDemo || !taskId,
+      demoMessage: 'Cần chọn nhiệm vụ thật để yêu cầu rà soát.',
+      confirm: { title: 'Yêu cầu rà soát?', message: active?.title || 'Nhiệm vụ đang chọn' },
+      run: () => nurseTaskHandoverApi.requestReview(taskId, { reason: 'Rà soát chất lượng từ danh sách nhiệm vụ hoàn tất.' }),
+      successMessage: 'Đã gửi yêu cầu rà soát chất lượng.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
+
   return (
-    <CommandPage eyebrow="Rà soát chất lượng và kiểm tra" title="Nhiệm vụ đã hoàn tất" description="Kiểm tra nhiệm vụ hoàn tất, đúng hạn/trễ, bằng chứng và rà soát chất lượng chăm sóc." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Download size={16} />Excel</button><button type="button"><FileText size={16} />PDF</button><button type="button"><ClipboardCheck size={16} />Rà soát chất lượng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <CommandPage eyebrow="Rà soát chất lượng và kiểm tra" title="Nhiệm vụ đã hoàn tất" description="Kiểm tra nhiệm vụ hoàn tất, đúng hạn/trễ, bằng chứng và rà soát chất lượng chăm sóc." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => downloadNurseJson('nhiem-vu-hoan-tat.json', { filters, summary: data.summary, items: tasks })}><Download size={16} />Excel</button><button type="button" onClick={() => printNurseView('In nhiệm vụ hoàn tất')}><FileText size={16} />PDF</button><button type="button" onClick={requestQualityReview}><ClipboardCheck size={16} />Rà soát chất lượng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       <KpiStrip items={[
         { label: 'Hoàn tất hôm nay', value: data.summary?.total || tasks.length, detail: 'Theo ngày/ca', icon: CheckCircle2, tone: 'green' },
         { label: 'Đúng hạn', value: (data.summary?.total || tasks.length) - (data.summary?.late || 0), detail: 'SLA đạt', icon: Clock3, tone: 'teal' },
@@ -774,24 +896,41 @@ export function ShiftHandoverPage() {
   const patientItem = selectedPatient || handoff?.patient_items?.[0];
 
   async function run(action, item = patientItem) {
-    if (isDemo) {
-      setToast('Dữ liệu mẫu: thao tác bàn giao chưa được gửi.');
+    const handoffId = handoff?.handoff_id || handoff?.id || handoff?._id;
+    if (!handoffId && action !== 'generate') {
+      const message = 'Chưa chọn bàn giao hợp lệ.';
+      setToast(message);
+      notifyNurse({ tone: 'warning', title: 'Bàn giao ca', message });
       return;
     }
-    try {
-      if (action === 'generate') {
-        const draft = await nurseTaskHandoverApi.generateDraft({ shift_date: toLocalDateKey(), from_shift: 'morning', to_shift: 'afternoon' });
-        setSelectedHandoff(draft);
-      }
-      if (action === 'submit') await nurseTaskHandoverApi.submitHandoff(handoff.handoff_id);
-      if (action === 'accept') await nurseTaskHandoverApi.acceptHandoff(handoff.handoff_id);
-      if (action === 'reject') await nurseTaskHandoverApi.rejectHandoff(handoff.handoff_id, { rejection_reason: 'Cần bổ sung thông tin bàn giao.' });
-      if (action === 'ack') await nurseTaskHandoverApi.acknowledgePatient(handoff.handoff_id, item.item_id, { note: 'Đã nhận thông tin bệnh nhân.' });
-      if (action === 'export') await nurseTaskHandoverApi.exportHandoffPdf(handoff.handoff_id);
-      setToast('Đã cập nhật bàn giao.');
-      setRefresh((value) => value + 1);
-    } catch (updateError) {
-      setToast(updateError?.message || 'Không thể cập nhật bàn giao.');
+    const reason = action === 'reject'
+      ? promptNurseText({ title: 'Từ chối bàn giao', message: 'Nhập lý do từ chối để người giao bổ sung.', defaultValue: 'Cần bổ sung thông tin bàn giao.' })
+      : null;
+    if (action === 'reject' && !reason) return;
+    await runNurseAction({
+      label: action === 'generate' ? 'Tạo nháp bàn giao' : action === 'submit' ? 'Gửi bàn giao' : action === 'accept' ? 'Nhận bàn giao' : action === 'ack' ? 'Xác nhận bệnh nhân' : action === 'export' ? 'Xuất PDF bàn giao' : 'Từ chối bàn giao',
+      isDemo,
+      demoMessage: 'Dữ liệu mẫu: thao tác bàn giao chưa được gửi.',
+      confirm: ['submit', 'accept', 'reject', 'ack'].includes(action) ? { title: 'Xác nhận bàn giao', message: statusLabels[handoff?.status] ? `${handoff.handoff_code} - ${statusLabels[handoff.status]}` : handoff?.handoff_code || 'Bàn giao đang chọn' } : null,
+      run: async () => {
+        if (action === 'generate') return nurseTaskHandoverApi.generateDraft({ shift_date: toLocalDateKey(), from_shift: 'morning', to_shift: 'afternoon' });
+        if (action === 'submit') return nurseTaskHandoverApi.submitHandoff(handoffId);
+        if (action === 'accept') return nurseTaskHandoverApi.acceptHandoff(handoffId);
+        if (action === 'reject') return nurseTaskHandoverApi.rejectHandoff(handoffId, { rejection_reason: reason });
+        if (action === 'ack') return nurseTaskHandoverApi.acknowledgePatient(handoffId, item.item_id, { note: 'Đã nhận thông tin bệnh nhân.' });
+        if (action === 'export') return nurseTaskHandoverApi.exportHandoffPdf(handoffId);
+        return null;
+      },
+      successMessage: 'Đã cập nhật bàn giao.',
+      onSuccess: (result) => {
+        if (action === 'generate') setSelectedHandoff(result);
+        if (action === 'export') downloadNurseJson(`${handoff?.handoff_code || 'handoff'}.json`, result || handoff, 'Xuất bàn giao');
+        setToast('Đã cập nhật bàn giao.');
+        setRefresh((value) => value + 1);
+      },
+    });
+    if (!isDemo) {
+      setToast((current) => current || 'Thao tác bàn giao đã được gửi.');
     }
   }
 
@@ -830,7 +969,7 @@ export function HandoverHistoryPage() {
   const active = selected || handoffs[0];
 
   return (
-    <CommandPage eyebrow="Lịch sử kiểm tra bàn giao" title="Lịch sử bàn giao" description="Truy vết bàn giao, xác nhận bệnh nhân, nhiệm vụ tồn và chất lượng ca trực." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Download size={16} />Excel</button><button type="button"><FileText size={16} />PDF</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <CommandPage eyebrow="Lịch sử kiểm tra bàn giao" title="Lịch sử bàn giao" description="Truy vết bàn giao, xác nhận bệnh nhân, nhiệm vụ tồn và chất lượng ca trực." loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => downloadNurseJson('lich-su-ban-giao.json', { filters, summary: data.summary, items: handoffs })}><Download size={16} />Excel</button><button type="button" onClick={() => printNurseView('In lịch sử bàn giao')}><FileText size={16} />PDF</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       <KpiStrip items={[
         { label: 'Tổng bàn giao', value: data.summary?.total, detail: 'Theo bộ lọc', icon: ArrowRightLeft, tone: 'blue' },
         { label: 'Đã nhận', value: data.summary?.accepted, detail: 'Đã xác nhận', icon: CheckCircle2, tone: 'green' },

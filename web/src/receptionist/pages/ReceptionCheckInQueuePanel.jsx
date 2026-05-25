@@ -24,6 +24,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
+import { AppLogo } from '../../app/AppLogo';
 import { receptionQueueApi } from '../api/receptionQueueApi';
 
 const APPOINTMENT_STATUS_META = {
@@ -1356,7 +1357,8 @@ function ReceiptPreview({ receipt }) {
   return (
     <div className="reception-receipt-preview">
       <div className="reception-receipt-preview__brand">
-        <strong>MEDCARE HMS</strong>
+        <AppLogo variant="mark" alt="" aria-hidden="true" />
+        <strong>BỘ Y TẾ</strong>
         <span>PHIẾU TIẾP NHẬN</span>
       </div>
       <div className="reception-receipt-preview__queue">
@@ -2377,7 +2379,7 @@ function QueueTransferPanel({ onNavigate }) {
           </header>
           <label className="reception-appointment-search">
             <Search size={18} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="A015 / Nguyễn Văn A / 090..." />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Mã queue / tên bệnh nhân / số điện thoại" />
           </label>
           <InlineError message={state.error} />
           {state.loading ? <LoadingBlock /> : (

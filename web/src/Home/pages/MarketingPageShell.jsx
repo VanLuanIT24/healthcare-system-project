@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarPlus, ChevronDown, Globe2, HeartPulse, PhoneCall } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AppLogo, APP_BRAND_NAME } from '../../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
 
 const SITE_LANGUAGE_STORAGE_KEY = 'healthcare.siteLanguage';
@@ -47,7 +48,7 @@ const pageCopy = {
     footerContact: 'Liên hệ',
     footerCare: 'Dịch vụ chăm sóc',
     footerCareItems: ['Đặt lịch khám', 'Tìm bác sĩ phù hợp', 'Xem câu chuyện bệnh nhân'],
-    footerCopyright: 'Healthcare Plus+. Bảo lưu mọi quyền.',
+    footerCopyright: 'Bộ Y tế. Bảo lưu mọi quyền.',
     visitDetails: [
       '124 Hải Phòng, phường Thạch Thang, quận Hải Châu, Đà Nẵng',
       'support@healthcareplus.vn · +84 1800 1234',
@@ -79,7 +80,7 @@ const pageCopy = {
     footerContact: 'Contact',
     footerCare: 'Care Services',
     footerCareItems: ['Book appointments', 'Find specialists', 'View patient stories'],
-    footerCopyright: 'Healthcare Plus+. All rights reserved.',
+    footerCopyright: 'Ministry of Health. All rights reserved.',
     visitDetails: [
       '124 Hai Phong Street, Thach Thang Ward, Hai Chau District, Da Nang',
       'support@healthcareplus.vn · +84 1800 1234',
@@ -111,7 +112,7 @@ const pageCopy = {
     footerContact: '연락처',
     footerCare: '케어 서비스',
     footerCareItems: ['진료 예약', '전문의 찾기', '환자 이야기 보기'],
-    footerCopyright: 'Healthcare Plus+. All rights reserved.',
+    footerCopyright: 'Ministry of Health. All rights reserved.',
     visitDetails: [
       '124 Hai Phong St, Thach Thang Ward, Hai Chau District, Da Nang',
       'support@healthcareplus.vn · +84 1800 1234',
@@ -195,16 +196,7 @@ export function MarketingPageShell({ activeKey, hero, children }) {
       <header className="home-header">
         <div className="home-header__brand">
           <Link className="home-header__brandmark home-header__brandmark--link" to="/home">
-            <span className="home-header__logo-icon" aria-hidden="true">
-              <span className="home-header__logo-orbit home-header__logo-orbit--outer" />
-              <span className="home-header__logo-orbit home-header__logo-orbit--inner" />
-              <span className="home-header__logo-core" />
-              <span className="home-header__logo-plus home-header__logo-plus--vertical" />
-              <span className="home-header__logo-plus home-header__logo-plus--horizontal" />
-              <span className="home-header__logo-spark home-header__logo-spark--one" />
-              <span className="home-header__logo-spark home-header__logo-spark--two" />
-            </span>
-            <span className="home-header__logo">Healthcare Plus+</span>
+            <AppLogo variant="horizontal" />
           </Link>
           <span className="home-header__status">{t.status}</span>
         </div>
@@ -248,8 +240,9 @@ export function MarketingPageShell({ activeKey, hero, children }) {
       <footer className="home-footer">
         <div className="home-footer__main">
           <div className="home-footer__brand">
-            <span className="home-footer__eyebrow">Healthcare Plus+</span>
-            <strong>Healthcare Plus+</strong>
+            <AppLogo variant="horizontal" />
+            <span className="home-footer__eyebrow">{APP_BRAND_NAME}</span>
+            <strong>{APP_BRAND_NAME}</strong>
             <p>{t.footerLead}</p>
             <span className="home-footer__note">{t.footerNote}</span>
           </div>

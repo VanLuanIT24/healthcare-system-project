@@ -34,6 +34,9 @@ async function request(path, params = {}) {
 }
 
 export const receptionDashboardApi = {
+  getReceptionDashboard: (params) => request('/reception/dashboard', params),
+  getReceptionSidebarCounters: (params) => request('/reception/sidebar-counters', params),
+  getReceptionActivityFeed: (params) => request('/reception/activity-feed', params),
   getDepartmentDashboard: (departmentId) =>
     request(`/dashboard/department/${encodeURIComponent(departmentId)}`),
   getSystemDashboard: () => request('/dashboard/system'),

@@ -99,7 +99,7 @@ export function ContactPage() {
               <Sparkles size={16} aria-hidden="true" />
               Trung tâm kết nối bệnh nhân
             </span>
-            <h1>Liên hệ Healthcare Plus+</h1>
+            <h1>Liên hệ Bộ Y tế</h1>
             <p>
               Gửi yêu cầu, gọi hotline hoặc tìm đường đến trung tâm trong một trải nghiệm rõ ràng,
               nhanh và được điều phối bởi đội ngũ chăm sóc bệnh nhân chuyên nghiệp.
@@ -311,7 +311,7 @@ export function ContactPage() {
               <span aria-hidden="true">
                 <MapPin size={20} />
               </span>
-              <strong>Healthcare Plus+ Center</strong>
+              <strong>Trung tâm Bộ Y tế</strong>
               <p>124 Hải Phòng, Thạch Thang, Hải Châu, Đà Nẵng.</p>
               <a
                 href="https://www.google.com/maps/search/?api=1&query=124+Hai+Phong,+Thach+Thang,+Hai+Chau,+Da+Nang,+Vietnam"

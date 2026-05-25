@@ -5,10 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
-  Download,
-  Eye,
   FileText,
-  Filter,
   Hourglass,
   ListChecks,
   Plus,
@@ -20,39 +17,6 @@ import {
   XCircle,
 } from 'lucide-react';
 import { receptionDataApi } from '../api/receptionDataApi';
-
-const INVOICES = [
-  { id: 'INV-2026-0500148', patient: 'Nguyễn Thu Hà', meta: '1992 · Nữ', created: '14/05/2026 09:15', due: '21/05/2026', total: 2450000, paid: 0, remain: 2450000, status: 'pending', method: '--' },
-  { id: 'INV-2026-0500147', patient: 'Trần Văn Nam', meta: '1985 · Nam', created: '14/05/2026 08:40', due: '21/05/2026', total: 1350000, paid: 500000, remain: 850000, status: 'partial', method: 'Chuyển khoản' },
-  { id: 'INV-2026-0500146', patient: 'Lê Thị Mai', meta: '1978 · Nữ', created: '13/05/2026 16:20', due: '20/05/2026', total: 3200000, paid: 3200000, remain: 0, status: 'paid', method: 'Thẻ ATM' },
-  { id: 'INV-2026-0500145', patient: 'Phạm Quốc Huy', meta: '1990 · Nam', created: '13/05/2026 10:05', due: '19/05/2026', total: 5680000, paid: 2000000, remain: 3680000, status: 'overdue', method: 'Tiền mặt' },
-  { id: 'INV-2026-0500144', patient: 'Vũ Thị Lan', meta: '1995 · Nữ', created: '12/05/2026 14:30', due: '19/05/2026', total: 980000, paid: 980000, remain: 0, status: 'paid', method: 'Tiền mặt' },
-  { id: 'INV-2026-0500143', patient: 'Đỗ Minh Tuấn', meta: '1968 · Nam', created: '12/05/2026 09:10', due: '18/05/2026', total: 12750000, paid: 5000000, remain: 7750000, status: 'partial', method: 'Thẻ tín dụng' },
-  { id: 'INV-2026-0500142', patient: 'Hoàng Thị Ngọc', meta: '1983 · Nữ', created: '11/05/2026 11:45', due: '18/05/2026', total: 1120000, paid: 0, remain: 1120000, status: 'pending', method: '--' },
-  { id: 'INV-2026-0500141', patient: 'Nguyễn Thành Đạt', meta: '2002 · Nam', created: '10/05/2026 15:25', due: '17/05/2026', total: 750000, paid: 750000, remain: 0, status: 'paid', method: 'Chuyển khoản' },
-];
-
-const PAYMENTS = [
-  { id: 'PAY-2026-005678', invoice: 'INV-2026-0500148', patient: 'Nguyễn Thu Hà', meta: '1992 · Nữ', date: '14/05/2026 09:15', amount: 2450000, method: 'Tiền mặt', cashier: 'Trần Minh Khôi' },
-  { id: 'PAY-2026-005677', invoice: 'INV-2026-0500147', patient: 'Trần Văn Nam', meta: '1985 · Nam', date: '14/05/2026 09:05', amount: 850000, method: 'Chuyển khoản', cashier: 'Phạm Quang Huy' },
-  { id: 'PAY-2026-005676', invoice: 'INV-2026-0500146', patient: 'Lê Thị Mai', meta: '1978 · Nữ', date: '13/05/2026 16:20', amount: 3200000, method: 'Thẻ ATM', cashier: 'Phạm Quang Huy' },
-  { id: 'PAY-2026-005675', invoice: 'INV-2026-0500145', patient: 'Phạm Quốc Huy', meta: '1990 · Nam', date: '13/05/2026 10:05', amount: 3690000, method: 'Tiền mặt', cashier: 'Lê Thị Hoa' },
-  { id: 'PAY-2026-005674', invoice: 'INV-2026-0500144', patient: 'Vũ Thị Lan', meta: '1985 · Nữ', date: '12/05/2026 14:50', amount: 980000, method: 'Chuyển khoản', cashier: 'Lê Thị Hoa' },
-  { id: 'PAY-2026-005673', invoice: 'INV-2026-0500143', patient: 'Đỗ Minh Tuấn', meta: '1988 · Nam', date: '12/05/2026 09:10', amount: 7750000, method: 'Thẻ tín dụng', cashier: 'Trần Minh Khôi' },
-  { id: 'PAY-2026-005672', invoice: 'INV-2026-0500142', patient: 'Hoàng Thị Ngọc', meta: '1983 · Nữ', date: '11/05/2026 11:45', amount: 1120000, method: 'Tiền mặt', cashier: 'Phạm Quang Huy' },
-  { id: 'PAY-2026-005671', invoice: 'INV-2026-0500141', patient: 'Nguyễn Bình Đức', meta: '2002 · Nam', date: '10/05/2026 15:25', amount: 750000, method: 'Chuyển khoản', cashier: 'Trần Minh Khôi' },
-];
-
-const REFUNDS = [
-  { id: 'REF-2026-000145', invoice: 'INV-2026-0500148', patient: 'Nguyễn Thu Hà', meta: '1992 · Nữ', date: '14/05/2026 09:15', amount: 450000, reason: 'Thu thừa tiền dịch vụ', status: 'processing', handler: 'Phạm Thị Mai' },
-  { id: 'REF-2026-000144', invoice: 'INV-2026-0500139', patient: 'Trần Văn Nam', meta: '1985 · Nam', date: '14/05/2026 08:42', amount: 850000, reason: 'Hủy dịch vụ chưa thực hiện', status: 'refunded', handler: 'Lê Thị Hoa' },
-  { id: 'REF-2026-000143', invoice: 'INV-2026-0500131', patient: 'Phạm Quốc Huy', meta: '1979 · Nam', date: '13/05/2026 16:20', amount: 3690000, reason: 'Hủy lịch khám', status: 'refunded', handler: 'Trần Minh Khôi' },
-  { id: 'REF-2026-000142', invoice: 'INV-2026-0500118', patient: 'Lê Thị Mai', meta: '1990 · Nữ', date: '13/05/2026 10:05', amount: 3200000, reason: 'Hủy dịch vụ xét nghiệm', status: 'processing', handler: 'Phạm Thị Mai' },
-  { id: 'REF-2026-000141', invoice: 'INV-2026-0500109', patient: 'Võ Thị Lan', meta: '1975 · Nữ', date: '12/05/2026 14:35', amount: 960000, reason: 'Thu thừa tiền thuốc', status: 'refunded', handler: 'Lê Thị Hoa' },
-  { id: 'REF-2026-000140', invoice: 'INV-2026-0500101', patient: 'Đỗ Minh Tuấn', meta: '1988 · Nam', date: '12/05/2026 09:50', amount: 1120000, reason: 'Hủy dịch vụ chưa thực hiện', status: 'cancelled', handler: 'Trần Minh Khôi' },
-  { id: 'REF-2026-000139', invoice: 'INV-2026-0500093', patient: 'Hoàng Thị Ngọc', meta: '1983 · Nữ', date: '11/05/2026 11:20', amount: 750000, reason: 'Thu thừa tiền dịch vụ', status: 'refunded', handler: 'Phạm Thị Mai' },
-  { id: 'REF-2026-000138', invoice: 'INV-2026-0500087', patient: 'Nguyễn Văn Bình', meta: '2002 · Nam', date: '11/05/2026 08:30', amount: 500000, reason: 'Hủy lịch khám', status: 'cancelled', handler: 'Lê Thị Hoa' },
-];
 
 const STATUS_META = {
   pending: { label: 'Chờ thanh toán', tone: 'warning' },
@@ -239,8 +203,9 @@ function StatusBadge({ status }) {
   return <span className={`reception-status-badge is-${meta.tone}`}>{meta.label}</span>;
 }
 
-function PaymentHero({ mode, onCreatePayment, onCreateRefund }) {
+function PaymentHero({ mode, onCreatePayment }) {
   const config = PAYMENT_CONFIG[mode] || PAYMENT_CONFIG['payments-collect'];
+  const canCreatePayment = mode === 'payments-collect' && onCreatePayment;
   return (
     <section className="reception-payment-hero">
       <div>
@@ -248,26 +213,16 @@ function PaymentHero({ mode, onCreatePayment, onCreateRefund }) {
         <p>{config.subtitle}</p>
       </div>
       <div className="reception-payment-actions">
-        {mode === 'payments-collect' || mode === 'payments-refund' ? (
+        {canCreatePayment ? (
           <button
             type="button"
             className="reception-btn reception-btn--primary"
-            onClick={mode === 'payments-refund' ? onCreateRefund : () => onCreatePayment?.()}
+            onClick={() => onCreatePayment?.()}
           >
             <Plus size={16} />
-            <span>{mode === 'payments-refund' ? 'Tạo yêu cầu hoàn' : 'Tạo thanh toán'}</span>
+            <span>Tạo thanh toán</span>
           </button>
         ) : null}
-        {mode !== 'payments-refund' ? (
-          <button type="button" className="reception-btn reception-btn--ghost">
-            <Download size={16} />
-            <span>Xuất Excel</span>
-          </button>
-        ) : null}
-        <button type="button" className="reception-btn reception-btn--ghost">
-          <Filter size={16} />
-          <span>Bộ lọc</span>
-        </button>
       </div>
     </section>
   );
@@ -333,12 +288,7 @@ function SearchFilters({ mode, filters, onChange }) {
         <label>
           <span>{mode === 'payments-complete' ? 'Thu ngân' : 'Phương thức thanh toán'}</span>
           {mode === 'payments-complete' ? (
-            <select value={filters.cashier} onChange={(event) => update('cashier', event.target.value)}>
-              <option value="">Tất cả</option>
-              <option value="Trần Minh Khôi">Trần Minh Khôi</option>
-              <option value="Phạm Quang Huy">Phạm Quang Huy</option>
-              <option value="Lê Thị Hoa">Lê Thị Hoa</option>
-            </select>
+            <input value={filters.cashier} onChange={(event) => update('cashier', event.target.value)} placeholder="Nhập tên thu ngân" />
           ) : (
             <select value={filters.method} onChange={(event) => update('method', event.target.value)}>
               <option value="">Tất cả</option>
@@ -420,6 +370,9 @@ function InvoiceTable({ rows = [], onCreatePayment }) {
               <td><RowActions onCreatePayment={() => onCreatePayment?.(item)} canPay={item.remain > 0} /></td>
             </tr>
           ))}
+          {!rows.length ? (
+            <tr><td colSpan="9" className="reception-payment-empty">Không có dữ liệu thanh toán từ backend.</td></tr>
+          ) : null}
         </tbody>
       </table>
       <TableFooter total={rows.length} />
@@ -455,12 +408,15 @@ function PaymentTable({ rows = [] }) {
               <td>{item.method}</td>
               <td>{item.cashier}</td>
               <td><StatusBadge status="paid" /><small>Hoàn tất</small></td>
-              <td><RowActions compact /></td>
+              <td>--</td>
             </tr>
           ))}
+          {!rows.length ? (
+            <tr><td colSpan="9" className="reception-payment-empty">Không có giao dịch thanh toán từ backend.</td></tr>
+          ) : null}
         </tbody>
       </table>
-      <TableFooter total="1.284" label="giao dịch" />
+      <TableFooter total={rows.length} label="giao dịch" />
     </section>
   );
 }
@@ -493,37 +449,38 @@ function RefundTable({ rows = [] }) {
               <td>{item.reason}</td>
               <td><StatusBadge status={item.status} /></td>
               <td>{item.handler}</td>
-              <td><RowActions compact /></td>
+              <td>--</td>
             </tr>
           ))}
+          {!rows.length ? (
+            <tr><td colSpan="9" className="reception-payment-empty">Không có yêu cầu hoàn tiền từ backend.</td></tr>
+          ) : null}
         </tbody>
       </table>
-      <TableFooter total="24" label="kết quả" />
+      <TableFooter total={rows.length} label="kết quả" />
     </section>
   );
 }
 
-function RowActions({ compact = false, canPay = true, onCreatePayment }) {
+function RowActions({ canPay = true, onCreatePayment }) {
   return (
     <div className="reception-payment-row-actions">
-      <button type="button"><Eye size={15} /></button>
-      <button type="button">{compact ? <FileText size={15} /> : <ListChecks size={15} />}</button>
-      {!compact ? <button type="button" disabled={!canPay} onClick={onCreatePayment}><Plus size={16} /></button> : null}
+      {canPay ? <button type="button" onClick={onCreatePayment}><Plus size={16} /></button> : <span>--</span>}
     </div>
   );
 }
 
 function TableFooter({ total, label = 'kết quả' }) {
+  const numericTotal = Number(total || 0);
+  const visible = Math.min(numericTotal, 8);
   return (
     <div className="reception-payment-table-footer">
-      <span>Hiển thị 1 đến 8 trong tổng số {total} {label}</span>
+      <span>{numericTotal ? `Hiển thị 1 đến ${visible} trong tổng số ${numericTotal}` : 'Hiển thị 0'} {label}</span>
       <div>
         <span>Số dòng / trang</span>
         <select><option>10</option></select>
         <button type="button">‹</button>
         <button type="button" className="is-active">1</button>
-        <button type="button">2</button>
-        <button type="button">3</button>
         <button type="button">›</button>
       </div>
     </div>
@@ -547,8 +504,8 @@ function CollectPage({ mode, invoices, onCreatePayment }) {
     query: '',
     status: '',
     method: '',
-    from: '2026-05-01',
-    to: '2026-05-14',
+    from: '',
+    to: '',
   });
   const rows = useMemo(() => {
     const baseRows = mode === 'payments-pending'
@@ -589,8 +546,8 @@ function CompletePage({ payments }) {
     query: '',
     method: '',
     cashier: '',
-    from: '2026-05-01',
-    to: '2026-05-14',
+    from: '',
+    to: '',
   });
   const rows = useMemo(() => {
     const keyword = filters.query.trim().toLowerCase();
@@ -600,7 +557,7 @@ function CompletePage({ payments }) {
         || item.invoice.toLowerCase().includes(keyword)
         || item.patient.toLowerCase().includes(keyword);
       const matchesMethod = !filters.method || item.method === filters.method;
-      const matchesCashier = !filters.cashier || item.cashier === filters.cashier;
+      const matchesCashier = !filters.cashier || item.cashier.toLowerCase().includes(filters.cashier.toLowerCase());
       const matchesDate = isDateInRange(item.date, filters.from, filters.to);
       return matchesKeyword && matchesMethod && matchesCashier && matchesDate;
     });
@@ -632,8 +589,8 @@ function RefundPage({ refunds }) {
   const [filters, setFilters] = useState({
     query: '',
     reason: '',
-    from: '2026-05-01',
-    to: '2026-05-14',
+    from: '',
+    to: '',
   });
   const rows = useMemo(() => {
     const keyword = filters.query.trim().toLowerCase();
@@ -677,7 +634,6 @@ function CreatePaymentModal({ invoices, invoiceId, onClose, onSubmit }) {
     invoiceId: initialInvoice?.id || '',
     amount: initialInvoice?.remain || 0,
     method: 'Tiền mặt',
-    cashier: 'Trần Minh Khôi',
     note: '',
   });
 
@@ -747,14 +703,6 @@ function CreatePaymentModal({ invoices, invoiceId, onClose, onSubmit }) {
               <option>Chuyển khoản</option>
               <option>Thẻ ATM</option>
               <option>Thẻ tín dụng</option>
-            </select>
-          </label>
-          <label>
-            <span>Thu ngân</span>
-            <select value={form.cashier} onChange={(event) => update('cashier', event.target.value)}>
-              <option>Trần Minh Khôi</option>
-              <option>Phạm Quang Huy</option>
-              <option>Lê Thị Hoa</option>
             </select>
           </label>
           <label className="is-span-2">

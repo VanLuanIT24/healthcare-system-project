@@ -19,6 +19,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
 import { API_BASE_URL } from '../lib/api';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { getStaffActorName } from '../receptionist/workspaceAccess';
@@ -34,6 +35,7 @@ import {
   pharmacyTopbarApi,
   searchPharmacyWorkspace,
 } from './pharmacyApi';
+import { notifyPharmacy, promptPharmacyText, runPharmacyAction } from './pharmacyActions';
 
 const PharmacyWorkspaceContext = createContext(null);
 
@@ -162,6 +164,25 @@ function toId(value) {
   if (value._id) return toId(value._id);
   if (value.id) return toId(value.id);
   return String(value);
+}
+
+function PharmacyToastStack({ items = [], onClose }) {
+  if (!items.length) return null;
+  return (
+    <div className="pharmacy-toast-stack" role="status" aria-live="polite">
+      {items.map((item) => (
+        <article key={item.id} className={`pharmacy-toast pharmacy-toast--${item.tone || 'info'}`}>
+          <div>
+            <strong>{item.title || 'Thông báo dược'}</strong>
+            {item.message ? <span>{item.message}</span> : null}
+          </div>
+          <button type="button" aria-label="Đóng thông báo" onClick={() => onClose(item.id)}>
+            <X size={14} />
+          </button>
+        </article>
+      ))}
+    </div>
+  );
 }
 
 function normalizeSearchGroups(payload, allMenuItems = []) {
@@ -530,6 +551,7 @@ export function PharmacyShell({ children }) {
   const [queueTab, setQueueTab] = useState('all');
   const [queueState, setQueueState] = useState({ loading: false, error: '', items: [], summary: {} });
   const [actionError, setActionError] = useState('');
+  const [shellToasts, setShellToasts] = useState([]);
   const [openSections, setOpenSections] = useState(() =>
     Object.fromEntries(pharmacyMenuSections.map((section) => [section.id, section.defaultOpen !== false])),
   );
@@ -616,6 +638,19 @@ export function PharmacyShell({ children }) {
   useEffect(() => {
     refreshTopbar();
   }, [refreshTopbar]);
+
+  useEffect(() => {
+    function handleToast(event) {
+      const detail = event.detail || {};
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setShellToasts((current) => [...current.slice(-3), { id, ...detail }]);
+      window.setTimeout(() => {
+        setShellToasts((current) => current.filter((item) => item.id !== id));
+      }, detail.timeout || 4200);
+    }
+    window.addEventListener('pharmacy:toast', handleToast);
+    return () => window.removeEventListener('pharmacy:toast', handleToast);
+  }, []);
 
   useEffect(() => {
     const activeItem = allMenuItems.find((item) => item.to === location.pathname);
@@ -784,46 +819,62 @@ export function PharmacyShell({ children }) {
 
   async function handleQueueAction(action, item) {
     setActionError('');
-    try {
-      if (action === 'claim') {
-        if (item.prescription_id) {
-          await pharmacyTopbarApi.claimPrescription(item.prescription_id, { priority: item.priority });
-        } else if (item.dispense_id) {
-          await pharmacyTopbarApi.assignDispense(item.dispense_id, {});
-          await pharmacyTopbarApi.lockDispense(item.dispense_id, {});
-        }
-        await loadQueue(queueTab);
-        await refreshTopbar({ silent: true });
-        return;
-      }
-      if (action === 'verify' && item.prescription_id) {
-        await pharmacyTopbarApi.verifyPrescription(item.prescription_id, {});
-        await loadQueue(queueTab);
-        await refreshTopbar({ silent: true });
-        return;
-      }
-      if (action === 'prepare' && item.dispense_id) {
-        await pharmacyTopbarApi.startPreparation(item.dispense_id, {});
-        await loadQueue(queueTab);
-        return;
-      }
-      if (action === 'print' && item.dispense_id) {
-        await pharmacyTopbarApi.printLabels(item.dispense_id, {});
-        return;
-      }
-      if (action === 'hold' && item.dispense_id) {
-        await pharmacyTopbarApi.createHold(item.dispense_id, { reason: 'Tạm giữ từ Pharmacy Command Bar', hold_type: 'other' });
-        await loadQueue(queueTab);
-        return;
-      }
+    const labelMap = {
+      claim: 'Nhận xử lý',
+      verify: 'Duyệt dược',
+      prepare: 'Chuẩn bị phiếu',
+      print: 'In nhãn',
+      hold: 'Tạm giữ phiếu',
+      view: 'Mở đơn',
+    };
+    if (action === 'view') {
       const target = item.dispense_id
         ? `/pharmacy/dispensing/queue?dispense_id=${item.dispense_id}`
         : `/pharmacy/prescriptions/${item.prescription_id}`;
       navigate(target);
       setIsQueueOpen(false);
-    } catch (error) {
-      setActionError(getApiErrorMessage(error, 'Không thể xử lý thao tác cấp phát.'));
+      return;
     }
+    let holdReason = '';
+    if (action === 'hold') {
+      holdReason = promptPharmacyText({ title: 'Tạm giữ cấp phát', message: item.reference_no || item.dispense_id || '', defaultValue: 'Cần rà soát trước khi cấp phát.' });
+      if (!holdReason) return;
+    }
+    await runPharmacyAction({
+      label: labelMap[action] || 'Thao tác cấp phát',
+      confirm: ['verify', 'hold'].includes(action)
+        ? { title: labelMap[action] || 'Xác nhận', message: item.reference_no || item.prescription_no || item.dispense_no || '' }
+        : undefined,
+      isDemo: String(item.prescription_id || item.dispense_id || '').startsWith('demo'),
+      demoMessage: 'Dữ liệu mẫu hoặc thiếu mã phiếu nên chưa gửi thao tác cấp phát.',
+      run: async () => {
+        if (action === 'claim') {
+          if (item.prescription_id) return pharmacyTopbarApi.claimPrescription(item.prescription_id, { priority: item.priority });
+          if (item.dispense_id) {
+            await pharmacyTopbarApi.assignDispense(item.dispense_id, {});
+            return pharmacyTopbarApi.lockDispense(item.dispense_id, {});
+          }
+        }
+        if (action === 'verify' && item.prescription_id) return pharmacyTopbarApi.verifyPrescription(item.prescription_id, {});
+        if (action === 'prepare' && item.dispense_id) return pharmacyTopbarApi.startPreparation(item.dispense_id, {});
+        if (action === 'print' && item.dispense_id) return pharmacyTopbarApi.printLabels(item.dispense_id, {});
+        if (action === 'hold' && item.dispense_id) return pharmacyTopbarApi.createHold(item.dispense_id, { reason: holdReason, hold_type: 'other' });
+        throw new Error('Chưa có prescription_id hoặc dispense_id hợp lệ.');
+      },
+      successMessage: 'Đã cập nhật hàng chờ cấp phát.',
+      errorMessage: 'Không thể xử lý thao tác cấp phát.',
+      onSuccess: async () => {
+        if (item.prescription_id) {
+          await refreshTopbar({ silent: true });
+        }
+        await loadQueue(queueTab);
+        await refreshTopbar({ silent: true });
+      },
+      notify: (detail) => {
+        notifyPharmacy(detail);
+        if (detail.tone === 'danger') setActionError(detail.message);
+      },
+    });
   }
 
   async function handleWorkspaceSwitch(workspaceItem) {
@@ -855,12 +906,12 @@ export function PharmacyShell({ children }) {
           <div className="pharmacy-v2-sidebar__brand">
             <Link to="/staff/select-workspace" className="pharmacy-v2-sidebar__brand-link" onClick={closeMobileSidebar}>
               <span className="pharmacy-v2-sidebar__brand-mark" aria-hidden="true">
-                <Pill size={25} strokeWidth={2.4} />
+                <AppLogo variant="mark" alt="" aria-hidden="true" />
               </span>
               {!isSidebarCollapsed ? (
                 <span className="pharmacy-v2-sidebar__brand-copy">
-                  <strong>Nhà thuốc và kho dược</strong>
-                  <small>{workspace.current_store || 'Quầy thuốc ngoại trú'}</small>
+                  <strong>{APP_BRAND_NAME}</strong>
+                  <small>{workspace.current_store || 'Nhà thuốc và kho dược'}</small>
                 </span>
               ) : null}
             </Link>
@@ -1165,6 +1216,10 @@ export function PharmacyShell({ children }) {
           onClose={() => setIsQueueOpen(false)}
           onRefresh={() => loadQueue(queueTab)}
           onAction={handleQueueAction}
+        />
+        <PharmacyToastStack
+          items={shellToasts}
+          onClose={(id) => setShellToasts((current) => current.filter((item) => item.id !== id))}
         />
       </main>
     </PharmacyWorkspaceContext.Provider>

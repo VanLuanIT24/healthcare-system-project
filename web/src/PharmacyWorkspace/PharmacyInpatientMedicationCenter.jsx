@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { getApiErrorMessage, inpatientMedicationAPI, pharmacyOverviewAPI, unwrapData } from '../utils/api';
+import { notifyPharmacy } from './pharmacyActions';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -734,9 +735,10 @@ function ActionDialog({ action, row, onClose, onDone }) {
       } else if (action === 'resolveReaction') {
         await pharmacyOverviewAPI.resolveMedicationReaction(row.reaction_id || row.id, { note: form.note || form.recommendation });
       }
+      notifyPharmacy({ tone: 'success', title: titleMap[action] || 'Thao tác eMAR', message: 'Đã cập nhật dữ liệu dùng thuốc nội trú.' });
       onDone();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể xử lý thao tác eMAR.'));
+      notifyPharmacy({ tone: 'danger', title: titleMap[action] || 'Thao tác eMAR', message: getApiErrorMessage(error, 'Không thể xử lý thao tác eMAR.') });
     } finally {
       setSaving(false);
     }
@@ -893,4 +895,3 @@ export function PharmacyInpatientMedicationPage({ view = 'today' }) {
     </section>
   );
 }
-

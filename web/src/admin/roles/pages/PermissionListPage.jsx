@@ -111,6 +111,7 @@ export function PermissionListPage() {
     usage: searchParams.get('usage') || 'all',
     sort: searchParams.get('sort') || 'module',
   });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [selectedPermissionCode, setSelectedPermissionCode] = useState('');
 
   async function load() {
@@ -145,13 +146,13 @@ export function PermissionListPage() {
   }, [permissions]);
 
   const visiblePermissions = useMemo(() => {
-    const keyword = filters.keyword.trim().toLowerCase();
+    const keyword = appliedFilters.keyword.trim().toLowerCase();
     return permissions
       .filter((permission) => {
-        if (filters.module !== 'all' && permission.module_key !== filters.module) return false;
-        if (filters.risk !== 'all' && riskLevelOf(permission) !== filters.risk) return false;
-        if (filters.usage === 'orphan' && Number(permission.role_count || 0) > 0) return false;
-        if (filters.usage === 'used' && Number(permission.role_count || 0) === 0) return false;
+        if (appliedFilters.module !== 'all' && permission.module_key !== appliedFilters.module) return false;
+        if (appliedFilters.risk !== 'all' && riskLevelOf(permission) !== appliedFilters.risk) return false;
+        if (appliedFilters.usage === 'orphan' && Number(permission.role_count || 0) > 0) return false;
+        if (appliedFilters.usage === 'used' && Number(permission.role_count || 0) === 0) return false;
         if (!keyword) return true;
         return [
           permission.permission_code,
@@ -162,11 +163,11 @@ export function PermissionListPage() {
         ].some((value) => String(value || '').toLowerCase().includes(keyword));
       })
       .sort((left, right) => {
-        if (filters.sort === 'risk') return (RISK_RANK[riskLevelOf(right)] || 1) - (RISK_RANK[riskLevelOf(left)] || 1);
-        if (filters.sort === 'usage') return Number(right.role_count || 0) - Number(left.role_count || 0);
+        if (appliedFilters.sort === 'risk') return (RISK_RANK[riskLevelOf(right)] || 1) - (RISK_RANK[riskLevelOf(left)] || 1);
+        if (appliedFilters.sort === 'usage') return Number(right.role_count || 0) - Number(left.role_count || 0);
         return `${left.module_key}.${left.permission_code}`.localeCompare(`${right.module_key}.${right.permission_code}`);
       });
-  }, [filters, permissions]);
+  }, [appliedFilters, permissions]);
 
   const selectedPermission = useMemo(
     () => permissions.find((permission) => permission.permission_code === selectedPermissionCode) || visiblePermissions[0],
@@ -189,6 +190,11 @@ export function PermissionListPage() {
 
   function updateFilters(next) {
     setFilters(next);
+  }
+
+  function applyFilters(next = filters) {
+    setFilters(next);
+    setAppliedFilters(next);
     const params = new URLSearchParams();
     if (next.keyword) params.set('keyword', next.keyword);
     if (next.module !== 'all') params.set('module', next.module);
@@ -230,11 +236,11 @@ export function PermissionListPage() {
 
       <section className="permission-pro-layout">
         <aside className="permission-pro-modules">
-          <button type="button" className={filters.module === 'all' ? 'is-active' : ''} onClick={() => updateFilters({ ...filters, module: 'all' })}>
+          <button type="button" className={filters.module === 'all' ? 'is-active' : ''} onClick={() => applyFilters({ ...filters, module: 'all' })}>
             <strong>Tất cả module</strong><span>{formatNumber(permissions.length)}</span>
           </button>
           {modules.map((module) => (
-            <button key={module.module_key} type="button" className={filters.module === module.module_key ? 'is-active' : ''} onClick={() => updateFilters({ ...filters, module: module.module_key })}>
+            <button key={module.module_key} type="button" className={filters.module === module.module_key ? 'is-active' : ''} onClick={() => applyFilters({ ...filters, module: module.module_key })}>
               <strong>{getPermissionModuleTitle(module.module_key)}</strong>
               <span>{formatNumber(module.permission_count)}</span>
               {module.critical ? <small>{formatNumber(module.critical)} risk</small> : null}
@@ -246,7 +252,14 @@ export function PermissionListPage() {
           <section className="permission-pro-toolbar">
             <label>
               <Search size={16} />
-              <input value={filters.keyword} onChange={(event) => updateFilters({ ...filters, keyword: event.target.value })} placeholder="Tìm permission_code, tên quyền, module..." />
+              <input
+                value={filters.keyword}
+                onChange={(event) => updateFilters({ ...filters, keyword: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') applyFilters();
+                }}
+                placeholder="Tìm permission_code, tên quyền, module..."
+              />
             </label>
             <select value={filters.risk} onChange={(event) => updateFilters({ ...filters, risk: event.target.value })}>
               <option value="all">Mọi risk</option>
@@ -265,6 +278,9 @@ export function PermissionListPage() {
               <option value="usage">Dùng nhiều nhất</option>
               <option value="risk">Risk trước</option>
             </select>
+            <button type="button" className="staff-button staff-button--ghost" onClick={() => applyFilters()} disabled={loading}>
+              Áp dụng
+            </button>
           </section>
 
           {loading ? <div className="staff-loading-panel">Đang tải permission catalog...</div> : null}

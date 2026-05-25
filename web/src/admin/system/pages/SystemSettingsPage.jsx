@@ -68,9 +68,30 @@ const MODULE_ICONS = {
 const SOURCE_LABELS = {
   db: 'DB',
   env: 'ENV',
-  default: 'Default',
+  default: 'Mặc định',
   runtime: 'Runtime',
 };
+
+const PLATFORM_LABELS = {
+  healthy: 'Ổn định',
+  warning: 'Cảnh báo',
+  critical: 'Nghiêm trọng',
+  connected: 'Đã kết nối',
+  unknown: 'Không rõ',
+  development: 'Development',
+  configured: 'Đã cấu hình',
+  high: 'Cao',
+  medium: 'Trung bình',
+  low: 'Thấp',
+  none: 'Không có',
+  restart: 'Cần restart',
+  runtime: 'Runtime',
+};
+
+function platformLabel(value) {
+  const text = String(value || '');
+  return PLATFORM_LABELS[text] || text;
+}
 
 function normalizeTab(value) {
   return String(value || 'general').trim().toLowerCase().replace(/_/g, '-');
@@ -107,7 +128,7 @@ function formatValue(value) {
   if (Array.isArray(value)) return value.length ? value.join(', ') : '[]';
   if (typeof value === 'object') {
     if (Object.prototype.hasOwnProperty.call(value, 'configured')) {
-      return value.configured ? `configured / ${value.fingerprint || 'no fingerprint'}` : 'not configured';
+      return value.configured ? `Đã cấu hình / ${value.fingerprint || 'không có fingerprint'}` : 'Chưa cấu hình';
     }
     return JSON.stringify(value);
   }
@@ -393,7 +414,7 @@ export function SystemSettingsPage() {
         return;
       }
 
-      await applyPlatformConfig(changes, changeReason || `Update ${activeModule.title}`);
+        await applyPlatformConfig(changes, changeReason || `Cập nhật ${activeModule.title}`);
       setMessage(`Đã áp dụng ${changes.length} thay đổi.`);
       setChangeReason('');
       await Promise.all([loadOverview(), loadModule(activeModule.module_key)]);
@@ -421,7 +442,7 @@ export function SystemSettingsPage() {
     if (!selectedSetting?.setting_key) return;
     setSaving(true);
     try {
-      await rollbackSetting(selectedSetting.setting_key, revisionNo, `Rollback ${selectedSetting.setting_key} to revision ${revisionNo}`);
+      await rollbackSetting(selectedSetting.setting_key, revisionNo, `Khôi phục ${selectedSetting.setting_key} về revision ${revisionNo}`);
       setMessage(`Đã rollback ${selectedSetting.setting_key} về revision ${revisionNo}.`);
       await Promise.all([loadOverview(), loadModule(activeModule.module_key)]);
     } catch (rollbackError) {
@@ -452,13 +473,13 @@ export function SystemSettingsPage() {
           <p className="admin-page-header__eyebrow">Quản trị hệ thống / Cấu hình nền tảng</p>
           <h1>{activeModule?.title || 'Cấu hình nền tảng'}</h1>
           <div className="platform-config-hero__meta">
-            <StatusBadge tone={healthTone(health.status)}>{health.status || 'healthy'}</StatusBadge>
+            <StatusBadge tone={healthTone(health.status)}>{platformLabel(health.status || 'healthy')}</StatusBadge>
             <StatusBadge tone="info">Env {overview?.environment?.node_env || 'development'}</StatusBadge>
             <StatusBadge tone={overview?.environment?.database_state === 'connected' ? 'success' : 'warning'}>
-              DB {overview?.environment?.database_state || 'unknown'}
+              DB {platformLabel(overview?.environment?.database_state || 'unknown')}
             </StatusBadge>
             <StatusBadge tone="muted">
-              Reload {overview?.environment?.last_reload_at ? formatDateTime(overview.environment.last_reload_at) : 'chưa có'}
+              Tải lại {overview?.environment?.last_reload_at ? formatDateTime(overview.environment.last_reload_at) : 'chưa có'}
             </StatusBadge>
           </div>
         </div>
@@ -467,10 +488,10 @@ export function SystemSettingsPage() {
             <ShieldAlert size={16} /> Kiểm tra
           </button>
           <button type="button" className="staff-button staff-button--ghost" onClick={runTest} disabled={saving}>
-            <Play size={16} /> Test
+            <Play size={16} /> Kiểm thử
           </button>
           <button type="button" className="staff-button staff-button--ghost" onClick={reloadRuntime} disabled={saving}>
-            <RefreshCw size={16} /> Reload
+            <RefreshCw size={16} /> Tải lại
           </button>
           <button type="button" className="staff-button staff-button--primary" onClick={applyChanges} disabled={saving || !changedSettings.length}>
             <Save size={16} /> Áp dụng {changedSettings.length ? `(${changedSettings.length})` : ''}
@@ -514,33 +535,33 @@ export function SystemSettingsPage() {
       </section>
 
       <section className="platform-config-metrics">
-        <PlatformMetric icon={Database} label="Effective settings" value={formatNumber(settings.length)} note={`${formatNumber(activeModule?.db_setting_count || 0)} từ DB`} tone="blue" />
+        <PlatformMetric icon={Database} label="Cấu hình hiệu lực" value={formatNumber(settings.length)} note={`${formatNumber(activeModule?.db_setting_count || 0)} từ DB`} tone="blue" />
         <PlatformMetric icon={AlertTriangle} label="Validation" value={formatNumber(validationIssues.length)} note={`${health?.validation?.counts?.critical || 0} critical toàn hệ thống`} tone={validationIssues.length ? 'amber' : 'green'} />
-        <PlatformMetric icon={ServerCog} label="Requires restart" value={formatNumber(activeModule?.requires_restart_count || 0)} note={`${restartRequired.length} thay đổi đang chờ`} tone="violet" />
+        <PlatformMetric icon={ServerCog} label="Cần restart" value={formatNumber(activeModule?.requires_restart_count || 0)} note={`${restartRequired.length} thay đổi đang chờ`} tone="violet" />
         <PlatformMetric icon={Vault} label="Secrets" value={formatNumber(secretCount)} note={`${formatNumber(activeModule?.sensitive_count || 0)} trong module`} tone="slate" />
-        <PlatformMetric icon={Fingerprint} label="Config drift" value={formatNumber(driftCount)} note="DB so với ENV" tone={driftCount ? 'red' : 'green'} />
-        <PlatformMetric icon={Clock3} label="Runtime" value={formatNumber(stats.connected_sockets || 0)} note={`${formatNumber(stats.active_sessions || 0)} phiên active`} tone="cyan" />
+        <PlatformMetric icon={Fingerprint} label="Lệch cấu hình" value={formatNumber(driftCount)} note="DB so với ENV" tone={driftCount ? 'red' : 'green'} />
+        <PlatformMetric icon={Clock3} label="Runtime" value={formatNumber(stats.connected_sockets || 0)} note={`${formatNumber(stats.active_sessions || 0)} phiên đang hoạt động`} tone="cyan" />
       </section>
 
       <section className="platform-config-main">
         <article className="platform-config-panel platform-config-effective">
           <div className="platform-config-panel__head">
             <div>
-              <span>Effective configuration</span>
+              <span>Cấu hình hiệu lực</span>
               <strong>{activeModule?.module_key}</strong>
             </div>
             <label className="platform-config-search">
               <Search size={15} />
-              <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Tìm setting key" />
+              <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Tìm khóa cấu hình" />
             </label>
           </div>
 
           <div className="platform-config-table">
             <div className="platform-config-table__head">
-              <span>Setting</span>
-              <span>Value</span>
-              <span>Source</span>
-              <span>Risk</span>
+              <span>Cấu hình</span>
+              <span>Giá trị</span>
+              <span>Nguồn</span>
+              <span>Rủi ro</span>
             </div>
             {moduleLoading ? (
               <div className="platform-config-table__empty"><RefreshCw size={16} /> Đang tải module...</div>
@@ -557,7 +578,7 @@ export function SystemSettingsPage() {
                 </span>
                 <span title={formatValue(setting.effective_value)}>{formatValue(setting.effective_value)}</span>
                 <span><StatusBadge tone={sourceTone(setting.effective_source)}>{SOURCE_LABELS[setting.effective_source] || setting.effective_source}</StatusBadge></span>
-                <span><StatusBadge tone={riskTone(setting.risk_level)}>{setting.risk_level}</StatusBadge></span>
+                <span><StatusBadge tone={riskTone(setting.risk_level)}>{platformLabel(setting.risk_level)}</StatusBadge></span>
               </button>
             ))}
           </div>
@@ -566,7 +587,7 @@ export function SystemSettingsPage() {
         <article className="platform-config-panel platform-config-editor">
           <div className="platform-config-panel__head">
             <div>
-              <span>Configuration editor</span>
+              <span>Trình chỉnh sửa cấu hình</span>
               <strong>{selectedSetting?.setting_key || 'Chọn setting'}</strong>
             </div>
             {selectedSetting ? (
@@ -594,7 +615,7 @@ export function SystemSettingsPage() {
 
           <label className="platform-config-reason">
             <span>Lý do thay đổi</span>
-            <input value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="VD: hardening SMTP production" />
+            <input value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="VD: siết cấu hình SMTP production" />
           </label>
         </article>
       </section>
@@ -603,10 +624,10 @@ export function SystemSettingsPage() {
         <article className="platform-config-panel">
           <div className="platform-config-panel__head">
             <div>
-              <span>Test / diagnostic</span>
+              <span>Kiểm thử / chẩn đoán</span>
               <strong>{testResult?.status || 'Chưa chạy'}</strong>
             </div>
-            <button type="button" className="platform-config-icon-button" onClick={runTest} disabled={saving} aria-label="Run diagnostic">
+            <button type="button" className="platform-config-icon-button" onClick={runTest} disabled={saving} aria-label="Chạy chẩn đoán">
               <Play size={16} />
             </button>
           </div>
@@ -615,7 +636,7 @@ export function SystemSettingsPage() {
           ) : (
             <div className="platform-config-empty">
               <ServerCog size={22} />
-              <span>Diagnostic sẽ chạy bằng endpoint backend của module hiện tại.</span>
+              <span>Chẩn đoán sẽ chạy bằng endpoint backend của module hiện tại.</span>
             </div>
           )}
         </article>
@@ -623,16 +644,16 @@ export function SystemSettingsPage() {
         <article className="platform-config-panel">
           <div className="platform-config-panel__head">
             <div>
-              <span>Impact preview</span>
+              <span>Xem trước ảnh hưởng</span>
               <strong>{changedSettings.length} thay đổi</strong>
             </div>
             <StatusBadge tone={restartRequired.length ? 'warning' : 'success'}>
-              {restartRequired.length ? 'restart required' : 'runtime reloadable'}
+              {restartRequired.length ? 'cần restart' : 'có thể tải lại runtime'}
             </StatusBadge>
           </div>
           <div className="platform-config-impact">
             <div>
-              <span>Settings đổi</span>
+              <span>Cấu hình đổi</span>
               <strong>{changedSettings.map((item) => item.setting_key).join(', ') || 'Không có'}</strong>
             </div>
             <div>
@@ -640,8 +661,8 @@ export function SystemSettingsPage() {
               <strong>{affectedServices.join(', ') || 'Không có'}</strong>
             </div>
             <div>
-              <span>Risk cao nhất</span>
-              <strong>{changedSettings.some((item) => item.risk_level === 'critical') ? 'critical' : changedSettings.some((item) => item.risk_level === 'high') ? 'high' : changedSettings.length ? 'medium' : 'none'}</strong>
+              <span>Rủi ro cao nhất</span>
+              <strong>{platformLabel(changedSettings.some((item) => item.risk_level === 'critical') ? 'critical' : changedSettings.some((item) => item.risk_level === 'high') ? 'high' : changedSettings.length ? 'medium' : 'none')}</strong>
             </div>
           </div>
         </article>
@@ -649,10 +670,10 @@ export function SystemSettingsPage() {
         <article className="platform-config-panel">
           <div className="platform-config-panel__head">
             <div>
-              <span>Validation panel</span>
-              <strong>{validationIssues.length ? `${validationIssues.length} issue` : 'passed'}</strong>
+              <span>Bảng validation</span>
+              <strong>{validationIssues.length ? `${validationIssues.length} vấn đề` : 'đạt'}</strong>
             </div>
-            <button type="button" className="platform-config-icon-button" onClick={runValidation} disabled={saving} aria-label="Validate">
+            <button type="button" className="platform-config-icon-button" onClick={runValidation} disabled={saving} aria-label="Kiểm tra">
               <ShieldAlert size={16} />
             </button>
           </div>
@@ -668,7 +689,7 @@ export function SystemSettingsPage() {
             )) : (
               <article className="is-ok">
                 <CheckCircle2 size={16} />
-                <span><strong>Passed</strong><small>Không có issue trong module hiện tại.</small></span>
+                <span><strong>Đạt</strong><small>Không có vấn đề trong module hiện tại.</small></span>
               </article>
             )}
           </div>
@@ -678,11 +699,11 @@ export function SystemSettingsPage() {
       <section className="platform-config-panel platform-config-audit">
         <div className="platform-config-panel__head">
           <div>
-            <span>Audit / revision timeline</span>
+            <span>Audit / dòng thời gian revision</span>
             <strong>{selectedSetting?.setting_key || 'Chọn setting'}</strong>
           </div>
           <button type="button" className="staff-button staff-button--ghost" disabled={!selectedSetting || !revisions.length || saving} onClick={() => rollbackRevision(revisions[0]?.revision_no)}>
-            <RotateCcw size={16} /> Rollback gần nhất
+            <RotateCcw size={16} /> Khôi phục gần nhất
           </button>
         </div>
         <div className="platform-config-timeline">
@@ -691,10 +712,10 @@ export function SystemSettingsPage() {
               <FileClock size={17} />
               <span>
                 <strong>Revision {revision.revision_no} / {revision.action}</strong>
-                <small>{revision.created_at ? formatDateTime(revision.created_at) : 'unknown'} · {(revision.changed_fields || []).join(', ') || 'no diff'}</small>
+                <small>{revision.created_at ? formatDateTime(revision.created_at) : 'không rõ'} · {(revision.changed_fields || []).join(', ') || 'không có diff'}</small>
               </span>
               <button type="button" onClick={() => rollbackRevision(revision.revision_no)} disabled={saving || revision.action === 'create'}>
-                Rollback
+                Khôi phục
               </button>
             </article>
           )) : (

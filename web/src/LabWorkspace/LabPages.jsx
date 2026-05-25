@@ -26,6 +26,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { downloadClinicalOpsCsv, printClinicalOpsView, promptClinicalOpsText } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { labWorkspaceAPI, getLabErrorMessage } from './labApi';
 
 const ORDER_STATUS_LABEL = {
@@ -1254,7 +1255,7 @@ export function LabWorklistPage({ pageKey }) {
         },
       });
       if (action === 'reject_specimen') {
-        const reason = window.prompt('Lý do từ chối mẫu', 'Mẫu không đạt điều kiện xét nghiệm');
+        const reason = promptClinicalOpsText({ title: 'Từ chối mẫu', message: 'Lý do từ chối mẫu', defaultValue: 'Mẫu không đạt điều kiện xét nghiệm' });
         if (!reason) return;
         await labWorkspaceAPI.rejectSpecimen(getId(row), {
           reason,
@@ -1278,7 +1279,7 @@ export function LabWorklistPage({ pageKey }) {
         storage_note: 'Stored from specimen workspace.',
       });
       if (action === 'dispose_specimen') {
-        const reason = window.prompt('Lý do hủy mẫu', 'Hết nhu cầu lưu mẫu');
+        const reason = promptClinicalOpsText({ title: 'Hủy mẫu', message: 'Lý do hủy mẫu', defaultValue: 'Hết nhu cầu lưu mẫu' });
         if (!reason) return;
         await labWorkspaceAPI.disposeSpecimen(getId(row), { reason, dispose_method: 'standard', force: row.status === 'in_testing' });
       }
@@ -1295,7 +1296,7 @@ export function LabWorklistPage({ pageKey }) {
       if (action === 'release_result') await labWorkspaceAPI.releaseResult(getId(row));
       if (action === 'print_result') await labWorkspaceAPI.printResult(getId(row));
       if (action === 'request_correction') {
-        const reason = window.prompt('Lý do yêu cầu sửa kết quả', 'Cần kiểm tra lại giá trị bất thường trước khi duyệt');
+        const reason = promptClinicalOpsText({ title: 'Yêu cầu sửa kết quả', message: 'Lý do yêu cầu sửa kết quả', defaultValue: 'Cần kiểm tra lại giá trị bất thường trước khi duyệt' });
         if (!reason) return;
         await labWorkspaceAPI.requestCorrection(getId(row), { reason_text: reason, priority: row.lab_order_id?.priority || 'urgent' });
       }
@@ -1354,8 +1355,8 @@ export function LabWorklistPage({ pageKey }) {
         </div>
         <div className="lab-work-header__actions">
           <button type="button" onClick={() => { listState.refresh(); summaryState.refresh(); }}><RefreshCw size={16} />Làm mới</button>
-          <button type="button"><Printer size={16} />In danh sách</button>
-          <button type="button"><FileText size={16} />Export Excel</button>
+          <button type="button" onClick={() => printClinicalOpsView('In danh sách xét nghiệm')}><Printer size={16} />In danh sách</button>
+          <button type="button" onClick={() => downloadClinicalOpsCsv(`lab-${pageKey}.csv`, rows, 'Xuất danh sách xét nghiệm')}><FileText size={16} />Export Excel</button>
         </div>
       </section>
       <KpiStrip summary={summaryState.data} loading={summaryState.loading} />

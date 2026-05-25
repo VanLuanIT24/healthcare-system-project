@@ -214,10 +214,10 @@ export function AboutPage() {
             <path d="M0 70H130L154 70L176 34L204 98L234 18L264 70H380L412 70L438 46L466 88L498 70H760" />
           </svg>
           <div className="about-hero__content">
-            <span className="about-hero__badge">Về Healthcare Plus+</span>
+            <span className="about-hero__badge">Về Bộ Y tế</span>
             <h1>Chăm sóc sức khỏe chuẩn quốc tế, gần gũi hơn</h1>
             <p>
-              Healthcare Plus+ kết hợp bác sĩ chuyên môn cao, điều phối lịch khám rõ ràng và
+              Bộ Y tế kết hợp bác sĩ chuyên môn cao, điều phối lịch khám rõ ràng và
               hồ sơ số để mỗi lần thăm khám đều nhanh, chính xác và an tâm.
             </p>
             <div className="about-hero__actions">
@@ -230,7 +230,7 @@ export function AboutPage() {
                 <span>Xem chuyên khoa</span>
               </Link>
             </div>
-            <div className="about-hero__trust-line" aria-label="Các điểm nổi bật của Healthcare Plus+">
+            <div className="about-hero__trust-line" aria-label="Các điểm nổi bật của Bộ Y tế">
               <span>
                 <ShieldCheck size={16} strokeWidth={2.4} aria-hidden="true" />
                 Kiểm soát chất lượng
@@ -245,7 +245,7 @@ export function AboutPage() {
               </span>
             </div>
           </div>
-          <div className="about-hero__visual about-hero__visual--complete" aria-label="Đội ngũ bác sĩ Healthcare Plus+">
+          <div className="about-hero__visual about-hero__visual--complete" aria-label="Đội ngũ bác sĩ Bộ Y tế">
             <div className="about-hero__image">
               <img
                 src="https://images.unsplash.com/photo-1638202993928-7267aad84c31?auto=format&fit=crop&w=1500&q=86"
@@ -319,7 +319,7 @@ export function AboutPage() {
             <span>Hệ điều phối chăm sóc</span>
             <h2>Mỗi lần khám là một hành trình có người phụ trách, dữ liệu và bước tiếp theo</h2>
             <p>
-              Healthcare Plus+ tổ chức trải nghiệm theo ba lớp: hiểu đúng nhu cầu, khám đúng
+              Bộ Y tế tổ chức trải nghiệm theo ba lớp: hiểu đúng nhu cầu, khám đúng
               trọng tâm và theo dõi sau khám bằng lịch hẹn rõ ràng.
             </p>
           </div>
@@ -339,7 +339,7 @@ export function AboutPage() {
 
         <section className="home-section about-story">
           <div className="about-story__content">
-            <span>Healthcare Plus+ được xây dựng vì điều gì?</span>
+            <span>Bộ Y tế được xây dựng vì điều gì?</span>
             <h2>Một mô hình chăm sóc nơi chuyên môn y khoa và trải nghiệm người bệnh đi cùng nhau</h2>
             <p>
               Chúng tôi bắt đầu từ một vấn đề rất thực tế: nhiều gia đình không thiếu nơi khám,
@@ -347,7 +347,7 @@ export function AboutPage() {
               tự nhớ lịch tái khám, tự giữ kết quả và tự kết nối thông tin giữa nhiều bác sĩ.
             </p>
             <p>
-              Healthcare Plus+ được thiết kế để giảm sự rời rạc đó. Mỗi lần khám được điều phối
+              Bộ Y tế được thiết kế để giảm sự rời rạc đó. Mỗi lần khám được điều phối
               như một quy trình: tiếp nhận nhu cầu, chọn đúng chuyên khoa, chuẩn bị xét nghiệm
               cần thiết, giải thích kết quả và tiếp tục theo dõi sau điều trị.
             </p>

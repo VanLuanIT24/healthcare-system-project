@@ -88,7 +88,7 @@ export function TermsPage() {
             <p>Cập nhật lần cuối: 07/04/2026</p>
             <p>Phiên bản: v1.0</p>
           </div>
-          <p>Vui lòng đọc kỹ các điều kiện sử dụng để hiểu rõ trách nhiệm, phạm vi dịch vụ và cách dữ liệu được bảo vệ trong hệ thống Healthcare.</p>
+          <p>Vui lòng đọc kỹ các điều kiện sử dụng để hiểu rõ trách nhiệm, phạm vi dịch vụ và cách dữ liệu được bảo vệ trong hệ thống Bộ Y tế.</p>
         </div>
 
         <div className="info-hero__art terms-art" aria-hidden="true">
@@ -168,7 +168,7 @@ export function TermsPage() {
           <Link to="/forgot-password">Khôi phục</Link>
           <Link to="/login">Liên hệ</Link>
         </nav>
-        <p>© 2026 Healthcare. All rights reserved.</p>
+        <p>© 2026 Bộ Y tế. Bảo lưu mọi quyền.</p>
       </footer>
     </main>
   );

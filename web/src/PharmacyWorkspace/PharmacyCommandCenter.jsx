@@ -43,10 +43,12 @@ import {
   loadPharmacyPerformance,
   loadPharmacyWorkQueue,
   previewDispenseCompletionPlanFromOverview,
+  pharmacyTopbarApi,
   resolvePharmacyAlert,
   resolvePharmacyWorkItem,
   verifyPrescriptionFromOverview,
 } from './pharmacyApi';
+import { confirmPharmacyAction, notifyPharmacy } from './pharmacyActions';
 
 const RANGE_OPTIONS = [
   { key: 'today', label: 'Hôm nay' },
@@ -639,7 +641,7 @@ export function PharmacyWorkItemsPage() {
       await assignPharmacyWorkItem(row.id || row._id, {});
       refresh();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể gán việc.'));
+      notifyPharmacy({ tone: 'danger', title: 'Gán việc dược', message: getApiErrorMessage(error, 'Không thể gán việc.') });
     }
   }
 
@@ -648,7 +650,7 @@ export function PharmacyWorkItemsPage() {
       await resolvePharmacyWorkItem(row.id || row._id, { note: 'Hoàn tất từ task center.' });
       refresh();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể xử lý việc.'));
+      notifyPharmacy({ tone: 'danger', title: 'Xử lý việc dược', message: getApiErrorMessage(error, 'Không thể xử lý việc.') });
     }
   }
 
@@ -702,7 +704,7 @@ export function PharmacyWorkItemsPage() {
   );
 }
 
-function DispenseCard({ item, onPreview, onComplete }) {
+function DispenseCard({ item, onPreview, onComplete, onPrint }) {
   return (
     <article className="pharmacy-dispense-card">
       <header>
@@ -716,7 +718,7 @@ function DispenseCard({ item, onPreview, onComplete }) {
         {item.type === 'dispense' && ['draft', 'partially_dispensed'].includes(String(item.status || '').toLowerCase()) ? (
           <button type="button" title="Hoàn tất" aria-label="Hoàn tất" onClick={() => onComplete(item)}><CheckCircle2 size={15} /></button>
         ) : null}
-        <button type="button" title="In nhãn" aria-label="In nhãn"><Printer size={15} /></button>
+        <button type="button" title="In nhãn" aria-label="In nhãn" onClick={() => onPrint(item)}><Printer size={15} /></button>
       </footer>
     </article>
   );
@@ -737,17 +739,31 @@ export function PharmacyDispensingTodayPage() {
       const response = await previewDispenseCompletionPlanFromOverview(item.dispense_id, {});
       setPreview(unwrapData(response));
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể preview FEFO.'));
+      notifyPharmacy({ tone: 'danger', title: 'Preview FEFO', message: getApiErrorMessage(error, 'Không thể preview FEFO.') });
     }
   }
 
   async function handleComplete(item) {
-    if (!item.dispense_id || !window.confirm(`Hoàn tất phiếu ${item.reference_no || item.dispense_id}?`)) return;
+    if (!item.dispense_id || !confirmPharmacyAction({ title: 'Hoàn tất cấp phát', message: `Hoàn tất phiếu ${item.reference_no || item.dispense_id}?` })) return;
     try {
       await completeDispenseFromOverview(item.dispense_id, { note: 'Hoàn tất từ Cấp phát hôm nay.' });
+      notifyPharmacy({ tone: 'success', title: 'Hoàn tất cấp phát', message: 'Đã hoàn tất phiếu cấp phát.' });
       refresh();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể hoàn tất cấp phát.'));
+      notifyPharmacy({ tone: 'danger', title: 'Hoàn tất cấp phát', message: getApiErrorMessage(error, 'Không thể hoàn tất cấp phát.') });
+    }
+  }
+
+  async function handlePrint(item) {
+    if (!item.dispense_id) {
+      notifyPharmacy({ tone: 'warning', title: 'In nhãn', message: 'Cần dispense_id hợp lệ để tạo print job.' });
+      return;
+    }
+    try {
+      await pharmacyTopbarApi.printLabels(item.dispense_id, { copy_count: 1 });
+      notifyPharmacy({ tone: 'success', title: 'In nhãn', message: 'Đã tạo print job nhãn thuốc.' });
+    } catch (error) {
+      notifyPharmacy({ tone: 'danger', title: 'In nhãn', message: getApiErrorMessage(error, 'Không thể tạo print job nhãn.') });
     }
   }
 
@@ -778,7 +794,7 @@ export function PharmacyDispensingTodayPage() {
             </header>
             {loading ? <EmptyState title="Đang tải" body="Đang tải phiếu cấp phát." /> : null}
             {!loading && (data?.columns?.[column.key] || []).map((item) => (
-              <DispenseCard key={item.id} item={item} onPreview={handlePreview} onComplete={handleComplete} />
+              <DispenseCard key={item.id} item={item} onPreview={handlePreview} onComplete={handleComplete} onPrint={handlePrint} />
             ))}
           </div>
         ))}
@@ -803,7 +819,7 @@ export function PharmacyAlertsPage() {
       await acknowledgePharmacyAlert(item.id || item._id, { note: 'Đã xác nhận từ Alert Center.' });
       refresh();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể xác nhận cảnh báo.'));
+      notifyPharmacy({ tone: 'danger', title: 'Xác nhận cảnh báo', message: getApiErrorMessage(error, 'Không thể xác nhận cảnh báo.') });
     }
   }
 
@@ -812,7 +828,7 @@ export function PharmacyAlertsPage() {
       await resolvePharmacyAlert(item.id || item._id, { resolution_note: 'Đã xử lý từ Alert Center.' });
       refresh();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể đóng cảnh báo.'));
+      notifyPharmacy({ tone: 'danger', title: 'Đóng cảnh báo', message: getApiErrorMessage(error, 'Không thể đóng cảnh báo.') });
     }
   }
 

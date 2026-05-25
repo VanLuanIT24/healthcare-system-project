@@ -154,7 +154,7 @@ export function SupportPage() {
 
   const answerTitle = matchedSupport ? `Kết quả cho: ${searchQuery.trim()}` : 'Nội dung hỗ trợ đang chọn';
   const answerDescription = matchedSupport
-    ? `Healthcare đã tìm thấy mục gần nhất với câu hỏi của bạn trong nhóm "${matchedSupport.title}".`
+    ? `Bộ Y tế đã tìm thấy mục gần nhất với câu hỏi của bạn trong nhóm "${matchedSupport.title}".`
     : `Bạn có thể bấm trực tiếp từng mục bên dưới để mở hướng dẫn chi tiết ngay trên trang này.`;
   const activeSupport = matchedSupport || selectedSupport;
   const activeSupportId = activeSupport.id;
@@ -201,7 +201,7 @@ export function SupportPage() {
         <div className="info-hero__copy">
           <h1>Hỗ trợ</h1>
           <p>
-            Tìm hướng dẫn nhanh về sử dụng hệ thống, khôi phục tài khoản, đặt lịch và các câu hỏi phổ biến từ đội ngũ hỗ trợ Healthcare.
+            Tìm hướng dẫn nhanh về sử dụng hệ thống, khôi phục tài khoản, đặt lịch và các câu hỏi phổ biến từ đội ngũ hỗ trợ Bộ Y tế.
           </p>
 
           <form className="support-search" onSubmit={handleSupportSearch}>
@@ -265,7 +265,7 @@ export function SupportPage() {
         <div className="support-answer">
           <div className="support-answer__head">
             <div>
-              <p className="support-answer__kicker">Healthcare Support</p>
+              <p className="support-answer__kicker">Hỗ trợ Bộ Y tế</p>
               <h3>{activeSupport.title}</h3>
             </div>
             <span className="support-answer__badge">{matchedSupport ? 'Tìm thấy câu trả lời' : 'Hướng dẫn chi tiết'}</span>
@@ -393,7 +393,7 @@ export function SupportPage() {
           <Link to="/forgot-password">Khôi phục</Link>
           <Link to="/login">Liên hệ</Link>
         </nav>
-        <p>© 2026 Healthcare. All rights reserved.</p>
+        <p>© 2026 Bộ Y tế. Bảo lưu mọi quyền.</p>
       </footer>
     </main>
   );

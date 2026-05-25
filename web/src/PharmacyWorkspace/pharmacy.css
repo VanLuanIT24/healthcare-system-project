@@ -1,3 +1,63 @@
+.pharmacy-toast-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 80;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+}
+
+.pharmacy-toast {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 13px 14px;
+  border: 1px solid #d6e0ea;
+  border-left: 4px solid #2563eb;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
+  color: #172033;
+}
+
+.pharmacy-toast strong,
+.pharmacy-toast span {
+  display: block;
+}
+
+.pharmacy-toast strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pharmacy-toast span {
+  margin-top: 3px;
+  color: #526173;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pharmacy-toast button {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.pharmacy-toast--success { border-left-color: #059669; }
+.pharmacy-toast--warning { border-left-color: #d97706; }
+.pharmacy-toast--danger { border-left-color: #dc2626; }
+.pharmacy-toast--info { border-left-color: #2563eb; }
+
+@media (max-width: 720px) {
+  .pharmacy-toast-stack {
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
 .pharmacy-shell {
   --pharmacy-sidebar-width: 288px;
   --pharmacy-accent: #16a34a;

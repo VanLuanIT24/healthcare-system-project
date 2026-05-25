@@ -24,6 +24,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
+import { downloadClinicalOpsCsv, notifyClinicalOps, printClinicalOpsView, promptClinicalOpsText } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { getProcedureErrorMessage, procedureApi } from './procedureApi';
 
 const ORDER_STATUS_LABEL = {
@@ -900,31 +901,31 @@ export function ProcedureWorklistPage({ pageKey }) {
       const resultId = getId(row);
       if (action === 'schedule' || action === 'reschedule') {
         const windowValue = defaultScheduleWindow();
-        const scheduledStart = window.prompt('Thời gian bắt đầu thủ thuật ISO', windowValue.start);
+        const scheduledStart = promptClinicalOpsText({ title: action === 'reschedule' ? 'Dời lịch thủ thuật' : 'Xếp lịch thủ thuật', message: 'Thời gian bắt đầu thủ thuật ISO', defaultValue: windowValue.start });
         if (!scheduledStart) return;
-        const scheduledEnd = window.prompt('Thời gian kết thúc dự kiến ISO', windowValue.end);
+        const scheduledEnd = promptClinicalOpsText({ title: action === 'reschedule' ? 'Dời lịch thủ thuật' : 'Xếp lịch thủ thuật', message: 'Thời gian kết thúc dự kiến ISO', defaultValue: windowValue.end });
         const payload = { scheduled_start: scheduledStart, scheduled_end: scheduledEnd || undefined, allow_past_schedule: false };
         if (action === 'reschedule') await procedureApi.rescheduleOrder(orderId, payload);
         else await procedureApi.scheduleOrder(orderId, payload);
       }
       if (action === 'start') await procedureApi.startOrder(orderId, { performed_start: new Date().toISOString() });
       if (action === 'complete') {
-        const resultNote = window.prompt('Ghi chú hoàn tất thủ thuật', row?.result_note || 'Thủ thuật hoàn tất, bệnh nhân ổn định.');
+        const resultNote = promptClinicalOpsText({ title: 'Hoàn tất thủ thuật', message: 'Ghi chú hoàn tất thủ thuật', defaultValue: row?.result_note || 'Thủ thuật hoàn tất, bệnh nhân ổn định.' });
         if (!resultNote) return;
         await procedureApi.completeOrder(orderId, { result_note: resultNote, create_charge: true, allow_empty_result_note: false });
       }
       if (action === 'cancel') {
-        const reason = window.prompt('Lý do hủy thủ thuật', 'Hủy theo yêu cầu vận hành');
+        const reason = promptClinicalOpsText({ title: 'Hủy thủ thuật', message: 'Lý do hủy thủ thuật', defaultValue: 'Hủy theo yêu cầu vận hành' });
         if (!reason) return;
         await procedureApi.cancelOrder(orderId, { reason });
       }
       if (action === 'no_show') {
-        const reason = window.prompt('Lý do no-show', 'Bệnh nhân không đến đúng lịch');
+        const reason = promptClinicalOpsText({ title: 'Ghi nhận no-show', message: 'Lý do no-show', defaultValue: 'Bệnh nhân không đến đúng lịch' });
         if (!reason) return;
         await procedureApi.markNoShow(orderId, { reason, force: true });
       }
       if (action === 'upload_file') {
-        const fileName = window.prompt('Tên file thủ thuật', `procedure-${Date.now()}.pdf`);
+        const fileName = promptClinicalOpsText({ title: 'Upload file thủ thuật', message: 'Tên file thủ thuật', defaultValue: `procedure-${Date.now()}.pdf` });
         if (!fileName) return;
         await procedureApi.uploadAttachment(orderId, {
           file_name: fileName,
@@ -937,7 +938,7 @@ export function ProcedureWorklistPage({ pageKey }) {
       }
       if (action === 'create_charge') await procedureApi.createCharge(orderId, { quantity: 1, status: 'posted' });
       if (action === 'create_result') {
-        const conclusion = window.prompt('Kết luận thủ thuật', row?.result_note || 'Thủ thuật hoàn tất, chưa ghi nhận biến chứng.');
+        const conclusion = promptClinicalOpsText({ title: 'Tạo kết quả thủ thuật', message: 'Kết luận thủ thuật', defaultValue: row?.result_note || 'Thủ thuật hoàn tất, chưa ghi nhận biến chứng.' });
         if (!conclusion) return;
         await procedureApi.createResult(orderId, {
           technique: row?.procedure_name,
@@ -952,14 +953,14 @@ export function ProcedureWorklistPage({ pageKey }) {
       if (action === 'file_approve') await procedureApi.reviewFile(getId(row), { review_status: 'accepted', review_note: 'Approved from procedure workspace' });
       if (action === 'file_release') await procedureApi.releaseFile(getId(row), { visibility: 'patient_visible' });
       if (action === 'file_archive') {
-        const reason = window.prompt('Lý do archive file', 'Lưu trữ từ procedure workspace');
+        const reason = promptClinicalOpsText({ title: 'Archive file thủ thuật', message: 'Lý do archive file', defaultValue: 'Lưu trữ từ procedure workspace' });
         if (!reason) return;
         await procedureApi.archiveFile(getId(row), { reason });
       }
       if (action === 'prep_start') await procedureApi.startPreparation(getId(row));
       if (action === 'prep_ready') await procedureApi.readyPreparation(getId(row));
       if (action === 'prep_block') {
-        const reason = window.prompt('Lý do block chuẩn bị', 'Thiếu consent hoặc checklist bắt buộc');
+        const reason = promptClinicalOpsText({ title: 'Block chuẩn bị thủ thuật', message: 'Lý do block chuẩn bị', defaultValue: 'Thiếu consent hoặc checklist bắt buộc' });
         if (!reason) return;
         await procedureApi.blockPreparation(getId(row), { reason, blocked_reason_text: reason });
       }
@@ -992,9 +993,9 @@ export function ProcedureWorklistPage({ pageKey }) {
         </div>
         <div className="lab-work-header__actions">
           <button type="button" onClick={() => { listState.refresh(); dashboardState.refresh(); }}><RefreshCw size={16} />Làm mới</button>
-          <button type="button"><Printer size={16} />In danh sách</button>
-          <button type="button"><FileText size={16} />Export</button>
-          <button type="button"><Plus size={16} />Tạo order</button>
+          <button type="button" onClick={() => printClinicalOpsView('In danh sách thủ thuật')}><Printer size={16} />In danh sách</button>
+          <button type="button" onClick={() => downloadClinicalOpsCsv(`procedure-${pageKey}.csv`, rows, 'Xuất danh sách thủ thuật')}><FileText size={16} />Export</button>
+          <button type="button" onClick={() => notifyClinicalOps({ title: 'Tạo order thủ thuật', message: 'Tạo chỉ định mới cần thực hiện từ encounter/bác sĩ để bảo toàn chỉ định lâm sàng.' })}><Plus size={16} />Tạo order</button>
         </div>
       </section>
       <KpiStrip summary={dashboardState.data} loading={dashboardState.loading} />

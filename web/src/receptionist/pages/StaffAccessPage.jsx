@@ -21,6 +21,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { AppLogo } from '../../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
 import {
   clearRememberedStaffWorkspace,
@@ -117,16 +118,8 @@ export function StaffAccessPage() {
       </div>
 
       <header className="patient-register-brand patient-login-brand staff-login-brand">
-        <Link className="patient-register-logo" to="/home" aria-label="MedCare Portal">
-          <span className="patient-register-logo__mark" aria-hidden="true">
-            <span />
-          </span>
-          <span>
-            <strong>
-              MedCare <em>Portal</em>
-            </strong>
-            <small>Cổng thông tin chăm sóc sức khỏe của bạn</small>
-          </span>
+        <Link className="patient-register-logo" to="/home" aria-label="Bộ Y tế">
+          <AppLogo variant="horizontal" />
         </Link>
       </header>
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -24,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { getApiErrorMessage, unwrapData } from '../utils/api';
+import { confirmPharmacyAction, downloadPharmacyJson, notifyPharmacy } from './pharmacyActions';
 import {
   adjustBatchFromConsole,
   createStocktakeFromConsole,
@@ -191,7 +193,13 @@ function RiskBadge({ expiryDate, status }) {
   return <span className="pharmacy-inventory-badge is-success">{days} ngày</span>;
 }
 
-function InventoryHeader({ icon: Icon, title, description, realtime = 'đang đồng bộ', onRefresh, onCommand, actionLabel, onAction }) {
+function InventoryHeader({ icon: Icon, title, description, realtime = 'đang đồng bộ', onRefresh, onCommand, onExport, actionLabel, onAction }) {
+  const handleMissingAction = () => notifyPharmacy({
+    tone: 'warning',
+    title: actionLabel || 'Thao tác kho dược',
+    message: 'Thao tác này cần thêm dữ liệu hoặc quyền nghiệp vụ trước khi gửi lên hệ thống.',
+  });
+
   return (
     <header className="pharmacy-inventory-header">
       <div className="pharmacy-inventory-header__title">
@@ -207,14 +215,16 @@ function InventoryHeader({ icon: Icon, title, description, realtime = 'đang đ�
         <button type="button" className="pharmacy-inventory-icon-button" aria-label="Refresh" onClick={onRefresh}>
           <RefreshCw size={18} />
         </button>
-        <button type="button" className="pharmacy-inventory-button is-secondary" onClick={onCommand}>
-          <Search size={16} /> Ctrl K
-        </button>
-        <button type="button" className="pharmacy-inventory-button is-secondary">
+        {onCommand ? (
+          <button type="button" className="pharmacy-inventory-button is-secondary" onClick={onCommand}>
+            <Search size={16} /> Ctrl K
+          </button>
+        ) : null}
+        <button type="button" className="pharmacy-inventory-button is-secondary" onClick={onExport}>
           <Download size={16} /> Export
         </button>
         {actionLabel ? (
-          <button type="button" className="pharmacy-inventory-button" onClick={onAction}>
+          <button type="button" className="pharmacy-inventory-button" onClick={onAction || handleMissingAction}>
             <PackagePlus size={16} /> {actionLabel}
           </button>
         ) : null}
@@ -340,6 +350,32 @@ function CommandPalette({ open, onClose, onSelect }) {
   );
 }
 
+function runInventoryCommand(command, navigate, onClose) {
+  if (command === 'open') return;
+  const routes = {
+    receive: '/pharmacy/transactions/receive-stock',
+    adjust: '/pharmacy/transactions/stock-adjustment',
+    recall: '/pharmacy/inventory/quarantine-recall',
+    expire: '/pharmacy/inventory/expired-batches',
+    stocktake: '/pharmacy/inventory/stock-count',
+  };
+  const labels = {
+    receive: 'Nhập kho',
+    adjust: 'Điều chỉnh tồn',
+    recall: 'Recall batch',
+    expire: 'Lô hết hạn',
+    stocktake: 'Kiểm kê',
+  };
+  const target = routes[command];
+  onClose?.();
+  if (!target) {
+    notifyPharmacy({ tone: 'warning', title: 'Command palette', message: 'Chưa nhận diện được thao tác kho dược.' });
+    return;
+  }
+  notifyPharmacy({ title: 'Command palette', message: `Đã mở ${labels[command] || 'nghiệp vụ kho dược'}.` });
+  navigate(target);
+}
+
 function DetailDrawer({ title, subtitle, open, onClose, tabs = [] }) {
   const [activeTab, setActiveTab] = useState(tabs[0]?.key || 'overview');
 
@@ -427,6 +463,13 @@ function BatchActionDialog({ action, batch, onClose, onDone }) {
 
   async function submit(event) {
     event.preventDefault();
+    if (['expire', 'recall', 'quarantine', 'release', 'waste'].includes(action)) {
+      const ok = confirmPharmacyAction({
+        title: actionTitle,
+        message: `Xác nhận thao tác với batch ${batch.batch_no || batch.lot_no || getBatchId(batch)}?`,
+      });
+      if (!ok) return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -458,9 +501,12 @@ function BatchActionDialog({ action, batch, onClose, onDone }) {
         to_location: form.to_location,
         reason: form.reason,
       });
+      notifyPharmacy({ tone: 'success', title: actionTitle, message: 'Đã cập nhật batch thuốc trên backend.' });
       onDone();
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Không thể thực hiện thao tác batch.'));
+      const message = getApiErrorMessage(err, 'Không thể thực hiện thao tác batch.');
+      setError(message);
+      notifyPharmacy({ tone: 'danger', title: actionTitle, message });
     } finally {
       setSaving(false);
     }
@@ -518,6 +564,7 @@ function BatchActionDialog({ action, batch, onClose, onDone }) {
 }
 
 export function MedicationCatalogPage() {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState({ page: 1, limit: 30 });
   const [commandOpen, setCommandOpen] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -544,7 +591,22 @@ export function MedicationCatalogPage() {
 
   return (
     <section className="pharmacy-inventory-page">
-      <InventoryHeader icon={Pill} title="Danh mục thuốc" description="Master thuốc, giá bán, viện phí, tồn tổng, trạng thái và lô liên quan." onRefresh={refresh} onCommand={() => setCommandOpen(true)} actionLabel="Tạo thuốc" />
+      <InventoryHeader
+        icon={Pill}
+        title="Danh mục thuốc"
+        description="Master thuốc, giá bán, viện phí, tồn tổng, trạng thái và lô liên quan."
+        onRefresh={refresh}
+        onCommand={() => setCommandOpen(true)}
+        onExport={() => downloadPharmacyJson('danh-muc-thuoc.json', { filters, summary, medications: data?.medications || [] }, 'Xuất danh mục thuốc')}
+        actionLabel="Tạo thuốc"
+        onAction={() => {
+          notifyPharmacy({
+            title: 'Tạo thuốc',
+            message: 'Mở cấu hình dược để chuẩn hóa đơn vị, dạng bào chế và route trước khi tạo thuốc mới.',
+          });
+          navigate('/pharmacy/config');
+        }}
+      />
       <KpiStrip cards={kpis} />
       <InventoryFilters filters={filters} setFilters={setFilters}>
         <select value={filters.status || ''} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value, page: 1 }))}>
@@ -591,7 +653,19 @@ export function MedicationCatalogPage() {
                   <td>{formatNumber(item.stock_summary?.available_batches)}</td>
                   <td>{formatNumber(item.stock_summary?.near_expiry_batches)}</td>
                   <td><StatusBadge value={item.status} /></td>
-                  <td><button type="button" className="pharmacy-inventory-icon-button" aria-label="Xem chi tiết"><Eye size={16} /></button></td>
+                  <td>
+                    <button
+                      type="button"
+                      className="pharmacy-inventory-icon-button"
+                      aria-label="Xem chi tiết"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openMedication(item);
+                      }}
+                    >
+                      <Eye size={16} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -633,7 +707,7 @@ export function MedicationCatalogPage() {
           },
         ]}
       />
-      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} onSelect={(key) => (key === 'open' ? setCommandOpen(true) : setCommandOpen(false))} />
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} onSelect={(key) => runInventoryCommand(key, navigate, () => setCommandOpen(false))} />
     </section>
   );
 }
@@ -657,6 +731,7 @@ function BatchMiniList({ batches = [] }) {
 }
 
 export function CurrentStockPage() {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState({ page: 1, limit: 30, nearExpiryDays: 30 });
   const [commandOpen, setCommandOpen] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -676,7 +751,16 @@ export function CurrentStockPage() {
 
   return (
     <section className="pharmacy-inventory-page">
-      <InventoryHeader icon={Boxes} title="Tồn kho hiện tại" description="Matrix tồn kho theo thuốc, FEFO batch, giá trị tồn, vị trí và mức rủi ro." onRefresh={refresh} onCommand={() => setCommandOpen(true)} actionLabel="Nhập kho" />
+      <InventoryHeader
+        icon={Boxes}
+        title="Tồn kho hiện tại"
+        description="Matrix tồn kho theo thuốc, FEFO batch, giá trị tồn, vị trí và mức rủi ro."
+        onRefresh={refresh}
+        onCommand={() => setCommandOpen(true)}
+        onExport={() => downloadPharmacyJson('ton-kho-hien-tai.json', { filters, report, items: data?.items || [] }, 'Xuất tồn kho hiện tại')}
+        actionLabel="Nhập kho"
+        onAction={() => navigate('/pharmacy/transactions/receive-stock')}
+      />
       <KpiStrip cards={kpis} />
       <InventoryFilters filters={filters} setFilters={setFilters}>
         <select value={filters.stockStatus || ''} onChange={(event) => setFilters((current) => ({ ...current, stockStatus: event.target.value, page: 1 }))}>
@@ -717,7 +801,19 @@ export function CurrentStockPage() {
                   <td>{row.storage_locations?.slice(0, 2).join(', ') || '--'}</td>
                   <td><StatusBadge value={row.stock_status} /></td>
                   <td>{formatCurrency(row.inventory_value)}</td>
-                  <td><button type="button" className="pharmacy-inventory-icon-button" aria-label="Xem"><Eye size={16} /></button></td>
+                  <td>
+                    <button
+                      type="button"
+                      className="pharmacy-inventory-icon-button"
+                      aria-label="Xem"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelected(row);
+                      }}
+                    >
+                      <Eye size={16} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -748,12 +844,13 @@ export function CurrentStockPage() {
           { key: 'ledger', label: 'Ledger gần đây', content: <MiniTimeline items={data?.transactions || []} /> },
         ]}
       />
-      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} onSelect={(key) => (key === 'open' ? setCommandOpen(true) : setCommandOpen(false))} />
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} onSelect={(key) => runInventoryCommand(key, navigate, () => setCommandOpen(false))} />
     </section>
   );
 }
 
 export function StockBatchPage({ view = 'all' }) {
+  const navigate = useNavigate();
   const config = BATCH_VIEW_CONFIG[view] || BATCH_VIEW_CONFIG.all;
   const [filters, setFilters] = useState({ page: 1, limit: 30, nearExpiryDays: config.params.nearExpiryDays || 30, ...config.params });
   const [commandOpen, setCommandOpen] = useState(false);
@@ -792,7 +889,16 @@ export function StockBatchPage({ view = 'all' }) {
 
   return (
     <section className="pharmacy-inventory-page">
-      <InventoryHeader icon={config.icon} title={config.title} description={config.description} onRefresh={refresh} onCommand={() => setCommandOpen(true)} actionLabel="Nhập kho" />
+      <InventoryHeader
+        icon={config.icon}
+        title={config.title}
+        description={config.description}
+        onRefresh={refresh}
+        onCommand={() => setCommandOpen(true)}
+        onExport={() => downloadPharmacyJson(`lo-thuoc-${view}.json`, { view, filters, report, batches: visibleBatches }, 'Xuất lô thuốc')}
+        actionLabel="Nhập kho"
+        onAction={() => navigate('/pharmacy/transactions/receive-stock')}
+      />
       <KpiStrip cards={kpis} />
       <InventoryFilters filters={filters} setFilters={setFilters}>
         <select value={filters.status || ''} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value, page: 1 }))}>
@@ -895,7 +1001,7 @@ export function StockBatchPage({ view = 'all' }) {
         ]}
       />
       <BatchActionDialog action={action} batch={selected} onClose={() => setAction(null)} onDone={() => { setAction(null); setSelected(null); refresh(); }} />
-      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} onSelect={(key) => (key === 'open' ? setCommandOpen(true) : setCommandOpen(false))} />
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} onSelect={(key) => runInventoryCommand(key, navigate, () => setCommandOpen(false))} />
     </section>
   );
 }
@@ -948,6 +1054,13 @@ export function StocktakePage() {
 
   async function stocktakeAction(type, stocktake = selected) {
     if (!stocktake) return;
+    if (type === 'post') {
+      const ok = confirmPharmacyAction({
+        title: 'Post điều chỉnh kiểm kê',
+        message: `Ghi nhận chênh lệch tồn kho cho kỳ ${stocktake.stocktake_no || stocktake._id || stocktake.id}?`,
+      });
+      if (!ok) return;
+    }
     setSaving(true);
     try {
       const id = stocktake._id || stocktake.id;
@@ -957,7 +1070,10 @@ export function StocktakePage() {
       if (type === 'post') await postStocktakeAdjustmentsFromConsole(id);
       const nextDetail = await loadStocktakeDetail(id);
       setDetail(nextDetail);
+      notifyPharmacy({ tone: 'success', title: 'Kiểm kê kho dược', message: 'Đã cập nhật kỳ kiểm kê.' });
       refresh();
+    } catch (error) {
+      notifyPharmacy({ tone: 'danger', title: 'Kiểm kê kho dược', message: getApiErrorMessage(error, 'Không thể cập nhật kỳ kiểm kê.') });
     } finally {
       setSaving(false);
     }
@@ -974,8 +1090,11 @@ export function StocktakePage() {
       });
       const payload = unwrapData(response);
       setDialog('');
+      notifyPharmacy({ tone: 'success', title: 'Tạo kỳ kiểm kê', message: 'Đã tạo kỳ kiểm kê mới.' });
       refresh();
       if (payload?.stocktake) openStocktake(payload.stocktake);
+    } catch (error) {
+      notifyPharmacy({ tone: 'danger', title: 'Tạo kỳ kiểm kê', message: getApiErrorMessage(error, 'Không thể tạo kỳ kiểm kê.') });
     } finally {
       setSaving(false);
     }
@@ -993,7 +1112,15 @@ export function StocktakePage() {
 
   return (
     <section className="pharmacy-inventory-page">
-      <InventoryHeader icon={ClipboardCheck} title="Kiểm kê" description="Kỳ kiểm kê, dòng đếm theo batch, variance và post adjustment có audit." onRefresh={refresh} onCommand={() => {}} actionLabel="Tạo kỳ kiểm kê" onAction={() => setDialog('create')} />
+      <InventoryHeader
+        icon={ClipboardCheck}
+        title="Kiểm kê"
+        description="Kỳ kiểm kê, dòng đếm theo batch, variance và post adjustment có audit."
+        onRefresh={refresh}
+        onExport={() => downloadPharmacyJson('kiem-ke-kho-duoc.json', { filters, summary, stocktakes }, 'Xuất kiểm kê')}
+        actionLabel="Tạo kỳ kiểm kê"
+        onAction={() => setDialog('create')}
+      />
       <KpiStrip cards={kpis} />
       <InventoryFilters filters={filters} setFilters={setFilters}>
         <select value={filters.status || ''} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value, page: 1 }))}>

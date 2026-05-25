@@ -319,6 +319,8 @@ export const nursePatientLookupApi = {
     unwrapData(await request(`/nursing/patients/${encodeURIComponent(patientId)}/allergies/check-duplicate`, { method: 'POST', body })),
   checkDuplicateProblem: async (patientId, body = {}) =>
     unwrapData(await request(`/nursing/patients/${encodeURIComponent(patientId)}/problems/check-duplicate`, { method: 'POST', body })),
+  startBreakGlass: async (patientId, body = {}) =>
+    unwrapData(await request('/access/break-glass/start', { method: 'POST', body: { ...body, patient_id: patientId } })),
 };
 
 export const nursePreparationApi = {
@@ -531,6 +533,8 @@ export const nurseMonitoringApi = {
 export const nurseTaskHandoverApi = {
   getTasks: async (params = {}) =>
     unwrapData(await request('/nursing/tasks', { params })),
+  createTask: async (body = {}) =>
+    unwrapData(await request('/nursing/tasks', { method: 'POST', body })),
   getSummary: async (params = {}) =>
     unwrapData(await request('/nursing/tasks/summary', { params })),
   getMyTasks: async (params = {}) =>

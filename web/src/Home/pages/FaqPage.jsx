@@ -207,7 +207,7 @@ export function FaqPage() {
             <h2>Giải đáp nhanh, chuẩn y khoa</h2>
             <p>
               Tìm câu trả lời về lịch hẹn, bảo hiểm, hồ sơ điện tử và dịch vụ quốc tế trong một
-              không gian hỗ trợ được thiết kế cho bệnh nhân Healthcare Plus+.
+              không gian hỗ trợ được thiết kế cho bệnh nhân của Bộ Y tế.
             </p>
 
             <div className="faq-hero-stats" aria-label="Chỉ số hỗ trợ bệnh nhân">

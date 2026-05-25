@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import BubbleBackground from './BubbleBackground'
+import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo'
 import { doctorApi, getDoctorCapabilities } from './doctorApi'
 import { doctorNavItems, getInitials, statusToneMap } from './doctorData'
 import { authAPI, notificationAPI, unwrapData } from '../utils/api'
@@ -10,68 +11,84 @@ const sidebarNavItems = doctorNavItems.filter((item) => item.id !== 'profile')
 
 const dashboardSidebarGroups = [
   {
-    id: 'dashboard',
-    label: 'Tổng quan',
+    id: 'overview',
+    label: 'Tổng quan bác sĩ',
     icon: 'dashboard',
-    path: '/doctor/dashboard',
-  },
-  {
-    id: 'schedule',
-    label: 'Lịch làm việc',
-    icon: 'calendar',
     items: [
-      { label: 'Hôm nay', path: '/doctor/schedules/today' },
-      { label: 'Tuần này', path: '/doctor/schedules/week' },
-      { label: 'Lịch trống', path: '/doctor/schedules/empty' },
+      { label: 'Dashboard của tôi', path: '/doctor/dashboard' },
+      { label: 'Bệnh nhân đang chờ tôi', path: '/doctor/queue' },
+      { label: 'Lịch khám hôm nay', path: '/doctor/appointments?view=today' },
+      { label: 'Encounter đang mở', path: '/doctor/encounters?view=active' },
+      { label: 'Kết quả mới', path: '/doctor/clinical?view=lab&filter=new' },
+      { label: 'Việc cần hoàn tất', path: '/doctor/dashboard?panel=tasks' },
     ],
   },
   {
-    id: 'appointments',
-    label: 'Lịch hẹn',
-    icon: 'calendar',
-    items: [
-      { label: 'Hôm nay', path: '/doctor/appointments?view=today' },
-      { label: 'Sắp tới', path: '/doctor/appointments?view=upcoming' },
-      { label: 'Tất cả lịch hẹn', path: '/doctor/appointments' },
-    ],
-  },
-  {
-    id: 'queue',
-    label: 'Hàng đợi',
-    icon: 'queue',
-    items: [
-      { label: 'Bảng hàng đợi', path: '/doctor/queue' },
-      { label: 'Gọi tiếp theo', path: '/doctor/queue?view=calling' },
-      { label: 'Lịch sử hàng đợi', path: '/doctor/queue?view=history' },
-    ],
-  },
-  {
-    id: 'encounters',
-    label: 'Phiên khám',
-    icon: 'doctor',
-    items: [
-      { label: 'Hôm nay', path: '/doctor/encounters?view=today' },
-      { label: 'Đang khám', path: '/doctor/encounters?view=active' },
-      { label: 'Đã hoàn tất', path: '/doctor/encounters?view=completed' },
-    ],
-  },
-  {
-    id: 'patients',
-    label: 'Bệnh nhân',
+    id: 'my-patients',
+    label: 'Bệnh nhân của tôi',
     icon: 'patients',
     items: [
-      { label: 'Danh sách bệnh nhân', path: '/doctor/patients' },
-      { label: 'Bệnh nhân gần đây', path: '/doctor/patients?view=recent' },
+      { label: 'Bệnh nhân chờ khám', path: '/doctor/queue' },
+      { label: 'Bệnh nhân đang khám', path: '/doctor/encounters?view=active' },
+      { label: 'Bệnh nhân đã khám hôm nay', path: '/doctor/encounters?view=completed' },
+      { label: 'Follow-up đến hạn', path: '/doctor/appointments?view=upcoming&filter=follow-up' },
+      { label: 'Lịch sử bệnh nhân', path: '/doctor/patients?view=recent' },
+    ],
+  },
+  {
+    id: 'encounter',
+    label: 'Encounter',
+    icon: 'doctor',
+    items: [
+      { label: 'Encounter đang mở', path: '/doctor/encounters?view=active' },
+      { label: 'Tạo / bắt đầu encounter', path: '/doctor/encounters?view=today&action=start' },
+      { label: 'Clinical note', path: '/doctor/encounters?view=active&section=clinical-note' },
+      { label: 'Chẩn đoán', path: '/doctor/encounters?view=active&section=diagnosis' },
+      { label: 'Problem list', path: '/doctor/encounters?view=active&section=problem-list' },
+      { label: 'Care plan', path: '/doctor/encounters?view=active&section=care-plan' },
+      { label: 'Consultation', path: '/doctor/encounters?view=active&section=consultation' },
+      { label: 'Hoàn tất encounter', path: '/doctor/encounters?view=active&section=complete' },
+    ],
+  },
+  {
+    id: 'clinical-records',
+    label: 'Hồ sơ lâm sàng',
+    icon: 'note',
+    items: [
+      { label: 'Tóm tắt bệnh nhân', path: '/doctor/patients' },
+      { label: 'Tiền sử / dị ứng', path: '/doctor/patients?view=history' },
+      { label: 'Sinh hiệu', path: '/doctor/encounters?view=active&section=vitals' },
+      { label: 'Hồ sơ bệnh án', path: '/doctor/patients?view=records' },
+      { label: 'Tài liệu đính kèm', path: '/doctor/patients?view=attachments' },
+      { label: 'Consent / access nếu cần', path: '/doctor/patients?view=consent' },
+      { label: 'Hồ sơ đã release', path: '/doctor/patients?view=released' },
     ],
   },
   {
     id: 'orders',
-    label: 'Chỉ định (Orders)',
+    label: 'Chỉ định',
     icon: 'clipboard',
     items: [
-      { label: 'Đơn chỉ định', path: '/doctor/orders' },
-      { label: 'Theo encounter', path: '/doctor/orders?view=encounter' },
-      { label: 'Đang chờ xử lý', path: '/doctor/orders?view=pending' },
+      { label: 'Tạo chỉ định', path: '/doctor/orders?view=encounter&action=create' },
+      { label: 'Tất cả order', path: '/doctor/orders' },
+      { label: 'Chỉ định xét nghiệm', path: '/doctor/orders?type=lab' },
+      { label: 'Chỉ định CĐHA', path: '/doctor/orders?type=imaging' },
+      { label: 'Chỉ định thủ thuật', path: '/doctor/orders?type=procedure' },
+      { label: 'Order đang chờ', path: '/doctor/orders?view=pending' },
+      { label: 'Order đã hoàn tất', path: '/doctor/orders?status=completed' },
+    ],
+  },
+  {
+    id: 'results',
+    label: 'Kết quả',
+    icon: 'pulse',
+    items: [
+      { label: 'Kết quả xét nghiệm', path: '/doctor/clinical?view=lab' },
+      { label: 'Kết quả CĐHA', path: '/doctor/clinical?view=imaging' },
+      { label: 'Kết quả thủ thuật', path: '/doctor/clinical?view=procedure' },
+      { label: 'Critical results', path: '/doctor/clinical?view=lab&filter=critical' },
+      { label: 'Kết quả chưa đọc', path: '/doctor/clinical?view=lab&read=unread' },
+      { label: 'Kết quả đã đọc', path: '/doctor/clinical?view=lab&read=read' },
     ],
   },
   {
@@ -79,46 +96,94 @@ const dashboardSidebarGroups = [
     label: 'Đơn thuốc',
     icon: 'pill',
     items: [
-      { label: 'Đơn thuốc của tôi', path: '/doctor/prescriptions' },
-      { label: 'Theo encounter', path: '/doctor/prescriptions?view=encounter' },
-      { label: 'Đơn thuốc đang hoạt động', path: '/doctor/prescriptions?view=active' },
+      { label: 'Kê đơn', path: '/doctor/prescriptions?action=create' },
+      { label: 'Đơn thuốc draft', path: '/doctor/prescriptions?status=draft' },
+      { label: 'Đơn thuốc đã ký', path: '/doctor/prescriptions?status=signed' },
+      { label: 'Refill request', path: '/doctor/prescriptions?view=refill' },
+      { label: 'Trạng thái cấp phát', path: '/doctor/prescriptions?view=dispensing' },
+      { label: 'Lịch sử đơn thuốc', path: '/doctor/prescriptions?view=history' },
     ],
   },
   {
-    id: 'clinical',
-    label: 'Cận lâm sàng',
+    id: 'inpatient-emergency',
+    label: 'Nội trú / cấp cứu',
+    icon: 'pill',
+    requiresAnyPermissionPrefix: ['inpatient_', 'emergency.'],
+    items: [
+      { label: 'Bệnh nhân nội trú của tôi', path: '/doctor/dashboard?panel=inpatient' },
+      { label: 'Inpatient task', path: '/doctor/dashboard?panel=inpatient-tasks' },
+      { label: 'Medication administration', path: '/doctor/dashboard?panel=medication-administration' },
+      { label: 'Ca khẩn liên quan', path: '/doctor/dashboard?panel=emergency' },
+    ],
+  },
+  {
+    id: 'documents-forms',
+    label: 'Tài liệu / biểu mẫu',
     icon: 'note',
     items: [
-      { label: 'Xét nghiệm', path: '/doctor/clinical?view=lab' },
-      { label: 'Chẩn đoán hình ảnh', path: '/doctor/clinical?view=imaging' },
-      { label: 'Thủ thuật', path: '/doctor/clinical?view=procedure' },
+      { label: 'Giấy hẹn tái khám', path: '/doctor/dashboard?panel=forms&template=follow-up' },
+      { label: 'Giấy chứng nhận', path: '/doctor/dashboard?panel=forms&template=certificate' },
+      { label: 'Tóm tắt khám', path: '/doctor/dashboard?panel=forms&template=visit-summary' },
+      { label: 'Xuất hồ sơ', path: '/doctor/dashboard?panel=record-export' },
+      { label: 'Release cho bệnh nhân', path: '/doctor/dashboard?panel=patient-release' },
     ],
   },
   {
-    id: 'notifications',
-    label: 'Thông báo',
-    icon: 'bell',
-    path: '/doctor/dashboard?panel=notifications',
-  },
-  {
-    id: 'reports',
-    label: 'Báo cáo',
-    icon: 'pulse',
+    id: 'communication',
+    label: 'Trao đổi',
+    icon: 'message',
     items: [
-      { label: 'Hiệu suất khám bệnh', path: '/doctor/reports?view=performance' },
-      { label: 'Hàng đợi', path: '/doctor/reports?view=queue' },
-      { label: 'Báo cáo bác sĩ', path: '/doctor/reports?view=doctor' },
+      { label: 'Tin nhắn', path: '/doctor/dashboard?panel=messages' },
+      { label: 'Hội chẩn', path: '/doctor/dashboard?panel=consultation' },
+      { label: 'Support clinical', path: '/doctor/dashboard?panel=clinical-support' },
+      { label: 'Gửi thông báo', path: '/doctor/dashboard?panel=send-notification' },
     ],
   },
 ]
 
-function getInitialExpandedDashboardGroups(location) {
+function getUserPermissionCodes(user) {
+  if (!Array.isArray(user?.permissions)) {
+    return []
+  }
+
+  return user.permissions
+    .map((permission) => {
+      if (typeof permission === 'string') return permission
+      return permission?.permission_code || permission?.permissionCode || permission?.code || permission?.name || ''
+    })
+    .filter(Boolean)
+}
+
+function hasAnyPermissionPrefix(user, prefixes = []) {
+  if (!prefixes.length) {
+    return true
+  }
+
+  const permissionCodes = getUserPermissionCodes(user)
+  return permissionCodes.some((permission) => prefixes.some((prefix) => permission.startsWith(prefix)))
+}
+
+function getDashboardSidebarGroups(user) {
+  return dashboardSidebarGroups.filter((group) => hasAnyPermissionPrefix(user, group.requiresAnyPermissionPrefix))
+}
+
+function getActiveDashboardGroups(location, groups = dashboardSidebarGroups) {
   const currentPath = `${location.pathname}${location.search}`
   return new Set(
-    dashboardSidebarGroups
+    groups
       .filter((group) => Array.isArray(group.items) && group.items.some((item) => item.path === currentPath))
       .map((group) => group.id),
   )
+}
+
+function getInitialExpandedDashboardGroups(location, groups = dashboardSidebarGroups) {
+  const activeGroups = getActiveDashboardGroups(location, groups)
+  if (activeGroups.size) {
+    return activeGroups
+  }
+
+  const firstDropdown = groups.find((group) => Array.isArray(group.items) && group.items.length)
+  return firstDropdown ? new Set([firstDropdown.id]) : new Set()
 }
 
 export function DoctorIcon({ name }) {
@@ -603,30 +668,34 @@ function getAvatarUrlFromProfilePayload(payload) {
 function DoctorDashboardSidebar({ onNavigateHome, onLogout, user }) {
   const location = useLocation()
   const identity = getUserIdentity(user)
+  const navigationGroups = useMemo(() => getDashboardSidebarGroups(user), [user])
   const [expandedGroups, setExpandedGroups] = useState(
-    () => new Set(dashboardSidebarGroups.filter((group) => Array.isArray(group.items) && group.items.length).map((group) => group.id)),
+    () => getInitialExpandedDashboardGroups(location, navigationGroups),
   )
 
   useEffect(() => {
-    const activeGroups = getInitialExpandedDashboardGroups(location)
+    const activeGroups = getActiveDashboardGroups(location, navigationGroups)
     if (!activeGroups.size) return
 
+    setExpandedGroups(activeGroups)
+  }, [location.pathname, location.search, navigationGroups])
+
+  useEffect(() => {
+    const visibleGroupIds = new Set(navigationGroups.map((group) => group.id))
+
     setExpandedGroups((current) => {
-      const next = new Set(current)
-      activeGroups.forEach((groupId) => next.add(groupId))
-      return next
+      const next = new Set([...current].filter((groupId) => visibleGroupIds.has(groupId)))
+      return next.size ? next : getInitialExpandedDashboardGroups(location, navigationGroups)
     })
-  }, [location.pathname, location.search])
+  }, [location.pathname, location.search, navigationGroups])
 
   function toggleGroup(groupId) {
     setExpandedGroups((current) => {
-      const next = new Set(current)
-      if (next.has(groupId)) {
-        next.delete(groupId)
-      } else {
-        next.add(groupId)
+      if (current.has(groupId)) {
+        return new Set()
       }
-      return next
+
+      return new Set([groupId])
     })
   }
 
@@ -646,16 +715,16 @@ function DoctorDashboardSidebar({ onNavigateHome, onLogout, user }) {
     <aside className="doctor-reference-sidebar">
       <div className="doctor-reference-sidebar__brand">
         <button className="doctor-reference-sidebar__mark" type="button" onClick={onNavigateHome} aria-label="Về tổng quan bác sĩ">
-          <span aria-hidden="true">☆</span>
+          <AppLogo variant="mark" alt="" aria-hidden="true" />
         </button>
         <div className="doctor-reference-sidebar__brand-copy">
-          <p>MediCare</p>
-          <span>Doctor Dashboard</span>
+          <p>{APP_BRAND_NAME}</p>
+          <span>Không gian bác sĩ</span>
         </div>
       </div>
 
       <nav className="doctor-reference-sidebar__nav" aria-label="Điều hướng dashboard bác sĩ">
-        {dashboardSidebarGroups.map((group) =>
+        {navigationGroups.map((group) =>
           group.items ? (
             <div key={group.id} className={`doctor-reference-sidebar__group${isGroupActive(group) ? ' is-active' : ''}`}>
               <button
@@ -722,8 +791,9 @@ function DoctorSidebar({ onNavigateHome, onLogout, user, shellVariant = 'default
   const identity = getUserIdentity(user)
   const permissionCount = Array.isArray(user?.permissions) ? user.permissions.length : 0
   const isDashboard = shellVariant === 'dashboard'
+  const navigationGroups = useMemo(() => getDashboardSidebarGroups(user), [user])
   const [expandedGroups, setExpandedGroups] = useState(
-    () => new Set(dashboardSidebarGroups.filter((group) => Array.isArray(group.items) && group.items.length).map((group) => group.id)),
+    () => getInitialExpandedDashboardGroups(location, navigationGroups),
   )
 
   useEffect(() => {
@@ -731,8 +801,9 @@ function DoctorSidebar({ onNavigateHome, onLogout, user, shellVariant = 'default
       return
     }
 
-    setExpandedGroups(new Set(dashboardSidebarGroups.filter((group) => Array.isArray(group.items) && group.items.length).map((group) => group.id)))
-  }, [isDashboard])
+    const activeGroups = getActiveDashboardGroups(location, navigationGroups)
+    setExpandedGroups(activeGroups.size ? activeGroups : getInitialExpandedDashboardGroups(location, navigationGroups))
+  }, [isDashboard, location.pathname, location.search, navigationGroups])
 
   function isExactPath(target) {
     return `${location.pathname}${location.search}` === target
@@ -748,34 +819,32 @@ function DoctorSidebar({ onNavigateHome, onLogout, user, shellVariant = 'default
 
   function toggleGroup(groupId) {
     setExpandedGroups((current) => {
-      const next = new Set(current)
-      if (next.has(groupId)) {
-        next.delete(groupId)
-      } else {
-        next.add(groupId)
+      if (current.has(groupId)) {
+        return new Set()
       }
-      return next
+
+      return new Set([groupId])
     })
   }
 
-  const brandSubtitle = isDashboard ? 'Doctor Dashboard' : 'Doctor Workspace'
+  const brandSubtitle = isDashboard ? 'Bảng điều khiển bác sĩ' : 'Không gian bác sĩ'
   const navItems = sidebarNavItems
 
   return (
     <aside className={`doctor-sidebar${isDashboard ? ' is-dashboard-sidebar' : ''}`}>
       <div className="doctor-sidebar-brand">
         <button className="doctor-sidebar-brandmark" type="button" onClick={onNavigateHome}>
-          <span className="doctor-sidebar-brandmark-symbol" aria-hidden="true">+</span>
+          <AppLogo variant="mark" alt="" aria-hidden="true" />
         </button>
         <div className="doctor-sidebar-brand-copy">
-          <p>MediCare</p>
+          <p>{APP_BRAND_NAME}</p>
           <span>{brandSubtitle}</span>
         </div>
       </div>
 
       {isDashboard ? (
         <nav className="doctor-sidebar-nav doctor-sidebar-nav-grouped" aria-label="Điều hướng không gian làm việc bác sĩ">
-          {dashboardSidebarGroups.map((group) =>
+          {navigationGroups.map((group) =>
             group.items ? (
               <div key={group.id} className="doctor-sidebar-group">
                 <button

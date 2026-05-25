@@ -72,7 +72,7 @@ export function SpecialtiesPage() {
       <div className="specialties-page">
         <section className="home-section specialties-hero">
           <div className="specialties-hero__copy">
-            <span>Trung tâm chuyên khoa Healthcare Plus+</span>
+            <span>Trung tâm chuyên khoa Bộ Y tế</span>
             <h1>Chăm sóc chuyên sâu, phối hợp liền mạch cho từng nhu cầu sức khỏe.</h1>
             <p>
               Từ khám tổng quát đến điều trị chuyên sâu, mỗi chuyên khoa được kết nối trong
@@ -178,7 +178,7 @@ export function SpecialtiesPage() {
         <section className="home-section specialties-cta">
           <div>
             <span>Chưa biết nên chọn chuyên khoa nào?</span>
-            <h2>Để Healthcare Plus+ tư vấn lộ trình khám phù hợp.</h2>
+            <h2>Để Bộ Y tế tư vấn lộ trình khám phù hợp.</h2>
             <p>
               Chia sẻ triệu chứng hoặc nhu cầu khám, đội ngũ chăm sóc sẽ gợi ý chuyên khoa,
               bác sĩ và khung giờ phù hợp nhất.

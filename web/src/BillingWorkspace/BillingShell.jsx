@@ -22,6 +22,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
+import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { getStaffActorName } from '../receptionist/workspaceAccess';
 import { billingMenuSections, flattenBillingMenu, getBillingPageMeta } from './billingData';
@@ -465,12 +466,12 @@ export function BillingShell({ children }) {
         <div className="billing-sidebar__brand">
           <Link to="/staff/select-workspace" className="billing-sidebar__brand-link" onClick={closeMobileSidebar}>
             <span className="billing-sidebar__brand-mark" aria-hidden="true">
-              <WalletCards size={25} strokeWidth={2.4} />
+              <AppLogo variant="mark" alt="" aria-hidden="true" />
             </span>
             {!isSidebarCollapsed ? (
               <span className="billing-sidebar__brand-copy">
-                <strong>Viện phí và thu tiền</strong>
-                <small>Không gian viện phí và thu tiền</small>
+                <strong>{APP_BRAND_NAME}</strong>
+                <small>Viện phí và thu tiền</small>
               </span>
             ) : null}
           </Link>

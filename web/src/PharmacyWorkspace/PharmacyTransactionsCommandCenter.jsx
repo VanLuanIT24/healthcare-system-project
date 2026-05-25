@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { getApiErrorMessage, pharmacyOverviewAPI, prescriptionAPI, unwrapData } from '../utils/api';
+import { confirmPharmacyAction, downloadPharmacyJson, notifyPharmacy } from './pharmacyActions';
 
 const PAGE_CONFIG = {
   center: {
@@ -209,7 +210,7 @@ function ErrorBanner({ error }) {
   );
 }
 
-function InventoryHeader({ config, onRefresh, onAction }) {
+function InventoryHeader({ config, onRefresh, onAction, onExport }) {
   const Icon = config.icon;
   return (
     <header className="pharmacy-inventory-header">
@@ -226,7 +227,7 @@ function InventoryHeader({ config, onRefresh, onAction }) {
         <button type="button" className="pharmacy-inventory-icon-button" aria-label="Refresh" onClick={onRefresh}>
           <RefreshCw size={18} />
         </button>
-        <button type="button" className="pharmacy-inventory-button is-secondary">
+        <button type="button" className="pharmacy-inventory-button is-secondary" onClick={onExport}>
           <Download size={16} /> Export
         </button>
         {config.actionLabel ? (
@@ -440,7 +441,7 @@ function getKpis(mode, data, rows) {
   ];
 }
 
-function WorkQueue({ data }) {
+function WorkQueue({ data, onSelect }) {
   const lanes = [
     { key: 'receipts', label: 'Chờ nhập kho', icon: PackagePlus },
     { key: 'issues', label: 'Chờ xuất nội bộ', icon: PackageCheck },
@@ -462,7 +463,7 @@ function WorkQueue({ data }) {
             </header>
             <div>
               {items.slice(0, 4).map((item) => (
-                <button key={documentId(item)} type="button">
+                <button key={documentId(item)} type="button" onClick={() => onSelect?.(item)}>
                   <strong>{documentNo(item)}</strong>
                   <small>{item.reason || item.note || item.status}</small>
                   <StatusBadge value={item.status} />
@@ -527,7 +528,19 @@ function TransactionTable({ mode, rows, onSelect, onQuickAction }) {
                   <td>{formatNumber(row.balance_after)}</td>
                   <td>{row.reference_type || '--'}<small>{row.document_no || row.reference_id || '--'}</small></td>
                   <td>{row.performed_by?.full_name || row.performed_by?.username || '--'}</td>
-                  <td><button type="button" className="pharmacy-inventory-icon-button" aria-label="Xem"><Eye size={16} /></button></td>
+                  <td>
+                    <button
+                      type="button"
+                      className="pharmacy-inventory-icon-button"
+                      aria-label="Xem"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelect(row);
+                      }}
+                    >
+                      <Eye size={16} />
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -680,9 +693,11 @@ function OperationDialog({ mode, references, onClose, onDone }) {
           items: [{ stock_batch_id: form.stock_batch_id, quantity_returned: quantity, decision: form.decision }],
         });
       }
+      notifyPharmacy({ tone: 'success', title, message: 'Đã tạo và post giao dịch kho.' });
       onDone();
     } catch (error) {
       setError(getApiErrorMessage(error, 'Không thể tạo giao dịch kho.'));
+      notifyPharmacy({ tone: 'danger', title, message: getApiErrorMessage(error, 'Không thể tạo giao dịch kho.') });
     } finally {
       setSaving(false);
     }
@@ -843,21 +858,32 @@ export function PharmacyTransactionsCommandPage({ mode = 'center' }) {
   const kpis = useMemo(() => getKpis(mode, data, rows), [mode, data, rows]);
 
   async function handleQuickAction(row) {
+    const ok = confirmPharmacyAction({
+      title: 'Post phiếu kho',
+      message: `Xác nhận xử lý ${documentNo(row)}? Thao tác sẽ ghi nhận biến động tồn kho trên backend.`,
+    });
+    if (!ok) return;
     try {
       await runQuickAction(mode, row);
+      notifyPharmacy({ tone: 'success', title: 'Post phiếu kho', message: `${documentNo(row)} đã được xử lý.` });
       refresh();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể post phiếu.'));
+      notifyPharmacy({ tone: 'danger', title: 'Post phiếu kho', message: getApiErrorMessage(error, 'Không thể post phiếu.') });
     }
   }
 
   return (
     <section className="pharmacy-inventory-page pharmacy-transaction-page">
-      <InventoryHeader config={config} onRefresh={refresh} onAction={() => setDialogOpen(true)} />
+      <InventoryHeader
+        config={config}
+        onRefresh={refresh}
+        onAction={() => setDialogOpen(true)}
+        onExport={() => downloadPharmacyJson(`giao-dich-kho-${mode}.json`, { mode, filters, kpis, rows, data }, 'Xuất giao dịch kho')}
+      />
       <KpiStrip cards={kpis} />
       {mode === 'center' ? (
         <>
-          <WorkQueue data={data} />
+          <WorkQueue data={data} onSelect={setSelected} />
           <AlertRail alerts={data?.alerts || []} />
         </>
       ) : (
@@ -880,4 +906,3 @@ export function PharmacyTransactionsCommandPage({ mode = 'center' }) {
     </section>
   );
 }
-

@@ -14,10 +14,14 @@ function buildUrl(path, params) {
   return url.toString()
 }
 
-export async function request(path, { method = 'GET', params, body, auth = true, skipRefresh = false } = {}) {
+export async function request(
+  path,
+  { method = 'GET', params, body, auth = true, skipRefresh = false, headers: customHeaders = {} } = {},
+) {
   const storedAuth = readStoredAuth()
   const normalizedMethod = String(method || 'GET').toUpperCase()
   const headers = {
+    ...customHeaders,
     ...(body ? { 'Content-Type': 'application/json' } : {}),
     ...(normalizedMethod === 'POST' ? { 'Idempotency-Key': globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}` } : {}),
     ...(auth && storedAuth?.tokens?.access_token
@@ -68,6 +72,22 @@ export function getApiErrorMessage(error, fallback = 'Không thể xử lý yêu
     error?.message ||
     fallback
   )
+}
+
+function getChatbotHeaders() {
+  const token = import.meta.env.VITE_CHATBOT_WIDGET_TOKEN
+  return token ? { 'X-Chatbot-Widget-Token': token } : {}
+}
+
+function chatbotRequest(options = {}) {
+  return {
+    ...options,
+    auth: false,
+    headers: {
+      ...getChatbotHeaders(),
+      ...(options.headers || {}),
+    },
+  }
 }
 
 export const authAPI = {
@@ -335,6 +355,19 @@ export const reportAPI = {
   export: (params) => request('/reports/export', { params }),
 }
 
+export const chatbotAPI = {
+  createSession: (body = {}) => request('/chat/sessions', chatbotRequest({ method: 'POST', body })),
+  getSession: (sessionId) => request(`/chat/sessions/${encodeURIComponent(sessionId)}`, chatbotRequest()),
+  getMessages: (sessionId, params) =>
+    request(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, chatbotRequest({ params })),
+  sendMessage: (sessionId, body = {}) =>
+    request(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, chatbotRequest({ method: 'POST', body })),
+  escalate: (sessionId, body = {}) =>
+    request(`/chat/sessions/${encodeURIComponent(sessionId)}/escalate`, chatbotRequest({ method: 'POST', body })),
+  close: (sessionId) =>
+    request(`/chat/sessions/${encodeURIComponent(sessionId)}/close`, chatbotRequest({ method: 'PATCH', body: {} })),
+}
+
 export const pharmacyReportAPI = {
   dashboard: (params) => request('/reports/pharmacy/dashboard', { params }),
   inventoryOverview: (params) => request('/reports/pharmacy/inventory-overview', { params }),
@@ -435,6 +468,15 @@ export const pharmacyConfigAPI = {
 export const dashboardAPI = {
   doctorMe: (params) => request('/dashboard/doctor/me', { params }),
   inventory: (params) => request('/dashboard/inventory', { params }),
+}
+
+export const doctorWorkspaceAPI = {
+  overview: (params) => request('/doctor-workspace/overview', { params }),
+  search: (params) => request('/doctor-workspace/search', { params }),
+  tasks: (params) => request('/doctor-workspace/tasks', { params }),
+  results: (params) => request('/doctor-workspace/results', { params }),
+  patientSummary: (patientId, params) => request(`/doctor-workspace/patients/${encodeURIComponent(patientId)}/summary`, { params }),
+  collaboration: (params) => request('/doctor-workspace/collaboration', { params }),
 }
 
 export const pharmacyOverviewAPI = {

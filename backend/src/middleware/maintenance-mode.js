@@ -1,10 +1,12 @@
 const { MaintenanceWindow } = require('../models');
 
 const CACHE_TTL_MS = 10000;
+const QUERY_TIMEOUT_MS = 1500;
 let cache = {
   loaded_at: 0,
   windows: [],
 };
+let refreshPromise = null;
 
 function now() {
   return new Date();
@@ -42,23 +44,50 @@ function isBypassed(activeWindow, path) {
   return false;
 }
 
-async function activeMaintenanceWindows() {
-  if (Date.now() - cache.loaded_at < CACHE_TTL_MS) return cache.windows;
-  const windows = await MaintenanceWindow.find({
+function refreshMaintenanceWindows() {
+  if (refreshPromise) return refreshPromise;
+
+  const query = MaintenanceWindow.find({
     status: 'active',
     starts_at: { $lte: now() },
     $or: [{ ends_at: null }, { ends_at: { $gt: now() } }],
-  }).sort({ starts_at: -1 }).lean();
-  cache = { loaded_at: Date.now(), windows };
-  return windows;
+  }).sort({ starts_at: -1 }).maxTimeMS(QUERY_TIMEOUT_MS).lean();
+
+  refreshPromise = Promise.race([
+    query,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Maintenance window lookup timed out.')), QUERY_TIMEOUT_MS);
+    }),
+  ])
+    .then((windows) => {
+      cache = { loaded_at: Date.now(), windows };
+      return windows;
+    })
+    .catch(() => {
+      cache.loaded_at = Date.now();
+      return cache.windows;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+}
+
+function activeMaintenanceWindows() {
+  if (Date.now() - cache.loaded_at >= CACHE_TTL_MS) {
+    refreshMaintenanceWindows();
+  }
+  return cache.windows;
 }
 
 async function maintenanceModeMiddleware(req, res, next) {
   try {
     const path = pathOf(req);
     if (!path.startsWith('/api') && !path.startsWith('/socket.io')) return next();
+    if (path === '/api/health') return next();
 
-    const active = await activeMaintenanceWindows();
+    const active = activeMaintenanceWindows();
     const matched = active.find((item) => scopeMatchesPath(item.scope, path) && !isBypassed(item, path));
     if (!matched) return next();
 

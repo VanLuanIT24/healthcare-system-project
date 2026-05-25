@@ -26,6 +26,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { nurseOperationsApi } from './nurseApi';
+import { confirmNurseAction, notifyNurse, promptNurseText, runNurseAction } from './nurseActions';
 
 const priorityLabels = {
   critical: 'Khẩn cấp',
@@ -383,7 +384,7 @@ function KpiStrip({ items }) {
       {listOf(items).map((item) => {
         const Icon = item.icon || ActivityIcon;
         return (
-          <button key={item.label} type="button" className={`nurse-intake-kpi nurse-intake-kpi--${item.tone || 'blue'}`} onClick={item.onClick}>
+          <button key={item.label} type="button" className={`nurse-intake-kpi nurse-intake-kpi--${item.tone || 'blue'}`} onClick={item.onClick || (() => notifyNurse({ title: item.label, message: item.detail || 'Đã chọn chỉ số tiếp nhận.' }))}>
             <Icon size={19} />
             <span>{item.label}</span>
             <strong>{item.value ?? 0}</strong>
@@ -613,21 +614,46 @@ function useActionRunner(setRefresh) {
   const [notice, setNotice] = useState('');
   async function run(action, item, body = {}) {
     const id = queueId(item);
-    if (!id) return;
-    try {
-      if (action === 'claim') await nurseOperationsApi.claimIntake(id);
-      if (action === 'ready') await nurseOperationsApi.markReadyForDoctor(id);
-      if (action === 'call') await nurseOperationsApi.callQueue(id);
-      if (action === 'skip') await nurseOperationsApi.skipQueue(id, { reason: 'Điều dưỡng bỏ qua từ trung tâm điều phối' });
-      if (action === 'no_show') await nurseOperationsApi.markNoShow(id, { reason: 'Không có mặt khi gọi' });
-      if (action === 'start_service') await nurseOperationsApi.startService(id);
-      if (action === 'priority') await nurseOperationsApi.reorderPriority(id, body);
-      if (action === 'notify_doctor') await nurseOperationsApi.notifyDoctor(id, body);
-      setNotice('Đã cập nhật thao tác thành công.');
-      setRefresh((value) => value + 1);
-    } catch (error) {
-      setNotice(error?.message || 'Không thể thực hiện thao tác.');
+    if (!id) {
+      const message = 'Chưa có queue_ticket_id hợp lệ để thao tác.';
+      setNotice(message);
+      notifyNurse({ tone: 'warning', title: 'Tiếp nhận điều dưỡng', message });
+      return;
     }
+    const actionNames = {
+      claim: 'Nhận bệnh nhân',
+      ready: 'Sẵn sàng gặp bác sĩ',
+      call: 'Gọi bệnh nhân',
+      skip: 'Bỏ qua',
+      no_show: 'Không có mặt',
+      start_service: 'Bắt đầu phục vụ',
+      priority: 'Tăng ưu tiên',
+      transfer: 'Chuyển tuyến',
+      notify_doctor: 'Báo bác sĩ',
+    };
+    await runNurseAction({
+      label: actionNames[action] || 'Cập nhật tiếp nhận',
+      confirm: ['ready', 'call', 'skip', 'no_show', 'priority', 'transfer', 'notify_doctor'].includes(action)
+        ? { title: actionNames[action] || 'Xác nhận thao tác', message: `${queueNumber(item)} - ${patientName(item)}` }
+        : null,
+      run: async () => {
+        if (action === 'claim') return nurseOperationsApi.claimIntake(id);
+        if (action === 'ready') return nurseOperationsApi.markReadyForDoctor(id);
+        if (action === 'call') return nurseOperationsApi.callQueue(id);
+        if (action === 'skip') return nurseOperationsApi.skipQueue(id, { reason: 'Điều dưỡng bỏ qua từ trung tâm điều phối' });
+        if (action === 'no_show') return nurseOperationsApi.markNoShow(id, { reason: 'Không có mặt khi gọi' });
+        if (action === 'start_service') return nurseOperationsApi.startService(id);
+        if (action === 'priority') return nurseOperationsApi.reorderPriority(id, body);
+        if (action === 'transfer') return nurseOperationsApi.transferQueue(id, body);
+        if (action === 'notify_doctor') return nurseOperationsApi.notifyDoctor(id, body);
+        return null;
+      },
+      successMessage: 'Đã cập nhật thao tác thành công.',
+      onSuccess: () => {
+        setNotice('Đã cập nhật thao tác thành công.');
+        setRefresh((value) => value + 1);
+      },
+    });
   }
   return { notice, setNotice, run };
 }
@@ -640,6 +666,17 @@ export function CheckedInPatientsPage() {
   const { notice, run } = useActionRunner(setRefresh);
   const items = useMemo(() => filterQueueItems(data.intake?.checked_in_items || data.queue?.table || [], filters), [data, filters]);
   const summary = data.intake?.summary || {};
+  const active = selected || items[0];
+
+  async function callNextQueue() {
+    await runNurseAction({
+      label: 'Gọi số tiếp theo',
+      confirm: { title: 'Gọi số tiếp theo?', message: 'Hệ thống sẽ gọi bệnh nhân tiếp theo trong hàng đợi điều dưỡng.' },
+      run: () => nurseOperationsApi.callNextQueue(),
+      successMessage: 'Đã gọi số tiếp theo.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
 
   return (
     <section className="nurse-intake-page">
@@ -650,7 +687,7 @@ export function CheckedInPatientsPage() {
         meta={data.meta}
         isDemo={isDemo}
         loading={loading}
-        actions={<><button type="button"><Plus size={16} />Tiếp nhận nhanh</button><button type="button"><Monitor size={16} />Màn hình hàng đợi</button><button type="button" onClick={() => nurseOperationsApi.callNextQueue().then(() => setRefresh((v) => v + 1)).catch(() => {})}><Zap size={16} />Gọi số tiếp theo</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>}
+        actions={<><button type="button" onClick={() => notifyNurse({ title: 'Tiếp nhận nhanh', message: 'Mở workspace lễ tân/queue để tạo tiếp nhận mới.' })}><Plus size={16} />Tiếp nhận nhanh</button><button type="button" onClick={() => window.location.assign('/nurse/overview/realtime-queue')}><Monitor size={16} />Màn hình hàng đợi</button><button type="button" onClick={callNextQueue}><Zap size={16} />Gọi số tiếp theo</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>}
       />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
@@ -682,7 +719,7 @@ export function CheckedInPatientsPage() {
         </aside>
       </section>
 
-      <PatientContextDrawer item={selected} onClose={() => setSelected(null)} onAction={run} />
+      <PatientContextDrawer item={selected || active} onClose={() => setSelected(null)} onAction={run} />
     </section>
   );
 }
@@ -704,10 +741,24 @@ export function WaitingNursePage() {
   }, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
   const { notice, run } = useActionRunner(setRefresh);
   const lanes = data.lanes || {};
+  const firstWaiting = listOf(lanes.waiting_nurse)[0] || listOf(lanes.vital_pending)[0] || listOf(lanes.triage_pending)[0];
+
+  async function bulkClaimWaiting() {
+    const targets = listOf(lanes.waiting_nurse).slice(0, 8);
+    if (!targets.length) {
+      notifyNurse({ title: 'Nhận hàng loạt', message: 'Không có bệnh nhân chờ điều dưỡng trong bộ lọc hiện tại.' });
+      return;
+    }
+    if (!confirmNurseAction({ title: 'Nhận hàng loạt?', message: `Nhận ${targets.length} bệnh nhân đầu tiên trong danh sách chờ điều dưỡng.` })) return;
+    for (const item of targets) await run('claim', item);
+  }
 
   return (
     <section className="nurse-intake-page">
-      <IntakeHeader eyebrow="Danh sách việc điều dưỡng" title="Chờ điều dưỡng" description="Nhận bệnh nhân, xác minh danh tính, kiểm tra dị ứng, ghi chú lý do khám và quyết định có cần sinh hiệu hoặc phân loại." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button"><UserCheck size={16} />Nhận hàng loạt</button><button type="button"><FileText size={16} />Tạo ghi chú</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <IntakeHeader eyebrow="Danh sách việc điều dưỡng" title="Chờ điều dưỡng" description="Nhận bệnh nhân, xác minh danh tính, kiểm tra dị ứng, ghi chú lý do khám và quyết định có cần sinh hiệu hoặc phân loại." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={bulkClaimWaiting}><UserCheck size={16} />Nhận hàng loạt</button><button type="button" onClick={() => {
+        const note = promptNurseText({ title: 'Ghi chú tiếp nhận', message: patientName(firstWaiting), defaultValue: 'Đã rà soát thông tin tiếp nhận điều dưỡng.' });
+        if (note) notifyNurse({ tone: 'success', title: 'Ghi chú tiếp nhận', message: 'Đã ghi nhận nội dung để điều dưỡng bổ sung vào hồ sơ.' });
+      }}><FileText size={16} />Tạo ghi chú</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <Filters filters={filters} setFilters={setFilters} />
@@ -765,10 +816,11 @@ export function WaitingTriagePage() {
   }, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
   const { notice, run } = useActionRunner(setRefresh);
   const items = filterQueueItems(data.items, filters);
+  const active = selected || items[0];
 
   return (
     <section className="nurse-intake-page">
-      <IntakeHeader eyebrow="Phân loại nguy cơ lâm sàng" title="Chờ phân loại" description="Phân loại nguy cơ, theo dõi SLA phân loại, xem sinh hiệu mới nhất và quyết định ưu tiên lâm sàng." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button"><ClipboardCheck size={16} />Tạo phiếu</button><button type="button"><ShieldAlert size={16} />Báo khẩn</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <IntakeHeader eyebrow="Phân loại nguy cơ lâm sàng" title="Chờ phân loại" description="Phân loại nguy cơ, theo dõi SLA phân loại, xem sinh hiệu mới nhất và quyết định ưu tiên lâm sàng." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => window.location.assign('/nurse/reception-triage/create-triage')}><ClipboardCheck size={16} />Tạo phiếu</button><button type="button" onClick={() => run('notify_doctor', active, { message: 'Bệnh nhân chờ phân loại có nguy cơ cần bác sĩ xem lại.' })}><ShieldAlert size={16} />Báo khẩn</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <Filters filters={filters} setFilters={setFilters} />
@@ -787,7 +839,7 @@ export function WaitingTriagePage() {
           {items.slice(0, 6).map((item) => <PatientMiniCard key={queueId(item)} item={item} onSelect={setSelected} onAction={run} />)}
         </aside>
       </section>
-      <PatientContextDrawer item={selected} onClose={() => setSelected(null)} onAction={run} />
+      <PatientContextDrawer item={selected || active} onClose={() => setSelected(null)} onAction={run} />
     </section>
   );
 }
@@ -816,6 +868,27 @@ export function CreateTriagePage() {
   const [notice, setNotice] = useState('');
   const active = selected || listOf(data.items)[0] || demoIntake.intake.triage_items[0];
 
+  async function triageQuickAction(action) {
+    const id = queueId(active);
+    if (action === 'vitals') {
+      window.location.assign('/nurse/vitals-records/entry');
+      return;
+    }
+    if (!id) {
+      notifyNurse({ tone: 'warning', title: 'Phân loại', message: 'Chưa có queue_ticket_id hợp lệ.' });
+      return;
+    }
+    await runNurseAction({
+      label: action === 'notify_doctor' ? 'Báo bác sĩ' : 'Chuyển tuyến',
+      confirm: { title: action === 'notify_doctor' ? 'Báo bác sĩ?' : 'Chuyển tuyến?', message: `${queueNumber(active)} - ${patientName(active)}` },
+      run: () => (action === 'notify_doctor'
+        ? nurseOperationsApi.notifyDoctor(id, { message: 'Bệnh nhân phân loại cần bác sĩ xem lại.' })
+        : nurseOperationsApi.transferQueue(id, { reason: 'Chuyển tuyến từ màn phân loại điều dưỡng.' })),
+      successMessage: 'Đã gửi thao tác phân loại.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
+
   async function submitTriage(event) {
     event.preventDefault();
     if (!active?.patient_id && !active?.patient?.patient_id) {
@@ -823,6 +896,7 @@ export function CreateTriagePage() {
       return;
     }
     const priority = ['red', 'orange'].includes(form.acuity_level) ? 'critical' : form.acuity_level === 'yellow' ? 'high' : 'medium';
+    if (!confirmNurseAction({ title: 'Hoàn tất phiếu phân loại?', message: `${patientName(active)} - mức ${acuityLabels[form.acuity_level]}` })) return;
     try {
       const payload = await nurseOperationsApi.createTriage({
         patient_id: active.patient_id || active.patient?.patient_id,
@@ -840,22 +914,27 @@ export function CreateTriagePage() {
         await nurseOperationsApi.reorderPriority(queueId(active), { queue_type: 'priority', priority_reason: form.chief_complaint || form.note });
       }
       setNotice(`Đã tạo phiếu phân loại ${payload?.id || ''}`.trim());
+      notifyNurse({ tone: 'success', title: 'Phân loại', message: 'Đã tạo phiếu phân loại và cập nhật ưu tiên nếu cần.' });
       setRefresh((value) => value + 1);
     } catch (submitError) {
       setNotice(submitError?.message || 'Không thể tạo phiếu phân loại.');
+      notifyNurse({ tone: 'danger', title: 'Phân loại', message: submitError?.message || 'Không thể tạo phiếu phân loại.' });
     }
   }
 
   return (
     <section className="nurse-intake-page">
-      <IntakeHeader eyebrow="Đánh giá phân loại" title="Tạo phiếu phân loại" description="Giao diện phân loại lâm sàng với banner bệnh nhân, thanh nguy cơ, biểu mẫu phân loại và bảng quyết định trong một màn hình." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button"><HeartPulse size={16} />Nhập sinh hiệu</button><button type="button"><FileText size={16} />Ghi chú</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <IntakeHeader eyebrow="Đánh giá phân loại" title="Tạo phiếu phân loại" description="Giao diện phân loại lâm sàng với banner bệnh nhân, thanh nguy cơ, biểu mẫu phân loại và bảng quyết định trong một màn hình." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => triageQuickAction('vitals')}><HeartPulse size={16} />Nhập sinh hiệu</button><button type="button" onClick={() => {
+        const note = promptNurseText({ title: 'Ghi chú phân loại', message: patientName(active), defaultValue: form.note });
+        if (note !== null) setForm((current) => ({ ...current, note }));
+      }}><FileText size={16} />Ghi chú</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <Filters filters={filters} setFilters={setFilters} />
       <section className="nurse-triage-builder">
         <aside className="nurse-triage-patient-list">
           <h2><Users size={16} />Danh sách chờ</h2>
-          {listOf(data.items).slice(0, 12).map((item) => <PatientMiniCard key={queueId(item)} item={item} onSelect={setSelected} onAction={() => {}} />)}
+          {listOf(data.items).slice(0, 12).map((item) => <PatientMiniCard key={queueId(item)} item={item} onSelect={setSelected} onAction={(action, row) => { setSelected(row); notifyNurse({ title: action === 'claim' ? 'Đã chọn bệnh nhân' : 'Sẵn sàng phân loại', message: patientName(row) }); }} />)}
         </aside>
         <form className="nurse-triage-form" onSubmit={submitTriage}>
           <header>
@@ -883,7 +962,7 @@ export function CreateTriagePage() {
           <strong>{acuityLabels[form.acuity_level]}</strong>
           <span>{form.recommended_action}</span>
           <p>{form.acuity_level === 'red' || form.recommended_action === 'send_emergency' ? 'Cần chuyển cấp cứu hoặc báo bác sĩ ngay.' : 'Có thể tiếp tục điều phối theo hàng đợi phòng khám.'}</p>
-          <div className="nurse-row-actions"><button type="button">Báo bác sĩ</button><button type="button">Yêu cầu đo lại</button><button type="button">Chuyển tuyến</button></div>
+          <div className="nurse-row-actions"><button type="button" onClick={() => triageQuickAction('notify_doctor')}>Báo bác sĩ</button><button type="button" onClick={() => triageQuickAction('vitals')}>Yêu cầu đo lại</button><button type="button" onClick={() => triageQuickAction('transfer')}>Chuyển tuyến</button></div>
         </aside>
       </section>
     </section>
@@ -907,16 +986,23 @@ export function PriorityTransferPage() {
   const { notice, run } = useActionRunner(setRefresh);
   const items = filterQueueItems(data.intake?.checked_in_items || [], filters)
     .filter((item) => item.queue_type !== 'normal' || item.waiting_minutes >= 15 || ['triage_pending', 'vital_pending'].includes(item.nursing_stage));
+  const active = selected || items[0];
+
+  function transferSelected(item = active) {
+    const targetDepartmentId = promptNurseText({ title: 'Chuyển tuyến/khoa', message: 'Nhập target_department_id hoặc để trống nếu chỉ ghi nhận yêu cầu chuyển.', defaultValue: '' });
+    if (targetDepartmentId === null) return;
+    run('transfer', item, { target_department_id: targetDepartmentId || undefined, reason: 'Điều dưỡng yêu cầu chuyển tuyến/khoa.' });
+  }
 
   return (
     <section className="nurse-intake-page">
-      <IntakeHeader eyebrow="Điều phối ưu tiên và chuyển tuyến" title="Ưu tiên / chuyển tuyến" description="Điều phối hàng đợi cần tăng ưu tiên, đổi bác sĩ/khoa, xử lý SLA và cảnh báo bệnh nhân có nguy cơ." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button"><ArrowRightLeft size={16} />Chuyển tuyến</button><button type="button"><ShieldAlert size={16} />Tăng ưu tiên</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <IntakeHeader eyebrow="Điều phối ưu tiên và chuyển tuyến" title="Ưu tiên / chuyển tuyến" description="Điều phối hàng đợi cần tăng ưu tiên, đổi bác sĩ/khoa, xử lý SLA và cảnh báo bệnh nhân có nguy cơ." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => transferSelected()}><ArrowRightLeft size={16} />Chuyển tuyến</button><button type="button" onClick={() => run('priority', active, { queue_type: 'priority', priority_reason: 'Điều dưỡng tăng ưu tiên' })}><ShieldAlert size={16} />Tăng ưu tiên</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <Filters filters={filters} setFilters={setFilters} />
       <section className="nurse-transfer-layout">
         <main className="nurse-transfer-list">
-          {items.map((item) => <article key={queueId(item)} className="nurse-transfer-card" onClick={() => setSelected(item)}><header><strong>{queueNumber(item)} · {patientName(item)}</strong><PriorityBadge item={item} /></header><p>{reasonText(item, 'Cần điều phối')}</p><dl><div><dt>Chờ</dt><dd>{waitText(item.waiting_minutes)}</dd></div><div><dt>Khoa</dt><dd>{departmentName(item)}</dd></div><div><dt>Bác sĩ</dt><dd>{doctorName(item)}</dd></div></dl><footer><button type="button" onClick={(event) => { event.stopPropagation(); run('priority', item, { queue_type: 'priority', priority_reason: 'Điều dưỡng tăng ưu tiên' }); }}>Tăng ưu tiên</button><button type="button" onClick={(event) => { event.stopPropagation(); setSelected(item); }}>Chuyển</button></footer></article>)}
+          {items.map((item) => <article key={queueId(item)} className="nurse-transfer-card" onClick={() => setSelected(item)}><header><strong>{queueNumber(item)} · {patientName(item)}</strong><PriorityBadge item={item} /></header><p>{reasonText(item, 'Cần điều phối')}</p><dl><div><dt>Chờ</dt><dd>{waitText(item.waiting_minutes)}</dd></div><div><dt>Khoa</dt><dd>{departmentName(item)}</dd></div><div><dt>Bác sĩ</dt><dd>{doctorName(item)}</dd></div></dl><footer><button type="button" onClick={(event) => { event.stopPropagation(); run('priority', item, { queue_type: 'priority', priority_reason: 'Điều dưỡng tăng ưu tiên' }); }}>Tăng ưu tiên</button><button type="button" onClick={(event) => { event.stopPropagation(); setSelected(item); transferSelected(item); }}>Chuyển</button></footer></article>)}
         </main>
         <aside className="nurse-capacity-panel">
           <h2><Monitor size={16} />Sức chứa</h2>
@@ -943,10 +1029,11 @@ export function ReadyForDoctorPage() {
   }, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
   const { notice, run } = useActionRunner(setRefresh);
   const items = filterQueueItems(data.items, filters);
+  const active = selected || items[0];
 
   return (
     <section className="nurse-intake-page">
-      <IntakeHeader eyebrow="Sẵn sàng gặp bác sĩ" title="Sẵn sàng gặp bác sĩ" description="Danh sách bệnh nhân đã hoàn tất tiếp nhận, phân loại hoặc sinh hiệu và có thể gọi vào phòng khám." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button"><PhoneCall size={16} />Gọi vào phòng</button><button type="button"><Send size={16} />Báo bác sĩ</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <IntakeHeader eyebrow="Sẵn sàng gặp bác sĩ" title="Sẵn sàng gặp bác sĩ" description="Danh sách bệnh nhân đã hoàn tất tiếp nhận, phân loại hoặc sinh hiệu và có thể gọi vào phòng khám." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => run('call', active)}><PhoneCall size={16} />Gọi vào phòng</button><button type="button" onClick={() => run('notify_doctor', active, { message: 'Bệnh nhân đã sẵn sàng gặp bác sĩ.' })}><Send size={16} />Báo bác sĩ</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <Filters filters={filters} setFilters={setFilters} />

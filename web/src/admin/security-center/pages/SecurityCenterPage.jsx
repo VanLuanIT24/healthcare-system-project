@@ -36,6 +36,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { AdminActionConfirmDialog } from '../../components/AdminActionConfirmDialog';
 import { formatDateTime, formatNumber } from '../../system/systemUi';
 import {
   approvePatientAuthorization,
@@ -87,21 +88,65 @@ const VIEW_PATHS = {
 };
 
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: ShieldAlert },
+  { key: 'dashboard', label: 'Tổng quan', icon: ShieldAlert },
   { key: 'sessions', label: 'Phiên đăng nhập', icon: RadioTower },
-  { key: 'loginHistory', label: 'Login history', icon: History },
+  { key: 'loginHistory', label: 'Lịch sử đăng nhập', icon: History },
   { key: 'suspicious', label: 'Thiết bị / IP', icon: Wifi },
   { key: 'riskyAccounts', label: 'Tài khoản rủi ro', icon: UserLock },
-  { key: 'tokenRisk', label: 'Token risk', icon: KeyRound },
-  { key: 'rateLimit', label: 'Rate limit', icon: Gauge },
-  { key: 'breakGlass', label: 'Break-glass', icon: Vault },
-  { key: 'consent', label: 'Consent', icon: FileText },
+  { key: 'tokenRisk', label: 'Rủi ro token', icon: KeyRound },
+  { key: 'rateLimit', label: 'Giới hạn tần suất', icon: Gauge },
+  { key: 'breakGlass', label: 'Truy cập khẩn cấp', icon: Vault },
+  { key: 'consent', label: 'Đồng thuận', icon: FileText },
   { key: 'patientAuthorization', label: 'Ủy quyền bệnh nhân', icon: UsersRound },
-  { key: 'accessAuthorization', label: 'Access authorization', icon: ShieldEllipsis },
-  { key: 'sensitiveAccess', label: 'Sensitive access', icon: ShieldCheck },
+  { key: 'accessAuthorization', label: 'Quyết định truy cập', icon: ShieldEllipsis },
+  { key: 'sensitiveAccess', label: 'Truy cập nhạy cảm', icon: ShieldCheck },
   { key: 'dataPolicy', label: 'Chính sách dữ liệu', icon: LockKeyhole },
-  { key: 'bulkRevoke', label: 'Bulk revoke', icon: ShieldBan },
+  { key: 'bulkRevoke', label: 'Thu hồi hàng loạt', icon: ShieldBan },
 ];
+
+const SECURITY_LABELS = {
+  active: 'Đang hoạt động',
+  success: 'Thành công',
+  failed: 'Lỗi',
+  failure: 'Lỗi',
+  revoked: 'Đã thu hồi',
+  expired: 'Hết hạn',
+  locked: 'Bị khóa',
+  disabled: 'Đã vô hiệu hóa',
+  archived: 'Đã lưu trữ',
+  published: 'Đã phát hành',
+  reviewed: 'Đã rà soát',
+  approved: 'Đã duyệt',
+  pending: 'Chờ xử lý',
+  pending_review: 'Chờ duyệt',
+  violation: 'Vi phạm',
+  critical: 'Nghiêm trọng',
+  high: 'Cao',
+  medium: 'Trung bình',
+  low: 'Thấp',
+  staff: 'Nhân sự',
+  patient: 'Bệnh nhân',
+  patient_relative: 'Người thân',
+  anonymous: 'Ẩn danh',
+  draft: 'Bản nháp',
+  unknown: 'Không rõ',
+  warning: 'Cảnh báo',
+  error: 'Lỗi',
+  device: 'Thiết bị',
+  ip: 'IP',
+  allowed: 'Được phép',
+  blocked: 'Bị chặn',
+  required: 'Bắt buộc',
+  optional: 'Tùy chọn',
+  active_session: 'Phiên hoạt động',
+  medical_record: 'Hồ sơ y tế',
+  login: 'Đăng nhập',
+  logout: 'Đăng xuất',
+  access_denied: 'Truy cập bị từ chối',
+  sensitive_granted: 'Đã cấp truy cập nhạy cảm',
+  view: 'Xem',
+  'n/a': 'Chưa có',
+};
 
 function normalizeView(view) {
   return VIEW_PATHS[view] ? view : 'dashboard';
@@ -119,7 +164,7 @@ function formatValue(value) {
   if (typeof value === 'number') return formatNumber(value);
   if (Array.isArray(value)) return value.length ? value.join(', ') : '[]';
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  return SECURITY_LABELS[String(value).toLowerCase()] || String(value).replace(/_/g, ' ');
 }
 
 function riskTone(level, score) {
@@ -153,6 +198,48 @@ function itemId(item = {}) {
     || JSON.stringify(item).slice(0, 80);
 }
 
+function securityActionTarget(item = {}) {
+  return item.display_name
+    || item.actor_name
+    || item.username
+    || item.policy_key
+    || item.consent_type
+    || item.authorization_type
+    || item.session_id
+    || item.token_family_id
+    || item.ip_address
+    || itemId(item);
+}
+
+function securityActionCopy(action, item = {}) {
+  const copies = {
+    'revoke-session': ['Thu hồi phiên đăng nhập?', 'Phiên được chọn sẽ bị đăng xuất ngay và ghi vào audit bảo mật.', 'Thu hồi phiên', 'danger', true],
+    'revoke-session-family': ['Thu hồi cả nhóm token?', 'Mọi phiên cùng nhóm token liên quan sẽ bị vô hiệu hóa.', 'Thu hồi nhóm token', 'danger', true],
+    'revoke-token-family': ['Thu hồi nhóm token?', 'Nhóm refresh token này sẽ không còn hợp lệ.', 'Thu hồi token', 'danger', true],
+    'review-break-glass': ['Đánh dấu break-glass đã rà soát?', 'Bản ghi truy cập khẩn cấp sẽ được chuyển sang trạng thái đã review.', 'Đánh dấu đã rà soát', 'success', false],
+    'revoke-consent': ['Thu hồi đồng thuận?', 'Đồng thuận đang hiệu lực sẽ bị thu hồi và có thể ảnh hưởng truy cập dữ liệu.', 'Thu hồi đồng thuận', 'danger', true],
+    'approve-authorization': ['Duyệt ủy quyền bệnh nhân?', 'Ủy quyền đang chờ sẽ được phê duyệt.', 'Duyệt ủy quyền', 'success', false],
+    'revoke-authorization': ['Thu hồi ủy quyền bệnh nhân?', 'Ủy quyền đang hiệu lực sẽ bị thu hồi.', 'Thu hồi ủy quyền', 'danger', true],
+    'publish-policy': ['Phát hành chính sách dữ liệu?', 'Chính sách sẽ chuyển sang trạng thái phát hành và ảnh hưởng quyết định truy cập.', 'Phát hành', 'warning', false],
+    'archive-policy': ['Lưu trữ chính sách dữ liệu?', 'Chính sách sẽ được lưu trữ và không còn là chính sách vận hành chính.', 'Lưu trữ', 'danger', true],
+  };
+  const copy = copies[action];
+  if (!copy) return null;
+  const [title, description, confirmLabel, tone, reasonRequired] = copy;
+  return {
+    title,
+    description,
+    confirmLabel,
+    tone,
+    reasonRequired,
+    details: [
+      { label: 'Đối tượng', value: securityActionTarget(item) },
+      { label: 'ID', value: itemId(item) },
+      { label: 'Trạng thái', value: formatValue(item.status || item.review_status || (item.is_active ? 'active' : 'unknown')) },
+    ],
+  };
+}
+
 function extractItems(data) {
   if (!data) return [];
   if (Array.isArray(data)) return data;
@@ -183,7 +270,7 @@ function RiskBadge({ level, score }) {
   const tone = riskTone(level, score);
   return (
     <span className={`security-center-badge security-center-badge--${tone}`}>
-      {level || tone}
+      {formatValue(level || tone)}
       {score !== undefined && score !== null ? ` / ${score}` : ''}
     </span>
   );
@@ -192,7 +279,7 @@ function RiskBadge({ level, score }) {
 function StatusBadge({ children, status }) {
   return (
     <span className={`security-center-badge security-center-badge--${statusTone(status || children)}`}>
-      {children || 'unknown'}
+      {formatValue(children || status || 'unknown')}
     </span>
   );
 }
@@ -226,11 +313,11 @@ function JsonBlock({ value }) {
 }
 
 function ActorCell({ item = {} }) {
-  const label = item.display_name || item.actor_name || item.username || item.actor_id || item.actor_type || 'Không rõ actor';
+  const label = item.display_name || item.actor_name || item.username || item.actor_id || item.actor_type || 'Không rõ đối tượng';
   return (
     <div className="security-center-actor">
       <strong>{label}</strong>
-      <span>{item.actor_type || item.target_type || 'n/a'} / {shortId(item.actor_id || item.target_id)}</span>
+      <span>{formatValue(item.actor_type || item.target_type || 'n/a')} / {shortId(item.actor_id || item.target_id)}</span>
     </div>
   );
 }
@@ -238,40 +325,40 @@ function ActorCell({ item = {} }) {
 const VIEW_CONFIG = {
   sessions: {
     title: 'Phiên đăng nhập toàn hệ thống',
-    subtitle: 'Quản lý session, thiết bị, IP drift, token family và thu hồi phiên khi có incident.',
+    subtitle: 'Quản lý phiên, thiết bị, dịch chuyển IP, nhóm token và thu hồi phiên khi có sự cố.',
     icon: RadioTower,
     loader: listSecuritySessions,
     detailLoader: (row) => getSecuritySession(row.session_id),
     columns: [
-      { key: 'session', label: 'Session', render: (row) => <strong>{shortId(row.session_id)}</strong> },
-      { key: 'actor', label: 'Actor', render: (row) => <ActorCell item={row} /> },
-      { key: 'device', label: 'Thiết bị', render: (row) => `${row.device_name || row.browser || 'Unknown'} / ${row.os || 'OS'}` },
-      { key: 'ip', label: 'IP', render: (row) => row.last_ip || row.ip_address || row.created_ip || 'n/a' },
-      { key: 'token', label: 'Token family', render: (row) => shortId(row.token_family_id) },
-      { key: 'risk', label: 'Risk', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
+      { key: 'session', label: 'Phiên', render: (row) => <strong>{shortId(row.session_id)}</strong> },
+      { key: 'actor', label: 'Đối tượng', render: (row) => <ActorCell item={row} /> },
+      { key: 'device', label: 'Thiết bị', render: (row) => `${row.device_name || row.browser || 'Không rõ'} / ${row.os || 'HĐH'}` },
+      { key: 'ip', label: 'IP', render: (row) => row.last_ip || row.ip_address || row.created_ip || 'Chưa có' },
+      { key: 'token', label: 'Nhóm token', render: (row) => shortId(row.token_family_id) },
+      { key: 'risk', label: 'Rủi ro', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
       { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.is_active ? 'active' : row.revoked_at ? 'revoked' : 'expired'}>{row.is_active ? 'active' : row.revoked_at ? 'revoked' : 'expired'}</StatusBadge> },
-      { key: 'last', label: 'Last used', render: (row) => formatDateTime(row.last_used_at) },
+      { key: 'last', label: 'Dùng gần nhất', render: (row) => formatDateTime(row.last_used_at) },
     ],
   },
   loginHistory: {
-    title: 'Login history toàn hệ thống',
-    subtitle: 'Theo dõi đăng nhập thành công, thất bại, khóa tài khoản và các cụm failed login.',
+    title: 'Lịch sử đăng nhập toàn hệ thống',
+    subtitle: 'Theo dõi đăng nhập thành công, thất bại, khóa tài khoản và các cụm đăng nhập lỗi.',
     icon: History,
     loader: listSecurityLoginHistory,
     summaryLoader: getSecurityLoginSummary,
     columns: [
       { key: 'time', label: 'Thời gian', render: (row) => formatDateTime(row.created_at) },
-      { key: 'actor', label: 'Actor', render: (row) => <ActorCell item={row} /> },
-      { key: 'action', label: 'Action', render: (row) => row.action },
-      { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
-      { key: 'ip', label: 'IP', render: (row) => row.ip_address || 'n/a' },
-      { key: 'message', label: 'Message', render: (row) => row.message || 'n/a' },
-      { key: 'request', label: 'Request', render: (row) => shortId(row.request_id) },
+      { key: 'actor', label: 'Đối tượng', render: (row) => <ActorCell item={row} /> },
+      { key: 'action', label: 'Hành động', render: (row) => formatValue(row.action) },
+      { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
+      { key: 'ip', label: 'IP', render: (row) => row.ip_address || 'Chưa có' },
+      { key: 'message', label: 'Thông báo', render: (row) => row.message || 'Chưa có' },
+      { key: 'request', label: 'Mã yêu cầu', render: (row) => shortId(row.request_id) },
     ],
   },
   suspicious: {
     title: 'Thiết bị / IP đáng ngờ',
-    subtitle: 'Phân cụm IP, device fingerprint, access denied, token replay và multi-account activity.',
+    subtitle: 'Phân cụm IP, dấu vân tay thiết bị, truy cập bị từ chối, token replay và hoạt động đa tài khoản.',
     icon: Wifi,
     loader: async (query) => {
       const [ips, devices] = await Promise.all([listSuspiciousIps(query), listSecurityDevices(query)]);
@@ -283,149 +370,149 @@ const VIEW_CONFIG = {
       };
     },
     columns: [
-      { key: 'type', label: 'Type', render: (row) => <StatusBadge status={row.row_type}>{row.row_type === 'device' ? 'Device' : 'IP'}</StatusBadge> },
-      { key: 'identity', label: 'Định danh', render: (row) => row.ip_address || row.device_id || 'unknown' },
-      { key: 'events', label: 'Events/Sessions', render: (row) => formatNumber(row.events || row.session_count || 0) },
-      { key: 'failed', label: 'Failed / Denied', render: (row) => `${formatNumber(row.failed_logins || 0)} / ${formatNumber(row.access_denied || 0)}` },
-      { key: 'actors', label: 'Actors', render: (row) => formatNumber(row.distinct_actors || row.actor_count || 0) },
-      { key: 'risk', label: 'Risk', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
-      { key: 'last', label: 'Last seen', render: (row) => formatDateTime(row.last_seen_at) },
+      { key: 'type', label: 'Loại', render: (row) => <StatusBadge status={row.row_type}>{row.row_type === 'device' ? 'Thiết bị' : 'IP'}</StatusBadge> },
+      { key: 'identity', label: 'Định danh', render: (row) => row.ip_address || row.device_id || 'Không rõ' },
+      { key: 'events', label: 'Sự kiện / Phiên', render: (row) => formatNumber(row.events || row.session_count || 0) },
+      { key: 'failed', label: 'Đăng nhập lỗi / bị chặn', render: (row) => `${formatNumber(row.failed_logins || 0)} / ${formatNumber(row.access_denied || 0)}` },
+      { key: 'actors', label: 'Đối tượng', render: (row) => formatNumber(row.distinct_actors || row.actor_count || 0) },
+      { key: 'risk', label: 'Rủi ro', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
+      { key: 'last', label: 'Thấy gần nhất', render: (row) => formatDateTime(row.last_seen_at) },
     ],
   },
   riskyAccounts: {
     title: 'Tài khoản có rủi ro',
-    subtitle: 'Account bị khóa, disabled nhưng còn session, failed attempts và active session từ nhiều IP.',
+    subtitle: 'Tài khoản bị khóa hoặc vô hiệu hóa nhưng còn phiên, đăng nhập lỗi và phiên hoạt động từ nhiều IP.',
     icon: UserLock,
     loader: listRiskyAccounts,
     columns: [
-      { key: 'actor', label: 'Actor', render: (row) => <ActorCell item={row} /> },
-      { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
-      { key: 'failed', label: 'Failed attempts', render: (row) => formatNumber(row.failed_login_attempts) },
-      { key: 'sessions', label: 'Active sessions', render: (row) => formatNumber(row.active_sessions) },
-      { key: 'ip', label: 'Last IP', render: (row) => row.last_login_ip || 'n/a' },
-      { key: 'locked', label: 'Locked until', render: (row) => formatDateTime(row.locked_until) },
-      { key: 'risk', label: 'Risk', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
+      { key: 'actor', label: 'Đối tượng', render: (row) => <ActorCell item={row} /> },
+      { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
+      { key: 'failed', label: 'Số lần đăng nhập lỗi', render: (row) => formatNumber(row.failed_login_attempts) },
+      { key: 'sessions', label: 'Phiên hoạt động', render: (row) => formatNumber(row.active_sessions) },
+      { key: 'ip', label: 'IP gần nhất', render: (row) => row.last_login_ip || 'Chưa có' },
+      { key: 'locked', label: 'Khóa đến', render: (row) => formatDateTime(row.locked_until) },
+      { key: 'risk', label: 'Rủi ro', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
     ],
   },
   tokenRisk: {
-    title: 'Token / refresh token risk',
-    subtitle: 'Theo dõi token family, refresh rotation, replay, revoke family và forced logout.',
+    title: 'Rủi ro token / refresh token',
+    subtitle: 'Theo dõi nhóm token, vòng quay refresh, tái sử dụng token, thu hồi nhóm và đăng xuất cưỡng bức.',
     icon: KeyRound,
     loader: listTokenFamilies,
     detailLoader: (row) => getTokenFamily(row.token_family_id),
     columns: [
-      { key: 'family', label: 'Token family', render: (row) => <strong>{shortId(row.token_family_id)}</strong> },
-      { key: 'actor', label: 'Actor', render: (row) => <ActorCell item={row} /> },
-      { key: 'sessions', label: 'Sessions', render: (row) => `${formatNumber(row.active_sessions)} active / ${formatNumber(row.session_count)} total` },
-      { key: 'rotation', label: 'Rotations', render: (row) => formatNumber(row.rotation_count) },
-      { key: 'replay', label: 'Replay', render: (row) => formatNumber(row.replay_count) },
-      { key: 'risk', label: 'Risk', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
-      { key: 'last', label: 'Last rotated', render: (row) => formatDateTime(row.last_rotated_at) },
+      { key: 'family', label: 'Nhóm token', render: (row) => <strong>{shortId(row.token_family_id)}</strong> },
+      { key: 'actor', label: 'Đối tượng', render: (row) => <ActorCell item={row} /> },
+      { key: 'sessions', label: 'Phiên', render: (row) => `${formatNumber(row.active_sessions)} hoạt động / ${formatNumber(row.session_count)} tổng` },
+      { key: 'rotation', label: 'Số vòng quay', render: (row) => formatNumber(row.rotation_count) },
+      { key: 'replay', label: 'Tái sử dụng', render: (row) => formatNumber(row.replay_count) },
+      { key: 'risk', label: 'Rủi ro', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
+      { key: 'last', label: 'Xoay gần nhất', render: (row) => formatDateTime(row.last_rotated_at) },
     ],
   },
   rateLimit: {
-    title: 'Rate limit events',
-    subtitle: 'Các request bị chặn do vượt tần suất, scope, bucket, endpoint và IP liên quan.',
+    title: 'Sự kiện giới hạn tần suất',
+    subtitle: 'Các yêu cầu bị chặn do vượt tần suất, phạm vi, nhóm giới hạn, endpoint và IP liên quan.',
     icon: Gauge,
     loader: listRateLimitEvents,
     columns: [
-      { key: 'time', label: 'Blocked at', render: (row) => formatDateTime(row.blocked_at) },
-      { key: 'scope', label: 'Scope', render: (row) => row.scope },
-      { key: 'actor', label: 'Actor', render: (row) => <ActorCell item={row} /> },
-      { key: 'ip', label: 'IP', render: (row) => row.ip_address || 'n/a' },
-      { key: 'path', label: 'Path', render: (row) => row.path || 'n/a' },
-      { key: 'limit', label: 'Limit', render: (row) => `${row.limit || 'n/a'} / ${Math.round((row.window_ms || 0) / 1000)}s` },
-      { key: 'retry', label: 'Retry after', render: (row) => `${row.retry_after_seconds || 0}s` },
+      { key: 'time', label: 'Bị chặn lúc', render: (row) => formatDateTime(row.blocked_at) },
+      { key: 'scope', label: 'Phạm vi', render: (row) => row.scope },
+      { key: 'actor', label: 'Đối tượng', render: (row) => <ActorCell item={row} /> },
+      { key: 'ip', label: 'IP', render: (row) => row.ip_address || 'Chưa có' },
+      { key: 'path', label: 'Đường dẫn', render: (row) => row.path || 'Chưa có' },
+      { key: 'limit', label: 'Ngưỡng', render: (row) => `${row.limit || 'Chưa có'} / ${Math.round((row.window_ms || 0) / 1000)}s` },
+      { key: 'retry', label: 'Thử lại sau', render: (row) => `${row.retry_after_seconds || 0}s` },
     ],
   },
   breakGlass: {
-    title: 'Break-glass access',
-    subtitle: 'Kiểm soát truy cập khẩn cấp, duration, review status, audit evidence và escalation.',
+    title: 'Truy cập khẩn cấp',
+    subtitle: 'Kiểm soát truy cập khẩn cấp, thời lượng, trạng thái rà soát, bằng chứng audit và leo thang.',
     icon: Vault,
     loader: listBreakGlassAccess,
     columns: [
-      { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
-      { key: 'patient', label: 'Patient', render: (row) => shortId(row.patient_id) },
-      { key: 'staff', label: 'Accessed by', render: (row) => row.accessed_by_user_id?.full_name || shortId(row.accessed_by_user_id?._id || row.accessed_by_user_id) },
-      { key: 'reason', label: 'Reason', render: (row) => row.reason || 'Thiếu lý do' },
-      { key: 'duration', label: 'Duration', render: (row) => `${formatNumber(row.duration_minutes)} phút` },
-      { key: 'review', label: 'Review', render: (row) => <StatusBadge status={row.review_status}>{row.review_status}</StatusBadge> },
-      { key: 'risk', label: 'Risk', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
+      { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
+      { key: 'patient', label: 'Bệnh nhân', render: (row) => shortId(row.patient_id) },
+      { key: 'staff', label: 'Người truy cập', render: (row) => row.accessed_by_user_id?.full_name || shortId(row.accessed_by_user_id?._id || row.accessed_by_user_id) },
+      { key: 'reason', label: 'Lý do', render: (row) => row.reason || 'Thiếu lý do' },
+      { key: 'duration', label: 'Thời lượng', render: (row) => `${formatNumber(row.duration_minutes)} phút` },
+      { key: 'review', label: 'Rà soát', render: (row) => <StatusBadge status={row.review_status}>{row.review_status}</StatusBadge> },
+      { key: 'risk', label: 'Rủi ro', render: (row) => <RiskBadge level={row.risk_level} score={row.risk_score} /> },
     ],
   },
   consent: {
-    title: 'Consent toàn hệ thống',
-    subtitle: 'Consent còn hiệu lực, hết hạn, bị thu hồi, thiếu attachment hoặc cần rà soát.',
+    title: 'Đồng thuận toàn hệ thống',
+    subtitle: 'Đồng thuận còn hiệu lực, hết hạn, bị thu hồi, thiếu tệp đính kèm hoặc cần rà soát.',
     icon: FileText,
     loader: listSecurityConsents,
     columns: [
-      { key: 'patient', label: 'Patient', render: (row) => shortId(row.patient_id) },
-      { key: 'actor', label: 'Actor', render: (row) => <ActorCell item={row} /> },
-      { key: 'type', label: 'Consent type', render: (row) => row.consent_type },
-      { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
-      { key: 'signed', label: 'Signed', render: (row) => formatDateTime(row.signed_at) },
-      { key: 'expires', label: 'Expires', render: (row) => formatDateTime(row.expires_at) },
-      { key: 'document', label: 'Document', render: (row) => shortId(row.document_attachment_id) },
+      { key: 'patient', label: 'Bệnh nhân', render: (row) => shortId(row.patient_id) },
+      { key: 'actor', label: 'Đối tượng', render: (row) => <ActorCell item={row} /> },
+      { key: 'type', label: 'Loại đồng thuận', render: (row) => formatValue(row.consent_type) },
+      { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
+      { key: 'signed', label: 'Đã ký lúc', render: (row) => formatDateTime(row.signed_at) },
+      { key: 'expires', label: 'Hết hạn', render: (row) => formatDateTime(row.expires_at) },
+      { key: 'document', label: 'Tài liệu', render: (row) => shortId(row.document_attachment_id) },
     ],
   },
   patientAuthorization: {
-    title: 'Patient authorization',
-    subtitle: 'Ủy quyền người thân, quyền được cấp, hiệu lực và revoke session tự động khi thu hồi.',
+    title: 'Ủy quyền bệnh nhân',
+    subtitle: 'Ủy quyền người thân, quyền được cấp, hiệu lực và tự động thu hồi phiên khi hủy ủy quyền.',
     icon: UsersRound,
     loader: listSecurityPatientAuthorizations,
     columns: [
-      { key: 'patient', label: 'Patient', render: (row) => shortId(row.patient_id) },
-      { key: 'relative', label: 'Relative', render: (row) => shortId(row.relative_id) },
-      { key: 'type', label: 'Type', render: (row) => row.authorization_type },
-      { key: 'permissions', label: 'Permissions', render: (row) => formatValue(row.permissions) },
-      { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
-      { key: 'valid', label: 'Valid to', render: (row) => formatDateTime(row.valid_to) },
-      { key: 'revoked', label: 'Revoked', render: (row) => formatDateTime(row.revoked_at) },
+      { key: 'patient', label: 'Bệnh nhân', render: (row) => shortId(row.patient_id) },
+      { key: 'relative', label: 'Người thân', render: (row) => shortId(row.relative_id) },
+      { key: 'type', label: 'Loại ủy quyền', render: (row) => formatValue(row.authorization_type) },
+      { key: 'permissions', label: 'Quyền', render: (row) => formatValue(row.permissions) },
+      { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
+      { key: 'valid', label: 'Hiệu lực đến', render: (row) => formatDateTime(row.valid_to) },
+      { key: 'revoked', label: 'Đã thu hồi lúc', render: (row) => formatDateTime(row.revoked_at) },
     ],
   },
   accessAuthorization: {
-    title: 'Access authorization',
-    subtitle: 'Mọi quyết định truy cập bị deny hoặc sensitive granted được gom từ audit security.',
+    title: 'Quyết định truy cập',
+    subtitle: 'Mọi quyết định truy cập bị từ chối hoặc truy cập nhạy cảm được cấp từ audit bảo mật.',
     icon: ShieldEllipsis,
     loader: listAccessDecisions,
     columns: [
-      { key: 'time', label: 'Time', render: (row) => formatDateTime(row.created_at) },
-      { key: 'actor', label: 'Actor', render: (row) => <ActorCell item={row} /> },
-      { key: 'action', label: 'Action', render: (row) => row.action },
-      { key: 'route', label: 'Route', render: (row) => row.metadata?.path || row.target_type || 'n/a' },
-      { key: 'decision', label: 'Decision', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
-      { key: 'severity', label: 'Severity', render: (row) => <StatusBadge status={row.severity}>{row.severity}</StatusBadge> },
-      { key: 'ip', label: 'IP', render: (row) => row.ip_address || 'n/a' },
+      { key: 'time', label: 'Thời gian', render: (row) => formatDateTime(row.created_at) },
+      { key: 'actor', label: 'Đối tượng', render: (row) => <ActorCell item={row} /> },
+      { key: 'action', label: 'Hành động', render: (row) => formatValue(row.action) },
+      { key: 'route', label: 'Tuyến / Đích', render: (row) => row.metadata?.path || formatValue(row.target_type || 'n/a') },
+      { key: 'decision', label: 'Quyết định', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
+      { key: 'severity', label: 'Mức độ', render: (row) => <StatusBadge status={row.severity}>{row.severity}</StatusBadge> },
+      { key: 'ip', label: 'IP', render: (row) => row.ip_address || 'Chưa có' },
     ],
   },
   sensitiveAccess: {
-    title: 'Sensitive access events',
-    subtitle: 'Medical record, attachment, lab, imaging, prescription, invoice và relative access.',
+    title: 'Sự kiện truy cập nhạy cảm',
+    subtitle: 'Hồ sơ y tế, tệp đính kèm, xét nghiệm, hình ảnh, đơn thuốc, hóa đơn và truy cập của người thân.',
     icon: ShieldCheck,
     loader: listSensitiveAccessEvents,
     columns: [
-      { key: 'time', label: 'Time', render: (row) => formatDateTime(row.created_at) },
-      { key: 'action', label: 'Action', render: (row) => row.action },
-      { key: 'actor', label: 'Actor', render: (row) => <ActorCell item={row} /> },
-      { key: 'target', label: 'Target', render: (row) => `${row.target_type || 'target'} / ${shortId(row.target_id)}` },
-      { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
-      { key: 'severity', label: 'Severity', render: (row) => <StatusBadge status={row.severity}>{row.severity}</StatusBadge> },
-      { key: 'ip', label: 'IP', render: (row) => row.ip_address || 'n/a' },
+      { key: 'time', label: 'Thời gian', render: (row) => formatDateTime(row.created_at) },
+      { key: 'action', label: 'Hành động', render: (row) => formatValue(row.action) },
+      { key: 'actor', label: 'Đối tượng', render: (row) => <ActorCell item={row} /> },
+      { key: 'target', label: 'Đích', render: (row) => `${formatValue(row.target_type || 'n/a')} / ${shortId(row.target_id)}` },
+      { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
+      { key: 'severity', label: 'Mức độ', render: (row) => <StatusBadge status={row.severity}>{row.severity}</StatusBadge> },
+      { key: 'ip', label: 'IP', render: (row) => row.ip_address || 'Chưa có' },
     ],
   },
   dataPolicy: {
     title: 'Chính sách truy cập dữ liệu',
-    subtitle: 'Policy động cho sensitive data, consent requirement, break-glass, audit và retention.',
+    subtitle: 'Chính sách động cho dữ liệu nhạy cảm, yêu cầu đồng thuận, truy cập khẩn cấp, audit và lưu trữ.',
     icon: LockKeyhole,
     loader: listDataAccessPolicies,
     columns: [
-      { key: 'policy', label: 'Policy', render: (row) => <strong>{row.policy_key}</strong> },
-      { key: 'resource', label: 'Resource / Action', render: (row) => `${row.resource_type} / ${row.action}` },
-      { key: 'permissions', label: 'Required permissions', render: (row) => formatValue(row.required_permissions) },
-      { key: 'consent', label: 'Consent', render: (row) => row.require_consent ? 'Required' : 'No' },
-      { key: 'break', label: 'Break-glass', render: (row) => row.allow_break_glass ? 'Allowed' : 'Blocked' },
-      { key: 'audit', label: 'Audit', render: (row) => row.audit_required ? 'Required' : 'Optional' },
-      { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
+      { key: 'policy', label: 'Chính sách', render: (row) => <strong>{row.policy_key}</strong> },
+      { key: 'resource', label: 'Tài nguyên / Hành động', render: (row) => `${formatValue(row.resource_type)} / ${formatValue(row.action)}` },
+      { key: 'permissions', label: 'Quyền bắt buộc', render: (row) => formatValue(row.required_permissions) },
+      { key: 'consent', label: 'Đồng thuận', render: (row) => row.require_consent ? 'Bắt buộc' : 'Không' },
+      { key: 'break', label: 'Truy cập khẩn cấp', render: (row) => row.allow_break_glass ? 'Được phép' : 'Bị chặn' },
+      { key: 'audit', label: 'Nhật ký', render: (row) => row.audit_required ? 'Bắt buộc' : 'Tùy chọn' },
+      { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.status}>{row.status}</StatusBadge> },
     ],
   },
 };
@@ -438,27 +525,27 @@ function SecurityHero({ dashboard, loading, onRefresh }) {
       <div className="security-center-hero__score">
         <ShieldAlert size={26} aria-hidden="true" />
         <strong>{score}</strong>
-        <span>Security score</span>
+        <span>Điểm bảo mật</span>
       </div>
       <div className="security-center-hero__copy">
-        <div className="security-center-kicker">Quản trị hệ thống / Security Center</div>
-        <h1>Security Command Center</h1>
+        <div className="security-center-kicker">Quản trị hệ thống / Trung tâm bảo mật</div>
+        <h1>Trung tâm điều phối bảo mật</h1>
         <p>
-          Trung tâm điều tra phiên, login risk, token replay, break-glass, consent, patient authorization và sensitive access.
+          Trung tâm điều tra phiên, rủi ro đăng nhập, token replay, truy cập khẩn cấp, đồng thuận, ủy quyền bệnh nhân và truy cập nhạy cảm.
         </p>
         <div className="security-center-hero__meta">
           <RiskBadge level={dashboard?.risk_level || 'low'} score={100 - score} />
-          <span>Active sessions: {formatNumber(summary.active_sessions)}</span>
-          <span>Critical alerts: {formatNumber(summary.token_replay_events_24h + summary.active_break_glass)}</span>
-          <span>Last refresh: {formatDateTime(new Date())}</span>
+          <span>Phiên đang hoạt động: {formatNumber(summary.active_sessions)}</span>
+          <span>Cảnh báo nghiêm trọng: {formatNumber(summary.token_replay_events_24h + summary.active_break_glass)}</span>
+          <span>Cập nhật gần nhất: {formatDateTime(new Date())}</span>
         </div>
       </div>
       <div className="security-center-hero__actions">
         <ActionButton icon={RefreshCw} onClick={onRefresh} disabled={loading}>
-          {loading ? 'Đang tải' : 'Refresh'}
+          {loading ? 'Đang tải' : 'Làm mới'}
         </ActionButton>
-        <ActionButton icon={Download}>Export</ActionButton>
-        <ActionButton icon={Ban} tone="danger">Emergency lockdown</ActionButton>
+        <ActionButton icon={Download}>Xuất bằng chứng</ActionButton>
+        <ActionButton icon={Ban} tone="danger">Khóa khẩn cấp</ActionButton>
       </div>
     </section>
   );
@@ -466,7 +553,7 @@ function SecurityHero({ dashboard, loading, onRefresh }) {
 
 function SecurityNav({ activeView }) {
   return (
-    <nav className="security-center-nav" aria-label="Security Center">
+    <nav className="security-center-nav" aria-label="Trung tâm bảo mật">
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
         return (
@@ -495,23 +582,23 @@ function FilterBar({ filters, setFilters, onApply, loading }) {
       <label>
         <UsersRound size={15} aria-hidden="true" />
         <select value={filters.actor_type} onChange={(event) => setFilters((value) => ({ ...value, actor_type: event.target.value }))}>
-          <option value="">Mọi actor</option>
-          <option value="staff">Staff</option>
-          <option value="patient">Patient</option>
-          <option value="patient_relative">Relative</option>
-          <option value="anonymous">Anonymous</option>
+          <option value="">Mọi đối tượng</option>
+          <option value="staff">Nhân sự</option>
+          <option value="patient">Bệnh nhân</option>
+          <option value="patient_relative">Người thân</option>
+          <option value="anonymous">Ẩn danh</option>
         </select>
       </label>
       <label>
         <Activity size={15} aria-hidden="true" />
         <select value={filters.status} onChange={(event) => setFilters((value) => ({ ...value, status: event.target.value }))}>
           <option value="">Mọi trạng thái</option>
-          <option value="active">Active</option>
-          <option value="success">Success</option>
-          <option value="failed">Failed</option>
-          <option value="revoked">Revoked</option>
-          <option value="locked">Locked</option>
-          <option value="expired">Expired</option>
+          <option value="active">Đang hoạt động</option>
+          <option value="success">Thành công</option>
+          <option value="failed">Lỗi</option>
+          <option value="revoked">Đã thu hồi</option>
+          <option value="locked">Bị khóa</option>
+          <option value="expired">Hết hạn</option>
         </select>
       </label>
       <label>
@@ -520,7 +607,7 @@ function FilterBar({ filters, setFilters, onApply, loading }) {
       </label>
       <label className="security-center-filter__search">
         <Search size={15} aria-hidden="true" />
-        <input value={filters.keyword} placeholder="Tìm action, request, device..." onChange={(event) => setFilters((value) => ({ ...value, keyword: event.target.value }))} />
+        <input value={filters.keyword} placeholder="Tìm hành động, yêu cầu, thiết bị..." onChange={(event) => setFilters((value) => ({ ...value, keyword: event.target.value }))} />
       </label>
       <button type="button" onClick={onApply} disabled={loading}>
         <ListFilter size={16} aria-hidden="true" />
@@ -533,21 +620,21 @@ function FilterBar({ filters, setFilters, onApply, loading }) {
 function SummaryStrip({ activeView, dashboard, summary }) {
   const data = dashboard?.summary || {};
   const cards = [
-    { icon: RadioTower, label: 'Active sessions', value: data.active_sessions, note: `${formatNumber(data.active_staff_sessions)} staff / ${formatNumber(data.active_patient_sessions)} patient`, tone: 'blue' },
-    { icon: AlertTriangle, label: 'Failed login 24h', value: data.failed_logins_24h, note: 'Burst login monitor', tone: 'amber' },
-    { icon: UserLock, label: 'Locked accounts', value: data.locked_accounts, note: 'Staff + patient', tone: 'red' },
-    { icon: KeyRound, label: 'Token replay 24h', value: data.token_replay_events_24h, note: 'Refresh token reuse', tone: 'red' },
-    { icon: ShieldEllipsis, label: 'Access denied 24h', value: data.access_denied_24h, note: 'Route guard denied', tone: 'amber' },
-    { icon: Vault, label: 'Break-glass active', value: data.active_break_glass, note: 'Pending compliance review', tone: 'purple' },
-    { icon: ShieldCheck, label: 'Sensitive access', value: data.sensitive_access_24h, note: '24h audit events', tone: 'green' },
-    { icon: Gauge, label: 'Rate limited', value: data.rate_limit_blocked_24h, note: 'Blocked requests', tone: 'slate' },
+    { icon: RadioTower, label: 'Phiên hoạt động', value: data.active_sessions, note: `${formatNumber(data.active_staff_sessions)} nhân sự / ${formatNumber(data.active_patient_sessions)} bệnh nhân`, tone: 'blue' },
+    { icon: AlertTriangle, label: 'Đăng nhập lỗi 24h', value: data.failed_logins_24h, note: 'Theo dõi đăng nhập bất thường', tone: 'amber' },
+    { icon: UserLock, label: 'Tài khoản bị khóa', value: data.locked_accounts, note: 'Nhân sự + bệnh nhân', tone: 'red' },
+    { icon: KeyRound, label: 'Token replay 24h', value: data.token_replay_events_24h, note: 'Tái sử dụng refresh token', tone: 'red' },
+    { icon: ShieldEllipsis, label: 'Truy cập bị chặn 24h', value: data.access_denied_24h, note: 'Bộ chặn tuyến từ chối', tone: 'amber' },
+    { icon: Vault, label: 'Truy cập khẩn cấp đang mở', value: data.active_break_glass, note: 'Chờ rà soát tuân thủ', tone: 'purple' },
+    { icon: ShieldCheck, label: 'Truy cập nhạy cảm', value: data.sensitive_access_24h, note: 'Sự kiện audit 24h', tone: 'green' },
+    { icon: Gauge, label: 'Bị giới hạn tần suất', value: data.rate_limit_blocked_24h, note: 'Yêu cầu bị chặn', tone: 'slate' },
   ];
 
   if (activeView === 'loginHistory' && summary) {
     cards.splice(0, 3,
-      { icon: CheckCircle2, label: 'Login success', value: summary.success, note: 'Theo filter hiện tại', tone: 'green' },
-      { icon: XCircle, label: 'Login failed', value: summary.failed, note: `${Math.round((summary.failed_rate || 0) * 100)}% failed rate`, tone: 'red' },
-      { icon: UserLock, label: 'Account locked', value: summary.locked, note: 'Do failed attempts', tone: 'amber' });
+      { icon: CheckCircle2, label: 'Đăng nhập thành công', value: summary.success, note: 'Theo bộ lọc hiện tại', tone: 'green' },
+      { icon: XCircle, label: 'Đăng nhập lỗi', value: summary.failed, note: `${Math.round((summary.failed_rate || 0) * 100)}% tỷ lệ lỗi`, tone: 'red' },
+      { icon: UserLock, label: 'Tài khoản bị khóa', value: summary.locked, note: 'Do đăng nhập lỗi', tone: 'amber' });
   }
 
   return (
@@ -568,27 +655,27 @@ function DashboardView({ dashboard, onSelect }) {
       <section className="security-center-panel security-center-panel--wide">
         <div className="security-center-panel__head">
           <div>
-            <span>Realtime stream</span>
+            <span>Luồng thời gian thực</span>
             <h2>Sự kiện bảo mật gần đây</h2>
           </div>
-          <StatusBadge status="active">Live</StatusBadge>
+          <StatusBadge status="active">Đang chạy</StatusBadge>
         </div>
         <div className="security-center-stream">
           {events.length ? events.map((event) => (
             <button key={itemId(event)} type="button" onClick={() => onSelect(event)}>
               <span className={`security-center-dot security-center-dot--${statusTone(event.severity || event.status)}`} />
-              <strong>{event.action}</strong>
-              <small>{event.message || event.ip_address || 'Security event'}</small>
+              <strong>{formatValue(event.action)}</strong>
+              <small>{event.message || event.ip_address || 'Sự kiện bảo mật'}</small>
               <time>{formatDateTime(event.created_at)}</time>
             </button>
-          )) : <EmptyState title="Chưa có security event" note="Audit stream sẽ xuất hiện khi backend ghi log auth/access/security." />}
+          )) : <EmptyState title="Chưa có sự kiện bảo mật" note="Luồng audit sẽ xuất hiện khi backend ghi log xác thực, truy cập hoặc bảo mật." />}
         </div>
       </section>
 
       <section className="security-center-panel">
         <div className="security-center-panel__head">
           <div>
-            <span>Recommended actions</span>
+            <span>Khuyến nghị xử lý</span>
             <h2>Hành động ưu tiên</h2>
           </div>
           <ShieldAlert size={18} aria-hidden="true" />
@@ -611,7 +698,7 @@ function DashboardView({ dashboard, onSelect }) {
       <section className="security-center-panel">
         <div className="security-center-panel__head">
           <div>
-            <span>IP intelligence</span>
+            <span>Phân tích IP</span>
             <h2>IP rủi ro cao</h2>
           </div>
           <Wifi size={18} aria-hidden="true" />
@@ -622,12 +709,12 @@ function DashboardView({ dashboard, onSelect }) {
       <section className="security-center-panel">
         <div className="security-center-panel__head">
           <div>
-            <span>Risk accounts</span>
+            <span>Tài khoản rủi ro</span>
             <h2>Tài khoản cần rà soát</h2>
           </div>
           <UserLock size={18} aria-hidden="true" />
         </div>
-        <MiniList items={accounts} primary={(item) => item.display_name || item.username || item.actor_id} secondary={(item) => `${item.actor_type} / ${item.status} / ${formatNumber(item.failed_login_attempts)} failed`} onSelect={onSelect} />
+        <MiniList items={accounts} primary={(item) => item.display_name || item.username || item.actor_id} secondary={(item) => `${formatValue(item.actor_type)} / ${formatValue(item.status)} / ${formatNumber(item.failed_login_attempts)} lần lỗi`} onSelect={onSelect} />
       </section>
     </div>
   );
@@ -678,7 +765,7 @@ function DataTable({ config, items, loading, onSelect, onAction }) {
         <thead>
           <tr>
             {config.columns.map((column) => <th key={column.key}>{column.label}</th>)}
-            <th>Actions</th>
+            <th>Thao tác</th>
           </tr>
         </thead>
         <tbody>
@@ -707,21 +794,21 @@ function actionForItem(item, onAction) {
   if (item.session_id && item.is_active) {
     return (
       <>
-        <button type="button" onClick={() => onAction('revoke-session', item)} title="Revoke session"><LogOut size={15} aria-hidden="true" /></button>
-        {item.token_family_id ? <button type="button" onClick={() => onAction('revoke-session-family', item)} title="Revoke token family"><KeyRound size={15} aria-hidden="true" /></button> : null}
+        <button type="button" onClick={() => onAction('revoke-session', item)} title="Thu hồi phiên"><LogOut size={15} aria-hidden="true" /></button>
+        {item.token_family_id ? <button type="button" onClick={() => onAction('revoke-session-family', item)} title="Thu hồi nhóm token"><KeyRound size={15} aria-hidden="true" /></button> : null}
       </>
     );
   }
-  if (item.token_family_id) return <button type="button" onClick={() => onAction('revoke-token-family', item)} title="Revoke family"><ShieldBan size={15} aria-hidden="true" /></button>;
-  if (item.break_glass_access_id) return <button type="button" onClick={() => onAction('review-break-glass', item)} title="Mark reviewed"><CheckCircle2 size={15} aria-hidden="true" /></button>;
-  if (item.consent_type && item.status === 'active') return <button type="button" onClick={() => onAction('revoke-consent', item)} title="Revoke consent"><Ban size={15} aria-hidden="true" /></button>;
-  if (item.authorization_type && item.status === 'pending') return <button type="button" onClick={() => onAction('approve-authorization', item)} title="Approve"><CheckCircle2 size={15} aria-hidden="true" /></button>;
-  if (item.authorization_type && item.status === 'active') return <button type="button" onClick={() => onAction('revoke-authorization', item)} title="Revoke authorization"><Ban size={15} aria-hidden="true" /></button>;
+  if (item.token_family_id) return <button type="button" onClick={() => onAction('revoke-token-family', item)} title="Thu hồi nhóm token"><ShieldBan size={15} aria-hidden="true" /></button>;
+  if (item.break_glass_access_id) return <button type="button" onClick={() => onAction('review-break-glass', item)} title="Đánh dấu đã rà soát"><CheckCircle2 size={15} aria-hidden="true" /></button>;
+  if (item.consent_type && item.status === 'active') return <button type="button" onClick={() => onAction('revoke-consent', item)} title="Thu hồi đồng thuận"><Ban size={15} aria-hidden="true" /></button>;
+  if (item.authorization_type && item.status === 'pending') return <button type="button" onClick={() => onAction('approve-authorization', item)} title="Duyệt"><CheckCircle2 size={15} aria-hidden="true" /></button>;
+  if (item.authorization_type && item.status === 'active') return <button type="button" onClick={() => onAction('revoke-authorization', item)} title="Thu hồi ủy quyền"><Ban size={15} aria-hidden="true" /></button>;
   if (item.policy_key && item._id) {
     return (
       <>
-        <button type="button" onClick={() => onAction('publish-policy', item)} title="Publish policy"><Play size={15} aria-hidden="true" /></button>
-        <button type="button" onClick={() => onAction('archive-policy', item)} title="Archive policy"><Archive size={15} aria-hidden="true" /></button>
+        <button type="button" onClick={() => onAction('publish-policy', item)} title="Phát hành chính sách"><Play size={15} aria-hidden="true" /></button>
+        <button type="button" onClick={() => onAction('archive-policy', item)} title="Lưu trữ chính sách"><Archive size={15} aria-hidden="true" /></button>
       </>
     );
   }
@@ -732,20 +819,20 @@ function DetailDrawer({ item, detail, loading, onClose }) {
   if (!item) return null;
   const payload = detail || item;
   return (
-    <aside className="security-center-drawer" aria-label="Security detail">
+    <aside className="security-center-drawer" aria-label="Chi tiết bảo mật">
       <div className="security-center-drawer__head">
         <div>
-          <span>Security evidence</span>
+          <span>Bằng chứng bảo mật</span>
           <h2>{payload.session?.session_id ? shortId(payload.session.session_id) : shortId(itemId(item))}</h2>
         </div>
-        <button type="button" onClick={onClose} aria-label="Đóng detail">
+        <button type="button" onClick={onClose} aria-label="Đóng chi tiết">
           <X size={18} aria-hidden="true" />
         </button>
       </div>
       {loading ? (
         <section className="security-center-state">
           <RefreshCw size={18} aria-hidden="true" />
-          <span>Đang tải detail...</span>
+          <span>Đang tải chi tiết...</span>
         </section>
       ) : (
         <div className="security-center-drawer__body">
@@ -762,24 +849,24 @@ function DetailDrawer({ item, detail, loading, onClose }) {
           </section>
           {payload.actor ? (
             <section>
-              <h3>Actor profile</h3>
+              <h3>Hồ sơ đối tượng</h3>
               <JsonBlock value={payload.actor} />
             </section>
           ) : null}
           {payload.token_family || payload.sessions ? (
             <section>
-              <h3>Token family</h3>
+              <h3>Nhóm token</h3>
               <JsonBlock value={payload.token_family || payload.sessions} />
             </section>
           ) : null}
           {payload.audit_logs ? (
             <section>
-              <h3>Audit evidence</h3>
+              <h3>Bằng chứng nhật ký</h3>
               <div className="security-center-evidence">
                 {payload.audit_logs.map((log) => (
                   <article key={itemId(log)}>
-                    <strong>{log.action}</strong>
-                    <span>{log.message || log.status}</span>
+                    <strong>{formatValue(log.action)}</strong>
+                    <span>{log.message || formatValue(log.status)}</span>
                     <time>{formatDateTime(log.created_at)}</time>
                   </article>
                 ))}
@@ -787,7 +874,7 @@ function DetailDrawer({ item, detail, loading, onClose }) {
             </section>
           ) : null}
           <section>
-            <h3>Raw JSON</h3>
+            <h3>JSON gốc</h3>
             <JsonBlock value={payload} />
           </section>
         </div>
@@ -833,44 +920,50 @@ function DataPolicyWorkbench({ onCreated }) {
     <section className="security-center-panel">
       <div className="security-center-panel__head">
         <div>
-          <span>Policy editor</span>
-          <h2>Tạo data access policy</h2>
+          <span>Trình soạn chính sách</span>
+          <h2>Tạo chính sách truy cập dữ liệu</h2>
         </div>
         <LockKeyhole size={18} aria-hidden="true" />
       </div>
       <div className="security-center-policy-form">
         <label>
-          <span>Policy key</span>
+          <span>Mã chính sách</span>
           <input value={form.policy_key} onChange={(event) => setForm((value) => ({ ...value, policy_key: event.target.value }))} placeholder="medical_record.view" />
         </label>
         <label>
-          <span>Resource</span>
+          <span>Tài nguyên</span>
           <input value={form.resource_type} onChange={(event) => setForm((value) => ({ ...value, resource_type: event.target.value }))} />
         </label>
         <label>
-          <span>Action</span>
+          <span>Hành động</span>
           <input value={form.action} onChange={(event) => setForm((value) => ({ ...value, action: event.target.value }))} />
         </label>
         <label>
-          <span>Required permissions</span>
+          <span>Quyền bắt buộc</span>
           <input value={form.required_permissions} onChange={(event) => setForm((value) => ({ ...value, required_permissions: event.target.value }))} placeholder="medical_records.read, attachments.download" />
         </label>
         <label>
-          <span>Denied roles</span>
+          <span>Vai trò bị từ chối</span>
           <input value={form.denied_roles} onChange={(event) => setForm((value) => ({ ...value, denied_roles: event.target.value }))} placeholder="guest, intern" />
         </label>
         <label>
-          <span>Retention days</span>
+          <span>Số ngày lưu trữ</span>
           <input type="number" value={form.retention_days} onChange={(event) => setForm((value) => ({ ...value, retention_days: event.target.value }))} />
         </label>
         {['require_consent', 'require_patient_authorization', 'allow_break_glass', 'audit_required', 'review_required'].map((key) => (
           <label key={key} className="security-center-checkbox">
             <input type="checkbox" checked={Boolean(form[key])} onChange={(event) => setForm((value) => ({ ...value, [key]: event.target.checked }))} />
-            <span>{key}</span>
+            <span>{{
+              require_consent: 'Yêu cầu đồng thuận',
+              require_patient_authorization: 'Yêu cầu ủy quyền bệnh nhân',
+              allow_break_glass: 'Cho phép truy cập khẩn cấp',
+              audit_required: 'Bắt buộc audit',
+              review_required: 'Bắt buộc rà soát',
+            }[key]}</span>
           </label>
         ))}
         <ActionButton icon={Play} onClick={submit} disabled={saving || !form.policy_key} tone="primary">
-          {saving ? 'Đang tạo' : 'Tạo draft policy'}
+          {saving ? 'Đang tạo' : 'Tạo bản nháp'}
         </ActionButton>
       </div>
     </section>
@@ -890,6 +983,7 @@ function BulkRevokeWorkbench({ onExecuted }) {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const updateScope = (key, value) => setScope((current) => ({ ...current, [key]: value }));
   const payload = useMemo(() => ({ scope, reason, notify: false }), [scope, reason]);
@@ -914,6 +1008,7 @@ function BulkRevokeWorkbench({ onExecuted }) {
       const result = await executeBulkSessionRevoke(payload);
       setPreview(result);
       setMessage(`Đã thu hồi ${formatNumber(result.revoked_count)} phiên.`);
+      setConfirmOpen(false);
       onExecuted();
     } catch (error) {
       setMessage(error.message);
@@ -927,53 +1022,53 @@ function BulkRevokeWorkbench({ onExecuted }) {
       <section className="security-center-panel">
         <div className="security-center-panel__head">
           <div>
-            <span>Incident action</span>
+            <span>Thao tác sự cố</span>
             <h2>Thu hồi phiên hàng loạt</h2>
           </div>
           <ShieldBan size={18} aria-hidden="true" />
         </div>
         <div className="security-center-bulk-form">
           <label>
-            <span>Actor type</span>
+            <span>Loại đối tượng</span>
             <select value={scope.actor_type} onChange={(event) => updateScope('actor_type', event.target.value)}>
-              <option value="">Mọi actor</option>
-              <option value="staff">Staff</option>
-              <option value="patient">Patient</option>
-              <option value="patient_relative">Relative</option>
+              <option value="">Mọi đối tượng</option>
+              <option value="staff">Nhân sự</option>
+              <option value="patient">Bệnh nhân</option>
+              <option value="patient_relative">Người thân</option>
             </select>
           </label>
           <label>
-            <span>Actor ID</span>
+            <span>ID đối tượng</span>
             <input value={scope.actor_id} onChange={(event) => updateScope('actor_id', event.target.value)} placeholder="ObjectId" />
           </label>
           <label>
-            <span>IP address</span>
+            <span>Địa chỉ IP</span>
             <input value={scope.ip_address} onChange={(event) => updateScope('ip_address', event.target.value)} placeholder="10.0.0.1" />
           </label>
           <label>
-            <span>Device ID</span>
+            <span>ID thiết bị</span>
             <input value={scope.device_id} onChange={(event) => updateScope('device_id', event.target.value)} />
           </label>
           <label>
-            <span>Token family</span>
+            <span>Nhóm token</span>
             <input value={scope.token_family_id} onChange={(event) => updateScope('token_family_id', event.target.value)} />
           </label>
           <label>
-            <span>Status</span>
+            <span>Trạng thái</span>
             <select value={scope.status} onChange={(event) => updateScope('status', event.target.value)}>
-              <option value="active">Active only</option>
-              <option value="revoked">Revoked</option>
-              <option value="expired">Expired</option>
-              <option value="">All</option>
+              <option value="active">Chỉ phiên đang hoạt động</option>
+              <option value="revoked">Đã thu hồi</option>
+              <option value="expired">Hết hạn</option>
+              <option value="">Tất cả</option>
             </select>
           </label>
           <label className="security-center-bulk-form__reason">
-            <span>Reason bắt buộc</span>
+            <span>Lý do bắt buộc</span>
             <textarea rows={4} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="suspected_compromise / incident code / điều tra..." />
           </label>
           <div className="security-center-bulk-form__actions">
-            <ActionButton icon={Eye} onClick={previewAction} disabled={loading}>Preview</ActionButton>
-            <ActionButton icon={ShieldBan} onClick={executeAction} disabled={loading || !reason || !preview} tone="danger">Execute revoke</ActionButton>
+            <ActionButton icon={Eye} onClick={previewAction} disabled={loading}>Xem trước</ActionButton>
+            <ActionButton icon={ShieldBan} onClick={() => setConfirmOpen(true)} disabled={loading || !reason || !preview} tone="danger">Thực thi thu hồi</ActionButton>
           </div>
           {message ? <p className="security-center-message">{message}</p> : null}
         </div>
@@ -981,19 +1076,19 @@ function BulkRevokeWorkbench({ onExecuted }) {
       <section className="security-center-panel security-center-panel--wide">
         <div className="security-center-panel__head">
           <div>
-            <span>Impact preview</span>
+            <span>Xem trước tác động</span>
             <h2>Phiên bị ảnh hưởng</h2>
           </div>
           <StatusBadge status={preview?.warnings?.length ? 'warning' : 'success'}>
-            {preview ? `${formatNumber(preview.matched_sessions)} sessions` : 'Chưa preview'}
+            {preview ? `${formatNumber(preview.matched_sessions)} phiên` : 'Chưa xem trước'}
           </StatusBadge>
         </div>
         {preview ? (
           <>
             <div className="security-center-impact">
-              <article><span>Affected actors</span><strong>{formatNumber(preview.affected_actors)}</strong></article>
-              <article><span>Matched sessions</span><strong>{formatNumber(preview.matched_sessions)}</strong></article>
-              <article><span>Revoked count</span><strong>{formatNumber(preview.revoked_count || 0)}</strong></article>
+              <article><span>Đối tượng ảnh hưởng</span><strong>{formatNumber(preview.affected_actors)}</strong></article>
+              <article><span>Phiên khớp điều kiện</span><strong>{formatNumber(preview.matched_sessions)}</strong></article>
+              <article><span>Số phiên sẽ thu hồi</span><strong>{formatNumber(preview.revoked_count || 0)}</strong></article>
             </div>
             {preview.warnings?.length ? (
               <div className="security-center-recommendations">
@@ -1002,8 +1097,23 @@ function BulkRevokeWorkbench({ onExecuted }) {
             ) : null}
             <DataTable config={VIEW_CONFIG.sessions} items={preview.items || []} loading={false} onSelect={() => {}} onAction={() => {}} />
           </>
-        ) : <EmptyState title="Chưa có preview" note="Nhập scope và bấm Preview trước khi execute revoke." />}
+        ) : <EmptyState title="Chưa có bản xem trước" note="Nhập phạm vi và bấm Xem trước trước khi thu hồi." />}
       </section>
+      <AdminActionConfirmDialog
+        open={confirmOpen}
+        title="Xác nhận thu hồi phiên hàng loạt?"
+        description="Thao tác này sẽ thu hồi các phiên khớp phạm vi đã preview và có thể đăng xuất nhiều người dùng cùng lúc."
+        tone="danger"
+        confirmLabel="Thu hồi phiên"
+        details={[
+          { label: 'Đối tượng ảnh hưởng', value: formatNumber(preview?.affected_actors || 0) },
+          { label: 'Phiên khớp', value: formatNumber(preview?.matched_sessions || 0) },
+          { label: 'Lý do', value: reason },
+        ]}
+        submitting={loading}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={executeAction}
+      />
     </div>
   );
 }
@@ -1019,6 +1129,7 @@ export function SecurityCenterPage({ view = 'dashboard' }) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
   const [filters, setFilters] = useState({ range: '24h', keyword: '', actor_type: '', status: '', ip_address: '', risk_level: '' });
   const [appliedFilters, setAppliedFilters] = useState(filters);
 
@@ -1061,19 +1172,29 @@ export function SecurityCenterPage({ view = 'dashboard' }) {
   };
 
   const handleAction = async (action, item) => {
-    const reason = 'security_center_action';
+    const copy = securityActionCopy(action, item);
+    if (copy) {
+      setConfirmAction({ action, item, ...copy });
+      return;
+    }
+    await executeSecurityAction(action, item);
+  };
+
+  const executeSecurityAction = async (action, item, reasonInput = '') => {
+    const reason = reasonInput || 'security_center_action';
     setMessage('');
     try {
       if (action === 'revoke-session') await revokeSecuritySession(item.session_id, reason);
       if (action === 'revoke-session-family') await revokeSecuritySessionFamily(item.session_id, reason);
       if (action === 'revoke-token-family') await revokeTokenFamily(item.token_family_id, reason);
-      if (action === 'review-break-glass') await reviewBreakGlass(item.break_glass_access_id, { review_status: 'reviewed', review_note: 'Reviewed from Security Center UI.' });
+      if (action === 'review-break-glass') await reviewBreakGlass(item.break_glass_access_id, { review_status: 'reviewed', review_note: 'Đã rà soát từ giao diện Trung tâm bảo mật.' });
       if (action === 'revoke-consent') await revokeSecurityConsent(item._id, reason);
       if (action === 'approve-authorization') await approvePatientAuthorization(item._id);
       if (action === 'revoke-authorization') await revokePatientAuthorization(item._id, reason);
       if (action === 'publish-policy') await publishDataAccessPolicy(item._id);
       if (action === 'archive-policy') await archiveDataAccessPolicy(item._id);
-      setMessage('Thao tác Security Center đã hoàn tất.');
+      setConfirmAction(null);
+      setMessage('Thao tác trong Trung tâm bảo mật đã hoàn tất.');
       await load();
     } catch (error) {
       setMessage(error.message);
@@ -1105,7 +1226,7 @@ export function SecurityCenterPage({ view = 'dashboard' }) {
           <section className="security-center-panel security-center-panel--wide">
             <div className="security-center-panel__head">
               <div>
-                <span>{activeView}</span>
+                <span>Phân hệ bảo mật</span>
                 <h2>{config.title}</h2>
                 <p>{config.subtitle}</p>
               </div>
@@ -1116,16 +1237,16 @@ export function SecurityCenterPage({ view = 'dashboard' }) {
           <section className="security-center-panel">
             <div className="security-center-panel__head">
               <div>
-                <span>Evidence tools</span>
+                <span>Công cụ bằng chứng</span>
                 <h2>Điều tra & thao tác</h2>
               </div>
               <SlidersHorizontal size={18} aria-hidden="true" />
             </div>
             <div className="security-center-toolbox">
-              <ActionButton icon={RefreshCw} onClick={load}>Refresh data</ActionButton>
-              <ActionButton icon={Download}>Export evidence</ActionButton>
-              <ActionButton icon={FileClock}>Open audit trail</ActionButton>
-              <ActionButton icon={Fingerprint}>Inspect fingerprint</ActionButton>
+              <ActionButton icon={RefreshCw} onClick={load}>Làm mới dữ liệu</ActionButton>
+              <ActionButton icon={Download}>Xuất bằng chứng</ActionButton>
+              <ActionButton icon={FileClock}>Mở audit trail</ActionButton>
+              <ActionButton icon={Fingerprint}>Kiểm tra fingerprint</ActionButton>
             </div>
             <JsonBlock value={{ view: activeView, query, pagination: viewData?.pagination }} />
           </section>
@@ -1134,6 +1255,18 @@ export function SecurityCenterPage({ view = 'dashboard' }) {
       )}
 
       <DetailDrawer item={selected} detail={detail} loading={detailLoading} onClose={() => setSelected(null)} />
+      <AdminActionConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        description={confirmAction?.description}
+        tone={confirmAction?.tone}
+        confirmLabel={confirmAction?.confirmLabel}
+        details={confirmAction?.details}
+        reasonRequired={confirmAction?.reasonRequired}
+        submitting={loading}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={(reason) => executeSecurityAction(confirmAction.action, confirmAction.item, reason)}
+      />
     </div>
   );
 }

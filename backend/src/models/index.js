@@ -192,6 +192,13 @@ const NotificationTemplate = require('./notifications/notification-template.mode
 const BroadcastCampaign = require('./notifications/broadcast-campaign.model');
 const SupportTicket = require('./support/support-ticket.model');
 const SupportReplyTemplate = require('./support/support-reply-template.model');
+const ChatbotSession = require('./chatbot/chat-session.model');
+const ChatbotMessage = require('./chatbot/chat-message.model');
+const ChatbotIntent = require('./chatbot/chatbot-intent.model');
+const ChatbotEntityDictionary = require('./chatbot/chatbot-entity-dictionary.model');
+const KnowledgeArticle = require('./chatbot/knowledge-article.model');
+const ChatbotFallback = require('./chatbot/chatbot-fallback.model');
+const ChatbotAppointmentDraft = require('./chatbot/chatbot-appointment-draft.model');
 const Conversation = require('./messaging/conversation.model');
 const ConversationCall = require('./messaging/conversation-call.model');
 const ConversationParticipant = require('./messaging/conversation-participant.model');
@@ -399,6 +406,13 @@ module.exports = {
   BroadcastCampaign,
   SupportTicket,
   SupportReplyTemplate,
+  ChatbotSession,
+  ChatbotMessage,
+  ChatbotIntent,
+  ChatbotEntityDictionary,
+  KnowledgeArticle,
+  ChatbotFallback,
+  ChatbotAppointmentDraft,
   Conversation,
   ConversationCall,
   ConversationParticipant,

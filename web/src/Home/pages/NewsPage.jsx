@@ -95,7 +95,7 @@ export function NewsPage() {
     { label: '#Longevity', detail: 'Sống khỏe dài hạn' },
     { label: '#Microbiome', detail: 'Hệ vi sinh' },
     { label: '#MedTech', detail: 'Công nghệ y tế' },
-    { label: '#AIHealthcare', detail: 'AI trong lâm sàng' },
+    { label: '#AIYTe', detail: 'AI trong lâm sàng' },
   ];
   const totalPages = Math.max(1, Math.ceil(filteredArticles.length / PAGE_SIZE));
   const paginatedArticles = useMemo(() => {
@@ -111,7 +111,7 @@ export function NewsPage() {
   const featuredArticles = NEWS_ARTICLES.slice(1, 4);
 
   const hero = {
-    kicker: 'Healthcare Plus+ Editorial Desk',
+    kicker: 'Ban biên tập Bộ Y tế',
     title: (
       <>
         Newsroom y khoa
@@ -128,7 +128,7 @@ export function NewsPage() {
               <Newspaper size={24} strokeWidth={2.35} aria-hidden="true" />
             </span>
             <div className="news-author__meta">
-              <strong>Ban biên tập Healthcare Plus+</strong>
+              <strong>Ban biên tập Bộ Y tế</strong>
               <span>14 bài viết chuyên đề · 4 nhóm chủ đề · ưu tiên tính ứng dụng</span>
             </div>
           </div>
@@ -278,7 +278,7 @@ export function NewsPage() {
                     <h3>{item.title}</h3>
                     <p>{item.excerpt}</p>
                     <div className="news-article-card__actions">
-                      <span>Healthcare Plus+ Editorial</span>
+                      <span>Ban biên tập Bộ Y tế</span>
                       <Link to={`/news/${item.slug}`}>
                         <span>Mở bài viết</span>
                         <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />
@@ -418,7 +418,7 @@ export function NewsArticlePage() {
         className="news-hero-visual"
         style={{ '--news-hero-image': `url(${article.image})` }}
       >
-        <div className="news-hero-visual__badge">Healthcare Plus+ Editorial</div>
+        <div className="news-hero-visual__badge">Ban biên tập Bộ Y tế</div>
         <div className="news-hero-visual__panel">
           <span>Bài đọc chuyên đề</span>
           <strong>{article.excerpt}</strong>

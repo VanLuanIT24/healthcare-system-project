@@ -13,6 +13,8 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
+import { ClinicalOpsToastStack, useClinicalOpsToasts } from '../ClinicalOpsWorkspace/ClinicalOpsToastStack';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { getStaffActorName } from '../receptionist/workspaceAccess';
 import {
@@ -91,6 +93,7 @@ export function LabShell({ children }) {
   const [openSections, setOpenSections] = useState(() =>
     Object.fromEntries(labMenuSections.map((section) => [section.id, section.defaultOpen !== false])),
   );
+  const { toasts, closeToast } = useClinicalOpsToasts();
 
   const roles = getLabRoles(auth);
   const rolesKey = roles.join('|');
@@ -173,12 +176,12 @@ export function LabShell({ children }) {
         <div className="lab-sidebar__brand">
           <Link to="/staff/select-workspace" className="lab-sidebar__brand-link" onClick={closeMobileSidebar}>
             <span className="lab-sidebar__brand-mark" aria-hidden="true">
-              <FlaskConical size={25} strokeWidth={2.4} />
+              <AppLogo variant="mark" alt="" aria-hidden="true" />
             </span>
             {!isSidebarCollapsed ? (
               <span className="lab-sidebar__brand-copy">
-                <strong>Cận lâm sàng và thủ thuật</strong>
-                <small>Không gian cận lâm sàng và thủ thuật</small>
+                <strong>{APP_BRAND_NAME}</strong>
+                <small>Cận lâm sàng và thủ thuật</small>
               </span>
             ) : null}
           </Link>
@@ -387,6 +390,7 @@ export function LabShell({ children }) {
           {children}
         </div>
       </section>
+      <ClinicalOpsToastStack items={toasts} onClose={closeToast} />
     </main>
   );
 }

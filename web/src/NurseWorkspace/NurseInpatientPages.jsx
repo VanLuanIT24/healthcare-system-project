@@ -36,6 +36,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { nurseInpatientApi } from './nurseApi';
+import { confirmNurseAction, downloadNurseJson, notifyNurse, printNurseView, promptNurseText, runNurseAction } from './nurseActions';
 
 const now = Date.now();
 
@@ -227,7 +228,7 @@ function Kpis({ items }) {
       {items.map((item) => {
         const Icon = item.icon || Activity;
         return (
-          <button key={item.label} type="button" className={`nurse-ip-kpi nurse-ip-kpi--${item.tone || 'blue'}`} onClick={item.onClick}>
+          <button key={item.label} type="button" className={`nurse-ip-kpi nurse-ip-kpi--${item.tone || 'blue'}`} onClick={item.onClick || (() => notifyNurse({ title: item.label, message: item.detail || 'Đã chọn chỉ số nội trú.' }))}>
             <Icon size={18} />
             <span>{item.label}</span>
             <strong>{item.value ?? 0}</strong>
@@ -416,7 +417,7 @@ const demoHandovers = {
   ],
 };
 
-function PatientDrawer({ item, onClose }) {
+function PatientDrawer({ item, onClose, onAction }) {
   if (!item) return null;
   return (
     <aside className="nurse-ip-drawer">
@@ -434,10 +435,10 @@ function PatientDrawer({ item, onClose }) {
       <section><h3><ClipboardList size={16} />Việc cần làm và thuốc</h3><dl><div><dt>Việc đang mở</dt><dd>{item.open_tasks_count}</dd></div><div><dt>Việc quá hạn</dt><dd>{item.overdue_tasks_count}</dd></div><div><dt>Thuốc đến giờ</dt><dd>{item.medication_due_count}</dd></div><div><dt>Thuốc quá giờ</dt><dd>{item.medication_overdue_count}</dd></div></dl></section>
       <section><h3><Bed size={16} />Giường và chi phí</h3><dl><div><dt>Vị trí</dt><dd>{roomBedText(item)}</dd></div><div><dt>Ngày nằm viện</dt><dd>{item.los_days || 0} ngày</dd></div><div><dt>Chi phí</dt><dd>{item.charges_summary?.count || 0} dòng · {(item.charges_summary?.total_amount || 0).toLocaleString('vi-VN')}đ</dd></div></dl></section>
       <footer>
-        <button type="button"><HeartPulse size={15} />Ghi sinh hiệu</button>
-        <button type="button"><ClipboardList size={15} />Tạo việc</button>
-        <button type="button"><Pill size={15} />Cấp thuốc</button>
-        <button type="button"><Bell size={15} />Báo BS</button>
+        <button type="button" onClick={() => onAction?.('vitals', item)}><HeartPulse size={15} />Ghi sinh hiệu</button>
+        <button type="button" onClick={() => onAction?.('task', item)}><ClipboardList size={15} />Tạo việc</button>
+        <button type="button" onClick={() => onAction?.('medication', item)}><Pill size={15} />Cấp thuốc</button>
+        <button type="button" onClick={() => onAction?.('notify', item)}><Bell size={15} />Báo BS</button>
       </footer>
     </aside>
   );
@@ -452,8 +453,36 @@ export function InpatientWardBoardPage() {
   const items = safeList(data.items).filter((item) => !filters.search || `${patientName(item)} ${admissionNo(item)} ${roomBedText(item)}`.toLowerCase().includes(filters.search.toLowerCase()));
   const active = selected || items[0];
 
+  async function runWardAction(action, item = active) {
+    if (action === 'vitals') return window.location.assign('/nurse/vitals-records/entry');
+    if (action === 'medication') return window.location.assign('/nurse/inpatient/bedside-medication');
+    if (action === 'bed') return window.location.assign('/nurse/inpatient/bed-assignment-transfer');
+    if (action === 'task') {
+      const admissionId = item?.admission_id || item?.admission?._id || item?.admission?.id;
+      const title = promptNurseText({ title: 'Tạo việc nội trú', message: patientName(item), defaultValue: 'Theo dõi sinh hiệu trong ca' });
+      if (!title) return null;
+      return runNurseAction({
+        label: 'Tạo việc nội trú',
+        isDemo: isDemo || !admissionId || String(admissionId).includes('demo'),
+        demoMessage: 'Cần admission_id hợp lệ để tạo việc nội trú.',
+        confirm: { title: 'Tạo việc?', message: title },
+        run: () => nurseInpatientApi.createTask({ admission_id: admissionId, title, task_type: 'round', priority: 'normal' }),
+        successMessage: 'Đã tạo việc nội trú.',
+        onSuccess: () => setRefresh((value) => value + 1),
+      });
+    }
+    if (action === 'notify') {
+      notifyNurse({ title: 'Báo bác sĩ', message: `Đã ghi nhận yêu cầu báo bác sĩ cho ${patientName(item)}.` });
+      return null;
+    }
+    return null;
+  }
+
   return (
-    <PageFrame eyebrow="Trung tâm điều phối nội trú" title="Danh sách nội trú" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Plus size={16} />Tạo nhập viện</button><button type="button"><Bed size={16} />Phân giường nhanh</button><button type="button"><ClipboardList size={16} />Giao việc hàng loạt</button><button type="button"><Printer size={16} />In danh sách buồng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageFrame eyebrow="Trung tâm điều phối nội trú" title="Danh sách nội trú" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => {
+      const encounterId = promptNurseText({ title: 'Tạo nhập viện', message: 'Nhập encounter_id để tạo nhập viện.', defaultValue: '' });
+      if (encounterId) runNurseAction({ label: 'Tạo nhập viện', confirm: { title: 'Tạo nhập viện?', message: encounterId }, run: () => nurseInpatientApi.createAdmissionFromEncounter(encounterId, {}), successMessage: 'Đã tạo nhập viện.', onSuccess: () => setRefresh((value) => value + 1) });
+    }}><Plus size={16} />Tạo nhập viện</button><button type="button" onClick={() => runWardAction('bed')}><Bed size={16} />Phân giường nhanh</button><button type="button" onClick={() => runWardAction('task')}><ClipboardList size={16} />Giao việc hàng loạt</button><button type="button" onClick={() => printNurseView('In danh sách buồng')}><Printer size={16} />In danh sách buồng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       <Kpis items={[
         { label: 'Đang nội trú', value: data.summary?.active_admissions, detail: 'Đã nhập viện/chuyển', icon: Users, tone: 'blue' },
         { label: 'Chờ nhận giường', value: data.summary?.pending_bed_assignment, detail: 'Cần phân giường', icon: Clock3, tone: 'amber' },
@@ -487,13 +516,13 @@ export function InpatientWardBoardPage() {
                   <td><strong>{item.open_tasks_count || 0}</strong><small>{item.overdue_tasks_count || 0} quá hạn</small></td>
                   <td><strong>{item.medication_due_count || 0}</strong><small>{item.medication_overdue_count || 0} quá giờ</small></td>
                   <td>{(item.charges_summary?.total_amount || 0).toLocaleString('vi-VN')}đ<small>{item.charges_summary?.pending_count || 0} chờ ghi nhận</small></td>
-                  <td><div className="nurse-ip-row-actions"><button type="button"><HeartPulse size={13} /></button><button type="button"><Pill size={13} /></button><button type="button"><ArrowRightLeft size={13} /></button></div></td>
+                  <td><div className="nurse-ip-row-actions"><button type="button" onClick={(event) => { event.stopPropagation(); runWardAction('vitals', item); }}><HeartPulse size={13} /></button><button type="button" onClick={(event) => { event.stopPropagation(); runWardAction('medication', item); }}><Pill size={13} /></button><button type="button" onClick={(event) => { event.stopPropagation(); runWardAction('bed', item); }}><ArrowRightLeft size={13} /></button></div></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </main>
-        <PatientDrawer item={active} onClose={() => setSelected(null)} />
+      <PatientDrawer item={active} onClose={() => setSelected(null)} onAction={runWardAction} />
       </section>
     </PageFrame>
   );
@@ -521,8 +550,44 @@ export function InpatientAdmissionPage() {
     }
   }
 
+  async function runAdmissionAction(label, admission = active) {
+    const id = admission?._id || admission?.admission_id;
+    if (label === 'Phân giường' || label === 'Chuyển giường') return window.location.assign('/nurse/inpatient/bed-assignment-transfer');
+    if (label === 'In phiếu') return printNurseView('In phiếu nhập viện');
+    if (label === 'Tạo chi phí phòng') {
+      await runNurseAction({
+        label,
+        isDemo: isDemo || !id,
+        demoMessage: 'Cần admission_id hợp lệ để tạo chi phí phòng.',
+        confirm: { title: 'Tạo chi phí phòng?', message: admission?.admission_no || '' },
+        run: () => nurseInpatientApi.createRoomBedCharge(id, { charge_note: 'Tạo từ workspace điều dưỡng.' }),
+        successMessage: 'Đã tạo chi phí phòng/giường.',
+        onSuccess: () => setRefresh((value) => value + 1),
+      });
+      return null;
+    }
+    await runNurseAction({
+      label,
+      isDemo: isDemo || !id,
+      demoMessage: 'Cần admission_id hợp lệ để cập nhật nhập viện.',
+      confirm: { title: label, message: admission?.admission_no || '' },
+      run: async () => {
+        if (label === 'Nhận viện') return nurseInpatientApi.admitAdmission(id, {});
+        if (label === 'Ra viện') return nurseInpatientApi.dischargeAdmission(id, { discharge_note: 'Ra viện từ workspace điều dưỡng.' });
+        if (label === 'Hủy') return nurseInpatientApi.cancelAdmission(id, { reason: 'Hủy từ workspace điều dưỡng.' });
+        return nurseInpatientApi.getAdmission(id);
+      },
+      successMessage: 'Đã cập nhật nhập viện.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+    return null;
+  }
+
   return (
-    <PageFrame eyebrow="Vòng đời nhập viện" title="Nhập viện" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Plus size={16} />Tạo nhập viện</button><button type="button"><Bed size={16} />Phân giường</button><button type="button"><FileText size={16} />Tạo chi phí phòng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageFrame eyebrow="Vòng đời nhập viện" title="Nhập viện" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => {
+      const encounterId = promptNurseText({ title: 'Tạo nhập viện', message: 'Nhập encounter_id.', defaultValue: '' });
+      if (encounterId) runNurseAction({ label: 'Tạo nhập viện', confirm: { title: 'Tạo nhập viện?', message: encounterId }, run: () => nurseInpatientApi.createAdmissionFromEncounter(encounterId, {}), successMessage: 'Đã tạo nhập viện.', onSuccess: () => setRefresh((value) => value + 1) });
+    }}><Plus size={16} />Tạo nhập viện</button><button type="button" onClick={() => runAdmissionAction('Phân giường')}><Bed size={16} />Phân giường</button><button type="button" onClick={() => runAdmissionAction('Tạo chi phí phòng')}><FileText size={16} />Tạo chi phí phòng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       <Kpis items={[
         { label: 'Dự kiến', value: admissions.filter((item) => item.status === 'planned').length, detail: 'Chờ nhận viện', icon: Clock3, tone: 'amber' },
         { label: 'Đã nhập viện', value: admissions.filter((item) => item.status === 'admitted').length, detail: 'Đang nằm viện', icon: UserCheck, tone: 'green' },
@@ -556,7 +621,7 @@ export function InpatientAdmissionPage() {
           <section className="nurse-ip-action-panel">
             <h3>Thao tác được phép</h3>
             <div>
-              {['Nhận viện', 'Phân giường', 'Chuyển giường', 'Tạo chi phí phòng', 'Ra viện', 'Hủy', 'In phiếu'].map((label) => <button key={label} type="button">{label}</button>)}
+              {['Nhận viện', 'Phân giường', 'Chuyển giường', 'Tạo chi phí phòng', 'Ra viện', 'Hủy', 'In phiếu'].map((label) => <button key={label} type="button" onClick={() => runAdmissionAction(label)}>{label}</button>)}
             </div>
           </section>
         </section>
@@ -582,9 +647,34 @@ export function InpatientRoomsBedsPage() {
   const [refresh, setRefresh] = useState(0);
   const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.getWardMap({ department_id: filters.department_id || undefined, status: filters.status === 'all' ? undefined : filters.status }), demoWardMap, [filters.department_id, filters.status, refresh]);
   const rooms = safeList(data.buildings).flatMap((building) => safeList(building.floors).flatMap((floor) => safeList(floor.rooms).map((room) => ({ ...room, building: building.building, floor: floor.floor }))));
+  const selectedBedId = selectedBed?.bed?._id || selectedBed?.bed?.bed_id || selectedBed?.bed?.id;
+
+  async function createRoomOrBed(kind) {
+    const code = promptNurseText({ title: kind === 'room' ? 'Tạo phòng' : 'Tạo giường', message: 'Nhập mã định danh.', defaultValue: '' });
+    if (!code) return;
+    await runNurseAction({
+      label: kind === 'room' ? 'Tạo phòng' : 'Tạo giường',
+      confirm: { title: 'Xác nhận tạo mới?', message: code },
+      run: () => (kind === 'room' ? nurseInpatientApi.createRoom({ room_code: code }) : nurseInpatientApi.createBed({ bed_code: code, room_id: selectedBed?.room?._id })),
+      successMessage: kind === 'room' ? 'Đã tạo phòng.' : 'Đã tạo giường.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
+
+  async function updateSelectedBed(status) {
+    await runNurseAction({
+      label: status === 'maintenance' ? 'Bảo trì giường' : 'Cập nhật giường',
+      isDemo: isDemo || !selectedBedId || String(selectedBedId).includes('demo'),
+      demoMessage: 'Cần bed_id hợp lệ để cập nhật giường.',
+      confirm: { title: 'Cập nhật trạng thái giường?', message: selectedBed?.bed?.bed_code || '' },
+      run: () => nurseInpatientApi.updateBed(selectedBedId, { status }),
+      successMessage: 'Đã cập nhật trạng thái giường.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
 
   return (
-    <PageFrame eyebrow="Bản đồ phòng giường" title="Phòng / giường" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Plus size={16} />Tạo phòng</button><button type="button"><Bed size={16} />Tạo giường</button><button type="button"><ShieldAlert size={16} />Bảo trì</button><button type="button"><Printer size={16} />In bản đồ giường</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageFrame eyebrow="Bản đồ phòng giường" title="Phòng / giường" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => createRoomOrBed('room')}><Plus size={16} />Tạo phòng</button><button type="button" onClick={() => createRoomOrBed('bed')}><Bed size={16} />Tạo giường</button><button type="button" onClick={() => updateSelectedBed('maintenance')}><ShieldAlert size={16} />Bảo trì</button><button type="button" onClick={() => printNurseView('In bản đồ giường')}><Printer size={16} />In bản đồ giường</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       <Kpis items={[
         { label: 'Tổng phòng', value: data.summary?.total_rooms || rooms.length, detail: 'Trong bộ lọc', icon: Building2, tone: 'blue' },
         { label: 'Tổng giường', value: data.summary?.total_beds, detail: 'Tất cả trạng thái', icon: Bed, tone: 'slate' },
@@ -620,7 +710,7 @@ export function InpatientRoomsBedsPage() {
           <section><h3>Bệnh nhân hiện tại</h3><p>{selectedBed?.patient?.full_name || selectedBed?.admission?.patient_id?.full_name || 'Không có bệnh nhân đang nằm'}</p></section>
           <section><h3>Trạng thái</h3><StatusPill value={selectedBed?.bed?.status || 'available'} /></section>
           <section><h3>Cảnh báo dữ liệu</h3><RiskBadges values={selectedBed?.warnings || []} /></section>
-          <footer><button type="button">Phân bệnh nhân</button><button type="button">Chuyển khỏi giường</button><button type="button">Bảo trì</button></footer>
+          <footer><button type="button" onClick={() => window.location.assign('/nurse/inpatient/bed-assignment-transfer')}>Phân bệnh nhân</button><button type="button" onClick={() => updateSelectedBed('available')}>Chuyển khỏi giường</button><button type="button" onClick={() => updateSelectedBed('maintenance')}>Bảo trì</button></footer>
         </aside>
       </section>
     </PageFrame>
@@ -653,8 +743,29 @@ export function InpatientBedAssignmentTransferPage() {
     }
   }
 
+  function transferBed() {
+    if (!selectedAdmission || !selectedBed) {
+      setToast('Chưa chọn lượt nhập viện và giường đích.');
+      return;
+    }
+    assign();
+  }
+
+  async function releaseBed() {
+    const assignmentId = data.assignments?.[0]?._id || data.assignments?.[0]?.assignment_id;
+    await runNurseAction({
+      label: 'Giải phóng giường',
+      isDemo: isDemo || !assignmentId,
+      demoMessage: 'Cần bed_assignment_id hợp lệ để giải phóng.',
+      confirm: { title: 'Giải phóng giường?', message: data.assignments?.[0]?.bed_id?.bed_code || 'Giường đang chọn' },
+      run: () => nurseInpatientApi.releaseBedAssignment(assignmentId, { reason: 'Giải phóng từ workspace điều dưỡng.' }),
+      successMessage: 'Đã giải phóng giường.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
+  }
+
   return (
-    <PageFrame eyebrow="Điều phối giường" title="Phân giường / chuyển giường" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={assign}><CheckCircle2 size={16} />Xác nhận phân giường</button><button type="button"><ArrowRightLeft size={16} />Chuyển giường</button><button type="button"><X size={16} />Giải phóng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageFrame eyebrow="Điều phối giường" title="Phân giường / chuyển giường" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={assign}><CheckCircle2 size={16} />Xác nhận phân giường</button><button type="button" onClick={transferBed}><ArrowRightLeft size={16} />Chuyển giường</button><button type="button" onClick={releaseBed}><X size={16} />Giải phóng</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       {toast ? <div className="nurse-ip-toast">{toast}<button type="button" onClick={() => setToast('')}><X size={14} /></button></div> : null}
       <section className="nurse-ip-bedops">
         <aside><header><h3>Bệnh nhân chờ giường</h3><span>{data.admissions.length}</span></header>{data.admissions.map((admission) => <button key={admission._id || admission.admission_no} type="button" className={selectedAdmission === admission ? 'is-active' : ''} onClick={() => setSelectedAdmission(admission)}><strong>{admission.admission_no}</strong><span>{patientName({ patient: admission.patient_id || admission.patient })}</span><small>{admission.reason || admission.admission_type || '--'}</small></button>)}</aside>
@@ -676,18 +787,25 @@ export function InpatientTasksPage() {
 
   async function run(action, task = active) {
     if (!task) return;
-    if (isDemo) {
-      setToast('Dữ liệu mẫu: thao tác việc chưa gửi hệ thống.');
-      return;
-    }
-    try {
-      if (action === 'start') await nurseInpatientApi.startTask(task.task_id || task.id);
-      if (action === 'complete') await nurseInpatientApi.completeTask(task.task_id || task.id, { result_note: 'Hoàn tất từ bảng nội trú.' });
-      setToast('Đã cập nhật việc nội trú.');
-      setRefresh((value) => value + 1);
-    } catch (updateError) {
-      setToast(updateError?.message || 'Không cập nhật được việc.');
-    }
+    const taskId = task.task_id || task.id || task._id;
+    const assignee = action === 'assign' ? promptNurseText({ title: 'Giao lại việc', message: task.title, defaultValue: '' }) : null;
+    if (action === 'assign' && !assignee) return;
+    await runNurseAction({
+      label: action === 'start' ? 'Bắt đầu việc' : action === 'complete' ? 'Hoàn tất việc' : 'Giao lại việc',
+      isDemo: isDemo || !taskId,
+      demoMessage: 'Dữ liệu mẫu hoặc thiếu task_id nên thao tác việc chưa gửi hệ thống.',
+      confirm: action === 'complete' ? { title: 'Hoàn tất việc?', message: task.title } : null,
+      run: async () => {
+        if (action === 'start') return nurseInpatientApi.startTask(taskId);
+        if (action === 'complete') return nurseInpatientApi.completeTask(taskId, { result_note: 'Hoàn tất từ bảng nội trú.' });
+        return nurseInpatientApi.assignTask(taskId, { assigned_to: assignee });
+      },
+      successMessage: 'Đã cập nhật việc nội trú.',
+      onSuccess: () => {
+        setToast('Đã cập nhật việc nội trú.');
+        setRefresh((value) => value + 1);
+      },
+    });
   }
 
   const columns = [
@@ -699,7 +817,10 @@ export function InpatientTasksPage() {
   ];
 
   return (
-    <PageFrame eyebrow="Bảng việc điều dưỡng" title="Việc nội trú" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Plus size={16} />Tạo việc</button><button type="button"><Users size={16} />Giao hàng loạt</button><button type="button"><ClipboardCheck size={16} />Bảng kiểm xuất viện</button><button type="button"><Printer size={16} />In việc trong ca</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageFrame eyebrow="Bảng việc điều dưỡng" title="Việc nội trú" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => {
+      const title = promptNurseText({ title: 'Tạo việc nội trú', message: 'Nhập tên việc.', defaultValue: 'Đi buồng và ghi nhận tình trạng' });
+      if (title) runNurseAction({ label: 'Tạo việc nội trú', confirm: { title: 'Tạo việc?', message: title }, run: () => nurseInpatientApi.createTask({ title, task_type: 'round', priority: 'normal' }), successMessage: 'Đã tạo việc nội trú.', onSuccess: () => setRefresh((value) => value + 1) });
+    }}><Plus size={16} />Tạo việc</button><button type="button" onClick={() => run('assign')}><Users size={16} />Giao hàng loạt</button><button type="button" onClick={() => notifyNurse({ title: 'Bảng kiểm xuất viện', message: 'Mở bộ lọc loại việc "Bảng kiểm ra viện" để rà soát.' })}><ClipboardCheck size={16} />Bảng kiểm xuất viện</button><button type="button" onClick={() => printNurseView('In việc trong ca')}><Printer size={16} />In việc trong ca</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       {toast ? <div className="nurse-ip-toast">{toast}<button type="button" onClick={() => setToast('')}><X size={14} /></button></div> : null}
       <Kpis items={[
         { label: 'Việc hôm nay', value: data.summary?.total || tasks.length, detail: 'Trong bộ lọc', icon: ClipboardList, tone: 'blue' },
@@ -717,7 +838,7 @@ export function InpatientTasksPage() {
             return <section key={key}><header><strong>{title}</strong><span>{columnTasks.length}</span></header>{columnTasks.map((task) => { const due = dueStatus(task.due_at); const taskType = task.type || task.task_type; return <article key={task.task_id || task.id} className={`nurse-ip-task-card nurse-ip-task-card--${task.priority}`} onClick={() => setSelected(task)}><header><StatusPill value={task.priority || 'normal'} type="priority" /><small className={`is-${due.tone}`}>{due.label}</small></header><h3>{task.title}</h3><p>{patientName(task)} · {roomBedText(task)}</p><footer><span>{taskTypeLabels[taskType] || taskType}</span><div><button type="button" onClick={(event) => { event.stopPropagation(); run('start', task); }}>Bắt đầu</button><button type="button" onClick={(event) => { event.stopPropagation(); run('complete', task); }}>Xong</button></div></footer></article>; })}</section>;
           })}
         </main>
-        <aside className="nurse-ip-drawer nurse-ip-drawer--static"><header><h2>{active?.title || 'Chọn việc'}</h2><p>{patientName(active)} · {roomBedText(active)}</p></header><section><h3>Chi tiết</h3><dl><div><dt>Loại</dt><dd>{taskTypeLabels[active?.type || active?.task_type] || active?.type || active?.task_type}</dd></div><div><dt>Trạng thái</dt><dd>{statusLabels[active?.status] || active?.status}</dd></div><div><dt>Phụ trách</dt><dd>{active?.assigned_to_name || 'Chưa giao'}</dd></div><div><dt>Hạn xử lý</dt><dd>{formatTime(active?.due_at)}</dd></div></dl></section><section><h3>Dòng thời gian ca trực</h3><div className="nurse-ip-mini-timeline"><article><span>{formatTime(active?.created_at)}</span><strong>Đã tạo</strong></article><article><span>{formatTime(active?.started_at)}</span><strong>Đã bắt đầu</strong></article><article><span>{formatTime(active?.completed_at)}</span><strong>Đã hoàn tất</strong></article></div></section><footer><button type="button" onClick={() => run('start')}>Bắt đầu</button><button type="button" onClick={() => run('complete')}>Hoàn tất</button><button type="button">Giao lại</button></footer></aside>
+        <aside className="nurse-ip-drawer nurse-ip-drawer--static"><header><h2>{active?.title || 'Chọn việc'}</h2><p>{patientName(active)} · {roomBedText(active)}</p></header><section><h3>Chi tiết</h3><dl><div><dt>Loại</dt><dd>{taskTypeLabels[active?.type || active?.task_type] || active?.type || active?.task_type}</dd></div><div><dt>Trạng thái</dt><dd>{statusLabels[active?.status] || active?.status}</dd></div><div><dt>Phụ trách</dt><dd>{active?.assigned_to_name || 'Chưa giao'}</dd></div><div><dt>Hạn xử lý</dt><dd>{formatTime(active?.due_at)}</dd></div></dl></section><section><h3>Dòng thời gian ca trực</h3><div className="nurse-ip-mini-timeline"><article><span>{formatTime(active?.created_at)}</span><strong>Đã tạo</strong></article><article><span>{formatTime(active?.started_at)}</span><strong>Đã bắt đầu</strong></article><article><span>{formatTime(active?.completed_at)}</span><strong>Đã hoàn tất</strong></article></div></section><footer><button type="button" onClick={() => run('start')}>Bắt đầu</button><button type="button" onClick={() => run('complete')}>Hoàn tất</button><button type="button" onClick={() => run('assign')}>Giao lại</button></footer></aside>
       </section>
     </PageFrame>
   );
@@ -732,20 +853,31 @@ export function InpatientBedsideMedicationPage() {
   const medications = safeList(data.items);
   const active = selected || medications[0];
 
-  async function administer(item = active) {
+  async function medicationAction(action, item = active) {
     if (!item) return;
-    if (isDemo) return setToast('Dữ liệu mẫu: chưa ghi nhận eMAR.');
-    try {
-      await nurseInpatientApi.administerMedication(item.administration_id || item.id, { dose: item.dose, route: item.route, site: item.site, note: 'Ghi nhận tại giường.' });
-      setToast('Đã ghi nhận cấp thuốc.');
-      setRefresh((value) => value + 1);
-    } catch (updateError) {
-      setToast(updateError?.message || 'Không cấp thuốc được.');
-    }
+    const id = item.administration_id || item.id || item._id;
+    await runNurseAction({
+      label: action === 'administer' ? 'Ghi nhận đã dùng' : action === 'hold' ? 'Tạm hoãn thuốc' : action === 'refuse' ? 'Từ chối thuốc' : action === 'omit' ? 'Bỏ qua thuốc' : 'Báo bác sĩ',
+      isDemo: isDemo || !id,
+      demoMessage: 'Dữ liệu mẫu hoặc thiếu administration_id nên chưa ghi nhận eMAR.',
+      confirm: { title: 'Xác nhận eMAR', message: `${patientName(item)} - ${item.medication?.name || item.medication?.generic_name || ''}` },
+      run: async () => {
+        if (action === 'administer') return nurseInpatientApi.administerMedication(id, { dose: item.dose, route: item.route, site: item.site, note: 'Ghi nhận tại giường.' });
+        if (action === 'hold') return nurseInpatientApi.holdMedication(id, { reason: 'Tạm hoãn từ eMAR điều dưỡng.' });
+        if (action === 'refuse') return nurseInpatientApi.refuseMedication(id, { reason: 'Bệnh nhân từ chối dùng thuốc.' });
+        if (action === 'omit') return nurseInpatientApi.omitMedication(id, { reason: 'Bỏ qua liều theo đánh giá điều dưỡng.' });
+        return nurseInpatientApi.holdMedication(id, { reason: 'Cần bác sĩ xem lại trước khi dùng thuốc.' });
+      },
+      successMessage: 'Đã cập nhật eMAR.',
+      onSuccess: () => {
+        setToast('Đã cập nhật eMAR.');
+        setRefresh((value) => value + 1);
+      },
+    });
   }
 
   return (
-    <PageFrame eyebrow="Cấp thuốc tại giường eMAR" title="Cấp thuốc tại giường" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><ScanLine size={16} />Quét QR bệnh nhân</button><button type="button"><Pill size={16} />Quét mã thuốc</button><button type="button" onClick={() => administer()}><CheckCircle2 size={16} />Ghi nhận đã dùng</button><button type="button"><Printer size={16} />In phiếu MAR</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageFrame eyebrow="Cấp thuốc tại giường eMAR" title="Cấp thuốc tại giường" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => notifyNurse({ title: 'Quét QR bệnh nhân', message: 'Tính năng quét cần thiết bị đầu đọc hoặc camera trình duyệt.' })}><ScanLine size={16} />Quét QR bệnh nhân</button><button type="button" onClick={() => notifyNurse({ title: 'Quét mã thuốc', message: 'Tính năng quét cần thiết bị đầu đọc hoặc camera trình duyệt.' })}><Pill size={16} />Quét mã thuốc</button><button type="button" onClick={() => medicationAction('administer')}><CheckCircle2 size={16} />Ghi nhận đã dùng</button><button type="button" onClick={() => printNurseView('In phiếu MAR')}><Printer size={16} />In phiếu MAR</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       {toast ? <div className="nurse-ip-toast">{toast}<button type="button" onClick={() => setToast('')}><X size={14} /></button></div> : null}
       <Kpis items={[
         { label: 'Lịch hôm nay', value: data.summary?.total || medications.length, detail: 'Theo ngày', icon: CalendarDays, tone: 'blue' },
@@ -760,10 +892,10 @@ export function InpatientBedsideMedicationPage() {
         <main className="nurse-ip-table-wrap">
           <table className="nurse-ip-table">
             <thead><tr><th>Giờ</th><th>Bệnh nhân</th><th>Thuốc</th><th>Liều</th><th>Đường dùng</th><th>Trạng thái</th><th>Cảnh báo</th><th>Thao tác</th></tr></thead>
-            <tbody>{medications.map((item) => <tr key={item.administration_id || item.id} className={active === item ? 'is-active' : ''} onClick={() => setSelected(item)}><td><strong>{formatTime(item.scheduled_at)}</strong><small>{item.is_overdue ? 'Quá giờ' : item.is_due_now ? 'Đến giờ' : ''}</small></td><td>{patientName(item)}<small>{admissionNo(item)}</small></td><td>{item.medication?.name || item.medication?.generic_name || '--'}<small>{item.prescription_item?.instructions || item.medication?.generic_name}</small></td><td>{item.dose || '--'}</td><td>{item.route || '--'}</td><td><StatusPill value={item.status} /></td><td><RiskBadges values={item.is_overdue ? ['Quá giờ dùng thuốc'] : []} /></td><td><div className="nurse-ip-row-actions"><button type="button" onClick={(event) => { event.stopPropagation(); administer(item); }}><CheckCircle2 size={13} /></button><button type="button"><ShieldAlert size={13} /></button><button type="button"><X size={13} /></button></div></td></tr>)}</tbody>
+            <tbody>{medications.map((item) => <tr key={item.administration_id || item.id} className={active === item ? 'is-active' : ''} onClick={() => setSelected(item)}><td><strong>{formatTime(item.scheduled_at)}</strong><small>{item.is_overdue ? 'Quá giờ' : item.is_due_now ? 'Đến giờ' : ''}</small></td><td>{patientName(item)}<small>{admissionNo(item)}</small></td><td>{item.medication?.name || item.medication?.generic_name || '--'}<small>{item.prescription_item?.instructions || item.medication?.generic_name}</small></td><td>{item.dose || '--'}</td><td>{item.route || '--'}</td><td><StatusPill value={item.status} /></td><td><RiskBadges values={item.is_overdue ? ['Quá giờ dùng thuốc'] : []} /></td><td><div className="nurse-ip-row-actions"><button type="button" onClick={(event) => { event.stopPropagation(); medicationAction('administer', item); }}><CheckCircle2 size={13} /></button><button type="button" onClick={(event) => { event.stopPropagation(); medicationAction('hold', item); }}><ShieldAlert size={13} /></button><button type="button" onClick={(event) => { event.stopPropagation(); medicationAction('omit', item); }}><X size={13} /></button></div></td></tr>)}</tbody>
           </table>
         </main>
-        <aside className="nurse-ip-drawer nurse-ip-drawer--static"><header><h2>{active?.medication?.name || 'Chọn thuốc'}</h2><p>{patientName(active)} · {formatTime(active?.scheduled_at)}</p></header><section><h3><ScanLine size={16} />Năm đúng</h3>{['Đúng bệnh nhân', 'Đúng thuốc', 'Đúng liều', 'Đúng đường dùng', 'Đúng thời điểm'].map((label, index) => <div key={label} className="nurse-ip-right-check"><CheckCircle2 size={15} /><span>{label}</span><strong>{index < 3 ? 'Khớp' : 'Cần xác minh'}</strong></div>)}</section><section><h3>Không dùng thuốc</h3><div className="nurse-ip-action-grid"><button type="button">Tạm hoãn</button><button type="button">Từ chối</button><button type="button">Bỏ qua</button><button type="button">Báo bác sĩ</button></div></section></aside>
+        <aside className="nurse-ip-drawer nurse-ip-drawer--static"><header><h2>{active?.medication?.name || 'Chọn thuốc'}</h2><p>{patientName(active)} · {formatTime(active?.scheduled_at)}</p></header><section><h3><ScanLine size={16} />Năm đúng</h3>{['Đúng bệnh nhân', 'Đúng thuốc', 'Đúng liều', 'Đúng đường dùng', 'Đúng thời điểm'].map((label, index) => <div key={label} className="nurse-ip-right-check"><CheckCircle2 size={15} /><span>{label}</span><strong>{index < 3 ? 'Khớp' : 'Cần xác minh'}</strong></div>)}</section><section><h3>Không dùng thuốc</h3><div className="nurse-ip-action-grid"><button type="button" onClick={() => medicationAction('hold')}>Tạm hoãn</button><button type="button" onClick={() => medicationAction('refuse')}>Từ chối</button><button type="button" onClick={() => medicationAction('omit')}>Bỏ qua</button><button type="button" onClick={() => medicationAction('notify')}>Báo bác sĩ</button></div></section></aside>
       </section>
     </PageFrame>
   );
@@ -778,24 +910,64 @@ export function InpatientHandoverPage() {
   const handovers = safeList(data.items);
   const active = selected || handovers[0];
   const activeItem = patientItem || safeList(active?.items)[0];
+  const handoverId = active?.handover_id || active?.id || active?._id;
 
   async function run(action) {
-    if (!active) return;
-    if (isDemo) return setToast('Dữ liệu mẫu: thao tác bàn giao chưa gửi hệ thống.');
-    try {
-      if (action === 'generate') await nurseInpatientApi.generateHandover(active.handover_id || active.id);
-      if (action === 'sign') await nurseInpatientApi.signHandover(active.handover_id || active.id);
-      if (action === 'ack') await nurseInpatientApi.acknowledgeHandover(active.handover_id || active.id);
-      if (action === 'close') await nurseInpatientApi.closeHandover(active.handover_id || active.id);
-      setToast('Đã cập nhật bàn giao nội trú.');
-      setRefresh((value) => value + 1);
-    } catch (updateError) {
-      setToast(updateError?.message || 'Không cập nhật được bàn giao.');
+    if (action === 'export') {
+      downloadNurseJson('ban-giao-noi-tru.json', { handover: active, item: activeItem }, 'Đã xuất dữ liệu bàn giao.');
+      printNurseView('In bàn giao nội trú');
+      return;
     }
+    const labels = {
+      create: 'Tạo bàn giao',
+      generate: 'Tự động tổng hợp bàn giao',
+      sign: 'Ký bàn giao',
+      ack: 'Xác nhận nhận ca',
+      close: 'Đóng ca',
+    };
+    const needsId = action !== 'create';
+    if (needsId && !handoverId) {
+      notifyNurse({ tone: 'warning', title: labels[action] || 'Bàn giao nội trú', message: 'Chọn một bản bàn giao hợp lệ trước khi thao tác.' });
+      return;
+    }
+    let createPayload = {};
+    if (action === 'create') {
+      const toShift = promptNurseText({ title: 'Tạo bàn giao', message: 'Nhập ca nhận (morning/afternoon/night).', defaultValue: active?.to_shift || 'afternoon' });
+      if (toShift === null) return;
+      createPayload = {
+        shift_date: toLocalDateKey(),
+        from_shift: active?.to_shift || 'morning',
+        to_shift: toShift || 'afternoon',
+        summary: 'Bàn giao nội trú tạo từ workspace điều dưỡng.',
+      };
+    }
+    await runNurseAction({
+      label: labels[action] || 'Cập nhật bàn giao',
+      isDemo: isDemo || (needsId && !handoverId),
+      demoMessage: 'Dữ liệu mẫu hoặc thiếu mã bàn giao nên chưa gửi hệ thống.',
+      confirm: ['create', 'sign', 'ack', 'close'].includes(action)
+        ? { title: labels[action] || 'Bàn giao nội trú', message: action === 'close' ? 'Đóng ca sau khi đã xác nhận đầy đủ?' : 'Xác nhận thực hiện thao tác này?' }
+        : undefined,
+      run: async () => {
+        if (action === 'create') return nurseInpatientApi.createHandover(createPayload);
+        if (action === 'generate') return nurseInpatientApi.generateHandover(handoverId, { summary: 'Tổng hợp SBAR tự động từ workspace điều dưỡng.' });
+        if (action === 'sign') return nurseInpatientApi.signHandover(handoverId);
+        if (action === 'ack') return nurseInpatientApi.acknowledgeHandover(handoverId);
+        return nurseInpatientApi.closeHandover(handoverId);
+      },
+      successMessage: 'Đã cập nhật bàn giao nội trú.',
+      errorMessage: 'Không cập nhật được bàn giao.',
+      onSuccess: (result) => {
+        setToast('Đã cập nhật bàn giao nội trú.');
+        setSelected(result || null);
+        setPatientItem(null);
+        setRefresh((value) => value + 1);
+      },
+    });
   }
 
   return (
-    <PageFrame eyebrow="Bàn giao ca SBAR" title="Bàn giao nội trú" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Plus size={16} />Tạo bàn giao</button><button type="button" onClick={() => run('generate')}><Zap size={16} />Tự động tổng hợp</button><button type="button" onClick={() => run('sign')}><Send size={16} />Ký bàn giao</button><button type="button" onClick={() => run('ack')}><CheckCircle2 size={16} />Xác nhận nhận ca</button><button type="button"><Download size={16} />PDF</button></>}>
+    <PageFrame eyebrow="Bàn giao ca SBAR" title="Bàn giao nội trú" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => run('create')}><Plus size={16} />Tạo bàn giao</button><button type="button" onClick={() => run('generate')}><Zap size={16} />Tự động tổng hợp</button><button type="button" onClick={() => run('sign')}><Send size={16} />Ký bàn giao</button><button type="button" onClick={() => run('ack')}><CheckCircle2 size={16} />Xác nhận nhận ca</button><button type="button" onClick={() => run('export')}><Download size={16} />PDF</button></>}>
       {toast ? <div className="nurse-ip-toast">{toast}<button type="button" onClick={() => setToast('')}><X size={14} /></button></div> : null}
       <Kpis items={[
         { label: 'BN bàn giao', value: active?.patient_count, detail: 'Tổng bệnh nhân', icon: Users, tone: 'blue' },

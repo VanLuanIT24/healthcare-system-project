@@ -483,6 +483,7 @@ function ForceLogoutConsole({ selectedStaff, sessions, onForceLogout, onRevokeSe
 
 function LoginHistoryConsole({ departments }) {
   const [filters, setFilters] = useState({ keyword: '', department_id: '', action: '', status: '', ip: '' });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [page, setPage] = useState(1);
   const [history, setHistory] = useState({ items: [], pagination: { page: 1, total_pages: 1, total: 0 } });
   const [loading, setLoading] = useState(true);
@@ -494,7 +495,7 @@ function LoginHistoryConsole({ departments }) {
       setLoading(true);
       setError('');
       try {
-        const query = buildQuery({ ...filters, page, limit: 25 });
+        const query = buildQuery({ ...appliedFilters, page, limit: 25 });
         const result = await getGlobalStaffLoginHistory(query);
         if (!active) return;
         setHistory(result || { items: [], pagination: { page: 1, total_pages: 1, total: 0 } });
@@ -509,9 +510,14 @@ function LoginHistoryConsole({ departments }) {
     return () => {
       active = false;
     };
-  }, [filters, page]);
+  }, [appliedFilters, page]);
 
   const totalPages = Math.max(history.pagination?.total_pages || 1, 1);
+
+  function applyFilters() {
+    setAppliedFilters(filters);
+    setPage(1);
+  }
 
   return (
     <section className="staff-ops-login-panel">
@@ -522,8 +528,10 @@ function LoginHistoryConsole({ departments }) {
             type="search"
             value={filters.keyword}
             onChange={(event) => {
-              setPage(1);
               setFilters((current) => ({ ...current, keyword: event.target.value }));
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') applyFilters();
             }}
             placeholder="Tìm nhân sự trong login history..."
           />
@@ -533,7 +541,6 @@ function LoginHistoryConsole({ departments }) {
           <label>
             <Building2 size={15} strokeWidth={2.2} />
             <select value={filters.department_id} onChange={(event) => {
-              setPage(1);
               setFilters((current) => ({ ...current, department_id: event.target.value }));
             }}>
               <option value="">Tất cả khoa/phòng</option>
@@ -547,7 +554,6 @@ function LoginHistoryConsole({ departments }) {
           <label>
             <FileClock size={15} strokeWidth={2.2} />
             <select value={filters.action} onChange={(event) => {
-              setPage(1);
               setFilters((current) => ({ ...current, action: event.target.value }));
             }}>
               <option value="">Mọi action</option>
@@ -561,7 +567,6 @@ function LoginHistoryConsole({ departments }) {
           <label>
             <CheckCircle2 size={15} strokeWidth={2.2} />
             <select value={filters.status} onChange={(event) => {
-              setPage(1);
               setFilters((current) => ({ ...current, status: event.target.value }));
             }}>
               <option value="">Mọi trạng thái</option>
@@ -574,12 +579,18 @@ function LoginHistoryConsole({ departments }) {
             <input
               value={filters.ip}
               onChange={(event) => {
-                setPage(1);
                 setFilters((current) => ({ ...current, ip: event.target.value }));
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') applyFilters();
               }}
               placeholder="Lọc theo IP"
             />
           </label>
+          <button type="button" className="staff-button staff-button--primary" onClick={applyFilters} disabled={loading}>
+            <Search size={15} strokeWidth={2.2} />
+            Áp dụng
+          </button>
         </div>
       </div>
 

@@ -31,6 +31,7 @@ import {
   X,
 } from 'lucide-react';
 import { getApiErrorMessage, pharmacyConfigAPI, prescriptionAPI, unwrapData } from '../utils/api';
+import { downloadPharmacyJson, notifyPharmacy } from './pharmacyActions';
 
 const VIEW_META = {
   overview: {
@@ -372,7 +373,7 @@ function QualityBanner({ quality }) {
   );
 }
 
-function ConfigHeader({ meta, view, filters, setFilters, onRefresh, onRunQuality, onCreate, onExport }) {
+function ConfigHeader({ meta, view, filters, setFilters, onRefresh, onRunQuality, onCreate, onExport, onImport }) {
   const Icon = meta.icon;
   return (
     <section className="pharmacy-config-header">
@@ -382,7 +383,7 @@ function ConfigHeader({ meta, view, filters, setFilters, onRefresh, onRunQuality
         <p>{meta.description}</p>
       </div>
       <div className="pharmacy-config-header__actions">
-        <button type="button" title="Import"><Upload size={16} />Import</button>
+        <button type="button" title="Import" onClick={onImport}><Upload size={16} />Import</button>
         <button type="button" title="Export" onClick={onExport}><Download size={16} />Export</button>
         <button type="button" title="Kiểm tra dữ liệu" onClick={onRunQuality}><PlayCircle size={16} />Kiểm tra dữ liệu</button>
         {view !== 'overview' ? <button type="button" className="is-primary" onClick={onCreate}>+ {meta.createLabel || 'Tạo mới'}</button> : null}
@@ -416,7 +417,7 @@ function ConfigHeader({ meta, view, filters, setFilters, onRefresh, onRunQuality
   );
 }
 
-function ConfigTable({ columns = [], rows = [], loading, onSelect }) {
+function ConfigTable({ columns = [], rows = [], loading, onSelect, onMerge }) {
   if (loading) return <EmptyState title="Đang tải cấu hình" body="Đang tổng hợp catalog chuẩn và dữ liệu text đang dùng." />;
   if (!rows.length) return <EmptyState />;
   return (
@@ -443,7 +444,7 @@ function ConfigTable({ columns = [], rows = [], loading, onSelect }) {
               <td>
                 <div className="pharmacy-config-row-actions">
                   <button type="button" title="Chi tiết" aria-label="Chi tiết" onClick={() => onSelect(row)}><Eye size={15} /></button>
-                  <button type="button" title="Gộp / chuẩn hóa" aria-label="Gộp / chuẩn hóa"><Merge size={15} /></button>
+                  <button type="button" title="Gộp / chuẩn hóa" aria-label="Gộp / chuẩn hóa" onClick={() => onMerge?.(row)}><Merge size={15} /></button>
                 </div>
               </td>
             </tr>
@@ -454,7 +455,7 @@ function ConfigTable({ columns = [], rows = [], loading, onSelect }) {
   );
 }
 
-function DetailDrawer({ row, view, onClose }) {
+function DetailDrawer({ row, view, onClose, onMerge, onExport }) {
   if (!row) return null;
   const fields = Object.entries(row)
     .filter(([key, value]) => !key.startsWith('_') && value !== null && value !== undefined && typeof value !== 'object')
@@ -495,8 +496,8 @@ function DetailDrawer({ row, view, onClose }) {
         </section>
       </div>
       <footer>
-        <button type="button"><Merge size={16} />Gộp trùng</button>
-        <button type="button"><Download size={16} />Export mapping</button>
+        <button type="button" onClick={() => onMerge?.(row)}><Merge size={16} />Gộp trùng</button>
+        <button type="button" onClick={() => onExport?.(row)}><Download size={16} />Export mapping</button>
       </footer>
     </aside>
   );
@@ -770,19 +771,33 @@ export function PharmacyConfigPage({ view = 'overview' }) {
     try {
       const response = await pharmacyConfigAPI.runQualityCheck({});
       setState((current) => ({ ...current, quality: unwrapData(response), data: view === 'overview' ? unwrapData(response) : current.data }));
+      notifyPharmacy({ tone: 'success', title: 'Kiểm tra dữ liệu', message: 'Đã chạy kiểm tra chất lượng cấu hình dược.' });
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể chạy kiểm tra dữ liệu.'));
+      notifyPharmacy({ tone: 'danger', title: 'Kiểm tra dữ liệu', message: getApiErrorMessage(error, 'Không thể chạy kiểm tra dữ liệu.') });
     }
   }
 
   function exportData() {
-    const blob = new Blob([JSON.stringify({ view, data: state.data, quality }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `pharmacy-config-${view}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadPharmacyJson(`pharmacy-config-${view}.json`, { view, filters, data: state.data, quality }, 'Xuất cấu hình dược');
+  }
+
+  function importData() {
+    notifyPharmacy({
+      tone: 'info',
+      title: 'Import cấu hình dược',
+      message: 'Import hàng loạt cần file mẫu và kiểm duyệt dữ liệu. Hiện backend đang hỗ trợ tạo từng cấu hình từ nút Tạo mới.',
+    });
+  }
+
+  function mergeRow(row) {
+    notifyPharmacy({
+      tone: 'info',
+      title: 'Gộp / chuẩn hóa cấu hình',
+      message: row?._derived
+        ? 'Hãy tạo catalog chuẩn hoặc chọn bản ghi chuẩn trước khi gộp giá trị text tự do.'
+        : 'Bản ghi catalog chuẩn đã được chọn. Chức năng merge hàng loạt sẽ yêu cầu chọn thêm bản ghi nguồn.',
+    });
+    setDrawer(row);
   }
 
   async function submitCreate(form) {
@@ -794,9 +809,10 @@ export function PharmacyConfigPage({ view = 'overview' }) {
       }));
       await meta.create(payload);
       setShowCreate(false);
+      notifyPharmacy({ tone: 'success', title: VIEW_META[view]?.createLabel || 'Tạo cấu hình', message: 'Đã tạo cấu hình dược mới.' });
       load();
     } catch (error) {
-      window.alert(getApiErrorMessage(error, 'Không thể tạo cấu hình.'));
+      notifyPharmacy({ tone: 'danger', title: VIEW_META[view]?.createLabel || 'Tạo cấu hình', message: getApiErrorMessage(error, 'Không thể tạo cấu hình.') });
     }
   }
 
@@ -818,6 +834,7 @@ export function PharmacyConfigPage({ view = 'overview' }) {
         onRunQuality={runQuality}
         onCreate={() => setShowCreate(true)}
         onExport={exportData}
+        onImport={importData}
       />
       <nav className="pharmacy-config-tabs">
         {VIEW_TABS.map(([key, label]) => (
@@ -842,11 +859,17 @@ export function PharmacyConfigPage({ view = 'overview' }) {
               <span>Data table</span>
               <h2>{meta.title}</h2>
             </header>
-            <ConfigTable columns={meta.columns || []} rows={rows} loading={state.loading} onSelect={setDrawer} />
+            <ConfigTable columns={meta.columns || []} rows={rows} loading={state.loading} onSelect={setDrawer} onMerge={mergeRow} />
           </section>
         </>
       )}
-      <DetailDrawer row={drawer} view={view} onClose={() => setDrawer(null)} />
+      <DetailDrawer
+        row={drawer}
+        view={view}
+        onClose={() => setDrawer(null)}
+        onMerge={mergeRow}
+        onExport={(row) => downloadPharmacyJson(`pharmacy-config-${view}-mapping.json`, { view, row }, 'Xuất mapping cấu hình')}
+      />
       {showCreate ? <CreateDialog view={view} onClose={() => setShowCreate(false)} onSubmit={submitCreate} /> : null}
     </div>
   );

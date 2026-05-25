@@ -16,9 +16,9 @@ import {
   scheduleAPI,
 } from '../utils/api'
 import { clearStoredAuth, readStoredAuth, writeStoredAuth } from '../lib/storage'
+import { HealthcareChatAssistCard, openHealthcareChatbot } from '../components/HealthcareChatbot'
 import PatientIcon from './components/PatientIcon'
 import PatientSidebar from './components/PatientSidebar'
-import PatientSupportChatbot, { PatientSupportChatPrompt } from './components/PatientSupportChatbot'
 import PatientTopbar from './components/PatientTopbar'
 import { notificationFeed } from './data/patientPageData'
 import PatientAppointmentsPage from './pages/PatientAppointmentsPage'
@@ -239,7 +239,6 @@ export default function PatientPage() {
     currentPassword: '',
     newPassword: '',
   })
-  const [patientSupportChatOpen, setPatientSupportChatOpen] = useState(false)
   const [sessions, setSessions] = useState([])
   const [loginHistory, setLoginHistory] = useState([])
   const [notificationItems, setNotificationItems] = useState(() => notificationFeed)
@@ -350,7 +349,9 @@ export default function PatientPage() {
   }
 
   const openPatientSupportChat = () => {
-    setPatientSupportChatOpen(true)
+    openHealthcareChatbot({
+      context: activeSection === 'billing' ? 'billing' : activeSection === 'book-appointment' ? 'booking' : 'portal',
+    })
   }
 
   useEffect(() => {
@@ -836,6 +837,7 @@ export default function PatientPage() {
           error={patientDataError}
           loading={patientDataLoading}
           onBackToDashboard={() => setActiveSection('dashboard')}
+          onOpenSupportChat={openPatientSupportChat}
           policies={patientInsurancePolicies}
         />
       )
@@ -998,9 +1000,15 @@ export default function PatientPage() {
         <main className="patient-content">
           {renderContent()}
           {sharedSupportChatSections.has(activeSection) ? (
-            <PatientSupportChatPrompt
-              label={sharedSupportChatLabels[activeSection] || 'mục này'}
-              onOpen={openPatientSupportChat}
+            <HealthcareChatAssistCard
+              context={activeSection === 'book-appointment' ? 'booking' : 'portal'}
+              title={`Lễ tân ảo hỗ trợ ${sharedSupportChatLabels[activeSection] || 'mục này'}`}
+              description="Hỗ trợ hành chính, hướng dẫn hồ sơ, lịch hẹn và điều phối đúng bộ phận."
+              prompts={
+                activeSection === 'book-appointment'
+                  ? ['Chọn chuyên khoa', 'Tìm bác sĩ', 'Xem lịch trống', 'Chuẩn bị trước khám']
+                  : ['Xem lịch hẹn', 'Đổi hoặc hủy lịch', 'Giấy tờ cần mang', 'Gặp nhân viên']
+              }
             />
           ) : null}
         </main>
@@ -1047,10 +1055,6 @@ export default function PatientPage() {
           </button>
         </section>
       </div>
-      <PatientSupportChatbot
-        open={patientSupportChatOpen}
-        onClose={() => setPatientSupportChatOpen(false)}
-      />
     </div>
   )
 }

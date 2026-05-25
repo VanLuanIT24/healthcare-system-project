@@ -35,7 +35,7 @@ function ClinicalOpsPlaceholderPage({ title, description }) {
         <div>
           <span>Cận lâm sàng liên quan</span>
           <h1>{title}</h1>
-          <p>{description || 'Màn hình này đang dùng route workspace Clinical Operations để giữ sidebar thống nhất cho super admin.'}</p>
+          <p>{description || 'Màn hình này đang dùng route không gian vận hành cận lâm sàng để giữ sidebar thống nhất cho super admin.'}</p>
         </div>
       </section>
     </section>

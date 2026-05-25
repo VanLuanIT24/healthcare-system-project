@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CalendarPlus, Globe2, HeartPulse, Mail, MapPin, PhoneCall } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
 import { readStoredSiteLanguage, writeStoredSiteLanguage } from '../lib/storage';
 export function useSiteLanguage(defaultLanguage = 'vi') {
   const [language, setLanguageState] = useState(() => readStoredSiteLanguage() || defaultLanguage);
@@ -96,16 +97,7 @@ export function MarketingHeader({ labels, language, setLanguage, profile, onLogo
       <header className="home-header">
         <div className="home-header__brand">
           <Link className="home-header__brandmark home-header__brandmark--link" to="/home">
-            <span className="home-header__logo-icon" aria-hidden="true">
-              <span className="home-header__logo-orbit home-header__logo-orbit--outer" />
-              <span className="home-header__logo-orbit home-header__logo-orbit--inner" />
-              <span className="home-header__logo-core" />
-              <span className="home-header__logo-plus home-header__logo-plus--vertical" />
-              <span className="home-header__logo-plus home-header__logo-plus--horizontal" />
-              <span className="home-header__logo-spark home-header__logo-spark--one" />
-              <span className="home-header__logo-spark home-header__logo-spark--two" />
-            </span>
-            <span className="home-header__logo">Healthcare Plus+</span>
+            <AppLogo variant="horizontal" />
           </Link>
           <span className="home-header__status">{labels.status}</span>
         </div>
@@ -144,7 +136,8 @@ export function MarketingFooter({ labels, footerLead, visitDetails, directionsLa
       {/* Main Footer Content */}
       <div className="home-footer__main">
         <div className="home-footer__brand">
-          <span className="home-footer__eyebrow">Healthcare Plus+</span>
+          <AppLogo variant="horizontal" />
+          <span className="home-footer__eyebrow">{APP_BRAND_NAME}</span>
           <strong>{labels.footerBrandTitle}</strong>
           <p>{footerLead}</p>
           <span className="home-footer__note">{labels.footerNote}</span>

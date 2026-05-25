@@ -14694,7 +14694,7 @@
 }
 
 .doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu.is-open {
-  max-height: 180px;
+  max-height: 260px;
 }
 
 .doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link {
@@ -38037,7 +38037,7 @@ button.doctor-history-kpi {
 }
 
 .doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu.is-open {
-  max-height: 180px;
+  max-height: 260px;
 }
 
 .doctor-shell.is-dashboard-variant .doctor-reference-sidebar__submenu-link {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AppLogo } from '../../app/AppLogo'
 import { sidebarSections } from '../data/patientPageData'
 import PatientIcon from './PatientIcon'
 
@@ -107,7 +108,9 @@ export default function PatientTopbar({
             {topbarTitle}
           </span>
         ) : null}
-        <span className="patient-topbar-brand patient-topbar-brand-mobile">HealthCare</span>
+        <span className="patient-topbar-brand patient-topbar-brand-mobile">
+          <AppLogo variant="mark" alt="Bộ Y tế" />
+        </span>
       </div>
 
       <div className="patient-topbar-actions">

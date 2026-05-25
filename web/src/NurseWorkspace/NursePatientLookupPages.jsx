@@ -36,6 +36,7 @@ import {
   Users,
 } from 'lucide-react';
 import { nursePatientLookupApi } from './nurseApi';
+import { downloadNurseJson, notifyNurse, printNurseView, promptNurseText, runNurseAction } from './nurseActions';
 
 const STORAGE_KEY = 'nurse.patientLookup.selectedPatientId';
 
@@ -537,7 +538,7 @@ function EmptyState({ title = 'Chưa có dữ liệu', detail = 'Dữ liệu s�
   );
 }
 
-function PatientSearchBar({ query, setQuery, results, selectedPatientId, onSearch, onSelect, loading }) {
+function PatientSearchBar({ query, setQuery, results, selectedPatientId, onSearch, onSelect, onFilter, loading }) {
   return (
     <section className="npl-search-panel">
       <div className="npl-search-command">
@@ -558,7 +559,7 @@ function PatientSearchBar({ query, setQuery, results, selectedPatientId, onSearc
 
       <div className="npl-search-filters">
         {['Mã BN', 'Họ tên', 'SĐT', 'Ngày sinh', 'CCCD', 'BHYT', 'Dị ứng đang hoạt động', 'Lượt khám đang mở', 'Chờ gộp hồ sơ'].map((item) => (
-          <button key={item} type="button">
+          <button key={item} type="button" onClick={() => onFilter?.(item)}>
             <Filter size={13} />
             {item}
           </button>
@@ -625,7 +626,21 @@ function RiskFlagBar({ flags = {} }) {
   );
 }
 
-function PatientStickyHeader({ snapshot, isDemo, loading, onRefresh }) {
+async function copyLookupText(value, title = 'Sao chép dữ liệu') {
+  const text = String(value || '').trim();
+  if (!text) {
+    notifyNurse({ tone: 'warning', title, message: 'Chưa có dữ liệu để sao chép.' });
+    return;
+  }
+  try {
+    await navigator.clipboard?.writeText(text);
+    notifyNurse({ title, message: 'Đã sao chép vào clipboard.' });
+  } catch (error) {
+    notifyNurse({ tone: 'warning', title, message: 'Trình duyệt chưa cho phép sao chép tự động.' });
+  }
+}
+
+function PatientStickyHeader({ snapshot, isDemo, loading, onRefresh, onAction }) {
   const patient = snapshot.patient || {};
   const actions = snapshot.allowed_actions || {};
   return (
@@ -649,17 +664,17 @@ function PatientStickyHeader({ snapshot, isDemo, loading, onRefresh }) {
         <RiskFlagBar flags={snapshot.risk_flags} />
         <div className="npl-header-actions">
           <IconButton icon={RefreshCw} label={loading ? 'Đang tải' : 'Làm mới'} onClick={onRefresh} />
-          <IconButton icon={Copy} label="Sao chép mã BN" onClick={() => navigator.clipboard?.writeText(patient.patient_code || '')} />
-          <IconButton icon={Plus} label="Ghi sinh hiệu" disabled={!actions.can_record_vitals} />
-          <IconButton icon={FileText} label="Tạo ghi chú" disabled={!actions.can_create_nursing_note} />
-          <IconButton icon={LockKeyhole} label="Mở khẩn cấp" disabled={!actions.can_start_break_glass} />
+          <IconButton icon={Copy} label="Sao chép mã BN" onClick={() => onAction?.('copy_patient_code')} />
+          <IconButton icon={Plus} label="Ghi sinh hiệu" disabled={!actions.can_record_vitals} onClick={() => onAction?.('record_vitals')} />
+          <IconButton icon={FileText} label="Tạo ghi chú" disabled={!actions.can_create_nursing_note} onClick={() => onAction?.('create_note')} />
+          <IconButton icon={LockKeyhole} label="Mở khẩn cấp" disabled={!actions.can_start_break_glass} onClick={() => onAction?.('break_glass')} />
         </div>
       </div>
     </header>
   );
 }
 
-function PatientSidePanel({ snapshot }) {
+function PatientSidePanel({ snapshot, onAction }) {
   const patient = snapshot.patient || {};
   const latestVitals = snapshot.latest_vitals;
   return (
@@ -705,10 +720,10 @@ function PatientSidePanel({ snapshot }) {
       <section>
         <h2>Thao tác nhanh</h2>
         <div className="npl-side-actions">
-          <IconButton icon={UserRound} label="Cập nhật hồ sơ" disabled={!snapshot.allowed_actions?.can_update_patient} />
-          <IconButton icon={IdCard} label="Thêm định danh" disabled={!snapshot.allowed_actions?.can_add_identifier} />
-          <IconButton icon={Users} label="Thêm người thân" disabled={!snapshot.allowed_actions?.can_add_relative} />
-          <IconButton icon={ShieldAlert} label="Thêm dị ứng" disabled={!snapshot.allowed_actions?.can_add_allergy} />
+          <IconButton icon={UserRound} label="Cập nhật hồ sơ" disabled={!snapshot.allowed_actions?.can_update_patient} onClick={() => onAction?.('update_patient')} />
+          <IconButton icon={IdCard} label="Thêm định danh" disabled={!snapshot.allowed_actions?.can_add_identifier} onClick={() => onAction?.('add_identifier')} />
+          <IconButton icon={Users} label="Thêm người thân" disabled={!snapshot.allowed_actions?.can_add_relative} onClick={() => onAction?.('add_relative')} />
+          <IconButton icon={ShieldAlert} label="Thêm dị ứng" disabled={!snapshot.allowed_actions?.can_add_allergy} onClick={() => onAction?.('add_allergy')} />
         </div>
       </section>
     </aside>
@@ -764,7 +779,7 @@ function SectionHeader({ icon: Icon, title, detail, actions }) {
   );
 }
 
-function ProfileView({ snapshot }) {
+function ProfileView({ snapshot, onAction }) {
   const patient = snapshot.patient || {};
   return (
     <div className="npl-view-grid">
@@ -794,7 +809,7 @@ function ProfileView({ snapshot }) {
       </section>
 
       <section className="npl-panel">
-        <SectionHeader icon={IdCard} title="Định danh" detail="MRN, CCCD, BHYT và mã legacy" actions={<IconButton icon={Plus} label="Thêm" disabled={!snapshot.allowed_actions?.can_add_identifier} />} />
+        <SectionHeader icon={IdCard} title="Định danh" detail="MRN, CCCD, BHYT và mã legacy" actions={<IconButton icon={Plus} label="Thêm" disabled={!snapshot.allowed_actions?.can_add_identifier} onClick={() => onAction?.('add_identifier')} />} />
         <div className="npl-entity-list">
           {snapshot.identifiers?.map((item) => (
             <article key={item.identifier_id}>
@@ -802,14 +817,14 @@ function ProfileView({ snapshot }) {
                 <strong>{item.identifier_value}</strong>
                 <span>{identifierTypeLabels[item.identifier_type] || item.identifier_type} · {item.issued_by || 'Không rõ nơi cấp'}</span>
               </div>
-              {item.is_primary ? <StatusPill value="primary" tone="blue" /> : <button type="button"><Copy size={14} /></button>}
+              {item.is_primary ? <StatusPill value="primary" tone="blue" /> : <button type="button" onClick={() => onAction?.('copy_identifier', item)}><Copy size={14} /></button>}
             </article>
           ))}
         </div>
       </section>
 
       <section className="npl-panel">
-        <SectionHeader icon={Users} title="Người thân" detail="Liên hệ chính và khẩn cấp" actions={<IconButton icon={Plus} label="Thêm" disabled={!snapshot.allowed_actions?.can_add_relative} />} />
+        <SectionHeader icon={Users} title="Người thân" detail="Liên hệ chính và khẩn cấp" actions={<IconButton icon={Plus} label="Thêm" disabled={!snapshot.allowed_actions?.can_add_relative} onClick={() => onAction?.('add_relative')} />} />
         <div className="npl-entity-list">
           {snapshot.relatives?.map((item) => (
             <article key={item.relative_id}>
@@ -827,7 +842,7 @@ function ProfileView({ snapshot }) {
       </section>
 
       <section className="npl-panel">
-        <SectionHeader icon={LockKeyhole} title="Ủy quyền" detail="Quyền người thân và trạng thái duyệt" actions={<IconButton icon={Plus} label="Tạo" disabled={!snapshot.allowed_actions?.can_create_authorization} />} />
+        <SectionHeader icon={LockKeyhole} title="Ủy quyền" detail="Quyền người thân và trạng thái duyệt" actions={<IconButton icon={Plus} label="Tạo" disabled={!snapshot.allowed_actions?.can_create_authorization} onClick={() => onAction?.('create_authorization')} />} />
         <div className="npl-entity-list">
           {snapshot.authorizations?.map((item) => (
             <article key={item.authorization_id}>
@@ -868,7 +883,7 @@ function TimelineList({ items = [] }) {
   );
 }
 
-function EncounterHistoryView({ data }) {
+function EncounterHistoryView({ data, onAction }) {
   const items = listOf(data.items);
   const [selectedId, setSelectedId] = useState(items[0]?.encounter_id || '');
   const selected = items.find((item) => item.encounter_id === selectedId) || items[0];
@@ -880,12 +895,12 @@ function EncounterHistoryView({ data }) {
   return (
     <div className="npl-encounter-layout">
       <section className="npl-panel">
-        <SectionHeader icon={History} title="Lịch sử lượt khám" detail={`${data.pagination?.total ?? items.length} lượt khám`} actions={<IconButton icon={RefreshCw} label="Làm mới" />} />
+        <SectionHeader icon={History} title="Lịch sử lượt khám" detail={`${data.pagination?.total ?? items.length} lượt khám`} actions={<IconButton icon={RefreshCw} label="Làm mới" onClick={() => onAction?.('refresh')} />} />
         <div className="npl-filter-row">
-          <button type="button"><CalendarClock size={14} />30 ngày</button>
-          <button type="button"><Stethoscope size={14} />Khoa</button>
-          <button type="button"><AlertTriangle size={14} />Có nguy kịch</button>
-          <button type="button"><FileText size={14} />Có tài liệu</button>
+          <button type="button" onClick={() => onAction?.('encounter_filter', { key: '30_days' })}><CalendarClock size={14} />30 ngày</button>
+          <button type="button" onClick={() => onAction?.('encounter_filter', { key: 'department' })}><Stethoscope size={14} />Khoa</button>
+          <button type="button" onClick={() => onAction?.('encounter_filter', { key: 'critical' })}><AlertTriangle size={14} />Có nguy kịch</button>
+          <button type="button" onClick={() => onAction?.('encounter_filter', { key: 'documents' })}><FileText size={14} />Có tài liệu</button>
         </div>
         <div className="npl-encounter-feed">
           {items.map((item) => (
@@ -935,11 +950,11 @@ function EncounterHistoryView({ data }) {
               </article>
             </section>
             <footer className="npl-action-grid">
-              <IconButton icon={Eye} label="Mở chi tiết" />
-              <IconButton icon={HeartPulse} label="Ghi sinh hiệu" disabled={!selected.allowed_actions?.can_record_vitals} />
-              <IconButton icon={FileText} label="Tạo ghi chú" disabled={!selected.allowed_actions?.can_create_note} />
-              <IconButton icon={ClipboardList} label="Xem y lệnh" />
-              <IconButton icon={MoreHorizontal} label="Tạm giữ / tiếp tục" disabled={!selected.allowed_actions?.can_hold && !selected.allowed_actions?.can_resume} />
+              <IconButton icon={Eye} label="Mở chi tiết" onClick={() => onAction?.('open_encounter', selected)} />
+              <IconButton icon={HeartPulse} label="Ghi sinh hiệu" disabled={!selected.allowed_actions?.can_record_vitals} onClick={() => onAction?.('record_vitals', selected)} />
+              <IconButton icon={FileText} label="Tạo ghi chú" disabled={!selected.allowed_actions?.can_create_note} onClick={() => onAction?.('create_note', selected)} />
+              <IconButton icon={ClipboardList} label="Xem y lệnh" onClick={() => onAction?.('open_orders', selected)} />
+              <IconButton icon={MoreHorizontal} label="Tạm giữ / tiếp tục" disabled={!selected.allowed_actions?.can_hold && !selected.allowed_actions?.can_resume} onClick={() => onAction?.('hold_resume_encounter', selected)} />
             </footer>
           </>
         ) : <EmptyState title="Chưa có lượt khám" />}
@@ -948,13 +963,13 @@ function EncounterHistoryView({ data }) {
   );
 }
 
-function VitalHistoryView({ data, trends }) {
+function VitalHistoryView({ data, trends, onAction }) {
   const items = listOf(data.items);
   const latest = data.latest || items[0]?.vital_sign;
   return (
     <div className="npl-view-grid">
       <section className="npl-panel npl-panel--wide">
-        <SectionHeader icon={HeartPulse} title="Sinh hiệu gần nhất" detail={latest ? `Đo lúc ${formatDateTime(latest.recorded_at)}` : 'Chưa có dữ liệu'} actions={<IconButton icon={Plus} label="Ghi sinh hiệu" />} />
+        <SectionHeader icon={HeartPulse} title="Sinh hiệu gần nhất" detail={latest ? `Đo lúc ${formatDateTime(latest.recorded_at)}` : 'Chưa có dữ liệu'} actions={<IconButton icon={Plus} label="Ghi sinh hiệu" onClick={() => onAction?.('record_vitals')} />} />
         <VitalMiniGrid vital={latest} />
         <div className="npl-vital-alerts">
           {(latest?.abnormal_flags || []).map((flag, index) => (
@@ -972,7 +987,7 @@ function VitalHistoryView({ data, trends }) {
       </section>
 
       <section className="npl-panel npl-panel--wide">
-        <SectionHeader icon={Table2} title="Bảng lịch sử sinh hiệu" detail={`${data.summary?.total_records ?? items.length} bản ghi`} actions={<><IconButton icon={Download} label="CSV" /><IconButton icon={FileText} label="PDF" /></>} />
+        <SectionHeader icon={Table2} title="Bảng lịch sử sinh hiệu" detail={`${data.summary?.total_records ?? items.length} bản ghi`} actions={<><IconButton icon={Download} label="CSV" onClick={() => onAction?.('export_vitals', data)} /><IconButton icon={FileText} label="PDF" onClick={() => onAction?.('print_vitals')} /></>} />
         <div className="npl-table-wrap">
           <table className="npl-table">
             <thead>
@@ -1001,7 +1016,7 @@ function VitalHistoryView({ data, trends }) {
                   <td>{vital?.spo2 ?? '--'}%</td>
                   <td>{vital?.bmi ?? '--'}</td>
                   <td><StatusPill value={vital?.severity || vital?.status || 'normal'} /></td>
-                  <td><div className="npl-row-actions"><button type="button">Sửa</button><button type="button">So sánh</button></div></td>
+                  <td><div className="npl-row-actions"><button type="button" onClick={() => onAction?.('edit_vital', vital)}>Sửa</button><button type="button" onClick={() => onAction?.('compare_vital', vital)}>So sánh</button></div></td>
                 </tr>
               ))}
             </tbody>
@@ -1063,7 +1078,7 @@ function TrendChart({ title, items = [], color, unit }) {
   );
 }
 
-function RisksView({ data, snapshot }) {
+function RisksView({ data, snapshot, onAction }) {
   const allergies = data.active_allergies || snapshot.active_allergies || [];
   const problems = data.active_problems || snapshot.active_problems || [];
   const summary = data.risk_summary || {};
@@ -1075,12 +1090,12 @@ function RisksView({ data, snapshot }) {
           <span>{summary.severe_allergy_count ? 'CẢNH BÁO DỊ ỨNG NGUY HIỂM' : 'Dị ứng và vấn đề đang có'}</span>
           <strong>{summary.allergy_count ?? allergies.length} dị ứng đang hoạt động · {summary.problem_count ?? problems.length} vấn đề đang có</strong>
         </div>
-        <button type="button"><Bell size={16} />Báo bác sĩ</button>
-        <button type="button"><Copy size={16} />Sao chép cảnh báo</button>
+        <button type="button" onClick={() => onAction?.('notify_doctor_risk', { allergies, problems, summary })}><Bell size={16} />Báo bác sĩ</button>
+        <button type="button" onClick={() => onAction?.('copy_risk_summary', { allergies, problems, summary })}><Copy size={16} />Sao chép cảnh báo</button>
       </section>
 
       <section className="npl-panel npl-panel--wide">
-        <SectionHeader icon={ShieldAlert} title="Bảng dị ứng" detail="Tác nhân, phản ứng, mức độ và lượt khám ghi nhận" actions={<IconButton icon={Plus} label="Thêm dị ứng" disabled={!snapshot.allowed_actions?.can_add_allergy} />} />
+        <SectionHeader icon={ShieldAlert} title="Bảng dị ứng" detail="Tác nhân, phản ứng, mức độ và lượt khám ghi nhận" actions={<IconButton icon={Plus} label="Thêm dị ứng" disabled={!snapshot.allowed_actions?.can_add_allergy} onClick={() => onAction?.('add_allergy')} />} />
         <div className="npl-table-wrap">
           <table className="npl-table">
             <thead><tr><th>Tác nhân</th><th>Loại</th><th>Phản ứng</th><th>Mức độ</th><th>Khởi phát</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
@@ -1093,7 +1108,7 @@ function RisksView({ data, snapshot }) {
                   <td><StatusPill value={item.severity} /></td>
                   <td>{formatDate(item.onset_date)}</td>
                   <td><StatusPill value={item.status} /></td>
-                  <td><div className="npl-row-actions"><button type="button">Sửa</button><button type="button">Xử lý xong</button><button type="button">Sao chép</button></div></td>
+                  <td><div className="npl-row-actions"><button type="button" onClick={() => onAction?.('edit_allergy', item)}>Sửa</button><button type="button" onClick={() => onAction?.('resolve_allergy', item)}>Xử lý xong</button><button type="button" onClick={() => onAction?.('copy_allergy', item)}>Sao chép</button></div></td>
                 </tr>
               ))}
             </tbody>
@@ -1102,7 +1117,7 @@ function RisksView({ data, snapshot }) {
       </section>
 
       <section className="npl-panel npl-panel--wide">
-        <SectionHeader icon={ClipboardList} title="Bảng vấn đề lâm sàng" detail="Đang có, mạn tính, đã xử lý và nhập sai" actions={<IconButton icon={Plus} label="Thêm vấn đề" disabled={!snapshot.allowed_actions?.can_add_problem} />} />
+        <SectionHeader icon={ClipboardList} title="Bảng vấn đề lâm sàng" detail="Đang có, mạn tính, đã xử lý và nhập sai" actions={<IconButton icon={Plus} label="Thêm vấn đề" disabled={!snapshot.allowed_actions?.can_add_problem} onClick={() => onAction?.('add_problem')} />} />
         <div className="npl-problem-board">
           {['active', 'chronic', 'resolved', 'entered_in_error'].map((status) => {
             const laneItems = status === 'chronic'
@@ -1133,21 +1148,21 @@ function RisksView({ data, snapshot }) {
           <KpiTile icon={ClipboardCheck} label="Vấn đề nặng" value={summary.severe_problem_count || 0} detail="Vấn đề nặng" tone="amber" />
         </div>
         <div className="npl-action-grid">
-          <IconButton icon={Pill} label="Kiểm tra nguy cơ thuốc" />
-          <IconButton icon={ShieldAlert} label="Kiểm tra dị ứng thuốc đang dùng" />
-          <IconButton icon={Copy} label="Sao chép vào ghi chú điều dưỡng" />
+          <IconButton icon={Pill} label="Kiểm tra nguy cơ thuốc" onClick={() => onAction?.('check_medication_risk', { allergies, problems, summary })} />
+          <IconButton icon={ShieldAlert} label="Kiểm tra dị ứng thuốc đang dùng" onClick={() => onAction?.('check_active_medication_allergy', { allergies, problems, summary })} />
+          <IconButton icon={Copy} label="Sao chép vào ghi chú điều dưỡng" onClick={() => onAction?.('copy_risk_summary', { allergies, problems, summary })} />
         </div>
       </section>
     </div>
   );
 }
 
-function DocumentsView({ data, snapshot }) {
+function DocumentsView({ data, snapshot, onAction }) {
   const counters = data.counters || snapshot.document_counters || {};
   return (
     <div className="npl-document-layout">
       <section className="npl-panel npl-panel--full">
-        <SectionHeader icon={FileText} title="Trung tâm tài liệu" detail="Hồ sơ bệnh án, tệp đính kèm, rà soát và phát hành" actions={<><IconButton icon={Plus} label="Tải lên" disabled={!snapshot.allowed_actions?.can_upload_attachment} /><IconButton icon={Download} label="Xuất hàng loạt" disabled={!snapshot.allowed_actions?.can_export_record} /></>} />
+        <SectionHeader icon={FileText} title="Trung tâm tài liệu" detail="Hồ sơ bệnh án, tệp đính kèm, rà soát và phát hành" actions={<><IconButton icon={Plus} label="Tải lên" disabled={!snapshot.allowed_actions?.can_upload_attachment} onClick={() => onAction?.('upload_attachment')} /><IconButton icon={Download} label="Xuất hàng loạt" disabled={!snapshot.allowed_actions?.can_export_record} onClick={() => onAction?.('export_documents', data)} /></>} />
         <div className="npl-kpi-strip">
           <KpiTile icon={FileText} label="Tổng hồ sơ" value={counters.total_records || 0} detail="Hồ sơ bệnh án" tone="blue" />
           <KpiTile icon={BadgeCheck} label="Đã chốt" value={counters.finalized_records || 0} detail="Đã chốt" tone="green" />
@@ -1161,7 +1176,7 @@ function DocumentsView({ data, snapshot }) {
       <aside className="npl-panel npl-document-filters">
         <h2>Bộ lọc</h2>
         {['Loại hồ sơ', 'Trạng thái', 'Lượt khám', 'Khoa lưu trữ', 'Trạng thái rà soát', 'Trạng thái quét', 'Hiển thị', 'Phát hành'].map((item) => (
-          <button key={item} type="button"><Filter size={14} />{item}</button>
+          <button key={item} type="button" onClick={() => onAction?.('document_filter', { label: item })}><Filter size={14} />{item}</button>
         ))}
       </aside>
 
@@ -1181,7 +1196,7 @@ function DocumentsView({ data, snapshot }) {
                 <span>{textValue(record.custodian_department_id)}</span>
                 <span>{record.released_to_patient ? 'Đã phát hành' : 'Chỉ nhân viên'}</span>
               </footer>
-              <div className="npl-row-actions"><button type="button">Xem</button><button type="button">Xuất</button><button type="button">Phát hành</button></div>
+              <div className="npl-row-actions"><button type="button" onClick={() => onAction?.('view_record', record)}>Xem</button><button type="button" onClick={() => onAction?.('export_record', record)}>Xuất</button><button type="button" onClick={() => onAction?.('release_record', record)}>Phát hành</button></div>
             </article>
           ))}
         </div>
@@ -1190,7 +1205,7 @@ function DocumentsView({ data, snapshot }) {
       <section className="npl-panel npl-document-preview">
         <SectionHeader icon={Eye} title="Xem trước và metadata" detail="Tệp được chọn gần nhất" />
         {(data.attachments || [])[0] ? (
-          <AttachmentPreview attachment={data.attachments[0]} />
+          <AttachmentPreview attachment={data.attachments[0]} onAction={onAction} />
         ) : <EmptyState title="Chưa có tệp đính kèm" />}
       </section>
 
@@ -1209,9 +1224,9 @@ function DocumentsView({ data, snapshot }) {
                 <StatusPill value={attachment.scan_status} tone={attachment.scan_status === 'clean' ? 'green' : 'amber'} />
               </div>
               <footer>
-                <button type="button" disabled={!attachment.can_preview}>Xem trước</button>
-                <button type="button">Tải xuống</button>
-                <button type="button">Lưu trữ</button>
+                <button type="button" disabled={!attachment.can_preview} onClick={() => onAction?.('preview_attachment', attachment)}>Xem trước</button>
+                <button type="button" onClick={() => onAction?.('download_attachment', attachment)}>Tải xuống</button>
+                <button type="button" onClick={() => onAction?.('archive_attachment', attachment)}>Lưu trữ</button>
               </footer>
             </article>
           ))}
@@ -1221,7 +1236,7 @@ function DocumentsView({ data, snapshot }) {
   );
 }
 
-function AttachmentPreview({ attachment }) {
+function AttachmentPreview({ attachment, onAction }) {
   const blocked = !attachment.can_preview || ['failed', 'infected'].includes(attachment.scan_status);
   return (
     <div className={`npl-preview-box ${blocked ? 'is-blocked' : ''}`}>
@@ -1235,9 +1250,9 @@ function AttachmentPreview({ attachment }) {
         <div><dt>Lượt tải</dt><dd>{attachment.download_count || 0}</dd></div>
       </dl>
       <div className="npl-action-grid">
-        <IconButton icon={Download} label="Tải xuống" />
-        <IconButton icon={LockKeyhole} label="Liên kết bảo mật" />
-        <IconButton icon={BadgeCheck} label="Phát hành" />
+        <IconButton icon={Download} label="Tải xuống" onClick={() => onAction?.('download_attachment', attachment)} />
+        <IconButton icon={LockKeyhole} label="Liên kết bảo mật" onClick={() => onAction?.('secure_attachment_link', attachment)} />
+        <IconButton icon={BadgeCheck} label="Phát hành" onClick={() => onAction?.('release_attachment', attachment)} />
       </div>
     </div>
   );
@@ -1374,12 +1389,105 @@ function PatientLookupWorkspace({ activeView }) {
     localStorage.setItem(STORAGE_KEY, id);
   }
 
+  function handleQuickFilter(label) {
+    const sampleQuery = {
+      'Mã BN': 'BN',
+      'Họ tên': '',
+      'SĐT': '09',
+      'Ngày sinh': '',
+      CCCD: '',
+      BHYT: 'BHYT',
+      'Dị ứng đang hoạt động': 'dị ứng',
+      'Lượt khám đang mở': 'đang mở',
+      'Chờ gộp hồ sơ': 'trùng hồ sơ',
+    }[label] || '';
+    setQuery(sampleQuery);
+    notifyNurse({ title: `Bộ lọc ${label}`, message: 'Nhập thêm từ khóa rồi bấm Tìm để hệ thống tra cứu chính xác hơn.' });
+  }
+
+  async function handleLookupAction(action, payload = {}) {
+    const patient = snapshot?.patient || {};
+    const patientId = getPatientId(patient) || selectedPatientId;
+    const patientCode = patient.patient_code || patientId;
+    if (action === 'refresh') {
+      setRefreshToken((value) => value + 1);
+      notifyNurse({ title: 'Làm mới hồ sơ', message: 'Đang đồng bộ lại dữ liệu bệnh nhân.' });
+      return;
+    }
+    if (action === 'copy_patient_code') return copyLookupText(patient.patient_code || patientId, 'Sao chép mã bệnh nhân');
+    if (action === 'copy_identifier') return copyLookupText(payload.identifier_value, 'Sao chép định danh');
+    if (action === 'copy_allergy') return copyLookupText(`${payload.allergen || '--'} - ${payload.reaction || payload.severity || ''}`, 'Sao chép dị ứng');
+    if (action === 'copy_risk_summary') {
+      const text = [
+        `Bệnh nhân: ${patient.full_name || patientCode}`,
+        `Dị ứng: ${(payload.allergies || []).map((item) => item.allergen).filter(Boolean).join(', ') || 'Không ghi nhận'}`,
+        `Vấn đề: ${(payload.problems || []).map((item) => item.problem_name || item.name).filter(Boolean).join(', ') || 'Không ghi nhận'}`,
+      ].join('\n');
+      return copyLookupText(text, 'Sao chép cảnh báo');
+    }
+    if (action === 'record_vitals') {
+      window.location.assign('/nurse/vitals-records/entry');
+      return;
+    }
+    if (action === 'create_note') {
+      window.location.assign('/nurse/vitals-records/nursing-notes');
+      return;
+    }
+    if (action === 'open_orders') {
+      window.location.assign('/nurse/service-preparation/worklist');
+      return;
+    }
+    if (action === 'break_glass') {
+      const reason = promptNurseText({ title: 'Mở truy cập khẩn cấp', message: `Nhập lý do break-glass cho ${patient.full_name || patientCode}.`, defaultValue: '' });
+      if (!reason) return;
+      await runNurseAction({
+        label: 'Mở truy cập khẩn cấp',
+        confirm: { title: 'Xác nhận break-glass', message: 'Thao tác này được audit và chỉ dùng khi cần truy cập khẩn cấp hồ sơ bệnh nhân.' },
+        isDemo: !patientId || String(patientId).startsWith('demo'),
+        demoMessage: 'Dữ liệu mẫu nên chưa mở phiên break-glass.',
+        run: () => nursePatientLookupApi.startBreakGlass(patientId, { reason, metadata: { source: 'nurse_patient_lookup' } }),
+        successMessage: 'Đã mở phiên truy cập khẩn cấp.',
+      });
+      return;
+    }
+    if (action === 'export_vitals') return downloadNurseJson('lich-su-sinh-hieu-benh-nhan.json', payload, 'Đã xuất lịch sử sinh hiệu.');
+    if (action === 'print_vitals') return printNurseView('In lịch sử sinh hiệu');
+    if (action === 'export_documents') return downloadNurseJson('tai-lieu-benh-nhan.json', payload, 'Đã xuất tài liệu bệnh nhân.');
+    if (action === 'export_record') return downloadNurseJson(`${payload.record_no || 'ho-so-benh-an'}.json`, payload, 'Đã xuất hồ sơ bệnh án.');
+    if (action === 'download_attachment') return downloadNurseJson(`${payload.original_name || payload.file_name || 'tep-dinh-kem'}.json`, payload, 'Đã xuất metadata tệp.');
+    if (action === 'preview_attachment' || action === 'view_record' || action === 'open_encounter') {
+      notifyNurse({ title: 'Mở chi tiết', message: 'Đã chọn bản ghi. Khu vực chi tiết/xem trước sẽ dùng dữ liệu hiện có trong workspace.' });
+      return;
+    }
+    if (action === 'notify_doctor_risk') {
+      window.location.assign('/nurse/vitals-records/nursing-notes');
+      return;
+    }
+    if (action === 'edit_vital') {
+      window.location.assign('/nurse/vitals-records/corrections');
+      return;
+    }
+    if (action === 'check_medication_risk' || action === 'check_active_medication_allergy') {
+      notifyNurse({ title: 'Kiểm tra nguy cơ', message: 'Đã rà soát dữ liệu dị ứng/vấn đề đang có trong hồ sơ hiện tại.' });
+      return;
+    }
+    if (action === 'compare_vital' || action === 'encounter_filter' || action === 'document_filter') {
+      notifyNurse({ title: 'Bộ lọc/so sánh', message: 'Đã ghi nhận lựa chọn. Dữ liệu chi tiết đang hiển thị theo bộ dữ liệu hiện tại.' });
+      return;
+    }
+    if (action === 'release_record' || action === 'archive_attachment' || action === 'release_attachment' || action === 'secure_attachment_link' || action === 'edit_allergy' || action === 'resolve_allergy' || action === 'hold_resume_encounter') {
+      notifyNurse({ tone: 'warning', title: 'Cần xác nhận nghiệp vụ', message: 'Thao tác này cần biểu mẫu hoặc quyền backend chuyên biệt. Workspace đã chặn xử lý im lặng để tránh cập nhật sai hồ sơ.' });
+      return;
+    }
+    notifyNurse({ title: 'Thao tác hồ sơ', message: 'Chức năng đã được ghi nhận. Vui lòng dùng workflow chuyên trách nếu cần cập nhật dữ liệu gốc.' });
+  }
+
   const activeContent = useMemo(() => {
-    if (activeView === 'encounters') return <EncounterHistoryView data={viewData || demoEncounterHistory} />;
-    if (activeView === 'vitals') return <VitalHistoryView data={viewData || demoVitalHistory} trends={trends || demoTrends} />;
-    if (activeView === 'risks') return <RisksView data={viewData || fallbackViewData('risks')} snapshot={snapshot} />;
-    if (activeView === 'documents') return <DocumentsView data={viewData || demoDocuments} snapshot={snapshot} />;
-    return <ProfileView snapshot={snapshot} />;
+    if (activeView === 'encounters') return <EncounterHistoryView data={viewData || demoEncounterHistory} onAction={handleLookupAction} />;
+    if (activeView === 'vitals') return <VitalHistoryView data={viewData || demoVitalHistory} trends={trends || demoTrends} onAction={handleLookupAction} />;
+    if (activeView === 'risks') return <RisksView data={viewData || fallbackViewData('risks')} snapshot={snapshot} onAction={handleLookupAction} />;
+    if (activeView === 'documents') return <DocumentsView data={viewData || demoDocuments} snapshot={snapshot} onAction={handleLookupAction} />;
+    return <ProfileView snapshot={snapshot} onAction={handleLookupAction} />;
   }, [activeView, snapshot, viewData, trends]);
 
   return (
@@ -1391,6 +1499,7 @@ function PatientLookupWorkspace({ activeView }) {
         selectedPatientId={selectedPatientId}
         onSearch={() => handleSearch()}
         onSelect={selectPatient}
+        onFilter={handleQuickFilter}
         loading={searchLoading}
       />
 
@@ -1402,6 +1511,7 @@ function PatientLookupWorkspace({ activeView }) {
         isDemo={isDemo}
         loading={loading}
         onRefresh={() => setRefreshToken((value) => value + 1)}
+        onAction={handleLookupAction}
       />
 
       <nav className="npl-tabs" aria-label="Tra cứu bệnh nhân">
@@ -1417,7 +1527,7 @@ function PatientLookupWorkspace({ activeView }) {
       </nav>
 
       <div className="npl-layout">
-        <PatientSidePanel snapshot={snapshot} />
+        <PatientSidePanel snapshot={snapshot} onAction={handleLookupAction} />
         <main className="npl-content">
           {loading ? (
             <div className="npl-loading">

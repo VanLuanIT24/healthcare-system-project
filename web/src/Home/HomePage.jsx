@@ -23,19 +23,6 @@ import { useNavigate } from 'react-router-dom';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { MarketingFooter, MarketingHeader, useSiteLanguage } from './marketingChrome';
 
-const TUDONG_CHATBOX_SCRIPT_ID = 'tudong-chatbox-sdk';
-const TUDONG_CHATBOX_TOKEN = 'mr4BT-vGdxOdZa4D7Q2dQ';
-
-function initializeTuDongChatbox() {
-  if (typeof window === 'undefined') return;
-  if (window.__healthcareTuDongChatbox) return;
-  if (typeof window.TuDongChat !== 'function') return;
-
-  const chatbox = new window.TuDongChat(TUDONG_CHATBOX_TOKEN);
-  chatbox.initial();
-  window.__healthcareTuDongChatbox = chatbox;
-}
-
 export function HomePage() {
   const navigate = useNavigate();
   const storedAuth = readStoredAuth();
@@ -56,29 +43,6 @@ export function HomePage() {
     care: 0,
   });
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    if (window.__healthcareTuDongChatbox) return undefined;
-
-    let script = document.getElementById(TUDONG_CHATBOX_SCRIPT_ID);
-    const handleLoad = () => initializeTuDongChatbox();
-
-    if (!script) {
-      script = document.createElement('script');
-      script.id = TUDONG_CHATBOX_SCRIPT_ID;
-      script.src = 'https://app.tudongchat.com/js/chatbox.js';
-      script.async = true;
-      document.body.appendChild(script);
-    }
-
-    script.addEventListener('load', handleLoad);
-    initializeTuDongChatbox();
-
-    return () => {
-      script.removeEventListener('load', handleLoad);
-    };
-  }, []);
 
   const copy = {
     en: {
@@ -276,10 +240,10 @@ export function HomePage() {
       book: 'Đặt lịch hẹn',
       logout: 'Đăng xuất',
       hello: 'Xin chào',
-      heroKicker: 'Viện Y khoa Healthcare Plus+',
+      heroKicker: 'Hệ thống y tế Bộ Y tế',
       heroTitle: 'Y tế thông minh, chăm sóc tận tâm',
       heroLead:
-        'Healthcare Plus+ kết nối đặt lịch, chẩn đoán, điều trị và theo dõi phục hồi trong một trải nghiệm y tế hiện đại, rõ ràng và luôn đặt người bệnh ở trung tâm.',
+        'Bộ Y tế kết nối đặt lịch, chẩn đoán, điều trị và theo dõi phục hồi trong một trải nghiệm y tế hiện đại, rõ ràng và luôn đặt người bệnh ở trung tâm.',
       heroBadge: 'Dịch vụ 24/7',
       heroPrimary: 'Đặt lịch khám ngay',
       heroSecondary: 'Xem giới thiệu',
@@ -301,7 +265,7 @@ export function HomePage() {
       departmentsTitle: 'Chăm sóc tiên phong trên nhiều chuyên ngành',
       learnMore: 'Xem thêm',
       excellenceKicker: 'Chuẩn mực điều trị',
-      excellenceTitle: 'Vì sao bệnh nhân tin tưởng Healthcare Plus+',
+      excellenceTitle: 'Vì sao bệnh nhân tin tưởng Bộ Y tế',
       excellenceLead:
         'Chúng tôi kết hợp không gian chuẩn phục hồi, lộ trình điều trị cá nhân hóa và đội ngũ chuyên gia liên ngành để tạo ra hành trình chăm sóc liền mạch.',
       satisfaction: 'Mức hài lòng của bệnh nhân',
@@ -315,7 +279,7 @@ export function HomePage() {
       doctorsKicker: 'Đội ngũ bác sĩ',
       doctorsTitle: 'Những chuyên gia đồng hành cùng quá trình hồi phục',
       philosophyKicker: 'Triết lý chữa lành',
-      philosophyTitle: 'Triết lý chăm sóc Healthcare Plus+',
+      philosophyTitle: 'Triết lý chăm sóc Bộ Y tế',
       philosophyP1:
         'Chữa lành không chỉ là một thủ thuật y khoa, mà là hành trình toàn diện được định hình bởi chính môi trường chăm sóc.',
       philosophyP2:
@@ -333,8 +297,8 @@ export function HomePage() {
         'Đội ngũ chuyên gia luôn sẵn sàng cho cả tư vấn trực tiếp và trực tuyến. Hãy bắt đầu hành trình chăm sóc sức khỏe của bạn ngay hôm nay.',
       ctaPrimary: 'Đặt lịch ngay',
       ctaSecondary: 'Tư vấn bác sĩ',
-      visitKicker: 'Đến với Healthcare Plus+',
-      visitTitle: 'Thăm trung tâm Healthcare Plus+',
+      visitKicker: 'Đến với Bộ Y tế',
+      visitTitle: 'Thăm trung tâm Bộ Y tế',
       visitLead:
         'Xem nhanh một địa điểm bệnh viện thực tế tại Đà Nẵng với bản đồ, thông tin liên hệ và hướng dẫn đường đi trực tiếp.',
       visitPoints: ['Bệnh viện tại Đà Nẵng', 'Liên hệ', 'Giờ hoạt động'],
@@ -614,7 +578,7 @@ export function HomePage() {
       footerAbout: 'About Us',
       footerPrivacy: 'Privacy Policy',
       footerTerms: 'Terms of Service',
-      footerCopyright: 'Healthcare Plus+. All rights reserved.',
+      footerCopyright: 'Ministry of Health. All rights reserved.',
     },
     vi: {
       footerBrandTitle: 'Đồng hành sức khỏe đáng tin cậy',
@@ -626,7 +590,7 @@ export function HomePage() {
       footerAbout: 'Về chúng tôi',
       footerPrivacy: 'Chính sách bảo mật',
       footerTerms: 'Điều khoản dịch vụ',
-      footerCopyright: 'Healthcare Plus+. Bảo lưu mọi quyền.',
+      footerCopyright: 'Bộ Y tế. Bảo lưu mọi quyền.',
     },
     ko: {
       footerBrandTitle: '신뢰할 수 있는 헬스 파트너',
@@ -638,7 +602,7 @@ export function HomePage() {
       footerAbout: '소개',
       footerPrivacy: '개인정보 처리방침',
       footerTerms: '서비스 약관',
-      footerCopyright: 'Healthcare Plus+. All rights reserved.',
+      footerCopyright: 'Ministry of Health. All rights reserved.',
     },
   };
   const visitMapQuery = '124 Hai Phong, Thach Thang, Hai Chau, Da Nang, Vietnam';
@@ -1080,7 +1044,7 @@ function PartnerIcon({ type }) {
           <h1>{t.heroTitle}</h1>
           <p className="home-hero__lead">{t.heroLead}</p>
 
-          <div className="home-hero__proofs" aria-label="Healthcare Plus highlights">
+          <div className="home-hero__proofs" aria-label="Điểm nổi bật Bộ Y tế">
             {heroProofs[language].map(([value, label]) => (
               <article key={label}>
                 <strong>{value}</strong>
@@ -1206,7 +1170,7 @@ function PartnerIcon({ type }) {
         </aside>
       </section>
 
-      <section className="home-trust-band" aria-label="Healthcare accreditation and trust signals">
+      <section className="home-trust-band" aria-label="Chứng nhận và tín hiệu tin cậy của Bộ Y tế">
         {trustBand.map((item, index) => {
           const TrustIcon = trustBandIcons[index % trustBandIcons.length];
           return (

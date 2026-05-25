@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
@@ -34,6 +35,7 @@ import {
   X,
 } from 'lucide-react';
 import { clinicalConfigAPI, getClinicalConfigError } from './clinicalConfigApi';
+import { downloadClinicalOpsJson, notifyClinicalOps, promptClinicalOpsText } from './clinicalOpsActions';
 import './clinicalConfig.css';
 
 const PAGE_CONFIG = {
@@ -160,6 +162,17 @@ const KPI_CARDS = [
   ['config_issues', 'Cấu hình lỗi', FileWarning, 'danger'],
 ];
 
+const CONFIG_ROUTES = {
+  labTests: '/clinical-ops/config/lab-tests',
+  specimenTypes: '/clinical-ops/config/specimen-types',
+  imagingModalities: '/clinical-ops/config/imaging-modalities',
+  imagingRoomsEquipment: '/clinical-ops/config/imaging-rooms-equipment',
+  procedures: '/clinical-ops/config/procedures',
+  procedureChecklists: '/clinical-ops/config/procedure-checklists',
+  slaAlerts: '/clinical-ops/config/sla-alerts',
+  reportTemplates: '/clinical-ops/config/result-report-templates',
+};
+
 function cx(...classes) {
   return classes.filter(Boolean).join(' ');
 }
@@ -250,7 +263,7 @@ function WarningStack({ warnings = [] }) {
   );
 }
 
-function PageHeader({ config, loading, onRefresh, onCreate }) {
+function PageHeader({ config, loading, onRefresh, onCreate, onImport, onValidate }) {
   const Icon = config.icon;
   return (
     <header className={cx('clinical-config-header', `is-${config.tone}`)}>
@@ -261,8 +274,8 @@ function PageHeader({ config, loading, onRefresh, onCreate }) {
       </div>
       <div className="clinical-config-header__actions">
         <button type="button" onClick={onCreate}><Settings2 size={16} strokeWidth={2.25} />Tạo mới</button>
-        <button type="button"><Import size={16} strokeWidth={2.25} />Import Excel</button>
-        <button type="button"><BadgeCheck size={16} strokeWidth={2.25} />Validate</button>
+        <button type="button" onClick={onImport}><Import size={16} strokeWidth={2.25} />Import Excel</button>
+        <button type="button" onClick={onValidate}><BadgeCheck size={16} strokeWidth={2.25} />Validate</button>
         <button type="button" className="primary" onClick={onRefresh}><RefreshCw className={loading ? 'is-spinning' : ''} size={16} strokeWidth={2.25} />Refresh</button>
       </div>
     </header>
@@ -373,6 +386,7 @@ function LandingKpis({ summary = {}, loading }) {
 }
 
 export function ClinicalConfigLandingPage() {
+  const navigate = useNavigate();
   const [state, setState] = useState({ loading: true, error: '', data: {} });
   const [refreshIndex, setRefreshIndex] = useState(0);
   useEffect(() => {
@@ -385,9 +399,29 @@ export function ClinicalConfigLandingPage() {
   }, [refreshIndex]);
 
   const data = state.data || {};
+  const quickActions = [
+    ['Tạo lab test', FlaskConical, 'labTests'],
+    ['Tạo loại mẫu', Microscope, 'specimenTypes'],
+    ['Tạo modality', ScanLine, 'imagingModalities'],
+    ['Tạo phòng CĐHA', MonitorUp, 'imagingRoomsEquipment'],
+    ['Tạo thủ thuật', Stethoscope, 'procedures'],
+    ['Tạo checklist', ClipboardCheck, 'procedureChecklists'],
+    ['Tạo SLA rule', Timer, 'slaAlerts'],
+    ['Tạo report template', FileText, 'reportTemplates'],
+  ];
   return (
     <main className="clinical-config-page">
-      <PageHeader config={{ title: 'Danh mục & cấu hình cận lâm sàng', eyebrow: 'Configuration Command Center', description: 'Trung tâm cấu hình catalog, checklist, SLA, phòng/thiết bị, report template và billing readiness.', icon: Settings2, tone: 'command' }} loading={state.loading} onRefresh={() => setRefreshIndex((value) => value + 1)} onCreate={() => {}} />
+      <PageHeader
+        config={{ title: 'Danh mục & cấu hình cận lâm sàng', eyebrow: 'Configuration Command Center', description: 'Trung tâm cấu hình catalog, checklist, SLA, phòng/thiết bị, report template và billing readiness.', icon: Settings2, tone: 'command' }}
+        loading={state.loading}
+        onRefresh={() => setRefreshIndex((value) => value + 1)}
+        onCreate={() => navigate('/clinical-ops/config/lab-tests')}
+        onImport={() => notifyClinicalOps({ title: 'Import cấu hình', message: 'Import Excel cần file mẫu và kiểm duyệt schema; hiện có thể tạo từng cấu hình từ màn catalog.' })}
+        onValidate={() => {
+          notifyClinicalOps({ title: 'Validate cấu hình', message: 'Đã làm mới dashboard chất lượng cấu hình.' });
+          setRefreshIndex((value) => value + 1);
+        }}
+      />
       {state.error ? <div className="clinical-config-error"><AlertTriangle size={16} />{state.error}</div> : null}
       <LandingKpis summary={data.summary} loading={state.loading} />
       <section className="clinical-config-health">
@@ -415,16 +449,11 @@ export function ClinicalConfigLandingPage() {
         </section>
         <section className="clinical-config-quick-actions">
           <header><span><Wrench size={16} strokeWidth={2.25} />Quick actions</span></header>
-          {[
-            ['Tạo lab test', FlaskConical],
-            ['Tạo loại mẫu', Microscope],
-            ['Tạo modality', ScanLine],
-            ['Tạo phòng CĐHA', MonitorUp],
-            ['Tạo thủ thuật', Stethoscope],
-            ['Tạo checklist', ClipboardCheck],
-            ['Tạo SLA rule', Timer],
-            ['Tạo report template', FileText],
-          ].map(([label, Icon]) => <button key={label} type="button"><Icon size={16} strokeWidth={2.25} />{label}</button>)}
+          {quickActions.map(([label, Icon, key]) => (
+            <button key={label} type="button" onClick={() => navigate(CONFIG_ROUTES[key])}>
+              <Icon size={16} strokeWidth={2.25} />{label}
+            </button>
+          ))}
         </section>
       </section>
     </main>
@@ -462,16 +491,18 @@ export function ClinicalConfigCatalogPage({ pageKey }) {
   }, [state.rows, filters.warning]);
 
   async function handleCreate() {
-    const code = window.prompt('Mã cấu hình mới');
+    const code = promptClinicalOpsText({ title: 'Tạo cấu hình mới', message: 'Mã cấu hình mới' });
     if (!code) return;
-    const name = window.prompt('Tên cấu hình mới', code);
+    const name = promptClinicalOpsText({ title: 'Tạo cấu hình mới', message: 'Tên cấu hình mới', defaultValue: code });
     if (!name) return;
     try {
       await config.create({ ...config.createDefaults, code, template_code: code, name });
       setToast('Tạo cấu hình thành công');
+      notifyClinicalOps({ tone: 'success', title: 'Tạo cấu hình', message: `${name} đã được tạo.` });
       setRefreshIndex((value) => value + 1);
     } catch (error) {
       setToast(getClinicalConfigError(error, 'Không thể tạo cấu hình.'));
+      notifyClinicalOps({ tone: 'danger', title: 'Tạo cấu hình', message: getClinicalConfigError(error, 'Không thể tạo cấu hình.') });
     }
   }
 
@@ -483,7 +514,7 @@ export function ClinicalConfigCatalogPage({ pageKey }) {
       if (action === 'retire' && config.retire) await config.retire(id);
       if (action === 'publish' && config.publish) await config.publish(id);
       if (action === 'edit' && config.update) {
-        const name = window.prompt('Tên cấu hình', row.name || row.service_name || '');
+        const name = promptClinicalOpsText({ title: 'Sửa cấu hình', message: 'Tên cấu hình', defaultValue: row.name || row.service_name || '' });
         if (!name) return;
         if (pageKey === 'imagingRoomsEquipment' && row.config_kind === 'equipment') {
           await clinicalConfigAPI.updateImagingEquipment(id, { name });
@@ -492,9 +523,11 @@ export function ClinicalConfigCatalogPage({ pageKey }) {
         }
       }
       setToast('Thao tác cấu hình thành công');
+      notifyClinicalOps({ tone: 'success', title: 'Cấu hình cận lâm sàng', message: 'Thao tác cấu hình thành công.' });
       setRefreshIndex((value) => value + 1);
     } catch (error) {
       setToast(getClinicalConfigError(error, 'Không thể xử lý cấu hình.'));
+      notifyClinicalOps({ tone: 'danger', title: 'Cấu hình cận lâm sàng', message: getClinicalConfigError(error, 'Không thể xử lý cấu hình.') });
     } finally {
       setActioning('');
     }
@@ -503,14 +536,31 @@ export function ClinicalConfigCatalogPage({ pageKey }) {
   return (
     <main className={cx('clinical-config-page', `is-${config.tone}`)}>
       {toast ? <div className="clinical-config-toast"><CheckCircle2 size={16} strokeWidth={2.25} /><span>{toast}</span><button type="button" onClick={() => setToast('')}><X size={13} /></button></div> : null}
-      <PageHeader config={config} loading={state.loading} onRefresh={() => setRefreshIndex((value) => value + 1)} onCreate={handleCreate} />
+      <PageHeader
+        config={config}
+        loading={state.loading}
+        onRefresh={() => setRefreshIndex((value) => value + 1)}
+        onCreate={handleCreate}
+        onImport={() => notifyClinicalOps({ title: 'Import Excel', message: 'Import hàng loạt cần template chuẩn. Hãy dùng tạo mới/sửa để đảm bảo validate backend trước.' })}
+        onValidate={() => {
+          notifyClinicalOps({ title: 'Validate cấu hình', message: 'Đã lọc các bản ghi có cảnh báo cấu hình.' });
+          setFilters((current) => ({ ...current, warning: 'has_warning' }));
+        }}
+      />
       <FilterBar filters={filters} setFilters={setFilters} />
       {state.error ? <div className="clinical-config-error"><AlertTriangle size={16} />{state.error}</div> : null}
       <section className="clinical-config-workbench">
         <div className="clinical-config-list-pane">
           <header className="clinical-config-pane-header">
             <div><span><LayoutGrid size={16} strokeWidth={2.25} />Config table</span><strong>{formatNumber(visibleRows.length)} bản ghi</strong></div>
-            <div><button type="button"><BellRing size={15} />Saved view</button><button type="button"><Boxes size={15} />Bulk action</button></div>
+            <div>
+              <button type="button" onClick={() => downloadClinicalOpsJson(`clinical-config-${pageKey}.json`, { pageKey, filters, rows: visibleRows }, 'Xuất saved view')}>
+                <BellRing size={15} />Saved view
+              </button>
+              <button type="button" onClick={() => notifyClinicalOps({ title: 'Bulk action', message: 'Chọn các bản ghi và hành động cụ thể sẽ được bổ sung theo quyền quản trị cấu hình.' })}>
+                <Boxes size={15} />Bulk action
+              </button>
+            </div>
           </header>
           <ConfigTable config={config} rows={visibleRows} loading={state.loading} selected={selected} onSelect={setSelected} actioning={actioning} onAction={handleAction} />
         </div>

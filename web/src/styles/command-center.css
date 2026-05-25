@@ -563,7 +563,7 @@
 
 .cc-filterbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(130px, auto)) auto;
+  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(130px, auto)) repeat(2, auto);
   gap: 0.55rem;
   padding: 0.72rem;
   border: 1px solid var(--cc-border);

@@ -39,6 +39,7 @@ import {
   runPrescriptionSafetyChecks,
   verifyPrescriptionFromOverview,
 } from './pharmacyApi';
+import { confirmPharmacyAction } from './pharmacyActions';
 import { usePharmacyWorkspace } from './PharmacyShell';
 
 const RANGE_OPTIONS = [
@@ -1611,7 +1612,7 @@ export function PharmacyOverview() {
 
   async function handleCancelPrescription(row) {
     const prescriptionId = getPrescriptionId(row);
-    if (!prescriptionId || !window.confirm(`Hủy đơn ${row.prescription_no || prescriptionId}?`)) return;
+    if (!prescriptionId || !confirmPharmacyAction({ title: 'Hủy đơn thuốc', message: `Hủy đơn ${row.prescription_no || prescriptionId}?` })) return;
     setActionBusy(true);
     setToast('');
     try {
@@ -1627,7 +1628,7 @@ export function PharmacyOverview() {
 
   async function handleCompleteDispense(row) {
     const dispenseId = getDispenseId(row);
-    if (!dispenseId || !window.confirm(`Hoàn tất phiếu cấp phát ${row.dispense_no || dispenseId}?`)) return;
+    if (!dispenseId || !confirmPharmacyAction({ title: 'Hoàn tất cấp phát', message: `Hoàn tất phiếu cấp phát ${row.dispense_no || dispenseId}?` })) return;
     setActionBusy(true);
     setToast('');
     try {
@@ -1643,7 +1644,7 @@ export function PharmacyOverview() {
 
   async function handleCancelDispense(row) {
     const dispenseId = getDispenseId(row);
-    if (!dispenseId || !window.confirm(`Hủy phiếu cấp phát ${row.dispense_no || dispenseId}?`)) return;
+    if (!dispenseId || !confirmPharmacyAction({ title: 'Hủy phiếu cấp phát', message: `Hủy phiếu cấp phát ${row.dispense_no || dispenseId}?` })) return;
     setActionBusy(true);
     setToast('');
     try {
@@ -1659,7 +1660,7 @@ export function PharmacyOverview() {
 
   async function handleExpireBatch(row) {
     const batchId = getBatchId(row);
-    if (!batchId || !window.confirm(`Đánh dấu hết hạn lô ${getBatchNo(row)}?`)) return;
+    if (!batchId || !confirmPharmacyAction({ title: 'Đánh dấu lô hết hạn', message: `Đánh dấu hết hạn lô ${getBatchNo(row)}?` })) return;
     setActionBusy(true);
     setToast('');
     try {
@@ -1675,7 +1676,7 @@ export function PharmacyOverview() {
 
   async function handleRecallBatch(row) {
     const batchId = getBatchId(row);
-    if (!batchId || !window.confirm(`Thu hồi lô ${getBatchNo(row)}?`)) return;
+    if (!batchId || !confirmPharmacyAction({ title: 'Thu hồi lô thuốc', message: `Thu hồi lô ${getBatchNo(row)}?` })) return;
     setActionBusy(true);
     setToast('');
     try {

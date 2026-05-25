@@ -1,6 +1,6 @@
 /* Scheduling shell, sidebar, hero base, shared page grids */
 .scheduling-module {
-  --scheduling-rail-width: 236px;
+  --scheduling-rail-width: 280px;
   display: grid;
   grid-template-columns: var(--scheduling-rail-width) minmax(0, 1fr);
   min-height: 100vh;
@@ -107,7 +107,7 @@
 
 .scheduling-rail__nav {
   display: grid;
-  gap: 0.22rem;
+  gap: 0.3rem;
   padding: 0.1rem 0;
 }
 
@@ -234,10 +234,10 @@
 
 .scheduling-nav-group {
   position: relative;
-  margin-top: 0.22rem;
+  margin-top: 0;
   padding: 0.18rem;
   border: 1px solid rgba(103, 232, 249, 0.14);
-  border-radius: 10px;
+  border-radius: 12px;
   background:
     linear-gradient(145deg, rgba(5, 73, 89, 0.54), rgba(3, 36, 49, 0.36));
   box-shadow:
@@ -250,6 +250,13 @@
   background:
     radial-gradient(circle at 8% 16%, rgba(34, 211, 238, 0.18), transparent 5rem),
     linear-gradient(145deg, rgba(4, 83, 97, 0.68), rgba(3, 36, 49, 0.5));
+}
+
+.scheduling-nav-group.is-active {
+  border-color: rgba(103, 232, 249, 0.38);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 16px 30px rgba(0, 0, 0, 0.16);
 }
 
 .scheduling-nav-group__trigger {
@@ -293,11 +300,36 @@
 }
 
 .scheduling-nav-group__copy strong {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.36rem;
+  align-items: center;
   overflow: hidden;
   color: #67e8f9;
   font-size: 0.82rem;
   font-weight: 950;
   line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduling-nav-group__section {
+  min-width: 1.55rem;
+  height: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #031f2b;
+  background: #67e8f9;
+  font-size: 0.54rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.scheduling-nav-group__title {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

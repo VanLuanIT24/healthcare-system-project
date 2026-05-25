@@ -16,6 +16,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
+import { promptClinicalOpsText } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { clinicalChargeApi, getClinicalChargeErrorMessage } from './clinicalChargeApi';
 
 const SERVICE_LABEL = {
@@ -654,13 +655,13 @@ export function ClinicalChargePage({ pageKey = 'dashboard' }) {
   const postCharge = (row) => runAction(() => clinicalChargeApi.postCharge(chargeId(row) || row._id), 'Đã post charge.');
 
   const voidCharge = (row) => {
-    const reason = window.prompt('Nhập lý do void charge');
+    const reason = promptClinicalOpsText({ title: 'Void charge', message: 'Nhập lý do void charge' });
     if (!reason) return null;
     return runAction(() => clinicalChargeApi.voidCharge(chargeId(row) || row._id, { reason }), 'Đã void charge.');
   };
 
   const markReview = (row) => {
-    const notes = window.prompt('Ghi chú gửi Billing review') || 'Cần Billing review.';
+    const notes = promptClinicalOpsText({ title: 'Billing review', message: 'Ghi chú gửi Billing review', defaultValue: 'Cần Billing review.' }) || 'Cần Billing review.';
     return runAction(() => clinicalChargeApi.sendToBillingReview(chargeId(row) || row._id, { notes }), 'Đã gửi Billing review.');
   };
 
@@ -680,7 +681,7 @@ export function ClinicalChargePage({ pageKey = 'dashboard' }) {
 
   const bulkVoid = () => {
     const ids = Array.from(selected);
-    const reason = window.prompt('Nhập lý do void hàng loạt');
+    const reason = promptClinicalOpsText({ title: 'Void charge hàng loạt', message: 'Nhập lý do void hàng loạt' });
     if (!ids.length || !reason) return null;
     return runAction(() => clinicalChargeApi.bulkVoid({ charge_ids: ids, reason }), 'Đã void charge hàng loạt.');
   };

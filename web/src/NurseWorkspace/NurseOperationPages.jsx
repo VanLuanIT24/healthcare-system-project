@@ -31,6 +31,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { nurseOperationsApi } from './nurseApi';
+import { downloadNurseJson, notifyNurse, promptNurseText, runNurseAction } from './nurseActions';
 
 const priorityLabels = {
   critical: 'Khẩn cấp',
@@ -326,7 +327,7 @@ function KpiStrip({ items }) {
       {items.map((item) => {
         const Icon = item.icon || Activity;
         return (
-          <button key={item.label} type="button" className={`nurse-operation-kpi nurse-operation-kpi--${item.tone || 'teal'}`} onClick={item.onClick}>
+          <button key={item.label} type="button" className={`nurse-operation-kpi nurse-operation-kpi--${item.tone || 'teal'}`} onClick={item.onClick || (() => notifyNurse({ title: item.label, message: item.detail || 'Đã chọn chỉ số vận hành.' }))}>
             <Icon size={19} />
             <span>{item.label}</span>
             <strong>{item.value ?? 0}</strong>
@@ -338,7 +339,7 @@ function KpiStrip({ items }) {
   );
 }
 
-function PatientDrawer({ item, onClose }) {
+function PatientDrawer({ item, onClose, onAction }) {
   if (!item) return null;
   return (
     <aside className="nurse-detail-drawer" aria-label="Chi tiết bệnh nhân">
@@ -375,7 +376,7 @@ function PatientDrawer({ item, onClose }) {
       <section>
         <h3>Hành động nhanh</h3>
         <div className="nurse-row-actions">
-          {(item.actions || ['open_patient']).slice(0, 5).map((action) => <button key={action} type="button">{actionLabels[action] || action}</button>)}
+          {(item.actions || ['open_patient']).slice(0, 5).map((action) => <button key={action} type="button" onClick={() => onAction?.(action, item)}>{actionLabels[action] || action}</button>)}
         </div>
       </section>
     </aside>
@@ -412,6 +413,42 @@ export function PendingPatientsPage() {
     [filters.date, filters.shift, filters.priority, filters.owner, filters.type, filters.status, refresh],
   );
   const filteredItems = useMemo(() => (data.items || []).filter((item) => !filters.search || patientName(item).toLowerCase().includes(filters.search.toLowerCase()) || item.patient_code?.toLowerCase().includes(filters.search.toLowerCase())), [data, filters.search]);
+  const active = selected || filteredItems[0];
+
+  async function runPendingAction(action, item = active) {
+    if (!item) return;
+    const ticketId = item.queue_ticket_id || item.metadata?.queue_ticket_id || item.ticket_id;
+    if (action === 'record_vital') {
+      window.location.assign('/nurse/vitals-records/entry');
+      return;
+    }
+    if (action === 'create_nursing_note') {
+      window.location.assign('/nurse/vitals-records/nursing-notes');
+      return;
+    }
+    if (action === 'open_checklist') {
+      window.location.assign('/nurse/service-preparation/checklists');
+      return;
+    }
+    if (action === 'open_patient') {
+      window.location.assign('/nurse/patient-lookup/profile');
+      return;
+    }
+    await runNurseAction({
+      label: actionLabels[action] || 'Thao tác bệnh nhân',
+      isDemo: isDemo || String(item.id || '').includes('demo'),
+      demoMessage: 'Dữ liệu mẫu hoặc thiếu ID backend nên thao tác chưa gửi hệ thống.',
+      confirm: { title: actionLabels[action] || 'Xác nhận thao tác', message: `${patientName(item)} - ${item.reason || ''}` },
+      run: async () => {
+        if (action === 'assign_to_me') return nurseOperationsApi.assignWorkItemToMe(item.id);
+        if (action === 'acknowledge') return nurseOperationsApi.acknowledgeAlert(item.id);
+        if (action === 'notify_doctor') return nurseOperationsApi.notifyDoctor(ticketId || item.id, { message: item.reason || item.message || 'Cần bác sĩ xem lại.' });
+        return nurseOperationsApi.completeWorkItem(item.id, { result_note: 'Cập nhật từ workspace điều dưỡng.' });
+      },
+      successMessage: 'Đã cập nhật bệnh nhân chờ xử lý.',
+      onSuccess: () => setRefresh((v) => v + 1),
+    });
+  }
 
   return (
     <PageShell
@@ -422,7 +459,7 @@ export function PendingPatientsPage() {
       loading={loading}
       isDemo={isDemo}
       error={error}
-      actions={<><button type="button"><UserCheck size={16} />Giao cho tôi</button><button type="button"><Plus size={16} />Tạo việc</button><button type="button"><FileText size={16} />Ghi chú</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button><button type="button"><Download size={16} />Xuất</button></>}
+      actions={<><button type="button" onClick={() => runPendingAction('assign_to_me')}><UserCheck size={16} />Giao cho tôi</button><button type="button" onClick={() => notifyNurse({ title: 'Tạo việc', message: 'Chọn bệnh nhân và mở màn Nhiệm vụ để tạo việc điều dưỡng chi tiết.' })}><Plus size={16} />Tạo việc</button><button type="button" onClick={() => runPendingAction('create_nursing_note')}><FileText size={16} />Ghi chú</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button><button type="button" onClick={() => downloadNurseJson('benh-nhan-cho-xu-ly.json', { filters, summary: data.summary, items: filteredItems })}><Download size={16} />Xuất</button></>}
     >
       <FilterBar filters={filters} setFilters={setFilters}>
         <label><span>Loại việc</span><select value={filters.type} onChange={(event) => setFilters((value) => ({ ...value, type: event.target.value }))}><option value="all">Tất cả</option><option value="triage_pending">Chờ phân loại</option><option value="vital_pending">Chờ sinh hiệu</option><option value="abnormal_vital">Bất thường</option><option value="preparation_pending">Chờ chuẩn bị</option><option value="emergency">Cấp cứu</option></select></label>
@@ -474,7 +511,7 @@ export function PendingPatientsPage() {
             <div className="nurse-worklist-table-wrap">
               <table className="nurse-worklist-table nurse-worklist-table--wide">
                 <thead><tr><th>Ưu tiên</th><th>Bệnh nhân</th><th>Mã bệnh nhân / hàng đợi</th><th>Nguồn việc</th><th>Lý do cần xử lý</th><th>Trạng thái điều dưỡng</th><th>Chờ</th><th>Thời hạn</th><th>Khoa/phòng</th><th>Phụ trách</th><th>Cờ</th><th>Hành động</th></tr></thead>
-                <tbody>{filteredItems.map((item) => <tr key={item.id} onClick={() => setSelected(item)}><td><span className={`nurse-priority-pill nurse-priority-pill--${item.priority}`}>{priorityLabels[item.priority] || item.priority}</span></td><td><strong>{patientName(item)}</strong><small>{item.age || '--'} tuổi</small></td><td>{item.metadata?.queue_number || item.patient_code || '--'}</td><td>{sourceLabels[item.source_type] || typeLabels[item.type] || item.source_type}</td><td>{item.reason}</td><td><span className="nurse-status-pill">{statusLabels[item.status] || item.status}</span></td><td>{waitText(item.waiting_minutes)}</td><td><span className={`nurse-sla-pill nurse-sla-pill--${item.sla_status}`}>{statusLabels[item.sla_status] || item.sla_status}</span></td><td>{item.location || 'Chưa gán'}</td><td>{item.assigned_to_name || 'Chưa phân công'}</td><td>{(item.flags || []).slice(0, 2).map((flag) => flagLabels[flag] || flag).join(', ') || '--'}</td><td><div className="nurse-row-actions">{(item.actions || []).slice(0, 2).map((action) => <button key={action} type="button">{actionLabels[action] || action}</button>)}</div></td></tr>)}</tbody>
+                <tbody>{filteredItems.map((item) => <tr key={item.id} onClick={() => setSelected(item)}><td><span className={`nurse-priority-pill nurse-priority-pill--${item.priority}`}>{priorityLabels[item.priority] || item.priority}</span></td><td><strong>{patientName(item)}</strong><small>{item.age || '--'} tuổi</small></td><td>{item.metadata?.queue_number || item.patient_code || '--'}</td><td>{sourceLabels[item.source_type] || typeLabels[item.type] || item.source_type}</td><td>{item.reason}</td><td><span className="nurse-status-pill">{statusLabels[item.status] || item.status}</span></td><td>{waitText(item.waiting_minutes)}</td><td><span className={`nurse-sla-pill nurse-sla-pill--${item.sla_status}`}>{statusLabels[item.sla_status] || item.sla_status}</span></td><td>{item.location || 'Chưa gán'}</td><td>{item.assigned_to_name || 'Chưa phân công'}</td><td>{(item.flags || []).slice(0, 2).map((flag) => flagLabels[flag] || flag).join(', ') || '--'}</td><td><div className="nurse-row-actions">{(item.actions || []).slice(0, 2).map((action) => <button key={action} type="button" onClick={(event) => { event.stopPropagation(); runPendingAction(action, item); }}>{actionLabels[action] || action}</button>)}</div></td></tr>)}</tbody>
               </table>
             </div>
           ) : (
@@ -482,7 +519,7 @@ export function PendingPatientsPage() {
           )}
         </main>
       </section>
-      <PatientDrawer item={selected} onClose={() => setSelected(null)} />
+      <PatientDrawer item={selected} onClose={() => setSelected(null)} onAction={runPendingAction} />
     </PageShell>
   );
 }
@@ -510,8 +547,38 @@ export function TodayWorkPage() {
   const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getTasksBoard(params), demoTasks, [filters.date, filters.shift, filters.priority, filters.owner, refresh]);
   const columns = data.columns || {};
 
+  async function runTaskAction(action, task = {}) {
+    const taskId = task.id || task.task_id || task._id;
+    if (action === 'record_vital') {
+      window.location.assign('/nurse/vitals-records/entry');
+      return;
+    }
+    if (action === 'open_checklist') {
+      window.location.assign('/nurse/service-preparation/checklists');
+      return;
+    }
+    if (action === 'notify_doctor') {
+      notifyNurse({ tone: 'info', title: 'Báo bác sĩ', message: task.title || 'Chọn nhiệm vụ để báo bác sĩ chi tiết.' });
+      return;
+    }
+    await runNurseAction({
+      label: actionLabels[action] || 'Cập nhật việc',
+      isDemo: isDemo || !taskId || String(taskId).includes('demo'),
+      demoMessage: 'Dữ liệu mẫu hoặc thiếu task_id nên thao tác chưa gửi backend.',
+      confirm: ['complete_task', 'cancel_task'].includes(action) ? { title: actionLabels[action], message: task.title } : null,
+      run: async () => {
+        if (action === 'assign_to_me') return nurseOperationsApi.assignTaskToMe(taskId);
+        if (action === 'start_task') return nurseOperationsApi.startTask(taskId);
+        if (action === 'complete_task') return nurseOperationsApi.completeTask(taskId, { result_note: 'Hoàn tất từ bảng việc hôm nay.' });
+        return nurseOperationsApi.startTask(taskId);
+      },
+      successMessage: 'Đã cập nhật việc điều dưỡng.',
+      onSuccess: () => setRefresh((v) => v + 1),
+    });
+  }
+
   return (
-    <PageShell eyebrow="Bảng điều phối việc điều dưỡng" title="Việc cần làm hôm nay" description="Điều phối việc theo ca trực, người phụ trách, thời hạn xử lý và bảng kiểm." meta={data.meta} loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Plus size={16} />Tạo việc</button><button type="button"><Users size={16} />Giao hàng loạt</button><button type="button"><ClipboardCheck size={16} />Bàn giao ca</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageShell eyebrow="Bảng điều phối việc điều dưỡng" title="Việc cần làm hôm nay" description="Điều phối việc theo ca trực, người phụ trách, thời hạn xử lý và bảng kiểm." meta={data.meta} loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => window.location.assign('/nurse/tasks-handover/assigned')}><Plus size={16} />Tạo việc</button><button type="button" onClick={() => notifyNurse({ title: 'Giao hàng loạt', message: 'Dùng màn nhiệm vụ được giao để chọn người nhận và phân bổ hàng loạt.' })}><Users size={16} />Giao hàng loạt</button><button type="button" onClick={() => window.location.assign('/nurse/tasks-handover/shift-handover')}><ClipboardCheck size={16} />Bàn giao ca</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       <KpiStrip items={[
         { label: 'Tổng việc', value: data.summary?.total, detail: 'Tất cả nguồn trong ca', icon: ClipboardList, tone: 'blue' },
         { label: 'Của tôi', value: data.summary?.mine, detail: 'Đang giao cho tôi', icon: UserCheck, tone: 'teal' },
@@ -525,13 +592,13 @@ export function TodayWorkPage() {
         {[['unassigned', 'Chưa nhận'], ['todo', 'Đã nhận'], ['in_progress', 'Đang làm'], ['overdue', 'Quá hạn'], ['waiting_doctor', 'Chờ phản hồi'], ['done', 'Hoàn tất']].map(([key, title]) => (
           <section key={key} className={`nurse-kanban-column nurse-kanban-column--${key}`}>
             <header><strong>{title}</strong><span>{columns[key]?.length || 0}</span></header>
-            {(columns[key] || []).slice(0, 8).map((task) => <article key={task.id} className={`nurse-task-card nurse-task-card--${task.priority}`}><span>{priorityLabels[task.priority] || task.priority}</span><h3>{task.title}</h3><p>{patientName(task)} · {task.patient_code || '--'}</p><small>Hạn {formatTime(task.due_at)} · {task.overdue_minutes ? `quá ${task.overdue_minutes} phút` : 'đúng hạn'}</small><div className="nurse-task-progress"><em style={{ width: task.status === 'done' ? '100%' : task.status === 'in_progress' ? '55%' : '18%' }} /></div><footer>{(task.actions || ['start_task']).slice(0, 2).map((action) => <button key={action} type="button">{actionLabels[action] || action}</button>)}</footer></article>)}
+            {(columns[key] || []).slice(0, 8).map((task) => <article key={task.id} className={`nurse-task-card nurse-task-card--${task.priority}`}><span>{priorityLabels[task.priority] || task.priority}</span><h3>{task.title}</h3><p>{patientName(task)} · {task.patient_code || '--'}</p><small>Hạn {formatTime(task.due_at)} · {task.overdue_minutes ? `quá ${task.overdue_minutes} phút` : 'đúng hạn'}</small><div className="nurse-task-progress"><em style={{ width: task.status === 'done' ? '100%' : task.status === 'in_progress' ? '55%' : '18%' }} /></div><footer>{(task.actions || ['start_task']).slice(0, 2).map((action) => <button key={action} type="button" onClick={() => runTaskAction(action, task)}>{actionLabels[action] || action}</button>)}</footer></article>)}
           </section>
         ))}
       </section>
       <section className="nurse-task-lower-grid">
         <div className="nurse-command-panel"><div className="nurse-panel-header"><div><span className="nurse-panel-header__icon"><Clock3 size={16} /></span><strong>Dòng thời gian công việc</strong></div></div><div className="nurse-day-timeline">{(data.timeline || []).map((bucket) => <article key={bucket.hour}><strong>{bucket.hour}</strong><span>{bucket.total} việc</span><small>{bucket.vital} sinh hiệu · {bucket.preparation} chuẩn bị · {bucket.overdue} quá hạn</small></article>)}</div></div>
-        <div className="nurse-command-panel"><div className="nurse-panel-header"><div><span className="nurse-panel-header__icon"><Table2 size={16} /></span><strong>Bảng chi tiết</strong></div></div><div className="nurse-compact-table">{(data.table || []).slice(0, 8).map((task) => <button key={task.id} type="button"><span className={`nurse-priority-pill nurse-priority-pill--${task.priority}`}>{priorityLabels[task.priority]}</span><strong>{task.title}</strong><small>{patientName(task)} · {statusLabels[task.status] || task.status}</small></button>)}</div></div>
+        <div className="nurse-command-panel"><div className="nurse-panel-header"><div><span className="nurse-panel-header__icon"><Table2 size={16} /></span><strong>Bảng chi tiết</strong></div></div><div className="nurse-compact-table">{(data.table || []).slice(0, 8).map((task) => <button key={task.id} type="button" onClick={() => runTaskAction(task.status === 'todo' ? 'start_task' : 'complete_task', task)}><span className={`nurse-priority-pill nurse-priority-pill--${task.priority}`}>{priorityLabels[task.priority]}</span><strong>{task.title}</strong><small>{patientName(task)} · {statusLabels[task.status] || task.status}</small></button>)}</div></div>
       </section>
     </PageShell>
   );
@@ -558,8 +625,34 @@ export function PriorityAlertsPage() {
   const activeAlert = selected || data.selected || data.items?.[0];
   const alerts = (data.items || []).filter((alert) => tab === 'all' || alert.severity === tab || alert.type?.includes(tab) || (tab === 'need_doctor' && alert.actions?.includes('notify_doctor')) || (tab === 'overdue' && alert.sla_status === 'breached'));
 
+  async function runAlertAction(action, alert = activeAlert) {
+    if (!alert) return;
+    if (action === 'open_patient') {
+      window.location.assign('/nurse/patient-lookup/profile');
+      return;
+    }
+    if (action === 'record_vital') {
+      window.location.assign('/nurse/vitals-records/entry');
+      return;
+    }
+    await runNurseAction({
+      label: actionLabels[action] || 'Cảnh báo ưu tiên',
+      isDemo: isDemo || String(alert.id || '').includes('demo'),
+      demoMessage: 'Cảnh báo mẫu hoặc thiếu alert_id nên chưa gửi backend.',
+      confirm: { title: actionLabels[action] || 'Xác nhận cảnh báo', message: `${patientName(alert)} - ${alert.message}` },
+      run: async () => {
+        if (action === 'acknowledge' || action === 'assign_to_me') return nurseOperationsApi.acknowledgeAlert(alert.id);
+        if (action === 'notify_doctor') return nurseOperationsApi.notifyDoctorAlert(alert.id);
+        if (action === 'resolve') return nurseOperationsApi.resolveAlert(alert.id, { resolution_note: 'Đã xử lý từ trung tâm cảnh báo điều dưỡng.' });
+        return nurseOperationsApi.acknowledgeAlert(alert.id);
+      },
+      successMessage: 'Đã cập nhật cảnh báo.',
+      onSuccess: () => setRefresh((v) => v + 1),
+    });
+  }
+
   return (
-    <PageShell eyebrow="Trung tâm cảnh báo lâm sàng và vận hành" title="Cảnh báo ưu tiên" description="Trung tâm cảnh báo lâm sàng và vận hành theo mức độ nguy hiểm, thời hạn xử lý và hành động cần làm." meta={data.meta} loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><CheckCircle2 size={16} />Xác nhận theo bộ lọc</button><button type="button"><Send size={16} />Báo bác sĩ</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageShell eyebrow="Trung tâm cảnh báo lâm sàng và vận hành" title="Cảnh báo ưu tiên" description="Trung tâm cảnh báo lâm sàng và vận hành theo mức độ nguy hiểm, thời hạn xử lý và hành động cần làm." meta={data.meta} loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => runAlertAction('acknowledge')}><CheckCircle2 size={16} />Xác nhận theo bộ lọc</button><button type="button" onClick={() => runAlertAction('notify_doctor')}><Send size={16} />Báo bác sĩ</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       <KpiStrip items={[
         { label: 'Khẩn cấp', value: data.summary?.critical, detail: 'Đang mở', icon: ShieldAlert, tone: 'red' },
         { label: 'Mức cao', value: data.summary?.high, detail: 'Cần ưu tiên', icon: AlertTriangle, tone: 'amber' },
@@ -571,7 +664,7 @@ export function PriorityAlertsPage() {
       <div className="nurse-alert-tabs">{['all', 'critical', 'high', 'medium', 'overdue', 'need_doctor'].map((item) => <button key={item} type="button" className={tab === item ? 'is-active' : ''} onClick={() => setTab(item)}>{item === 'all' ? 'Tất cả' : item === 'critical' ? 'Khẩn cấp' : item === 'high' ? 'Cao' : item === 'medium' ? 'Trung bình' : item === 'overdue' ? 'Quá hạn' : 'Cần báo bác sĩ'}</button>)}</div>
       <section className="nurse-alert-center-layout">
         <aside className="nurse-alert-feed">{alerts.map((alert) => <button key={alert.id} type="button" className={`nurse-alert-card nurse-alert-card--${alert.severity}`} onClick={() => setSelected(alert)}><header><span>{priorityLabels[alert.severity] || alert.severity}</span><strong>{alert.message}</strong></header><p>{patientName(alert)} · {alert.patient_code || '--'}</p><small>Nguồn: {sourceLabels[alert.source_type] || typeLabels[alert.type] || alert.type} · {minutesAgo(alert.created_at)} · Thời hạn {statusLabels[alert.sla_status] || alert.sla_status}</small><footer>{(alert.actions || []).slice(0, 3).map((action) => <em key={action}>{actionLabels[action] || action}</em>)}</footer></button>)}</aside>
-        <main className="nurse-alert-detail-panel"><header><span className={`nurse-priority-pill nurse-priority-pill--${activeAlert?.severity}`}>{priorityLabels[activeAlert?.severity]}</span><h2>{activeAlert?.message || 'Chưa chọn cảnh báo'}</h2><p>{patientName(activeAlert)} · {activeAlert?.patient_code || '--'}</p></header><section><h3>Thông tin cảnh báo</h3><dl><div><dt>Loại</dt><dd>{typeLabels[activeAlert?.type] || activeAlert?.type}</dd></div><div><dt>Nguồn</dt><dd>{sourceLabels[activeAlert?.source_type] || typeLabels[activeAlert?.type] || activeAlert?.source_type}</dd></div><div><dt>Phát sinh</dt><dd>{minutesAgo(activeAlert?.created_at)}</dd></div><div><dt>Thời hạn</dt><dd>{statusLabels[activeAlert?.sla_status] || activeAlert?.sla_status}</dd></div></dl></section><section><h3>Dữ liệu nguồn</h3><p>{activeAlert?.message}</p></section><section><h3>Hành động</h3><div className="nurse-row-actions">{(activeAlert?.actions || []).map((action) => <button key={action} type="button">{actionLabels[action] || action}</button>)}</div></section></main>
+        <main className="nurse-alert-detail-panel"><header><span className={`nurse-priority-pill nurse-priority-pill--${activeAlert?.severity}`}>{priorityLabels[activeAlert?.severity]}</span><h2>{activeAlert?.message || 'Chưa chọn cảnh báo'}</h2><p>{patientName(activeAlert)} · {activeAlert?.patient_code || '--'}</p></header><section><h3>Thông tin cảnh báo</h3><dl><div><dt>Loại</dt><dd>{typeLabels[activeAlert?.type] || activeAlert?.type}</dd></div><div><dt>Nguồn</dt><dd>{sourceLabels[activeAlert?.source_type] || typeLabels[activeAlert?.type] || activeAlert?.source_type}</dd></div><div><dt>Phát sinh</dt><dd>{minutesAgo(activeAlert?.created_at)}</dd></div><div><dt>Thời hạn</dt><dd>{statusLabels[activeAlert?.sla_status] || activeAlert?.sla_status}</dd></div></dl></section><section><h3>Dữ liệu nguồn</h3><p>{activeAlert?.message}</p></section><section><h3>Hành động</h3><div className="nurse-row-actions">{(activeAlert?.actions || []).map((action) => <button key={action} type="button" onClick={() => runAlertAction(action, activeAlert)}>{actionLabels[action] || action}</button>)}</div></section></main>
       </section>
     </PageShell>
   );
@@ -599,13 +692,39 @@ export function RealtimeQueuePage() {
   const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getQueueBoard(queryParams(filters)), demoQueue, [filters.date, filters.shift, refresh]);
   const board = data.board || {};
 
+  async function runQueueAction(action, item = {}) {
+    const id = item.queue_ticket_id || item.id || item._id;
+    if (!id && action !== 'call_next') {
+      notifyNurse({ tone: 'warning', title: 'Hàng đợi', message: 'Chưa có queue_ticket_id hợp lệ.' });
+      return;
+    }
+    const transferTo = action === 'transfer'
+      ? promptNurseText({ title: 'Chuyển hàng đợi', message: 'Nhập target_department_id hoặc để trống nếu chỉ ghi nhận yêu cầu chuyển.', defaultValue: '' })
+      : null;
+    if (action === 'transfer' && transferTo === null) return;
+    await runNurseAction({
+      label: action === 'call_next' ? 'Gọi tiếp theo' : action === 'call' ? 'Gọi bệnh nhân' : action === 'skip' ? 'Bỏ qua' : 'Chuyển hàng đợi',
+      isDemo: isDemo || (id && String(id).startsWith('q')),
+      demoMessage: 'Dữ liệu mẫu hoặc thiếu queue_ticket_id nên chưa gửi backend.',
+      confirm: { title: 'Xác nhận hàng đợi', message: action === 'call_next' ? 'Gọi số tiếp theo?' : `${item.queue_number || ''} - ${patientName(item)}` },
+      run: async () => {
+        if (action === 'call_next') return nurseOperationsApi.callNextQueue();
+        if (action === 'call') return nurseOperationsApi.callQueue(id);
+        if (action === 'skip') return nurseOperationsApi.skipQueue(id, { reason: 'Điều dưỡng bỏ qua từ bảng hàng đợi.' });
+        return nurseOperationsApi.transferQueue(id, { target_department_id: transferTo || undefined, reason: 'Chuyển từ bảng hàng đợi điều dưỡng.' });
+      },
+      successMessage: 'Đã cập nhật hàng đợi.',
+      onSuccess: () => setRefresh((v) => v + 1),
+    });
+  }
+
   function renderColumn(key, title) {
     const items = board[key] || [];
-    return <section key={key} className={`nurse-live-queue-column nurse-live-queue-column--${key}`}><header><strong>{title}</strong><span>{items.length}</span></header>{items.map((item) => <article key={item.queue_ticket_id || item.queue_number}><strong>{item.queue_number}</strong><h3>{patientName(item)}</h3><p>{item.patient_code || '--'} · {item.doctor_name || 'Chưa gán bác sĩ'}</p><small>Chờ {waitText(item.waiting_minutes)} · Bước điều dưỡng {nursingStageLabels[item.nursing_stage] || item.nursing_stage || '--'}</small><footer><button type="button">Gọi</button><button type="button">Bỏ qua</button><button type="button">Chuyển</button></footer></article>)}</section>;
+    return <section key={key} className={`nurse-live-queue-column nurse-live-queue-column--${key}`}><header><strong>{title}</strong><span>{items.length}</span></header>{items.map((item) => <article key={item.queue_ticket_id || item.queue_number}><strong>{item.queue_number}</strong><h3>{patientName(item)}</h3><p>{item.patient_code || '--'} · {item.doctor_name || 'Chưa gán bác sĩ'}</p><small>Chờ {waitText(item.waiting_minutes)} · Bước điều dưỡng {nursingStageLabels[item.nursing_stage] || item.nursing_stage || '--'}</small><footer><button type="button" onClick={() => runQueueAction('call', item)}>Gọi</button><button type="button" onClick={() => runQueueAction('skip', item)}>Bỏ qua</button><button type="button" onClick={() => runQueueAction('transfer', item)}>Chuyển</button></footer></article>)}</section>;
   }
 
   return (
-    <PageShell eyebrow="Trung tâm điều phối hàng đợi trực tiếp" title="Hàng đợi thời gian thực" description="Bảng điều phối hàng đợi theo trạng thái, bước điều dưỡng, thời hạn xử lý và tốc độ xử lý." meta={data.meta} loading={loading} isDemo={isDemo} error={error} actions={<><button type="button"><Zap size={16} />Gọi tiếp theo</button><button type="button"><Monitor size={16} />Màn hình gọi số</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button><button type="button"><Filter size={16} />Cấu hình thời hạn</button></>}>
+    <PageShell eyebrow="Trung tâm điều phối hàng đợi trực tiếp" title="Hàng đợi thời gian thực" description="Bảng điều phối hàng đợi theo trạng thái, bước điều dưỡng, thời hạn xử lý và tốc độ xử lý." meta={data.meta} loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => runQueueAction('call_next')}><Zap size={16} />Gọi tiếp theo</button><button type="button" onClick={() => setView('tv')}><Monitor size={16} />Màn hình gọi số</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button><button type="button" onClick={() => notifyNurse({ title: 'Cấu hình thời hạn', message: 'Cấu hình SLA đang dùng theo chính sách khoa/phòng backend.' })}><Filter size={16} />Cấu hình thời hạn</button></>}>
       <KpiStrip items={[
         { label: 'Tổng hàng đợi', value: data.summary?.total, detail: 'Trong ngày', icon: Users, tone: 'blue' },
         { label: 'Đang chờ', value: data.summary?.waiting, detail: 'Chưa được gọi', icon: Clock3, tone: 'amber' },
@@ -617,7 +736,7 @@ export function RealtimeQueuePage() {
       <section className="nurse-queue-metrics"><span><strong>{data.metrics?.average_wait_minutes} phút</strong>Chờ trung bình</span><span><strong>{data.metrics?.longest_wait_minutes} phút</strong>Chờ lâu nhất</span><span><strong>{data.metrics?.throughput_per_hour}/giờ</strong>Tốc độ xử lý</span><span><strong>{data.metrics?.estimated_clear_time}</strong>Dự kiến xong</span><span><strong>{nursingStageLabels[data.metrics?.bottleneck_status] || data.metrics?.bottleneck_status}</strong>Điểm nghẽn</span><span><strong>{data.metrics?.sla_breached}</strong>Quá hạn</span></section>
       <div className="nurse-alert-tabs">{['board', 'table', 'tv'].map((item) => <button key={item} type="button" className={view === item ? 'is-active' : ''} onClick={() => setView(item)}>{item === 'board' ? 'Bảng cột' : item === 'table' ? 'Bảng chi tiết' : 'Màn hình gọi số'}</button>)}</div>
       {view === 'board' ? <section className="nurse-live-queue-board">{[['waiting', 'Đang chờ'], ['called', 'Đã gọi'], ['recalled', 'Gọi lại'], ['in_service', 'Đang phục vụ'], ['skipped', 'Bỏ qua'], ['completed', 'Hoàn tất'], ['no_show', 'Không đến']].map(([key, title]) => renderColumn(key, title))}</section> : null}
-      {view === 'table' ? <div className="nurse-worklist-table-wrap"><table className="nurse-worklist-table nurse-worklist-table--wide"><thead><tr><th>Số hàng đợi</th><th>Bệnh nhân</th><th>Mã bệnh nhân</th><th>Bác sĩ</th><th>Khoa/phòng</th><th>Trạng thái</th><th>Bước điều dưỡng</th><th>Chờ</th><th>Thời hạn</th><th>Hành động</th></tr></thead><tbody>{(data.table || []).map((item) => <tr key={item.queue_ticket_id}><td><strong>{item.queue_number}</strong></td><td>{patientName(item)}</td><td>{item.patient_code || '--'}</td><td>{item.doctor_name || '--'}</td><td>{item.department_name || '--'}</td><td>{statusLabels[item.status] || item.status}</td><td>{nursingStageLabels[item.nursing_stage] || item.nursing_stage || '--'}</td><td>{waitText(item.waiting_minutes)}</td><td><span className={`nurse-sla-pill nurse-sla-pill--${item.waiting_minutes >= 30 ? 'breached' : item.waiting_minutes >= 15 ? 'warning' : 'normal'}`}>{item.waiting_minutes >= 30 ? 'Quá hạn' : item.waiting_minutes >= 15 ? 'Cảnh báo' : 'Bình thường'}</span></td><td><div className="nurse-row-actions"><button type="button">Gọi</button><button type="button">Bỏ qua</button></div></td></tr>)}</tbody></table></div> : null}
+      {view === 'table' ? <div className="nurse-worklist-table-wrap"><table className="nurse-worklist-table nurse-worklist-table--wide"><thead><tr><th>Số hàng đợi</th><th>Bệnh nhân</th><th>Mã bệnh nhân</th><th>Bác sĩ</th><th>Khoa/phòng</th><th>Trạng thái</th><th>Bước điều dưỡng</th><th>Chờ</th><th>Thời hạn</th><th>Hành động</th></tr></thead><tbody>{(data.table || []).map((item) => <tr key={item.queue_ticket_id}><td><strong>{item.queue_number}</strong></td><td>{patientName(item)}</td><td>{item.patient_code || '--'}</td><td>{item.doctor_name || '--'}</td><td>{item.department_name || '--'}</td><td>{statusLabels[item.status] || item.status}</td><td>{nursingStageLabels[item.nursing_stage] || item.nursing_stage || '--'}</td><td>{waitText(item.waiting_minutes)}</td><td><span className={`nurse-sla-pill nurse-sla-pill--${item.waiting_minutes >= 30 ? 'breached' : item.waiting_minutes >= 15 ? 'warning' : 'normal'}`}>{item.waiting_minutes >= 30 ? 'Quá hạn' : item.waiting_minutes >= 15 ? 'Cảnh báo' : 'Bình thường'}</span></td><td><div className="nurse-row-actions"><button type="button" onClick={() => runQueueAction('call', item)}>Gọi</button><button type="button" onClick={() => runQueueAction('skip', item)}>Bỏ qua</button></div></td></tr>)}</tbody></table></div> : null}
       {view === 'tv' ? <section className="nurse-tv-preview"><div><span>ĐANG GỌI</span><strong>{data.tv_display?.calling?.queue_number || '--'}</strong><p>{patientName(data.tv_display?.calling || {})}</p><small>{data.tv_display?.calling?.department_name || 'Phòng khám'}</small></div><aside><span>SẮP TỚI</span>{(data.tv_display?.next || []).slice(0, 5).map((item) => <strong key={item.queue_ticket_id || item.queue_number}>{item.queue_number}</strong>)}</aside></section> : null}
     </PageShell>
   );

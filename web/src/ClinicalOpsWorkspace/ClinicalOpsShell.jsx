@@ -39,9 +39,12 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
+import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { getStaffActorName } from '../receptionist/workspaceAccess';
 import { clinicalOpsAPI } from './clinicalOpsApi';
+import { notifyClinicalOps, promptClinicalOpsText, runClinicalOpsAction } from './clinicalOpsActions';
+import { ClinicalOpsToastStack, useClinicalOpsToasts } from './ClinicalOpsToastStack';
 
 const ICONS = {
   Activity,
@@ -559,6 +562,7 @@ export function ClinicalOpsShell({ children }) {
   const [worklistLoading, setWorklistLoading] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [workItemBusy, setWorkItemBusy] = useState('');
+  const { toasts, closeToast } = useClinicalOpsToasts();
 
   const menuItems = useMemo(() => flattenSidebar(sidebar), [sidebar]);
   const pageMeta = menuItems.find((item) => item.path === location.pathname) || getClinicalOpsPageMeta(location.pathname);
@@ -571,7 +575,7 @@ export function ClinicalOpsShell({ children }) {
       ? 'Bác sĩ CĐHA'
       : roleCodes?.includes('procedure_staff')
         ? 'Nhân sự thủ thuật'
-        : 'Clinical Operations';
+        : 'Vận hành cận lâm sàng';
   const counters = topbar?.counters || {};
   const safetySummary = topbar?.safety_summary || {};
   const notifications = topbar?.notification_preview || [];
@@ -598,12 +602,14 @@ export function ClinicalOpsShell({ children }) {
       setTopbar(payload);
       setSyncStatus('connected');
       setLastSyncedAt(new Date());
+      if (!silent) notifyClinicalOps({ tone: 'success', title: 'Đồng bộ ClinicalOps', message: 'Đã đồng bộ topbar và cảnh báo vận hành.' });
       if (payload?.sidebar?.sections?.length) {
         const apiLooksNarrow = payload.sidebar.role_scope === 'all' && payload.sidebar.sections.length < FALLBACK_SIDEBAR.sections.length;
         setSidebar(apiLooksNarrow || isSuperAdminAuth(auth) ? FALLBACK_SIDEBAR : payload.sidebar);
       }
     } catch (error) {
       setSyncStatus('degraded');
+      if (!silent) notifyClinicalOps({ tone: 'danger', title: 'Đồng bộ ClinicalOps', message: 'Không thể đồng bộ realtime, đang dùng dữ liệu gần nhất.' });
       if (!topbar) {
         setTopbar({
           workspace: {
@@ -681,9 +687,11 @@ export function ClinicalOpsShell({ children }) {
       const payload = await clinicalOpsAPI.worklistToday({ scope: 'all', limit: 320 });
       setWorklist(payload || { summary: {}, items: [] });
       setLastSyncedAt(new Date());
+      notifyClinicalOps({ title: 'Worklist hôm nay', message: `Đã tải ${formatCompactNumber(payload?.summary?.total || payload?.items?.length || 0)} việc.` });
     } catch (error) {
       setWorklist((current) => current || { summary: {}, items: [] });
       setSyncStatus('degraded');
+      notifyClinicalOps({ tone: 'danger', title: 'Worklist hôm nay', message: 'Không thể tải worklist, vui lòng thử lại.' });
     } finally {
       setWorklistLoading(false);
     }
@@ -706,43 +714,51 @@ export function ClinicalOpsShell({ children }) {
 
   async function claimItem(item) {
     if (!item?.work_item_id) return;
-    setWorkItemBusy(item.work_item_id);
-    try {
-      await clinicalOpsAPI.claimWorklistItem(item.work_item_id, { source: 'clinical_ops_command_bar' });
-      await openWorklistDrawer(worklistTab);
-      await syncCommandBar({ silent: true });
-    } catch (error) {
-      setSyncStatus('degraded');
-    } finally {
-      setWorkItemBusy('');
-    }
+    await runClinicalOpsAction({
+      label: 'Nhận xử lý work item',
+      run: () => clinicalOpsAPI.claimWorklistItem(item.work_item_id, { source: 'clinical_ops_command_bar' }),
+      successMessage: `${labelForWorkItem(item)} đã được nhận xử lý.`,
+      errorMessage: 'Không thể nhận xử lý work item.',
+      setBusy: (busy) => setWorkItemBusy(busy ? item.work_item_id : ''),
+      onSuccess: async () => {
+        await openWorklistDrawer(worklistTab);
+        await syncCommandBar({ silent: true });
+      },
+    });
   }
 
   async function releaseItem(item) {
     if (!item?.work_item_id) return;
-    setWorkItemBusy(item.work_item_id);
-    try {
-      await clinicalOpsAPI.releaseWorklistItem(item.work_item_id, { reason: 'release_from_command_bar' });
-      await openWorklistDrawer(worklistTab);
-      await syncCommandBar({ silent: true });
-    } catch (error) {
-      setSyncStatus('degraded');
-    } finally {
-      setWorkItemBusy('');
-    }
+    const reason = promptClinicalOpsText({
+      title: 'Release work item',
+      message: labelForWorkItem(item),
+      defaultValue: 'release_from_command_bar',
+    });
+    if (!reason) return;
+    await runClinicalOpsAction({
+      label: 'Release work item',
+      run: () => clinicalOpsAPI.releaseWorklistItem(item.work_item_id, { reason }),
+      successMessage: `${labelForWorkItem(item)} đã được release.`,
+      errorMessage: 'Không thể release work item.',
+      setBusy: (busy) => setWorkItemBusy(busy ? item.work_item_id : ''),
+      onSuccess: async () => {
+        await openWorklistDrawer(worklistTab);
+        await syncCommandBar({ silent: true });
+      },
+    });
   }
 
   return (
     <main className={`clinical-ops-workspace${collapsed ? ' is-sidebar-collapsed' : ''}${mobileOpen ? ' is-mobile-sidebar-open' : ''}`}>
-      <aside className="clinical-ops-sidebar" aria-label="Menu Clinical Operations">
+      <aside className="clinical-ops-sidebar" aria-label="Menu vận hành cận lâm sàng">
         <div className="clinical-ops-sidebar__brand">
           <Link to="/staff/select-workspace" className="clinical-ops-sidebar__brand-link" onClick={closeMobile}>
             <span className="clinical-ops-sidebar__brand-mark" aria-hidden="true">
-              <FlaskConical size={25} strokeWidth={2.4} />
+              <AppLogo variant="mark" alt="" aria-hidden="true" />
             </span>
             {!collapsed ? (
               <span className="clinical-ops-sidebar__brand-copy">
-                <strong>Clinical Operations</strong>
+                <strong>{APP_BRAND_NAME}</strong>
                 <small>Cận lâm sàng, CĐHA, thủ thuật</small>
               </span>
             ) : null}
@@ -756,7 +772,7 @@ export function ClinicalOpsShell({ children }) {
             <button type="button" className="clinical-ops-sidebar__alert" onClick={() => setSafetyOpen((current) => !current)}>
               <Siren size={17} strokeWidth={2.2} />
               <span>
-                <strong>Critical safety center</strong>
+                <strong>Trung tâm an toàn trọng yếu</strong>
                 <small>{formatCompactNumber(alertTotal)} critical · SLA · escalation</small>
               </span>
             </button>
@@ -764,7 +780,7 @@ export function ClinicalOpsShell({ children }) {
           {safetyOpen && !collapsed ? (
             <div className="clinical-safety-panel">
               <header>
-                <strong>Critical safety center</strong>
+                <strong>Trung tâm an toàn trọng yếu</strong>
                 <small>{relativeTime(safetySummary.last_updated_at || lastSyncedAt)}</small>
               </header>
               {(safetySummary.items || []).map((item) => (
@@ -799,7 +815,7 @@ export function ClinicalOpsShell({ children }) {
             <button
               type="button"
               className="clinical-ops-icon-button clinical-ops-topbar__menu"
-              aria-label="Mở menu Clinical Operations"
+              aria-label="Mở menu vận hành cận lâm sàng"
               onClick={() => setMobileOpen(true)}
             >
               <Menu size={20} strokeWidth={2.2} />
@@ -810,7 +826,7 @@ export function ClinicalOpsShell({ children }) {
               <small>
                 Scope: {workspace.current_unit || 'Toàn viện'} · Hôm nay · {syncStatus === 'connected' ? 'Realtime connected' : 'Realtime degraded'}
               </small>
-              <div className="clinical-ops-scope-filters" aria-label="Bộ lọc nhanh Clinical Operations">
+              <div className="clinical-ops-scope-filters" aria-label="Bộ lọc nhanh vận hành cận lâm sàng">
                 <button type="button" onClick={() => openWorklistDrawer('all')}>Hôm nay</button>
                 <button type="button" onClick={() => openWorklistDrawer('stat')}>STAT</button>
                 <button type="button" onClick={() => openWorklistDrawer('overdue')}>Quá SLA</button>
@@ -839,7 +855,7 @@ export function ClinicalOpsShell({ children }) {
               {searchOpen ? (
                 <div className="clinical-ops-search__panel clinical-command-palette">
                   <header>
-                    <strong>Clinical Ops Search</strong>
+                    <strong>Tìm kiếm cận lâm sàng</strong>
                     <small>{searchLoading ? 'Đang tìm...' : 'Order · BN · specimen · result · report · menu'}</small>
                   </header>
                   <div className="clinical-command-palette__body">
@@ -919,7 +935,7 @@ export function ClinicalOpsShell({ children }) {
             <button
               type="button"
               className={`clinical-ops-icon-button clinical-sync-status is-${syncStatus}`}
-              aria-label="Đồng bộ Clinical Operations"
+              aria-label="Đồng bộ vận hành cận lâm sàng"
               title={syncStatus === 'connected' ? `Đã đồng bộ ${relativeTime(lastSyncedAt)}` : 'Mất realtime, bấm để đồng bộ lại'}
               onClick={() => syncCommandBar()}
             >
@@ -952,7 +968,7 @@ export function ClinicalOpsShell({ children }) {
                     </div>
                   </div>
                   <div className="clinical-profile-context">
-                    <span>Workspace: Clinical Operations</span>
+                    <span>Không gian: Cận lâm sàng và thủ thuật</span>
                     <span>Scope: {workspace.current_unit || 'Toàn viện'}</span>
                     <span>Vai trò: {roleLabel}</span>
                     <span>Realtime: {syncStatus === 'connected' ? 'Online' : 'Degraded'}</span>
@@ -1056,6 +1072,10 @@ export function ClinicalOpsShell({ children }) {
           </aside>
         </div>
       ) : null}
+      <ClinicalOpsToastStack
+        items={toasts}
+        onClose={closeToast}
+      />
     </main>
   );
 }

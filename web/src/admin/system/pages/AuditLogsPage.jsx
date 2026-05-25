@@ -73,6 +73,7 @@ function getTimeWindowDate(range) {
 
 export function AuditLogsPage() {
   const [filters, setFilters] = useState({ keyword: '', module: '', action: '', range: '7' });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
@@ -99,13 +100,13 @@ export function AuditLogsPage() {
   const filtered = useMemo(
     () =>
       items.filter((item) => {
-        if (filters.keyword && !JSON.stringify(item).toLowerCase().includes(filters.keyword.toLowerCase())) return false;
-        if (filters.module && getModuleLabel(item.action) !== filters.module) return false;
-        if (filters.action && !String(item.action || '').toLowerCase().includes(filters.action.toLowerCase())) return false;
-        if (item.created_at && new Date(item.created_at) < getTimeWindowDate(filters.range)) return false;
+        if (appliedFilters.keyword && !JSON.stringify(item).toLowerCase().includes(appliedFilters.keyword.toLowerCase())) return false;
+        if (appliedFilters.module && getModuleLabel(item.action) !== appliedFilters.module) return false;
+        if (appliedFilters.action && !String(item.action || '').toLowerCase().includes(appliedFilters.action.toLowerCase())) return false;
+        if (item.created_at && new Date(item.created_at) < getTimeWindowDate(appliedFilters.range)) return false;
         return true;
       }),
-    [filters, items],
+    [appliedFilters, items],
   );
 
   const stats = useMemo(() => {
@@ -130,7 +131,12 @@ export function AuditLogsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filters]);
+  }, [appliedFilters]);
+
+  function applyFilters() {
+    setAppliedFilters(filters);
+    setPage(1);
+  }
 
   useEffect(() => {
     if (!selected && filtered[0]) {
@@ -181,7 +187,14 @@ export function AuditLogsPage() {
         <div className="audit-logs-filter-grid">
           <label className="admin-search role-filters__search">
             <span>⌕</span>
-            <input value={filters.keyword} onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="Tìm người thao tác, đối tượng..." />
+            <input
+              value={filters.keyword}
+              onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') applyFilters();
+              }}
+              placeholder="Tìm người thao tác, đối tượng..."
+            />
           </label>
           <label className="role-filter-chip audit-logs-select">
             <select value={filters.module} onChange={(event) => setFilters((current) => ({ ...current, module: event.target.value }))}>
@@ -211,6 +224,9 @@ export function AuditLogsPage() {
               <option value="90">90 ngày qua</option>
             </select>
           </label>
+          <button type="button" className="staff-button staff-button--primary audit-logs-button" onClick={applyFilters}>
+            Áp dụng
+          </button>
         </div>
       </section>
 

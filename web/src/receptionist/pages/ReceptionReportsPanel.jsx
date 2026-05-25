@@ -154,20 +154,20 @@ function normalizeTimeRows(appointmentReport, queueReport) {
     return byDay.map((row) => ({
       time: formatDateLabel(row.date),
       appointments: Number(row.count || 0),
-      confirmed: Number(row.count || 0),
-      completed: Math.round(Number(row.count || 0) * 0.65),
-      waiting: 0,
-      noShow: 0,
+      confirmed: Number(row.confirmed_count || row.confirmed || 0),
+      completed: Number(row.completed_count || row.completed || 0),
+      waiting: Number(row.waiting_count || row.waiting || 0),
+      noShow: Number(row.no_show_count || row.no_show || 0),
     }));
   }
   const peak = queueReport?.breakdowns?.peak_hours || [];
   return peak.map((row) => ({
     time: row.hour || '--',
     appointments: Number(row.count || 0),
-    confirmed: Number(row.count || 0),
-    completed: Math.round(Number(row.count || 0) * 0.7),
-    waiting: Math.round(Number(row.count || 0) * 0.2),
-    noShow: 0,
+    confirmed: Number(row.confirmed_count || row.confirmed || 0),
+    completed: Number(row.completed_count || row.completed || 0),
+    waiting: Number(row.waiting_count || row.waiting || row.count || 0),
+    noShow: Number(row.no_show_count || row.no_show || 0),
   }));
 }
 

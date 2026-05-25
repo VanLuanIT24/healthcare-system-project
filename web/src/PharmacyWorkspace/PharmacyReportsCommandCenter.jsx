@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { getApiErrorMessage } from '../utils/api';
 import { exportPharmacyReport, loadPharmacyReport } from './pharmacyApi';
+import { notifyPharmacy, printPharmacyView } from './pharmacyActions';
 
 const RANGE_OPTIONS = [
   { key: 'today', label: 'Hôm nay' },
@@ -257,14 +258,14 @@ function SparkBars({ values = [] }) {
   );
 }
 
-function KpiGrid({ view, summary, trend = [] }) {
+function KpiGrid({ view, summary, trend = [], onSelectMetric }) {
   const items = KPI_CONFIG[view] || [];
   if (!items.length) return null;
   const trendValues = trend.map((item) => item.in_quantity || item.dispense_quantity || item.transaction_count || 0);
   return (
     <section className="pharmacy-report-kpis">
       {items.map(([key, label, type, tone]) => (
-        <button key={key} type="button" className={`pharmacy-report-kpi is-${tone}`}>
+        <button key={key} type="button" className={`pharmacy-report-kpi is-${tone}`} onClick={() => onSelectMetric?.({ key, label, value: summary[key], type })}>
           <span>{label}</span>
           <strong>{formatValue(summary[key], type)}</strong>
           <em>{Number(summary[key] || 0) > 0 ? 'Có dữ liệu' : 'Chưa phát sinh'}</em>
@@ -375,7 +376,7 @@ function ReportHeader({ view, filters, setFilters, loading, onRefresh, onExport,
             <button type="button" className="pharmacy-report-button is-secondary" onClick={() => onExport('json')}>
               <FileJson size={16} /> JSON
             </button>
-            <button type="button" className="pharmacy-report-button is-secondary" onClick={() => window.print()}>
+            <button type="button" className="pharmacy-report-button is-secondary" onClick={() => printPharmacyView('In báo cáo dược')}>
               <Printer size={16} /> In
             </button>
           </>
@@ -715,9 +716,12 @@ export function PharmacyReportsCommandCenterPage({ view = 'dashboard' }) {
         URL.revokeObjectURL(url);
       }
       setNotice(format === 'csv' ? 'Đã xuất Excel' : 'Đã xuất JSON');
+      notifyPharmacy({ tone: 'success', title: 'Xuất báo cáo dược', message: format === 'csv' ? 'Đã xuất Excel.' : 'Đã xuất JSON.' });
       window.setTimeout(() => setNotice(''), 2800);
     } catch (error) {
-      setNotice(getApiErrorMessage(error, 'Không thể export báo cáo.'));
+      const message = getApiErrorMessage(error, 'Không thể export báo cáo.');
+      setNotice(message);
+      notifyPharmacy({ tone: 'danger', title: 'Xuất báo cáo dược', message });
       window.setTimeout(() => setNotice(''), 3600);
     }
   }
@@ -744,7 +748,17 @@ export function PharmacyReportsCommandCenterPage({ view = 'dashboard' }) {
 
       {!state.loading && !state.error ? (
         <>
-          <KpiGrid view={view} summary={summary} trend={trend} />
+          <KpiGrid
+            view={view}
+            summary={summary}
+            trend={trend}
+            onSelectMetric={(metric) => {
+              const message = `${metric.label}: ${formatValue(metric.value, metric.type)}. Bảng bên dưới đang theo cùng bộ lọc báo cáo.`;
+              setNotice(message);
+              notifyPharmacy({ title: 'KPI báo cáo dược', message });
+              window.setTimeout(() => setNotice(''), 2800);
+            }}
+          />
           <ReportInsights view={view} data={state.data || {}} />
           <section className="pharmacy-report-panel">
             <header>

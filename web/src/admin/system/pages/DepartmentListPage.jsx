@@ -227,6 +227,7 @@ export function DepartmentListPage() {
     headState: searchParams.get('head') || '',
     futureState: searchParams.get('future') || '',
   });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [items, setItems] = useState([]);
@@ -248,7 +249,7 @@ export function DepartmentListPage() {
       setLoading(true);
       setError('');
       try {
-        const data = await listDepartments(buildQuery(filters));
+        const data = await listDepartments(buildQuery(appliedFilters));
         const baseItems = data?.items || [];
         const enriched = await Promise.all(
           baseItems.map(async (item) => {
@@ -273,9 +274,9 @@ export function DepartmentListPage() {
         if (!active) return;
 
         const filtered = enriched.filter((item) => {
-          if (filters.headState === 'with_head' && !item.head) return false;
-          if (filters.headState === 'no_head' && item.head) return false;
-          if (filters.futureState === 'future_only' && item.future_schedules_count + item.future_appointments_count === 0) return false;
+          if (appliedFilters.headState === 'with_head' && !item.head) return false;
+          if (appliedFilters.headState === 'no_head' && item.head) return false;
+          if (appliedFilters.futureState === 'future_only' && item.future_schedules_count + item.future_appointments_count === 0) return false;
           return true;
         });
 
@@ -292,7 +293,7 @@ export function DepartmentListPage() {
     return () => {
       active = false;
     };
-  }, [filters]);
+  }, [appliedFilters]);
 
   const stats = useMemo(() => {
     const activeDepartments = items.filter((item) => item.status === 'active').length;
@@ -345,6 +346,11 @@ export function DepartmentListPage() {
 
   function updateFilters(next) {
     setFilters(next);
+  }
+
+  function applyFilters(next = filters) {
+    setFilters(next);
+    setAppliedFilters(next);
     const params = new URLSearchParams();
     if (next.keyword) params.set('keyword', next.keyword);
     if (next.status) params.set('status', next.status);
@@ -400,6 +406,9 @@ export function DepartmentListPage() {
               placeholder="Tìm theo tên khoa hoặc mã..."
               value={filters.keyword}
               onChange={(event) => updateFilters({ ...filters, keyword: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') applyFilters();
+              }}
             />
           </label>
           <label className="role-filter-chip department-directory-select">
@@ -430,9 +439,17 @@ export function DepartmentListPage() {
           <button
             type="button"
             className="staff-button staff-button--ghost department-directory-reset"
-            onClick={() => updateFilters({ keyword: '', status: '', departmentType: '', headState: '', futureState: '' })}
+            onClick={() => applyFilters({ keyword: '', status: '', departmentType: '', headState: '', futureState: '' })}
           >
             Reset
+          </button>
+          <button
+            type="button"
+            className="staff-button staff-button--primary department-directory-reset"
+            onClick={() => applyFilters()}
+            disabled={loading}
+          >
+            Áp dụng
           </button>
         </div>
       </section>

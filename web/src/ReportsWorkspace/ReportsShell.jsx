@@ -13,6 +13,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { getStaffActorName } from '../receptionist/workspaceAccess';
 import { flattenReportsMenu, getReportsPageMeta, reportsMenuSections } from './reportsData';
@@ -146,12 +147,12 @@ export function ReportsShell({ children }) {
         <div className="reports-sidebar__brand">
           <Link to="/staff/select-workspace" className="reports-sidebar__brand-link" onClick={closeMobileSidebar}>
             <span className="reports-sidebar__brand-mark" aria-hidden="true">
-              <BarChart3 size={25} strokeWidth={2.4} />
+              <AppLogo variant="mark" alt="" aria-hidden="true" />
             </span>
             {!isSidebarCollapsed ? (
               <span className="reports-sidebar__brand-copy">
-                <strong>Báo cáo và phân tích</strong>
-                <small>Không gian báo cáo và phân tích</small>
+                <strong>{APP_BRAND_NAME}</strong>
+                <small>Báo cáo và phân tích</small>
               </span>
             ) : null}
           </Link>

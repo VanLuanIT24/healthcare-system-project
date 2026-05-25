@@ -1,0 +1,113 @@
+:root {
+  --moh-blue-900: #0d47a1;
+  --moh-blue-700: #1565c0;
+  --moh-cyan-400: #26c6da;
+  --moh-teal-600: #009688;
+  --moh-teal-200: #7fd8d6;
+  --moh-ice: #e8f6f8;
+}
+
+.app-logo {
+  display: block;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center;
+  user-select: none;
+}
+
+.app-logo--mark {
+  width: 44px;
+  height: 44px;
+}
+
+.app-logo--horizontal,
+.app-logo--mono {
+  width: 244px;
+  height: 64px;
+}
+
+.app-logo--stacked {
+  width: 132px;
+  height: 152px;
+}
+
+.home-header__brandmark .app-logo--horizontal {
+  width: clamp(238px, 22vw, 312px);
+  height: auto;
+}
+
+.home-header__brandmark:has(.app-logo)::after {
+  display: none;
+}
+
+.home-footer__brand .app-logo--horizontal,
+.home-footer__brand .app-logo--mono {
+  width: min(244px, 100%);
+  height: auto;
+  margin-bottom: 0.45rem;
+}
+
+.patient-register-logo .app-logo--horizontal {
+  width: min(260px, 76vw);
+  height: auto;
+}
+
+.scp-brand-mark .app-logo--mark,
+.reception-sidebar__brand-mark .app-logo--mark,
+.billing-sidebar__brand-mark .app-logo--mark,
+.clinical-ops-sidebar__brand-mark .app-logo--mark,
+.nurse-sidebar__brand-mark .app-logo--mark,
+.pharmacy-v2-sidebar__brand-mark .app-logo--mark,
+.lab-sidebar__brand-mark .app-logo--mark,
+.reports-sidebar__brand-mark .app-logo--mark,
+.patient-sidebar__brand-mark .app-logo--mark,
+.scheduling-rail__brand-icon .app-logo--mark,
+.doctor-sidebar-brandmark .app-logo--mark,
+.doctor-reference-sidebar__mark .app-logo--mark,
+.patient-topbar-brand-mobile .app-logo--mark {
+  width: 100%;
+  height: 100%;
+}
+
+.scp-brand-mark:has(.app-logo),
+.reception-sidebar__brand-mark:has(.app-logo),
+.billing-sidebar__brand-mark:has(.app-logo),
+.clinical-ops-sidebar__brand-mark:has(.app-logo),
+.nurse-sidebar__brand-mark:has(.app-logo),
+.pharmacy-v2-sidebar__brand-mark:has(.app-logo),
+.lab-sidebar__brand-mark:has(.app-logo),
+.reports-sidebar__brand-mark:has(.app-logo),
+.patient-sidebar__brand-mark:has(.app-logo),
+.scheduling-rail__brand-icon:has(.app-logo),
+.doctor-sidebar-brandmark:has(.app-logo),
+.doctor-reference-sidebar__mark:has(.app-logo) {
+  padding: 5px;
+  background: #ffffff;
+  border-color: rgba(13, 71, 161, 0.16);
+}
+
+.clinical-ops-sidebar__brand-mark:has(.app-logo),
+.scheduling-rail__brand-icon:has(.app-logo),
+.doctor-reference-sidebar__mark:has(.app-logo) {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.doctor-sidebar-brandmark:has(.app-logo) {
+  overflow: hidden;
+}
+
+.reception-receipt-preview__brand .app-logo--mark {
+  width: 52px;
+  height: 52px;
+  justify-self: center;
+}
+
+.info-brand .app-logo--horizontal {
+  width: min(244px, 46vw);
+  height: auto;
+}
+
+.patient-topbar-brand-mobile .app-logo--mark {
+  width: 34px;
+  height: 34px;
+}

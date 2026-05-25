@@ -18,6 +18,7 @@ import {
   Undo2,
   UserCheck,
 } from 'lucide-react';
+import { notifyClinicalOps, promptClinicalOpsText } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { getResultReviewErrorMessage, resultReviewApi } from './resultReviewApi';
 
 const TYPE_LABEL = {
@@ -559,11 +560,11 @@ export function ResultReviewPage({ pageKey = 'labPending' }) {
       } else if (action === 'ack_critical') {
         await resultReviewApi.acknowledgeCritical(item.type, getId(item));
       } else if (action === 'revoke_patient') {
-        const reason = window.prompt('Lý do thu hồi release patient');
+        const reason = promptClinicalOpsText({ title: 'Thu hồi release patient', message: 'Lý do thu hồi release patient' });
         if (!reason) return;
         await resultReviewApi.revokePatientRelease(item.type, getId(item), { reason });
       } else if (action === 'amend') {
-        const reason = window.prompt('Lý do request amend');
+        const reason = promptClinicalOpsText({ title: 'Request amend', message: 'Lý do request amend' });
         if (!reason) return;
         await resultReviewApi.requestAmend(item.type, getId(item), { reason, severity: item.risk?.is_critical ? 'critical' : 'minor' });
       }
@@ -589,8 +590,8 @@ export function ResultReviewPage({ pageKey = 'labPending' }) {
         </div>
         <div className="review-hero-actions">
           <button type="button" onClick={loadData}><RefreshCw size={17} /> Làm mới</button>
-          <button type="button"><FileClock size={17} /> SLA</button>
-          <button type="button"><History size={17} /> Audit</button>
+          <button type="button" onClick={() => notifyClinicalOps({ title: 'SLA kết quả', message: 'Danh sách đang được sắp xếp theo SLA/risk trong bộ lọc hiện tại.' })}><FileClock size={17} /> SLA</button>
+          <button type="button" onClick={() => notifyClinicalOps({ title: 'Audit kết quả', message: 'Mở tab lịch sử duyệt/ký để xem audit trail đầy đủ.' })}><History size={17} /> Audit</button>
         </div>
       </header>
       <KpiStrip summary={summary} />

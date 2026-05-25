@@ -26,6 +26,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { notifyClinicalOps } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import { diagnosticAlertsAPI, getDiagnosticAlertErrorMessage } from './diagnosticAlertsApi';
 import './diagnosticAlerts.css';
 
@@ -307,11 +308,11 @@ function PageHeader({ config, onRefresh, loading }) {
       <div className="diagnostic-alert-header__actions">
         {config.warRoom ? (
           <>
-            <button type="button" className="diagnostic-alert-mode">
+            <button type="button" className="diagnostic-alert-mode" onClick={() => notifyClinicalOps({ title: 'War-room', message: 'Đã bật chế độ theo dõi war-room cho nhóm cảnh báo hiện tại.' })}>
               <MonitorUp size={16} strokeWidth={2.25} />
               War-room
             </button>
-            <button type="button" className="diagnostic-alert-mode">
+            <button type="button" className="diagnostic-alert-mode" onClick={() => notifyClinicalOps({ title: 'Sound alert', message: 'Trình duyệt sẽ dùng thông báo trực quan; âm thanh cần cấu hình quyền thiết bị.' })}>
               <BellRing size={16} strokeWidth={2.25} />
               Sound alert
             </button>
@@ -847,10 +848,10 @@ export function DiagnosticAlertsPage({ pageKey = 'all' }) {
               <strong>{formatNumber(headerSummary.open ?? items.length)} open alerts</strong>
             </div>
             <div className="diagnostic-alert-inbox__tools">
-              <button type="button" title="Saved view">
+              <button type="button" title="Saved view" onClick={() => notifyClinicalOps({ title: 'Saved view', message: 'Bộ lọc cảnh báo hiện tại đã sẵn sàng để lưu thành view.' })}>
                 <ListChecks size={15} strokeWidth={2.25} />
               </button>
-              <button type="button" title="Bulk notify">
+              <button type="button" title="Bulk notify" onClick={() => notifyClinicalOps({ title: 'Bulk notify', message: 'Chọn cảnh báo cụ thể trước khi gửi thông báo hàng loạt.' })}>
                 <MessageSquareWarning size={15} strokeWidth={2.25} />
               </button>
               <button type="button" title="Ngày hôm nay" onClick={() => setFilter('date', todayKey())}>

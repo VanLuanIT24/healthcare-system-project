@@ -806,7 +806,7 @@ export function PaymentMismatchPage() {
 
 function ImportTransactionsModal({ onClose, onDone }) {
   const [provider, setProvider] = useState('bank_qr_manual');
-  const [raw, setRaw] = useState('[\n  {\n    "transaction_id": "FT24123456789",\n    "transaction_ref": "FT24123456789",\n    "amount": 450000,\n    "transaction_at": "2026-05-20T09:20:00+07:00",\n    "description": "MEDCARE 20260520-0001"\n  }\n]');
+  const [raw, setRaw] = useState('[\n  {\n    "transaction_id": "FT24123456789",\n    "transaction_ref": "FT24123456789",\n    "amount": 450000,\n    "transaction_at": "2026-05-20T09:20:00+07:00",\n    "description": "BOYTE 20260520-0001"\n  }\n]');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 

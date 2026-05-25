@@ -241,7 +241,7 @@ export default function PatientBillingPage({
               </div>
               <div>
                 <h3>Thanh toán nhanh - Nhận nhiều ưu đãi</h3>
-                <p>Thanh toán qua ví HealthCare để nhận hoàn tiền và nhiều ưu đãi hấp dẫn.</p>
+                <p>Thanh toán qua ví Bộ Y tế để nhận hoàn tiền và nhiều ưu đãi hấp dẫn.</p>
               </div>
             </div>
             <button className="pb-btn-primary pb-btn-rounded">Nạp ví ngay</button>
@@ -340,7 +340,7 @@ export default function PatientBillingPage({
               <div className="pb-support-text">
                 <h3>Cần hỗ trợ?</h3>
                 <p>Đội ngũ chăm sóc khách hàng luôn sẵn sàng hỗ trợ bạn 24/7.</p>
-                <button className="pb-btn-outline" type="button" onClick={onOpenSupportChat}>
+                <button className="pb-btn-outline" type="button" onClick={() => onOpenSupportChat?.()}>
                   Liên hệ hỗ trợ
                 </button>
               </div>

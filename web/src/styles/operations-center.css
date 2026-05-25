@@ -160,7 +160,7 @@
 
 .ops-filterbar {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 160px 150px auto;
+  grid-template-columns: minmax(260px, 1fr) 160px 150px auto auto;
   align-items: center;
   gap: 0.65rem;
   padding: 0.75rem;

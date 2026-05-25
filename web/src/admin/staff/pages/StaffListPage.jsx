@@ -398,6 +398,7 @@ export function StaffListPage() {
     sort_by: 'created_at',
     sort_order: 'desc',
   });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
   const [page, setPage] = useState(1);
   const [summary, setSummary] = useState(null);
   const [roles, setRoles] = useState([]);
@@ -455,7 +456,7 @@ export function StaffListPage() {
       setError('');
 
       try {
-        const query = buildQuery(filters, page, view);
+        const query = buildQuery(appliedFilters, page, view);
         const result = view === 'risk'
           ? await getRiskAccounts(query)
           : view === 'pending'
@@ -479,7 +480,7 @@ export function StaffListPage() {
     return () => {
       active = false;
     };
-  }, [filters, page, view]);
+  }, [appliedFilters, page, view]);
 
   const metrics = useMemo(() => [
     { label: 'Tổng nhân sự', value: formatNumber(summary?.total), icon: UsersRound, tone: 'blue', hint: 'toàn hệ thống' },
@@ -503,6 +504,13 @@ export function StaffListPage() {
     setSearchParams(params);
   }
 
+  function applyFilters(nextFilters = filters) {
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setPage(1);
+    updateSearch(nextFilters);
+  }
+
   function switchView(nextView) {
     const params = new URLSearchParams();
     if (nextView === 'doctors') params.set('role', 'doctor');
@@ -510,18 +518,20 @@ export function StaffListPage() {
     if (nextView === 'locked') params.set('status', 'locked');
     if (nextView === 'disabled') params.set('status', 'disabled');
     if (nextView === 'risk') params.set('risk', 'high');
-    setPage(1);
-    setSearchParams(params);
-    setFilters((current) => ({
-      ...current,
+    const nextFilters = {
+      ...filters,
       role_code: nextView === 'doctors' ? 'doctor' : '',
       status: nextView === 'locked' ? 'locked' : nextView === 'disabled' ? 'disabled' : '',
       risk_level: nextView === 'risk' ? 'high' : '',
-    }));
+    };
+    setPage(1);
+    setSearchParams(params);
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
   }
 
   function resetFilters() {
-    setFilters({
+    const nextFilters = {
       keyword: '',
       role_code: view === 'doctors' ? 'doctor' : '',
       department_id: '',
@@ -531,9 +541,17 @@ export function StaffListPage() {
       never_logged_in: '',
       sort_by: 'created_at',
       sort_order: 'desc',
-    });
+    };
+    const params = new URLSearchParams();
+    if (view === 'doctors') params.set('role', 'doctor');
+    if (view === 'pending') params.set('status', 'pending_activation');
+    if (view === 'locked') params.set('status', 'locked');
+    if (view === 'disabled') params.set('status', 'disabled');
+    if (view === 'risk') params.set('risk', 'high');
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
     setPage(1);
-    switchView(view);
+    setSearchParams(params);
   }
 
   function openDialog(type, staff) {
@@ -554,10 +572,10 @@ export function StaffListPage() {
 
   async function refreshAccounts() {
     const result = view === 'risk'
-      ? await getRiskAccounts(buildQuery(filters, page, view))
+      ? await getRiskAccounts(buildQuery(appliedFilters, page, view))
       : view === 'pending'
-        ? await getPendingActivationAccounts(buildQuery(filters, page, view))
-        : await getStaffAccounts(buildQuery(filters, page, view));
+        ? await getPendingActivationAccounts(buildQuery(appliedFilters, page, view))
+        : await getStaffAccounts(buildQuery(appliedFilters, page, view));
     setAccounts((result?.items || []).map(normalizeAccount));
     setPagination(result?.pagination || pagination);
     setSummary(await getStaffSummary());
@@ -702,8 +720,9 @@ export function StaffListPage() {
             onChange={(event) => {
               const next = { ...filters, keyword: event.target.value };
               setFilters(next);
-              setPage(1);
-              updateSearch(next);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') applyFilters();
             }}
             placeholder="Tìm tên, username, email, phone, mã nhân viên..."
           />
@@ -715,8 +734,6 @@ export function StaffListPage() {
             <select value={filters.department_id} onChange={(event) => {
               const next = { ...filters, department_id: event.target.value };
               setFilters(next);
-              setPage(1);
-              updateSearch(next);
             }}>
               <option value="">Tất cả khoa/phòng</option>
               {departments.map((item) => <option key={item.department_id} value={item.department_id}>{item.department_name}</option>)}
@@ -728,8 +745,6 @@ export function StaffListPage() {
             <select value={filters.role_code} onChange={(event) => {
               const next = { ...filters, role_code: event.target.value };
               setFilters(next);
-              setPage(1);
-              updateSearch(next);
             }}>
               <option value="">Tất cả vai trò</option>
               {roles.map((item) => <option key={item.role_code} value={item.role_code}>{item.role_name}</option>)}
@@ -741,8 +756,6 @@ export function StaffListPage() {
             <select value={filters.status} onChange={(event) => {
               const next = { ...filters, status: event.target.value };
               setFilters(next);
-              setPage(1);
-              updateSearch(next);
             }}>
               <option value="">Tất cả trạng thái</option>
               <option value="active">Đang hoạt động</option>
@@ -765,6 +778,10 @@ export function StaffListPage() {
 
           <button type="button" className="staff-filter-reset" onClick={resetFilters}>
             Reset
+          </button>
+          <button type="button" className="staff-button staff-button--primary" onClick={() => applyFilters()} disabled={loading}>
+            <Search size={15} strokeWidth={2.2} />
+            Áp dụng
           </button>
         </div>
       </section>
@@ -831,8 +848,7 @@ export function StaffListPage() {
 
                 <button type="button" className="staff-command-department" onClick={() => {
                   const next = { ...filters, department_id: item.department_id || '' };
-                  setFilters(next);
-                  updateSearch(next);
+                  applyFilters(next);
                 }}>
                   <strong>{departmentNameOf(item, departments)}</strong>
                   <small>{item.department?.department_code || 'Department scope'}</small>
@@ -840,8 +856,7 @@ export function StaffListPage() {
 
                 <RoleChips roles={item.roles} onClickRole={(role) => {
                   const next = { ...filters, role_code: role };
-                  setFilters(next);
-                  updateSearch(next);
+                  applyFilters(next);
                 }} />
 
                 <span className={`staff-status-dot staff-status-dot--${getStatusTone(item.activation_status === 'pending_activation' ? 'pending_activation' : item.status)}`}>

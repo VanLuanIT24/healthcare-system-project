@@ -63,115 +63,6 @@ const PRIORITY_META = {
   normal: { label: 'Bình thường', tone: 'neutral' },
 };
 
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 'BN-250514-00123',
-    title: 'Nhắc lịch hẹn ngày mai',
-    category: 'appointment',
-    description: 'Bệnh nhân Nguyễn Văn A có lịch khám Tim mạch vào lúc 08:30 ngày mai 15/05/2026.',
-    time: '10:30, 14/05/2026',
-    read: false,
-    priority: 'normal',
-    patient: 'Nguyễn Văn A',
-    related: 'Nguyễn Văn A - MS: BN-20260456',
-    actionLabel: 'Xem lịch hẹn',
-    details: ['Dịch vụ: Khám chuyên khoa Tim mạch', 'Bác sĩ: BS. Lê Minh Tuấn', 'Thời gian: 10:30, 15/05/2026', 'Địa điểm: Phòng khám Tim mạch - Tầng 3'],
-  },
-  {
-    id: 'HD-250514-00876',
-    title: 'Hóa đơn chưa thanh toán',
-    category: 'payment',
-    description: 'Hóa đơn của bệnh nhân Trần Thị B tổng tiền 1.250.000đ chưa được thanh toán.',
-    time: '09:15, 14/05/2026',
-    read: false,
-    priority: 'high',
-    patient: 'Trần Thị B',
-    related: 'Hóa đơn HD-250514-00876',
-    actionLabel: 'Xem chi tiết hóa đơn',
-    details: ['Số tiền: 1.250.000đ', 'Trạng thái: Chưa thanh toán', 'Hạn thanh toán: 16/05/2026'],
-  },
-  {
-    id: 'SYS-20260514-01',
-    title: 'Bảo trì hệ thống tối nay',
-    category: 'system',
-    description: 'Hệ thống sẽ bảo trì từ 22:00 - 23:00 ngày 15/05/2026.',
-    time: '08:45, 14/05/2026',
-    read: false,
-    priority: 'high',
-    patient: '',
-    related: 'Toàn bộ hệ thống MedCare HMS',
-    actionLabel: 'Xem tài liệu',
-    group: 'Bảo trì',
-    details: ['Thời gian bắt đầu: 23:00, Thứ Tư 14/05/2026', 'Thời gian kết thúc dự kiến: 01:00, Thứ Năm 15/05/2026', 'Phạm vi ảnh hưởng: Toàn bộ hệ thống'],
-  },
-  {
-    id: 'BN-250514-00120',
-    title: 'Xác nhận lịch hẹn',
-    category: 'appointment',
-    description: 'Bệnh nhân Lê Thị C đã xác nhận lịch hẹn khám Nội tiết ngày 16/05/2026.',
-    time: '08:20, 14/05/2026',
-    read: false,
-    priority: 'medium',
-    patient: 'Lê Thị C',
-    related: 'Lịch hẹn',
-    actionLabel: 'Xem lịch hẹn',
-    details: ['Bệnh nhân đã xác nhận qua SMS', 'Khoa: Nội tiết', 'Thời gian: 09:15, 16/05/2026'],
-  },
-  {
-    id: 'HD-250513-00822',
-    title: 'Hóa đơn sắp đến hạn',
-    category: 'payment',
-    description: 'Hóa đơn của bệnh nhân Phạm Văn D sẽ đến hạn trong 1 ngày với số tiền 850.000đ.',
-    time: '16:40, 13/05/2026',
-    read: false,
-    priority: 'medium',
-    patient: 'Phạm Văn D',
-    related: 'Hóa đơn HD-250513-00822',
-    actionLabel: 'Xem chi tiết hóa đơn',
-    details: ['Số tiền còn lại: 850.000đ', 'Hạn thanh toán: 15/05/2026'],
-  },
-  {
-    id: 'POL-20260513-02',
-    title: 'Cập nhật quy trình tiếp nhận',
-    category: 'system',
-    description: 'Quy trình tiếp nhận bệnh nhân mới đã được cập nhật từ ngày 13/05/2026.',
-    time: '14:10, 13/05/2026',
-    read: true,
-    priority: 'medium',
-    patient: '',
-    related: 'Quy trình lễ tân',
-    actionLabel: 'Xem tài liệu',
-    group: 'Cập nhật',
-    details: ['Áp dụng cho quy trình tiếp nhận ngoại trú', 'Yêu cầu cập nhật checklist tại quầy'],
-  },
-  {
-    id: 'BN-250512-00098',
-    title: 'Hủy lịch hẹn',
-    category: 'appointment',
-    description: 'Bệnh nhân Hoàng Văn E đã hủy lịch hẹn khám Răng Hàm Mặt ngày 14/05/2026.',
-    time: '11:20, 12/05/2026',
-    read: true,
-    priority: 'low',
-    patient: 'Hoàng Văn E',
-    related: 'Lịch hẹn',
-    actionLabel: 'Xem lịch hẹn',
-    details: ['Lý do: Bệnh nhân bận việc cá nhân', 'Trạng thái: Đã hủy'],
-  },
-  {
-    id: 'HD-250513-00321',
-    title: 'Thanh toán thành công',
-    category: 'payment',
-    description: 'Hóa đơn của bệnh nhân Lê Minh C đã thanh toán thành công qua chuyển khoản.',
-    time: '16:20, 13/05/2026',
-    read: true,
-    priority: 'low',
-    patient: 'Lê Minh C',
-    related: 'Hóa đơn HD-250513-00321',
-    actionLabel: 'Xem chi tiết hóa đơn',
-    details: ['Số tiền: 640.000đ', 'Phương thức: Chuyển khoản', 'Trạng thái: Thành công'],
-  },
-];
-
 function formatNotificationTime(value) {
   if (!value) return '--';
   const date = new Date(value);
@@ -200,6 +91,7 @@ function normalizeNotification(item) {
     title: item.title || item.subject || 'Thông báo',
     category,
     description: item.message || item.description || item.content || 'Không có nội dung mô tả.',
+    createdAt: item.created_at || item.sent_at || null,
     time: formatNotificationTime(item.created_at || item.sent_at),
     read: Boolean(item.read_at) || item.status === 'read',
     priority: item.priority || 'normal',
@@ -236,8 +128,8 @@ function baseFilters() {
     category: '',
     read: '',
     priority: '',
-    from: '2026-05-07',
-    to: '2026-05-14',
+    from: '',
+    to: '',
     tab: 'all',
   };
 }
@@ -256,33 +148,61 @@ function NotificationHero({ mode, notifications, onMarkAllRead }) {
   const appointment = notifications.filter((item) => item.category === 'appointment').length;
   const payment = notifications.filter((item) => item.category === 'payment').length;
   const system = notifications.filter((item) => item.category === 'system').length;
+  const today = notifications.filter((item) => {
+    if (!item.createdAt) return false;
+    const date = new Date(item.createdAt);
+    const now = new Date();
+    return !Number.isNaN(date.getTime())
+      && date.getFullYear() === now.getFullYear()
+      && date.getMonth() === now.getMonth()
+      && date.getDate() === now.getDate();
+  }).length;
+  const countByText = (keywords) => notifications.filter((item) => {
+    const text = `${item.title} ${item.description} ${item.group || ''}`.toLowerCase();
+    return keywords.some((keyword) => text.includes(keyword));
+  }).length;
+  const maintenance = countByText(['bảo trì', 'maintenance']);
+  const updates = countByText(['cập nhật', 'quy trình', 'policy', 'update']);
+  const needsConfirmation = notifications.filter((item) => (
+    item.category === 'appointment'
+    && !item.read
+    && countByTextForItem(item, ['xác nhận', 'confirm'])
+  )).length;
+  const overduePayments = notifications.filter((item) => (
+    item.category === 'payment'
+    && countByTextForItem(item, ['quá hạn', 'đến hạn', 'chưa thanh toán', 'overdue', 'unpaid'])
+  )).length;
+  const successfulPayments = notifications.filter((item) => (
+    item.category === 'payment'
+    && countByTextForItem(item, ['thành công', 'paid', 'success'])
+  )).length;
 
   const cards = mode === 'notifications-payments'
     ? [
       [ReceiptIcon, 'Tổng thông báo thanh toán', payment, 'Tất cả thời gian', 'info'],
       [Mail, 'Chưa đọc', unread, 'Cần bạn xem', 'warning'],
-      [AlertTriangle, 'Quá hạn', high, 'Cần xử lý ngay', 'danger'],
-      [CheckCircle2, 'Thanh toán thành công', notifications.filter((item) => item.category === 'payment' && item.read).length, 'Đã ghi nhận', 'success'],
+      [AlertTriangle, 'Quá hạn', overduePayments, 'Theo nội dung backend', 'danger'],
+      [CheckCircle2, 'Thanh toán thành công', successfulPayments, 'Theo nội dung backend', 'success'],
     ]
     : mode === 'notifications-system'
       ? [
         [Megaphone, 'Tổng thông báo hệ thống', system, 'Tất cả thời gian', 'info'],
         [Mail, 'Chưa đọc', unread, 'Cần bạn xem', 'warning'],
-        [CalendarDays, 'Bảo trì sắp tới', 2, 'Trong 7 ngày tới', 'success'],
-        [Settings, 'Cập nhật quy trình', 9, 'Trong 30 ngày', 'violet'],
+        [CalendarDays, 'Bảo trì', maintenance, 'Theo nội dung backend', 'success'],
+        [Settings, 'Cập nhật quy trình', updates, 'Theo nội dung backend', 'violet'],
       ]
       : mode === 'notifications-appointments'
         ? [
           [CalendarDays, 'Tổng lịch hẹn', appointment, 'Tất cả thông báo', 'info'],
           [Mail, 'Chưa đọc', unread, 'Cần bạn xem', 'warning'],
-          [CalendarDays, 'Hôm nay', 7, 'Thông báo mới', 'success'],
-          [AlertTriangle, 'Cần xác nhận', 4, 'Từ bệnh nhân', 'danger'],
+          [CalendarDays, 'Hôm nay', today, 'Theo thời gian tạo', 'success'],
+          [AlertTriangle, 'Cần xác nhận', needsConfirmation, 'Theo nội dung backend', 'danger'],
         ]
         : [
           [Bell, mode === 'notifications-unread' ? 'Chưa đọc' : 'Tổng thông báo', mode === 'notifications-unread' ? unread : notifications.length, mode === 'notifications-unread' ? 'Tất cả' : 'Tất cả thời gian', 'info'],
           [Mail, 'Chưa đọc', unread, 'Cần bạn xem', 'warning'],
-          [CalendarDays, mode === 'notifications-unread' ? 'Lịch hẹn' : 'Hôm nay', mode === 'notifications-unread' ? appointment : 18, mode === 'notifications-unread' ? 'Hôm nay & sắp tới' : 'Thông báo mới', 'success'],
-          [AlertTriangle, mode === 'notifications-unread' ? 'Thanh toán' : 'Ưu tiên cao', mode === 'notifications-unread' ? payment : high, mode === 'notifications-unread' ? 'Hóa đơn đến hạn' : 'Cần xử lý sớm', 'danger'],
+          [CalendarDays, mode === 'notifications-unread' ? 'Lịch hẹn' : 'Hôm nay', mode === 'notifications-unread' ? appointment : today, mode === 'notifications-unread' ? 'Theo loại backend' : 'Theo thời gian tạo', 'success'],
+          [AlertTriangle, mode === 'notifications-unread' ? 'Thanh toán' : 'Ưu tiên cao', mode === 'notifications-unread' ? payment : high, mode === 'notifications-unread' ? 'Theo loại backend' : 'Cần xử lý sớm', 'danger'],
         ];
 
   return (
@@ -309,6 +229,11 @@ function NotificationHero({ mode, notifications, onMarkAllRead }) {
       </div>
     </section>
   );
+}
+
+function countByTextForItem(item, keywords = []) {
+  const text = `${item.title} ${item.description} ${item.group || ''}`.toLowerCase();
+  return keywords.some((keyword) => text.includes(keyword));
 }
 
 function ReceiptIcon(props) {
@@ -537,6 +462,18 @@ function filterNotifications(items, mode, filters) {
     if (filters.read === 'read' && !item.read) return false;
     if (filters.read === 'unread' && item.read) return false;
     if (filters.priority && item.priority !== filters.priority) return false;
+    if (filters.from || filters.to) {
+      const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+      if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+      if (filters.from) {
+        const from = new Date(`${filters.from}T00:00:00`);
+        if (createdAt < from) return false;
+      }
+      if (filters.to) {
+        const to = new Date(`${filters.to}T23:59:59`);
+        if (createdAt > to) return false;
+      }
+    }
     if (filters.tab !== 'all') {
       const target = `${item.title} ${item.description} ${item.group || ''}`.toLowerCase();
       const tabMatchers = {

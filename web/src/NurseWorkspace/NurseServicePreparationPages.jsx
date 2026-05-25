@@ -37,6 +37,7 @@ import {
   X,
 } from 'lucide-react';
 import { nursePreparationApi } from './nurseApi';
+import { confirmNurseAction, downloadNurseJson, notifyNurse, printNurseView, promptNurseText, runNurseAction } from './nurseActions';
 
 const modeConfig = {
   waiting: {
@@ -395,7 +396,10 @@ function PrepKpiGrid({ summary = {}, items = [], setQuickStatus }) {
   return (
     <section className="nurse-prep-kpis">
       {kpis.map(([label, value, detail, Icon, tone, quick]) => (
-        <button key={label} type="button" className={`nurse-prep-kpi nurse-prep-kpi--${tone}`} onClick={() => setQuickStatus?.(quick)}>
+        <button key={label} type="button" className={`nurse-prep-kpi nurse-prep-kpi--${tone}`} onClick={() => {
+          setQuickStatus?.(quick);
+          notifyNurse({ title: label, message: `Đã lọc nhanh nhóm: ${detail}.` });
+        }}>
           <Icon size={20} />
           <span>{label}</span>
           <strong>{value || 0}</strong>
@@ -797,6 +801,43 @@ function ChecklistTemplateManager({ items, onSelect }) {
   }, []);
 
   const openChecklistItems = items.filter((item) => item.status !== 'completed' && item.status !== 'cancelled');
+  const templateIdOf = (template) => template?._id || template?.id || template?.template_id;
+
+  async function editTemplate(template) {
+    const templateId = templateIdOf(template);
+    const name = promptNurseText({ title: 'Sửa mẫu bảng kiểm', message: template.template_code || template.name, defaultValue: template.name || '' });
+    if (!name) return;
+    await runNurseAction({
+      label: 'Sửa mẫu bảng kiểm',
+      isDemo: !templateId || String(templateId).startsWith('tpl-demo'),
+      demoMessage: 'Mẫu demo chưa thể cập nhật backend.',
+      confirm: { title: 'Cập nhật mẫu?', message: name },
+      run: () => nursePreparationApi.updateTemplate(templateId, { name }),
+      successMessage: 'Đã cập nhật mẫu bảng kiểm.',
+      onSuccess: () => setTemplates((current) => current.map((entry) => (templateIdOf(entry) === templateId ? { ...entry, name } : entry))),
+    });
+  }
+
+  async function cloneTemplate(template) {
+    const templateId = templateIdOf(template);
+    await runNurseAction({
+      label: 'Nhân bản mẫu',
+      isDemo: !templateId || String(templateId).startsWith('tpl-demo'),
+      demoMessage: 'Mẫu demo chưa thể nhân bản backend.',
+      confirm: { title: 'Nhân bản mẫu bảng kiểm?', message: template.name || template.template_code },
+      run: () => nursePreparationApi.cloneTemplate(templateId, { name: `${template.name || template.template_code} - copy` }),
+      successMessage: 'Đã nhân bản mẫu bảng kiểm.',
+      onSuccess: (result) => setTemplates((current) => [result, ...current].filter(Boolean)),
+    });
+  }
+
+  function previewTemplate(template) {
+    const items = Array.isArray(template.items) && template.items.length
+      ? template.items
+      : preview;
+    setPreview(items);
+    notifyNurse({ title: 'Xem trước mẫu', message: template.name || template.template_code || 'Mẫu bảng kiểm' });
+  }
 
   return (
     <section className="nurse-prep-checklist-manager">
@@ -822,9 +863,9 @@ function ChecklistTemplateManager({ items, onSelect }) {
               <span>{template.name}</span>
               <small>{sourceLabels[template.source_type] || template.source_type} · {template.items?.length || 0} mục · v{template.version}</small>
               <footer>
-                <button type="button">Sửa</button>
-                <button type="button">Nhân bản</button>
-                <button type="button">Xem trước</button>
+                <button type="button" onClick={() => editTemplate(template)}>Sửa</button>
+                <button type="button" onClick={() => cloneTemplate(template)}>Nhân bản</button>
+                <button type="button" onClick={() => previewTemplate(template)}>Xem trước</button>
               </footer>
             </article>
           ))}
@@ -892,7 +933,14 @@ function ServicePreparationPage({ mode }) {
   }, [selected?.id]);
 
   async function handleAction(item, action) {
-    if (!item?.id || String(item.id).startsWith('demo-')) return;
+    if (!item?.id || String(item.id).startsWith('demo-')) {
+      notifyNurse({ tone: 'warning', title: actionLabels[action] || 'Chuẩn bị dịch vụ', message: 'Dữ liệu mẫu hoặc thiếu preparation_id nên chưa thể gửi thao tác.' });
+      return;
+    }
+    const note = action === 'add_note'
+      ? promptNurseText({ title: 'Ghi chú chuẩn bị', message: serviceName(item), defaultValue: 'Cập nhật từ màn chuẩn bị dịch vụ.' })
+      : null;
+    if (action === 'add_note' && !note) return;
     const actionMap = {
       assign: () => nursePreparationApi.assign(item.id),
       start: () => nursePreparationApi.start(item.id),
@@ -903,20 +951,39 @@ function ServicePreparationPage({ mode }) {
       complete: () => nursePreparationApi.complete(item.id),
       notify_doctor: () => nursePreparationApi.notifyDoctor(item.id, { message: 'Bệnh nhân cần bác sĩ xem lại trước khi chuyển bước.' }),
       notify_destination: () => nursePreparationApi.notifyDestination(item.id),
-      add_note: () => nursePreparationApi.addNote(item.id, { note: 'Cập nhật từ màn chuẩn bị dịch vụ.' }),
+      add_note: () => nursePreparationApi.addNote(item.id, { note }),
     };
-    await (actionMap[action] || actionMap.add_note)();
-    setRefresh((value) => value + 1);
+    await runNurseAction({
+      label: actionLabels[action] || 'Cập nhật chuẩn bị',
+      confirm: ['ready', 'transfer', 'complete', 'notify_doctor', 'notify_destination', 'block'].includes(action)
+        ? { title: actionLabels[action] || 'Xác nhận thao tác', message: `${patientName(item)} - ${serviceName(item)}` }
+        : null,
+      run: actionMap[action] || actionMap.add_note,
+      successMessage: 'Đã cập nhật chuẩn bị dịch vụ.',
+      onSuccess: () => setRefresh((value) => value + 1),
+    });
   }
 
   async function handleChecklistAction(item, entry, action) {
     const itemId = entry?.id || entry?._id;
-    if (!item?.id || !itemId || String(item.id).startsWith('demo-')) return;
-    if (action === 'done') await nursePreparationApi.doneChecklistItem(item.id, itemId);
-    if (action === 'failed') await nursePreparationApi.failChecklistItem(item.id, itemId, { reason: 'Không đạt điều kiện' });
-    if (action === 'waived') await nursePreparationApi.waiveChecklistItem(item.id, itemId, { reason: 'Bác sĩ cho phép bỏ qua' });
-    setSelected({ ...item });
-    setRefresh((value) => value + 1);
+    if (!item?.id || !itemId || String(item.id).startsWith('demo-')) {
+      notifyNurse({ tone: 'warning', title: 'Bảng kiểm', message: 'Mục mẫu hoặc thiếu checklist item id nên chưa thể cập nhật.' });
+      return;
+    }
+    await runNurseAction({
+      label: action === 'done' ? 'Đánh dấu đạt' : action === 'failed' ? 'Không đạt' : 'Miễn mục',
+      confirm: action !== 'done' ? { title: 'Xác nhận bảng kiểm', message: entry.label || entry.title } : null,
+      run: async () => {
+        if (action === 'done') return nursePreparationApi.doneChecklistItem(item.id, itemId);
+        if (action === 'failed') return nursePreparationApi.failChecklistItem(item.id, itemId, { reason: 'Không đạt điều kiện' });
+        return nursePreparationApi.waiveChecklistItem(item.id, itemId, { reason: 'Bác sĩ cho phép bỏ qua' });
+      },
+      successMessage: 'Đã cập nhật bảng kiểm.',
+      onSuccess: () => {
+        setSelected({ ...item });
+        setRefresh((value) => value + 1);
+      },
+    });
   }
 
   return (

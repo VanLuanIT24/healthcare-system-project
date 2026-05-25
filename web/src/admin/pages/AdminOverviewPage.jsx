@@ -1,7 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowUpRight,
+  Building2,
+  CheckCircle2,
+  ClipboardCheck,
+  FileClock,
+  Gauge,
+  KeyRound,
+  LayoutGrid,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  UserCheck,
+  UserPlus,
+  UsersRound,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../../lib/api';
 import { fetchWithAuth } from '../../lib/authSession';
+
+const STATUS_LABELS = {
+  active: 'Hoạt động',
+  locked: 'Bị khóa',
+  disabled: 'Vô hiệu hóa',
+  suspended: 'Tạm ngưng',
+  pending: 'Chờ xử lý',
+  pending_activation: 'Chờ kích hoạt',
+};
 
 function formatNumber(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value || 0));
@@ -42,11 +69,16 @@ export function AdminOverviewPage() {
     permissions: [],
   });
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     let active = true;
 
     async function load() {
+      setIsLoading(true);
+      setError('');
+
       async function fetchJson(url) {
         const response = await fetchWithAuth(url);
         const payload = await response.json();
@@ -73,9 +105,12 @@ export function AdminOverviewPage() {
           audit: audit?.items || [],
           permissions: permissions?.permissions || [],
         });
+        setLastUpdated(new Date().toISOString());
       } catch (loadError) {
         if (!active) return;
         setError(loadError.message);
+      } finally {
+        if (active) setIsLoading(false);
       }
     }
 
@@ -90,6 +125,11 @@ export function AdminOverviewPage() {
     const loginRate = summary.total ? Math.round((Number(summary.active || 0) / Number(summary.total || 1)) * 100) : 0;
     const missingHeadsCount = data.departments.filter((item) => !item.head_user_id).length;
     const newCreatedCount = data.audit.filter((item) => item.action === 'auth.staff.create').length;
+    const atRiskCount = Number(summary.locked || 0) + Number(summary.disabled || 0) + Number(summary.suspended || 0);
+    const failedAuditCount = data.audit.filter((item) => item.status === 'failed').length;
+    const departmentCoverage = data.departments.length
+      ? Math.round(((data.departments.length - missingHeadsCount) / data.departments.length) * 100)
+      : 0;
     const topDepartments = [...(summary.department_breakdown || [])]
       .sort((a, b) => Number(b.count || 0) - Number(a.count || 0))
       .slice(0, 4);
@@ -106,6 +146,9 @@ export function AdminOverviewPage() {
       loginRate,
       missingHeadsCount,
       newCreatedCount,
+      atRiskCount,
+      failedAuditCount,
+      departmentCoverage,
       topDepartments,
       roleSegments,
       roleRing: buildRoleGradient(roleSegments),
@@ -113,54 +156,143 @@ export function AdminOverviewPage() {
       accountStatuses,
       maxStatusCount: Math.max(...accountStatuses.map((item) => item.value), 1),
       metricCards: [
-        { label: 'Tổng nhân sự', value: formatNumber(summary.total), tone: 'indigo', meta: `+${Math.max(newCreatedCount, 1)} mới`, icon: '◉', key: 'total_staff' },
-        { label: 'Đang hoạt động', value: formatNumber(summary.active), tone: 'green', meta: 'ổn định', icon: '✓', key: 'active' },
-        { label: 'Bị khóa', value: formatNumber(summary.locked), tone: 'red', meta: `${summary.locked || 0} cảnh báo`, icon: '⌂', key: 'locked' },
-        { label: 'Tổng vai trò', value: formatNumber(data.roles.length), tone: 'amber', meta: 'đang dùng', icon: '⌘', key: 'roles' },
-        { label: 'Tổng quyền', value: formatNumber(data.permissions.length), tone: 'violet', meta: 'quyền khả dụng', icon: '⌁', key: 'permissions' },
-        { label: 'Khoa/Phòng', value: formatNumber(data.departments.length), tone: 'blue', meta: `${missingHeadsCount} thiếu trưởng khoa`, icon: '▣', key: 'departments' },
-        { label: 'Mới tạo', value: formatNumber(newCreatedCount), tone: 'pink', meta: 'từ nhật ký hệ thống', icon: '+', key: 'new_created' },
-        { label: 'Tỷ lệ đăng nhập', value: `${loginRate}%`, tone: 'teal', meta: 'nhân sự đang active', icon: '↗', key: 'login_rate' },
+        { label: 'Tổng nhân sự', value: formatNumber(summary.total), tone: 'indigo', meta: `+${Math.max(newCreatedCount, 0)} mới`, icon: UsersRound, key: 'total_staff' },
+        { label: 'Đang hoạt động', value: formatNumber(summary.active), tone: 'green', meta: `${loginRate}% tổng tài khoản`, icon: UserCheck, key: 'active' },
+        { label: 'Tài khoản rủi ro', value: formatNumber(atRiskCount), tone: 'red', meta: `${summary.locked || 0} bị khóa`, icon: AlertTriangle, key: 'locked' },
+        { label: 'Vai trò hệ thống', value: formatNumber(data.roles.length), tone: 'amber', meta: 'RBAC đang dùng', icon: ShieldCheck, key: 'roles' },
+        { label: 'Quyền khả dụng', value: formatNumber(data.permissions.length), tone: 'violet', meta: 'permission scope', icon: KeyRound, key: 'permissions' },
+        { label: 'Khoa/Phòng', value: formatNumber(data.departments.length), tone: 'blue', meta: `${departmentCoverage}% có phụ trách`, icon: Building2, key: 'departments' },
+        { label: 'Nhân sự mới', value: formatNumber(newCreatedCount), tone: 'pink', meta: 'từ nhật ký audit', icon: UserPlus, key: 'new_created' },
+        { label: 'Tín hiệu đăng nhập', value: `${loginRate}%`, tone: 'teal', meta: 'active readiness', icon: Activity, key: 'login_rate' },
+      ],
+      healthSignals: [
+        {
+          label: 'Sẵn sàng vận hành',
+          value: `${loginRate}%`,
+          detail: `${formatNumber(summary.active)} / ${formatNumber(summary.total)} nhân sự active`,
+          icon: Gauge,
+          tone: loginRate >= 80 ? 'success' : loginRate >= 55 ? 'warning' : 'danger',
+        },
+        {
+          label: 'Phủ trưởng khoa',
+          value: `${departmentCoverage}%`,
+          detail: `${formatNumber(missingHeadsCount)} khoa/phòng cần bổ sung`,
+          icon: Building2,
+          tone: missingHeadsCount === 0 ? 'success' : missingHeadsCount <= 2 ? 'warning' : 'danger',
+        },
+        {
+          label: 'Audit bất thường',
+          value: formatNumber(failedAuditCount),
+          detail: failedAuditCount ? 'Có sự kiện cần rà soát' : 'Không ghi nhận lỗi gần đây',
+          icon: FileClock,
+          tone: failedAuditCount ? 'danger' : 'success',
+        },
+      ],
+      priorityItems: [
+        {
+          label: 'Tài khoản bị khóa',
+          value: formatNumber(summary.locked),
+          detail: 'Ưu tiên mở khóa hoặc xác minh rủi ro',
+          to: '/admin/staff?status=locked',
+          tone: Number(summary.locked || 0) > 0 ? 'danger' : 'success',
+        },
+        {
+          label: 'Khoa/phòng thiếu trưởng khoa',
+          value: formatNumber(missingHeadsCount),
+          detail: 'Bổ sung người phụ trách để hoàn thiện phân quyền',
+          to: '/admin/facilities/heads',
+          tone: missingHeadsCount > 0 ? 'warning' : 'success',
+        },
+        {
+          label: 'Quyền đang khả dụng',
+          value: formatNumber(data.permissions.length),
+          detail: 'Kiểm tra scope trước khi gán vai trò mới',
+          to: '/admin/permissions',
+          tone: 'info',
+        },
       ],
     };
   }, [data]);
 
   return (
-    <>
-      <section className="admin-insight-bar">
-        <div className="admin-insight-bar__title">
-          <span>◉</span>
-          <strong>Thông tin hệ thống:</strong>
-        </div>
-        <div className="admin-insight-bar__chips">
-          <span>{formatNumber(data.summary?.locked)} tài khoản bị khóa</span>
-          <span>{formatNumber(view.missingHeadsCount)} khoa/phòng thiếu trưởng khoa</span>
-        </div>
-        <button type="button">Xem chi tiết</button>
-      </section>
-
-      <section className="admin-hero">
-        <div>
-          <h1>Tổng quan hệ thống</h1>
+    <div className="admin-overview-pro">
+      <section className="admin-overview-hero">
+        <div className="admin-overview-hero__copy">
+          <span className="admin-overview-eyebrow">
+            <LayoutGrid size={16} strokeWidth={2.3} aria-hidden="true" />
+            Trung tâm quản trị
+          </span>
+          <h1>Tổng quan quản trị</h1>
           <p>
-            Theo dõi nhanh nhân sự, vai trò, khoa phòng và các tín hiệu bảo mật gần đây của toàn hệ
-            thống Aura Health.
+            Theo dõi sức khỏe nhân sự, vai trò, khoa phòng và tín hiệu bảo mật quan trọng trong một
+            bảng điều khiển gọn, rõ và sẵn sàng vận hành.
           </p>
-          {error ? <p className="form-message error">{error}</p> : null}
+          <div className="admin-overview-hero__chips">
+            <span><Activity size={15} strokeWidth={2.25} /> {view.loginRate}% tài khoản active</span>
+            <span><Building2 size={15} strokeWidth={2.25} /> {view.departmentCoverage}% khoa/phòng có phụ trách</span>
+            <span><FileClock size={15} strokeWidth={2.25} /> Cập nhật {formatCompactDate(lastUpdated)}</span>
+          </div>
+          {error ? (
+            <p className="admin-overview-alert" role="alert">
+              <AlertTriangle size={16} strokeWidth={2.35} aria-hidden="true" />
+              {error}
+            </p>
+          ) : null}
         </div>
 
-        <div className="admin-hero__actions">
-          <button type="button">Xem nhật ký</button>
-          <button type="button">Tạo vai trò</button>
-          <button type="button">Tạo khoa/phòng</button>
-          <Link to="/admin/staff/create" className="admin-hero__actions-primary">
-            Tạo nhân sự
-          </Link>
-        </div>
+        <aside className="admin-overview-command" aria-label="Việc cần ưu tiên">
+          <div className="admin-overview-command__head">
+            <span><Sparkles size={16} strokeWidth={2.35} aria-hidden="true" /> Ưu tiên hôm nay</span>
+            {isLoading ? <RefreshCw className="admin-overview-spin" size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
+          </div>
+          <div className="admin-overview-priority-list">
+            {view.priorityItems.map((item) => (
+              <Link key={item.label} to={item.to} className={`admin-overview-priority admin-overview-priority--${item.tone}`}>
+                <span>{item.value}</span>
+                <div>
+                  <strong>{item.label}</strong>
+                  <small>{item.detail}</small>
+                </div>
+                <ArrowUpRight size={16} strokeWidth={2.3} aria-hidden="true" />
+              </Link>
+            ))}
+          </div>
+          <div className="admin-overview-actions">
+            <Link to="/admin/staff/create" className="admin-overview-action admin-overview-action--primary">
+              <UserPlus size={16} strokeWidth={2.3} aria-hidden="true" />
+              Tạo nhân sự
+            </Link>
+            <Link to="/admin/roles/create" className="admin-overview-action">
+              <ShieldCheck size={16} strokeWidth={2.3} aria-hidden="true" />
+              Tạo vai trò
+            </Link>
+            <Link to="/admin/logs/audit" className="admin-overview-action">
+              <FileClock size={16} strokeWidth={2.3} aria-hidden="true" />
+              Xem audit
+            </Link>
+          </div>
+        </aside>
       </section>
 
-      <section className="admin-metrics">
+      <section className="admin-overview-health" aria-label="Tín hiệu hệ thống">
+        {view.healthSignals.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article key={item.label} className={`admin-overview-health-card admin-overview-health-card--${item.tone}`}>
+              <span className="admin-overview-health-card__icon"><Icon size={18} strokeWidth={2.35} aria-hidden="true" /></span>
+              <div>
+                <small>{item.label}</small>
+                <strong>{item.value}</strong>
+                <p>{item.detail}</p>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="admin-metrics admin-metrics--overview">
         {view.metricCards.map((item) => {
+          const Icon = item.icon;
           const metricHref =
             item.key === 'total_staff'
               ? '/admin/staff'
@@ -170,12 +302,18 @@ export function AdminOverviewPage() {
                   ? '/admin/staff?status=locked'
                   : item.key === 'new_created'
                     ? '/admin/staff?sort=created_at_desc'
-                    : null;
+                    : item.key === 'roles'
+                      ? '/admin/roles'
+                      : item.key === 'permissions'
+                        ? '/admin/permissions'
+                        : item.key === 'departments'
+                          ? '/admin/facilities/departments'
+                          : null;
 
           const content = (
             <>
               <div className="admin-metric-card__top">
-                <span className="admin-metric-card__icon">{item.icon}</span>
+                <span className="admin-metric-card__icon"><Icon size={20} strokeWidth={2.35} aria-hidden="true" /></span>
                 <small>{item.meta}</small>
               </div>
               <span>{item.label}</span>
@@ -195,11 +333,11 @@ export function AdminOverviewPage() {
         })}
       </section>
 
-      <section className="admin-content-grid">
-        <article className="admin-panel admin-panel--table">
-          <div className="admin-panel__heading">
+      <section className="admin-overview-grid">
+        <article className="admin-overview-panel admin-overview-panel--table">
+          <div className="admin-overview-panel__head">
             <h2>Nhân sự mới tạo</h2>
-            <Link to="/admin/staff">Xem tất cả</Link>
+            <Link to="/admin/staff">Xem tất cả <ArrowUpRight size={14} strokeWidth={2.35} /></Link>
           </div>
           <div className="admin-staff-table">
             <div className="admin-staff-table__head">
@@ -225,21 +363,30 @@ export function AdminOverviewPage() {
                 <strong className="admin-staff-table__department">
                   {data.departments.find((department) => department.department_id === item.department_id)?.department_name || 'Chưa gán'}
                 </strong>
-                <span className={`admin-status-badge admin-status-badge--${item.status || 'active'}`}>{item.status || 'active'}</span>
+                <span className={`admin-status-badge admin-status-badge--${item.status || 'active'}`}>
+                  {STATUS_LABELS[item.status] || item.status || 'Hoạt động'}
+                </span>
               </div>
             ))}
+            {!data.staff.length ? (
+              <div className="admin-overview-empty">
+                <UsersRound size={20} strokeWidth={2.25} aria-hidden="true" />
+                <span>{isLoading ? 'Đang tải danh sách nhân sự...' : 'Chưa có nhân sự mới để hiển thị.'}</span>
+              </div>
+            ) : null}
           </div>
         </article>
 
-        <article className="admin-panel admin-panel--activity">
-          <div className="admin-panel__heading">
+        <article className="admin-overview-panel admin-overview-panel--activity">
+          <div className="admin-overview-panel__head">
             <h2>Hoạt động gần đây</h2>
+            <span>{formatNumber(data.audit.length)} sự kiện</span>
           </div>
           <div className="admin-activity-list">
             {data.audit.map((item, index) => (
               <div key={`${item._id || item.action}-${index}`} className="admin-activity-item">
                 <div className={`admin-activity-item__icon admin-activity-item__icon--${item.status || 'success'}`}>
-                  {item.status === 'failed' ? '!' : '+'}
+                  {item.status === 'failed' ? <AlertTriangle size={16} strokeWidth={2.35} /> : <ClipboardCheck size={16} strokeWidth={2.35} />}
                 </div>
                 <div>
                   <strong>{item.message || item.action}</strong>
@@ -247,14 +394,22 @@ export function AdminOverviewPage() {
                 </div>
               </div>
             ))}
+            {!data.audit.length ? (
+              <div className="admin-overview-empty admin-overview-empty--compact">
+                <FileClock size={20} strokeWidth={2.25} aria-hidden="true" />
+                <span>{isLoading ? 'Đang tải nhật ký...' : 'Chưa có hoạt động gần đây.'}</span>
+              </div>
+            ) : null}
           </div>
-          <button type="button" className="admin-panel__ghost-link">Tải thêm hoạt động</button>
+          <Link to="/admin/logs/audit" className="admin-overview-panel__ghost-link">
+            Mở nhật ký audit <ArrowUpRight size={14} strokeWidth={2.35} />
+          </Link>
         </article>
       </section>
 
-      <section className="admin-analytics-grid">
-        <article className="admin-panel">
-          <div className="admin-panel__heading"><h2>Nhân sự theo khoa/phòng</h2></div>
+      <section className="admin-overview-analytics">
+        <article className="admin-overview-panel">
+          <div className="admin-overview-panel__head"><h2>Nhân sự theo khoa/phòng</h2></div>
           <div className="admin-progress-list">
             {view.topDepartments.map((item) => (
               <div key={item.department_id} className="admin-progress-item">
@@ -267,11 +422,17 @@ export function AdminOverviewPage() {
                 </div>
               </div>
             ))}
+            {!view.topDepartments.length ? (
+              <div className="admin-overview-empty admin-overview-empty--compact">
+                <Building2 size={20} strokeWidth={2.25} aria-hidden="true" />
+                <span>Chưa có dữ liệu phân bổ khoa/phòng.</span>
+              </div>
+            ) : null}
           </div>
         </article>
 
-        <article className="admin-panel">
-          <div className="admin-panel__heading"><h2>Nhân sự theo vai trò</h2></div>
+        <article className="admin-overview-panel">
+          <div className="admin-overview-panel__head"><h2>Nhân sự theo vai trò</h2></div>
           <div className="admin-role-chart">
             <div className="admin-role-chart__ring" style={{ background: view.roleRing }}>
               <div>
@@ -286,12 +447,18 @@ export function AdminOverviewPage() {
                   <strong>{item.role_code}</strong>
                 </div>
               ))}
+              {!view.roleSegments.length ? (
+                <div>
+                  <span style={{ backgroundColor: '#cbd5e1' }} />
+                  <strong>Chưa có vai trò</strong>
+                </div>
+              ) : null}
             </div>
           </div>
         </article>
 
-        <article className="admin-panel">
-          <div className="admin-panel__heading"><h2>Trạng thái tài khoản</h2></div>
+        <article className="admin-overview-panel">
+          <div className="admin-overview-panel__head"><h2>Trạng thái tài khoản</h2></div>
           <div className="admin-status-chart">
             <div className="admin-status-chart__bars">
               {view.accountStatuses.map((item) => (
@@ -303,10 +470,10 @@ export function AdminOverviewPage() {
                 </div>
               ))}
             </div>
-            <div className="admin-status-chart__note"><span>i</span><strong>{view.loginRate}% tài khoản đang hoạt động</strong></div>
+            <div className="admin-status-chart__note"><Activity size={16} strokeWidth={2.35} /><strong>{view.loginRate}% tài khoản đang hoạt động</strong></div>
           </div>
         </article>
       </section>
-    </>
+    </div>
   );
 }

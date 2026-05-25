@@ -1,89 +1,108 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { PatientRoute, SuperAdminRoute, StaffRoute } from './RouteGuards';
 import { createLoginRedirectPath, isPatientSession, isSuperAdminSession } from '../lib/authSession';
 import { readStoredAuth } from '../lib/storage';
 import { buildRecoveryPath, resolveRecoveryActorFromPath } from '../auth/recovery/recoveryUtils';
-import { LoginPage } from '../auth/pages/LoginPage';
-import { RegisterPage } from '../auth/pages/RegisterPage';
-import { ForgotPasswordPage } from '../auth/pages/ForgotPasswordPage';
-import { ResetPasswordPage } from '../auth/pages/ResetPasswordPage';
-import { StaffLoginPage } from '../auth/pages/StaffLoginPage';
-import { CommandCenterPage } from '../admin/command-center/CommandCenterPage';
-import { OperationsCenterPage } from '../admin/operations/OperationsCenterPage';
-import { IntegrationHubPage } from '../admin/integrations/IntegrationHubPage';
-import { PatientPortalAdminPage } from '../admin/patient-portal/PatientPortalAdminPage';
-import { SupportCommunicationPage } from '../admin/support-communication/SupportCommunicationPage';
-import { AdminToolsPage } from '../admin/admin-tools/AdminToolsPage';
-import { SecurityCenterPage } from '../admin/security-center/pages/SecurityCenterPage';
-import { AuditCompliancePage } from '../admin/audit-compliance/pages/AuditCompliancePage';
-import { AdminOverviewPage } from '../admin/pages/AdminOverviewPage';
-import { AdminLayout } from '../admin/components/AdminLayout';
-import { StaffListPage } from '../admin/staff/pages/StaffListPage';
-import { StaffCreatePage } from '../admin/staff/pages/StaffCreatePage';
-import { StaffDetailPage } from '../admin/staff/pages/StaffDetailPage';
-import { StaffEditPage } from '../admin/staff/pages/StaffEditPage';
-import { StaffOperationsPage } from '../admin/staff/pages/StaffOperationsPage';
-import { WorkspaceAccessControlPlanePage } from '../admin/workspace-access/pages/WorkspaceAccessControlPlanePage';
-import { FacilityControlPlanePage } from '../admin/facilities/pages/FacilityControlPlanePage';
-import { MasterDataControlPlanePage } from '../admin/master-data/pages/MasterDataControlPlanePage';
-import { RoleListPage } from '../admin/roles/pages/RoleListPage';
-import { RoleCreatePage, RoleEditPage } from '../admin/roles/pages/RoleFormPage';
-import { RoleDetailPage } from '../admin/roles/pages/RoleDetailPage';
-import { RolePermissionsPage } from '../admin/roles/pages/RolePermissionsPage';
-import { PermissionListPage } from '../admin/roles/pages/PermissionListPage';
-import { PermissionCreatePage, PermissionEditPage } from '../admin/roles/pages/PermissionFormPage';
-import { PermissionDetailPage } from '../admin/roles/pages/PermissionDetailPage';
-import { IamControlPlanePage } from '../admin/iam/pages/IamControlPlanePage';
-import { DepartmentListPage } from '../admin/system/pages/DepartmentListPage';
-import { DepartmentCreatePage, DepartmentEditPage } from '../admin/system/pages/DepartmentFormPage';
-import { DepartmentDetailPage } from '../admin/system/pages/DepartmentDetailPage';
-import { MyProfilePage } from '../admin/system/pages/MyProfilePage';
-import { ChangePasswordPage } from '../admin/system/pages/ChangePasswordPage';
-import { MySessionsPage } from '../admin/system/pages/MySessionsPage';
-import { LoginHistoryPage } from '../admin/system/pages/LoginHistoryPage';
-import { SystemSettingsPage } from '../admin/system/pages/SystemSettingsPage';
-import { HomePage } from '../home/HomePage';
-import { SupportPage } from '../info/pages/SupportPage';
-import { TermsPage } from '../info/pages/TermsPage';
-import { AboutPage } from '../home/pages/AboutPage';
-import { SpecialtiesPage } from '../home/pages/SpecialtiesPage';
-import { DoctorsPage } from '../home/pages/DoctorsPage';
-import { FaqPage } from '../home/pages/FaqPage';
-import { NewsArticlePage, NewsPage } from '../home/pages/NewsPage';
-import { ContactPage } from '../home/pages/ContactPage';
-import { BankQrTestPage } from '../dev/BankQrTestPage';
-import { StaffAccessPage } from '../receptionist/pages/StaffAccessPage';
-import { DevPlaceholderPage } from '../receptionist/pages/DevPlaceholderPage';
-import { ReceptionDashboardPage } from '../receptionist/pages/ReceptionDashboardPage';
-import { StaffOverviewPage } from '../receptionist/pages/StaffOverviewPage';
-import { UnauthorizedPage } from '../receptionist/pages/UnauthorizedPage';
-import PatientPage from '../Patient Page';
+import { HealthcareChatbotLayer } from '../components/HealthcareChatbot';
 
-import BillingWorkspace from '../BillingWorkspace';
-import DoctorWorkspace from '../DoctorWorkspace';
-import ClinicalOpsWorkspace from '../ClinicalOpsWorkspace';
-import LabWorkspace from '../LabWorkspace';
-import NurseWorkspace from '../NurseWorkspace';
-import PharmacyWorkspace from '../PharmacyWorkspace';
-import ReportsWorkspace from '../ReportsWorkspace';
-import {
-  ScheduleBulkCreatePage,
-  ScheduleCreatePage,
-  ScheduleDetailPage,
-  SchedulingActivityPage,
-  SchedulesByDepartmentPage,
-  SchedulesByDoctorPage,
-  SchedulingApprovalsPage,
-  SchedulingCalendarPage,
-  SchedulingConfigurationPage,
-  SchedulingDashboardPage,
-  SchedulingListPage,
-  SchedulingShell,
-  SchedulingSlotsPage,
-  SchedulingTasksPage,
-  SchedulingTodayPage,
-  SchedulingUtilizationPage,
-} from '../scheduling';
+function lazyNamed(loader, exportName) {
+  return lazy(() => loader().then((module) => ({ default: module[exportName] || module.default })));
+}
+
+function RouteLoading() {
+  return (
+    <main className="app-route-loading" aria-live="polite">
+      <span>Đang tải giao diện...</span>
+    </main>
+  );
+}
+
+const LoginPage = lazyNamed(() => import('../auth/pages/LoginPage'), 'LoginPage');
+const RegisterPage = lazyNamed(() => import('../auth/pages/RegisterPage'), 'RegisterPage');
+const ForgotPasswordPage = lazyNamed(() => import('../auth/pages/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ResetPasswordPage = lazyNamed(() => import('../auth/pages/ResetPasswordPage'), 'ResetPasswordPage');
+const StaffLoginPage = lazyNamed(() => import('../auth/pages/StaffLoginPage'), 'StaffLoginPage');
+const BankQrTestPage = lazyNamed(() => import('../dev/BankQrTestPage'), 'BankQrTestPage');
+const HomePage = lazyNamed(() => import('../home/HomePage'), 'HomePage');
+const SupportPage = lazyNamed(() => import('../info/pages/SupportPage'), 'SupportPage');
+const TermsPage = lazyNamed(() => import('../info/pages/TermsPage'), 'TermsPage');
+const AboutPage = lazyNamed(() => import('../home/pages/AboutPage'), 'AboutPage');
+const SpecialtiesPage = lazyNamed(() => import('../home/pages/SpecialtiesPage'), 'SpecialtiesPage');
+const DoctorsPage = lazyNamed(() => import('../home/pages/DoctorsPage'), 'DoctorsPage');
+const FaqPage = lazyNamed(() => import('../home/pages/FaqPage'), 'FaqPage');
+const NewsPage = lazyNamed(() => import('../home/pages/NewsPage'), 'NewsPage');
+const NewsArticlePage = lazyNamed(() => import('../home/pages/NewsPage'), 'NewsArticlePage');
+const ContactPage = lazyNamed(() => import('../home/pages/ContactPage'), 'ContactPage');
+const StaffAccessPage = lazyNamed(() => import('../receptionist/pages/StaffAccessPage'), 'StaffAccessPage');
+const DevPlaceholderPage = lazyNamed(() => import('../receptionist/pages/DevPlaceholderPage'), 'DevPlaceholderPage');
+const ReceptionDashboardPage = lazyNamed(() => import('../receptionist/pages/ReceptionDashboardPage'), 'ReceptionDashboardPage');
+const StaffOverviewPage = lazyNamed(() => import('../receptionist/pages/StaffOverviewPage'), 'StaffOverviewPage');
+const UnauthorizedPage = lazyNamed(() => import('../receptionist/pages/UnauthorizedPage'), 'UnauthorizedPage');
+const PatientPage = lazy(() => import('../Patient Page'));
+const BillingWorkspace = lazy(() => import('../BillingWorkspace'));
+const DoctorWorkspace = lazy(() => import('../DoctorWorkspace'));
+const ClinicalOpsWorkspace = lazy(() => import('../ClinicalOpsWorkspace'));
+const LabWorkspace = lazy(() => import('../LabWorkspace'));
+const NurseWorkspace = lazy(() => import('../NurseWorkspace'));
+const PharmacyWorkspace = lazy(() => import('../PharmacyWorkspace'));
+const ReportsWorkspace = lazy(() => import('../ReportsWorkspace'));
+const CommandCenterPage = lazyNamed(() => import('../admin/command-center/CommandCenterPage'), 'CommandCenterPage');
+const OperationsCenterPage = lazyNamed(() => import('../admin/operations/OperationsCenterPage'), 'OperationsCenterPage');
+const IntegrationHubPage = lazyNamed(() => import('../admin/integrations/IntegrationHubPage'), 'IntegrationHubPage');
+const PatientPortalAdminPage = lazyNamed(() => import('../admin/patient-portal/PatientPortalAdminPage'), 'PatientPortalAdminPage');
+const SupportCommunicationPage = lazyNamed(() => import('../admin/support-communication/SupportCommunicationPage'), 'SupportCommunicationPage');
+const ChatbotAdminPage = lazyNamed(() => import('../admin/chatbot/ChatbotAdminPage'), 'ChatbotAdminPage');
+const AdminToolsPage = lazyNamed(() => import('../admin/admin-tools/AdminToolsPage'), 'AdminToolsPage');
+const SecurityCenterPage = lazyNamed(() => import('../admin/security-center/pages/SecurityCenterPage'), 'SecurityCenterPage');
+const AuditCompliancePage = lazyNamed(() => import('../admin/audit-compliance/pages/AuditCompliancePage'), 'AuditCompliancePage');
+const AdminOverviewPage = lazyNamed(() => import('../admin/pages/AdminOverviewPage'), 'AdminOverviewPage');
+const AdminLayout = lazyNamed(() => import('../admin/components/AdminLayout'), 'AdminLayout');
+const StaffListPage = lazyNamed(() => import('../admin/staff/pages/StaffListPage'), 'StaffListPage');
+const StaffCreatePage = lazyNamed(() => import('../admin/staff/pages/StaffCreatePage'), 'StaffCreatePage');
+const StaffDetailPage = lazyNamed(() => import('../admin/staff/pages/StaffDetailPage'), 'StaffDetailPage');
+const StaffEditPage = lazyNamed(() => import('../admin/staff/pages/StaffEditPage'), 'StaffEditPage');
+const StaffOperationsPage = lazyNamed(() => import('../admin/staff/pages/StaffOperationsPage'), 'StaffOperationsPage');
+const WorkspaceAccessControlPlanePage = lazyNamed(() => import('../admin/workspace-access/pages/WorkspaceAccessControlPlanePage'), 'WorkspaceAccessControlPlanePage');
+const FacilityControlPlanePage = lazyNamed(() => import('../admin/facilities/pages/FacilityControlPlanePage'), 'FacilityControlPlanePage');
+const MasterDataControlPlanePage = lazyNamed(() => import('../admin/master-data/pages/MasterDataControlPlanePage'), 'MasterDataControlPlanePage');
+const RoleListPage = lazyNamed(() => import('../admin/roles/pages/RoleListPage'), 'RoleListPage');
+const RoleCreatePage = lazyNamed(() => import('../admin/roles/pages/RoleFormPage'), 'RoleCreatePage');
+const RoleEditPage = lazyNamed(() => import('../admin/roles/pages/RoleFormPage'), 'RoleEditPage');
+const RoleDetailPage = lazyNamed(() => import('../admin/roles/pages/RoleDetailPage'), 'RoleDetailPage');
+const RolePermissionsPage = lazyNamed(() => import('../admin/roles/pages/RolePermissionsPage'), 'RolePermissionsPage');
+const PermissionListPage = lazyNamed(() => import('../admin/roles/pages/PermissionListPage'), 'PermissionListPage');
+const PermissionCreatePage = lazyNamed(() => import('../admin/roles/pages/PermissionFormPage'), 'PermissionCreatePage');
+const PermissionEditPage = lazyNamed(() => import('../admin/roles/pages/PermissionFormPage'), 'PermissionEditPage');
+const PermissionDetailPage = lazyNamed(() => import('../admin/roles/pages/PermissionDetailPage'), 'PermissionDetailPage');
+const IamControlPlanePage = lazyNamed(() => import('../admin/iam/pages/IamControlPlanePage'), 'IamControlPlanePage');
+const DepartmentCreatePage = lazyNamed(() => import('../admin/system/pages/DepartmentFormPage'), 'DepartmentCreatePage');
+const DepartmentEditPage = lazyNamed(() => import('../admin/system/pages/DepartmentFormPage'), 'DepartmentEditPage');
+const DepartmentDetailPage = lazyNamed(() => import('../admin/system/pages/DepartmentDetailPage'), 'DepartmentDetailPage');
+const MyProfilePage = lazyNamed(() => import('../admin/system/pages/MyProfilePage'), 'MyProfilePage');
+const ChangePasswordPage = lazyNamed(() => import('../admin/system/pages/ChangePasswordPage'), 'ChangePasswordPage');
+const MySessionsPage = lazyNamed(() => import('../admin/system/pages/MySessionsPage'), 'MySessionsPage');
+const LoginHistoryPage = lazyNamed(() => import('../admin/system/pages/LoginHistoryPage'), 'LoginHistoryPage');
+const SystemSettingsPage = lazyNamed(() => import('../admin/system/pages/SystemSettingsPage'), 'SystemSettingsPage');
+const AppointmentCommandPage = lazyNamed(() => import('../scheduling'), 'AppointmentCommandPage');
+const ActivityCommandPage = lazyNamed(() => import('../scheduling'), 'ActivityCommandPage');
+const DoctorScheduleCommandPage = lazyNamed(() => import('../scheduling'), 'DoctorScheduleCommandPage');
+const OperationsCommandPage = lazyNamed(() => import('../scheduling'), 'OperationsCommandPage');
+const OperationalAlertPage = lazyNamed(() => import('../scheduling'), 'OperationalAlertPage');
+const PatientFlowCommandPage = lazyNamed(() => import('../scheduling'), 'PatientFlowCommandPage');
+const QueueCommandPage = lazyNamed(() => import('../scheduling'), 'QueueCommandPage');
+const ReportCommandPage = lazyNamed(() => import('../scheduling'), 'ReportCommandPage');
+const ResourceCommandPage = lazyNamed(() => import('../scheduling'), 'ResourceCommandPage');
+const ScheduleBulkCreatePage = lazyNamed(() => import('../scheduling'), 'ScheduleBulkCreatePage');
+const ScheduleCreatePage = lazyNamed(() => import('../scheduling'), 'ScheduleCreatePage');
+const ScheduleDetailPage = lazyNamed(() => import('../scheduling'), 'ScheduleDetailPage');
+const SchedulingApprovalsPage = lazyNamed(() => import('../scheduling'), 'SchedulingApprovalsPage');
+const SchedulingCalendarPage = lazyNamed(() => import('../scheduling'), 'SchedulingCalendarPage');
+const SchedulingListPage = lazyNamed(() => import('../scheduling'), 'SchedulingListPage');
+const SchedulingSettingsCommandPage = lazyNamed(() => import('../scheduling'), 'SchedulingSettingsCommandPage');
+const SchedulingShell = lazyNamed(() => import('../scheduling'), 'SchedulingShell');
+const SchedulingTasksPage = lazyNamed(() => import('../scheduling'), 'SchedulingTasksPage');
+const SlotCapacityCommandPage = lazyNamed(() => import('../scheduling'), 'SlotCapacityCommandPage');
 
 const devPlaceholderRoutes = [
   { path: '/security/overview', title: 'Bảo mật & phiên đăng nhập', workspaceKey: 'admin', guard: 'staff' },
@@ -130,7 +149,8 @@ function RecoveryRouteRedirect({ mode }) {
 export function AppRouter() {
   return (
     <BrowserRouter>
-      <Routes>
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/bank-qr-test" element={<BankQrTestPage />} />
@@ -272,28 +292,91 @@ export function AppRouter() {
             </StaffRoute>
           }
         >
-          <Route index element={<Navigate to="/scheduling/dashboard" replace />} />
-          <Route path="dashboard" element={<SchedulingDashboardPage />} />
+          <Route index element={<Navigate to="/scheduling/overview" replace />} />
+          <Route path="overview" element={<OperationsCommandPage view="dashboard" />} />
+          <Route path="dashboard" element={<OperationsCommandPage view="dashboard" />} />
           <Route path="tasks" element={<SchedulingTasksPage />} />
-          <Route path="today" element={<SchedulingTodayPage />} />
+          <Route path="today" element={<OperationsCommandPage view="today" />} />
+          <Route path="current-queue" element={<OperationsCommandPage view="queue" />} />
+          <Route path="load" element={<OperationsCommandPage view="load" />} />
+          <Route path="capacity" element={<OperationsCommandPage view="capacity" />} />
+          <Route path="alerts" element={<OperationalAlertPage view="all" />} />
+          <Route path="alerts/schedule-slot" element={<OperationalAlertPage view="scheduleSlot" />} />
+          <Route path="alerts/queue" element={<OperationalAlertPage view="queue" />} />
+          <Route path="alerts/doctor-department" element={<OperationalAlertPage view="doctorDepartment" />} />
+          <Route path="alerts/no-show" element={<OperationalAlertPage view="noShow" />} />
+          <Route path="alerts/action-center" element={<OperationalAlertPage view="actionCenter" />} />
+          <Route path="appointments" element={<AppointmentCommandPage view="list" />} />
+          <Route path="appointments/calendar" element={<AppointmentCommandPage view="calendar" />} />
+          <Route path="appointments/create" element={<AppointmentCommandPage view="create" />} />
+          <Route path="appointments/confirmation" element={<AppointmentCommandPage view="confirmation" />} />
+          <Route path="appointments/reschedule-cancel" element={<AppointmentCommandPage view="reschedule" />} />
+          <Route path="appointments/check-in" element={<AppointmentCommandPage view="checkIn" />} />
+          <Route path="appointments/no-show" element={<AppointmentCommandPage view="noShow" />} />
+          <Route path="appointments/waitlist" element={<AppointmentCommandPage view="waitlist" />} />
+          <Route path="doctor-schedules" element={<DoctorScheduleCommandPage view="list" />} />
+          <Route path="doctor-schedules/calendar" element={<DoctorScheduleCommandPage view="calendar" />} />
+          <Route path="doctor-schedules/create" element={<DoctorScheduleCommandPage view="create" />} />
+          <Route path="doctor-schedules/bulk-create" element={<DoctorScheduleCommandPage view="bulk" />} />
+          <Route path="doctor-schedules/publish" element={<DoctorScheduleCommandPage view="publish" />} />
+          <Route path="doctor-schedules/conflicts" element={<DoctorScheduleCommandPage view="conflicts" />} />
+          <Route path="doctor-schedules/impact" element={<DoctorScheduleCommandPage view="impact" />} />
+          <Route path="slots/generate" element={<SlotCapacityCommandPage view="generate" />} />
+          <Route path="slots/blocking" element={<SlotCapacityCommandPage view="blocking" />} />
+          <Route path="slots/import-export" element={<SlotCapacityCommandPage view="importExport" />} />
+          <Route path="slots/utilization" element={<SlotCapacityCommandPage view="utilization" />} />
+          <Route path="slots/activity" element={<SlotCapacityCommandPage view="activity" />} />
+          <Route path="queue" element={<QueueCommandPage view="board" />} />
+          <Route path="queue/today" element={<QueueCommandPage view="today" />} />
+          <Route path="queue/call" element={<QueueCommandPage view="call" />} />
+          <Route path="queue/transfer-priority" element={<QueueCommandPage view="transfer" />} />
+          <Route path="queue/missed-no-show" element={<QueueCommandPage view="missed" />} />
+          <Route path="queue/public-board" element={<QueueCommandPage view="public" />} />
+          <Route path="patient-flow" element={<PatientFlowCommandPage view="board" />} />
+          <Route path="patient-flow/check-in" element={<PatientFlowCommandPage view="checkIn" />} />
+          <Route path="patient-flow/waiting" element={<PatientFlowCommandPage view="waiting" />} />
+          <Route path="patient-flow/in-consultation" element={<PatientFlowCommandPage view="inConsultation" />} />
+          <Route path="patient-flow/needs-action" element={<PatientFlowCommandPage view="needsAction" />} />
+          <Route path="patient-flow/completed" element={<PatientFlowCommandPage view="completed" />} />
           <Route path="schedules" element={<SchedulingListPage />} />
           <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
           <Route path="create" element={<ScheduleCreatePage />} />
           <Route path="bulk-create" element={<ScheduleBulkCreatePage />} />
           <Route path="approvals" element={<SchedulingApprovalsPage />} />
           <Route path="calendar" element={<SchedulingCalendarPage />} />
-          <Route path="slots" element={<SchedulingSlotsPage />} />
-          <Route path="utilization" element={<SchedulingUtilizationPage />} />
-          <Route path="doctors" element={<SchedulesByDoctorPage />} />
-          <Route path="departments" element={<SchedulesByDepartmentPage />} />
-          <Route path="activity" element={<SchedulingActivityPage />} />
-          <Route path="configuration" element={<SchedulingConfigurationPage />} />
-          <Route path="configuration/templates" element={<SchedulingConfigurationPage />} />
-          <Route path="configuration/policies" element={<SchedulingConfigurationPage />} />
-          <Route path="configuration/exceptions" element={<SchedulingConfigurationPage />} />
-          <Route path="configuration/telehealth" element={<SchedulingConfigurationPage />} />
-          <Route path="configuration/notifications" element={<SchedulingConfigurationPage />} />
-          <Route path="configuration/advanced" element={<SchedulingConfigurationPage />} />
+          <Route path="slots" element={<SlotCapacityCommandPage view="board" />} />
+          <Route path="utilization" element={<ReportCommandPage view="dashboard" />} />
+          <Route path="doctors" element={<ResourceCommandPage view="doctors" />} />
+          <Route path="departments" element={<ResourceCommandPage view="departments" />} />
+          <Route path="rooms-locations" element={<ResourceCommandPage view="locations" />} />
+          <Route path="doctor-load" element={<ResourceCommandPage view="doctorLoad" />} />
+          <Route path="room-status" element={<ResourceCommandPage view="roomStatus" />} />
+          <Route path="resources/attention" element={<ResourceCommandPage view="attention" />} />
+          <Route path="reports" element={<ReportCommandPage view="dashboard" />} />
+          <Route path="reports/appointments" element={<ReportCommandPage view="appointments" />} />
+          <Route path="reports/queue" element={<ReportCommandPage view="queue" />} />
+          <Route path="reports/utilization" element={<ReportCommandPage view="utilization" />} />
+          <Route path="reports/no-show" element={<ReportCommandPage view="noShow" />} />
+          <Route path="reports/export" element={<ReportCommandPage view="export" />} />
+          <Route path="activity" element={<ActivityCommandPage view="all" />} />
+          <Route path="activity/doctor-schedules" element={<ActivityCommandPage view="doctorSchedules" />} />
+          <Route path="activity/appointments" element={<ActivityCommandPage view="appointments" />} />
+          <Route path="activity/slots" element={<ActivityCommandPage view="slots" />} />
+          <Route path="activity/queue" element={<ActivityCommandPage view="queue" />} />
+          <Route path="activity/check-in" element={<ActivityCommandPage view="checkIn" />} />
+          <Route path="configuration" element={<SchedulingSettingsCommandPage view="general" />} />
+          <Route path="configuration/schedule-types" element={<SchedulingSettingsCommandPage view="scheduleTypes" />} />
+          <Route path="configuration/templates" element={<SchedulingSettingsCommandPage view="templates" />} />
+          <Route path="configuration/slot-rules" element={<SchedulingSettingsCommandPage view="slotRules" />} />
+          <Route path="configuration/booking-rules" element={<SchedulingSettingsCommandPage view="bookingRules" />} />
+          <Route path="configuration/check-in-rules" element={<SchedulingSettingsCommandPage view="checkInRules" />} />
+          <Route path="configuration/cancel-reschedule-no-show" element={<SchedulingSettingsCommandPage view="cancelRules" />} />
+          <Route path="configuration/queue-rules" element={<SchedulingSettingsCommandPage view="queueRules" />} />
+          <Route path="configuration/policies" element={<SchedulingSettingsCommandPage view="bookingRules" />} />
+          <Route path="configuration/exceptions" element={<SchedulingSettingsCommandPage view="exceptions" />} />
+          <Route path="configuration/telehealth" element={<SchedulingSettingsCommandPage view="telehealth" />} />
+          <Route path="configuration/notifications" element={<SchedulingSettingsCommandPage view="notifications" />} />
+          <Route path="configuration/advanced" element={<SchedulingSettingsCommandPage view="advanced" />} />
         </Route>
         <Route path="/admin/scheduling/*" element={<Navigate to="/scheduling/dashboard" replace />} />
         <Route
@@ -380,6 +463,7 @@ export function AppRouter() {
           <Route path="support-communication/account" element={<SupportCommunicationPage view="account" />} />
           <Route path="support-communication/billing" element={<SupportCommunicationPage view="billing" />} />
           <Route path="support-communication/conversations" element={<SupportCommunicationPage view="conversations" />} />
+          <Route path="support-communication/ai-chatbot" element={<ChatbotAdminPage />} />
           <Route path="support-communication/system-messages" element={<SupportCommunicationPage view="systemMessages" />} />
           <Route path="support-communication/notifications" element={<SupportCommunicationPage view="notifications" />} />
           <Route path="support-communication/broadcast" element={<SupportCommunicationPage view="broadcast" />} />
@@ -541,7 +625,9 @@ export function AppRouter() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+        </Routes>
+      </Suspense>
+      <HealthcareChatbotLayer />
     </BrowserRouter>
   );
 }

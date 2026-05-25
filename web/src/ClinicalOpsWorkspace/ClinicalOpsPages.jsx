@@ -32,6 +32,7 @@ import {
   X,
 } from 'lucide-react';
 import { clinicalOpsAPI, getClinicalOpsErrorMessage } from './clinicalOpsApi';
+import { notifyClinicalOps } from './clinicalOpsActions';
 import './clinicalOps.css';
 
 const MODULE_META = {
@@ -233,7 +234,7 @@ function PageHeader({ eyebrow, title, description, children }) {
 
 function ScopeFilterBar({ filters, onChange, onRefresh, loading, showSearch = true, showSla = false, showStatusGroup = false }) {
   return (
-    <section className="clinical-ops-filter-bar" aria-label="Bộ lọc Clinical Operations">
+    <section className="clinical-ops-filter-bar" aria-label="Bộ lọc vận hành cận lâm sàng">
       <label>
         <CalendarDays size={15} strokeWidth={2.25} />
         <input type="date" value={filters.date || ''} onChange={(event) => onChange('date', event.target.value)} />
@@ -351,6 +352,32 @@ function CriticalBadge({ active }) {
   );
 }
 
+function routeForClinicalAction(action, item = {}) {
+  if (action === 'open_timeline') return `/clinical-ops/orders/timeline?item=${encodeURIComponent(item.work_item_id || item.entity_id || item.order_id || '')}`;
+  if (['acknowledge_critical'].includes(action)) return '/clinical-ops/overview/critical-results';
+  if (['finalize', 'finalize_lab_result', 'finalize_imaging_report'].includes(action)) return item.module === 'imaging' ? '/clinical-ops/approvals/imaging-signature' : '/clinical-ops/approvals/lab';
+  if (['amend', 'add_result_note'].includes(action)) return '/clinical-ops/approvals/amend-needed';
+  if (['release_to_patient'].includes(action)) return '/clinical-ops/approvals/returned-to-patient';
+  if (['create_lab_result', 'update_lab_result'].includes(action)) return '/clinical-ops/tests/result-entry';
+  if (['collect_specimen'].includes(action)) return '/clinical-ops/tests/waiting-specimen';
+  if (['receive_specimen'].includes(action)) return '/clinical-ops/specimens/receive';
+  if (['reject_specimen'].includes(action)) return '/clinical-ops/specimens/reject';
+  if (['process_specimen'].includes(action)) return '/clinical-ops/specimens/testing';
+  if (['schedule_imaging_order'].includes(action)) return '/clinical-ops/imaging/waiting-schedule';
+  if (['start_imaging_order'].includes(action)) return '/clinical-ops/imaging/schedule';
+  if (['complete_imaging_order'].includes(action)) return '/clinical-ops/imaging/in-progress';
+  if (['create_imaging_report', 'create_report'].includes(action)) return '/clinical-ops/imaging/reports';
+  if (['upload_imaging_file', 'upload_file'].includes(action)) return item.module === 'procedure' ? '/clinical-ops/procedures/files' : '/clinical-ops/imaging/upload-files';
+  if (['schedule_procedure'].includes(action)) return '/clinical-ops/procedures/waiting-schedule';
+  if (['start_procedure'].includes(action)) return '/clinical-ops/procedures/schedule';
+  if (['complete_procedure'].includes(action)) return '/clinical-ops/procedures/in-progress';
+  if (['create_charge', 'create_procedure_charge'].includes(action)) return '/clinical-ops/procedures/fees';
+  if (item.module === 'lab') return '/clinical-ops/tests/orders';
+  if (item.module === 'imaging') return '/clinical-ops/imaging/orders';
+  if (item.module === 'procedure') return '/clinical-ops/procedures/orders';
+  return '/clinical-ops/overview/today-worklist';
+}
+
 function PatientIdentityCell({ item }) {
   return (
     <div className="clinical-ops-patient-cell">
@@ -361,16 +388,27 @@ function PatientIdentityCell({ item }) {
 }
 
 function AllowedActionsMenu({ item, onEscalate }) {
+  const navigate = useNavigate();
   const actions = (item.allowed_actions || []).slice(0, 4);
+  function runAction(action) {
+    if (action === 'escalate') {
+      onEscalate?.(item);
+      return;
+    }
+    const route = routeForClinicalAction(action, item);
+    notifyClinicalOps({
+      title: ACTION_LABELS[action] || 'Mở nghiệp vụ cận lâm sàng',
+      message: 'Đã chuyển tới màn nghiệp vụ phù hợp để xử lý với đầy đủ context và quyền backend.',
+    });
+    navigate(route);
+  }
   return (
     <div className="clinical-ops-action-row">
       {actions.map((action) => (
         <button
           key={action}
           type="button"
-          onClick={() => {
-            if (action === 'escalate') onEscalate?.(item);
-          }}
+          onClick={() => runAction(action)}
           title={ACTION_LABELS[action] || action}
         >
           {ACTION_LABELS[action] || action}
@@ -383,7 +421,11 @@ function AllowedActionsMenu({ item, onEscalate }) {
 function KpiCard({ item, loading, onClick }) {
   const Icon = item.icon || Activity;
   return (
-    <button type="button" className={`clinical-ops-kpi is-${item.tone || 'neutral'}`} onClick={onClick}>
+    <button
+      type="button"
+      className={`clinical-ops-kpi is-${item.tone || 'neutral'}`}
+      onClick={onClick || (() => notifyClinicalOps({ title: item.label, message: item.hint || 'KPI đang phản ánh bộ lọc hiện tại.' }))}
+    >
       <span className="clinical-ops-kpi__icon">
         <Icon size={21} strokeWidth={2.25} />
       </span>
@@ -400,9 +442,9 @@ function KpiCard({ item, loading, onClick }) {
 function ClinicalOpsKpiGrid({ items, loading }) {
   const navigate = useNavigate();
   return (
-    <section className="clinical-ops-kpi-grid" aria-label="KPI Clinical Operations">
+    <section className="clinical-ops-kpi-grid" aria-label="KPI vận hành cận lâm sàng">
       {items.map((item) => (
-        <KpiCard key={item.label} item={item} loading={loading} onClick={() => item.to && navigate(item.to)} />
+        <KpiCard key={item.label} item={item} loading={loading} onClick={item.to ? () => navigate(item.to) : undefined} />
       ))}
     </section>
   );
@@ -437,6 +479,7 @@ function ClinicalOpsFlowFunnel({ title, icon: Icon, flow = {}, steps = [], tone 
 }
 
 function ClinicalOpsBottleneckPanel({ items = [] }) {
+  const navigate = useNavigate();
   return (
     <section className="clinical-ops-panel">
       <header className="clinical-ops-panel__header">
@@ -449,7 +492,15 @@ function ClinicalOpsBottleneckPanel({ items = [] }) {
       {items.length ? (
         <div className="clinical-ops-bottlenecks">
           {items.map((item) => (
-            <button key={item.id} type="button" className={`is-${item.severity}`}>
+            <button
+              key={item.id}
+              type="button"
+              className={`is-${item.severity}`}
+              onClick={() => {
+                notifyClinicalOps({ title: 'Bottleneck', message: item.next_action || item.title });
+                navigate(routeForClinicalAction(item.next_action, item));
+              }}
+            >
               <span>
                 <strong>{item.title}</strong>
                 <em>{item.module} · {item.next_action}</em>
@@ -543,20 +594,21 @@ function WorkItemTable({ rows = [], loading, onEscalate, mode = 'worklist' }) {
 }
 
 function CriticalStrip({ summary = {}, loading }) {
+  const navigate = useNavigate();
   const items = [
-    { label: 'STAT đang mở', value: summary.stat_open, tone: 'stat', icon: ShieldAlert },
-    { label: 'Critical chưa acknowledge', value: summary.critical_unacknowledged, tone: 'danger', icon: Siren },
-    { label: 'Order quá hạn SLA', value: summary.overdue_orders, tone: 'warning', icon: TimerOff },
-    { label: 'Kết quả chờ ký', value: summary.pending_approval, tone: 'info', icon: BadgeCheck },
-    { label: 'File thiếu / lỗi', value: summary.file_issue || summary.missing_file || 0, tone: 'neutral', icon: FileWarning },
-    { label: 'No-show hôm nay', value: summary.no_show_today, tone: 'muted', icon: AlertTriangle },
+    { label: 'STAT đang mở', value: summary.stat_open, tone: 'stat', icon: ShieldAlert, to: '/clinical-ops/overview/stat-urgent' },
+    { label: 'Critical chưa acknowledge', value: summary.critical_unacknowledged, tone: 'danger', icon: Siren, to: '/clinical-ops/overview/critical-results' },
+    { label: 'Order quá hạn SLA', value: summary.overdue_orders, tone: 'warning', icon: TimerOff, to: '/clinical-ops/overview/overdue-orders' },
+    { label: 'Kết quả chờ ký', value: summary.pending_approval, tone: 'info', icon: BadgeCheck, to: '/clinical-ops/overview/pending-approval' },
+    { label: 'File thiếu / lỗi', value: summary.file_issue || summary.missing_file || 0, tone: 'neutral', icon: FileWarning, to: '/clinical-ops/result-files/missing' },
+    { label: 'No-show hôm nay', value: summary.no_show_today, tone: 'muted', icon: AlertTriangle, to: '/clinical-ops/alerts/no-show-abnormal-cancel' },
   ];
   return (
     <section className="clinical-ops-critical-strip">
       {items.map((item) => {
         const Icon = item.icon;
         return (
-          <button key={item.label} type="button" className={`is-${item.tone}`}>
+          <button key={item.label} type="button" className={`is-${item.tone}`} onClick={() => navigate(item.to)}>
             <Icon size={18} strokeWidth={2.25} />
             <span>
               <small>{item.label}</small>
@@ -580,7 +632,7 @@ function useEscalationToast(refresh) {
         entity_id: item.entity_id,
         module: item.module,
         escalation_level: item.priority === 'stat' ? 2 : 1,
-        reason: `Escalate từ Clinical Operations: ${item.stage_label || item.title || item.order_no}`,
+        reason: `Escalate từ vận hành cận lâm sàng: ${item.stage_label || item.title || item.order_no}`,
       });
       setToast('Đã tạo escalation.');
       refresh?.();

@@ -34,6 +34,7 @@ import {
   readItems,
   runPrescriptionSafetyChecks,
 } from './pharmacyApi';
+import { confirmPharmacyAction, printPharmacyView, promptPharmacyText } from './pharmacyActions';
 import { usePharmacyWorkspace } from './PharmacyShell';
 
 const PRESCRIPTION_STATUS_META = {
@@ -639,7 +640,10 @@ function usePrescriptionActions({ onDone }) {
 
   async function handleCancel(row) {
     const prescriptionId = getPrescriptionId(row);
-    const reason = window.prompt(`Nhập lý do hủy đơn ${row.prescription_no || prescriptionId}`);
+    const reason = promptPharmacyText({
+      title: 'Hủy đơn thuốc',
+      message: `Nhập lý do hủy đơn ${row.prescription_no || prescriptionId}`,
+    });
     if (!prescriptionId || !reason) return;
     setBusy(true);
     try {
@@ -655,7 +659,7 @@ function usePrescriptionActions({ onDone }) {
 
   async function handleComplete(row) {
     const prescriptionId = getPrescriptionId(row);
-    if (!prescriptionId || !window.confirm(`Hoàn tất đơn ${row.prescription_no || prescriptionId}?`)) return;
+    if (!prescriptionId || !confirmPharmacyAction({ title: 'Hoàn tất đơn thuốc', message: `Hoàn tất đơn ${row.prescription_no || prescriptionId}?` })) return;
     setBusy(true);
     try {
       await prescriptionAPI.complete(prescriptionId, {});
@@ -1290,7 +1294,7 @@ function DispenseDrawer({ dispenseId, onClose, onRefresh }) {
               )) : <small className="pharmacy-muted-text">Chưa có item cấp phát.</small>}
             </section>
             <footer className="pharmacy-drawer-actions">
-              <button type="button" onClick={() => window.print()}><Printer size={15} />In phiếu</button>
+              <button type="button" onClick={() => printPharmacyView('In phiếu cấp phát')}><Printer size={15} />In phiếu</button>
               <button type="button" onClick={onRefresh}><RefreshCw size={15} />Làm mới</button>
             </footer>
           </>
@@ -1328,7 +1332,7 @@ export function DispenseQueueScreen({ mode = 'queue' }) {
 
   async function handleComplete(row) {
     const dispenseId = getDispenseId(row);
-    if (!dispenseId || !window.confirm(`Hoàn tất phiếu ${row.dispense_no || dispenseId}?`)) return;
+    if (!dispenseId || !confirmPharmacyAction({ title: 'Hoàn tất phiếu cấp phát', message: `Hoàn tất phiếu ${row.dispense_no || dispenseId}?` })) return;
     try {
       await prescriptionAPI.completeDispense(dispenseId, { note: 'Hoàn tất từ Pharmacy Workspace.' });
       setToast('Đã hoàn tất cấp phát.');
@@ -1340,7 +1344,10 @@ export function DispenseQueueScreen({ mode = 'queue' }) {
 
   async function handleCancel(row) {
     const dispenseId = getDispenseId(row);
-    const reason = window.prompt(`Nhập lý do hủy phiếu ${row.dispense_no || dispenseId}`);
+    const reason = promptPharmacyText({
+      title: 'Hủy phiếu cấp phát',
+      message: `Nhập lý do hủy phiếu ${row.dispense_no || dispenseId}`,
+    });
     if (!dispenseId || !reason) return;
     try {
       await prescriptionAPI.cancelDispense(dispenseId, { reason });
@@ -1414,7 +1421,7 @@ export function DispenseQueueScreen({ mode = 'queue' }) {
                         <button type="button" title="Xem phiếu" onClick={() => setSelectedId(getDispenseId(row))}><Eye size={15} /></button>
                         {canComplete && !isCompleted ? <button className="is-success" type="button" title="Hoàn tất" onClick={() => handleComplete(row)}><CheckCircle2 size={15} /></button> : null}
                         {canCancel && !isCompleted ? <button className="is-danger" type="button" title="Hủy" onClick={() => handleCancel(row)}><Ban size={15} /></button> : null}
-                        {isCompleted ? <button type="button" title="In phiếu" onClick={() => window.print()}><Printer size={15} /></button> : null}
+                        {isCompleted ? <button type="button" title="In phiếu" onClick={() => printPharmacyView('In phiếu cấp phát')}><Printer size={15} /></button> : null}
                       </div>
                     </td>
                   </tr>

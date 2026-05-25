@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
-import botAvatarVideo from '../assets/bot-avatar.mp4'
-import botMessageAvatar from '../assets/bot-message-avatar.jpg'
 
 const fallbackPolicies = [
   {
@@ -238,7 +236,7 @@ function getInitialCarePlace(policy) {
       policy?.primary_hospital ||
       policy?.registration_facility ||
       policy?.facility_name,
-    'Bệnh viện Đa khoa HealthCare',
+    'Bệnh viện Đa khoa Bộ Y tế',
   )
 }
 
@@ -247,6 +245,7 @@ export default function PatientInsurancePage({
   error = '',
   loading = false,
   onBackToDashboard,
+  onOpenSupportChat,
   policies = [],
 }) {
   const [selectedPolicyId, setSelectedPolicyId] = useState('')
@@ -255,16 +254,6 @@ export default function PatientInsurancePage({
   const [showInsuranceForm, setShowInsuranceForm] = useState(false)
   const [insuranceForm, setInsuranceForm] = useState(insuranceFormDefaults)
   const [submittedPolicies, setSubmittedPolicies] = useState([])
-  const [supportChatOpen, setSupportChatOpen] = useState(false)
-  const [supportChatDraft, setSupportChatDraft] = useState('')
-  const [supportChatMessages, setSupportChatMessages] = useState([
-    {
-      id: 'insurance-support-welcome',
-      role: 'bot',
-      text: 'Xin chào! Tôi có thể hỗ trợ bạn về bảo hiểm hoặc đặt lịch khám.',
-    },
-  ])
-
   const sourcePolicies = useMemo(
     () => (policies.length || submittedPolicies.length ? [...policies, ...submittedPolicies] : fallbackPolicies),
     [policies, submittedPolicies],
@@ -395,29 +384,6 @@ export default function PatientInsurancePage({
     setShowInsuranceForm(false)
     setInsuranceForm(insuranceFormDefaults)
     setNotice('Đã thêm bảo hiểm vào hồ sơ xem thử. Cần nối API backend để lưu dữ liệu lâu dài.')
-  }
-
-  const handleSupportChatSubmit = (event) => {
-    event.preventDefault()
-
-    const message = supportChatDraft.trim()
-    if (!message) return
-
-    const timestamp = Date.now()
-    setSupportChatMessages((currentMessages) => [
-      ...currentMessages,
-      {
-        id: `insurance-support-user-${timestamp}`,
-        role: 'user',
-        text: message,
-      },
-      {
-        id: `insurance-support-bot-${timestamp}`,
-        role: 'bot',
-        text: 'Tôi đã nhận yêu cầu của bạn. Bạn có thể gửi thêm mã hồ sơ hoặc mã thẻ bảo hiểm để được hỗ trợ nhanh hơn.',
-      },
-    ])
-    setSupportChatDraft('')
   }
 
   return (
@@ -741,7 +707,7 @@ export default function PatientInsurancePage({
             <div>
               <h2>Cần hỗ trợ về bảo hiểm?</h2>
               <p>Đội ngũ của chúng tôi luôn sẵn sàng hỗ trợ bạn.</p>
-              <button type="button" onClick={() => setSupportChatOpen(true)}>
+              <button type="button" onClick={() => onOpenSupportChat?.()}>
                 <PatientIcon name="phone_forwarded" aria-hidden="true" />
                 Liên hệ hỗ trợ
               </button>
@@ -754,56 +720,6 @@ export default function PatientInsurancePage({
           </button>
         </aside>
       </div>
-
-      {supportChatOpen ? (
-        <aside className="pi-support-chatbot" role="dialog" aria-label="Hỗ trợ Healthcare">
-          <header className="pi-support-chatbot-header">
-            <div className="pi-support-chatbot-agent">
-              <div className="pi-support-chatbot-avatar">
-                <video src={botAvatarVideo} autoPlay muted loop playsInline aria-hidden="true" />
-                <span aria-hidden="true" />
-              </div>
-              <div>
-                <h2>Hỗ trợ Healthcare</h2>
-                <p>Online</p>
-              </div>
-            </div>
-            <button type="button" aria-label="Đóng hỗ trợ" onClick={() => setSupportChatOpen(false)}>
-              <PatientIcon name="close" aria-hidden="true" />
-            </button>
-          </header>
-
-          <div className="pi-support-chatbot-body">
-            {supportChatMessages.map((message) => (
-              <article
-                className={`pi-support-chatbot-message pi-support-chatbot-message--${message.role}`}
-                key={message.id}
-              >
-                {message.role === 'bot' ? (
-                  <span className="pi-support-chatbot-message-icon">
-                    <img src={botMessageAvatar} alt="" aria-hidden="true" />
-                  </span>
-                ) : null}
-                <div className="pi-support-chatbot-bubble">{message.text}</div>
-              </article>
-            ))}
-          </div>
-
-          <form className="pi-support-chatbot-input" onSubmit={handleSupportChatSubmit}>
-            <div>
-              <input
-                type="text"
-                value={supportChatDraft}
-                placeholder="Nhập tin nhắn..."
-                onChange={(event) => setSupportChatDraft(event.target.value)}
-              />
-              <button type="submit" aria-label="Gửi tin nhắn">
-                <PatientIcon name="send" aria-hidden="true" />
-              </button>
-            </div>
-          </form>
-        </aside>
-      ) : null}
     </section>
   )
 }

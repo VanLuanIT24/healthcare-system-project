@@ -33,6 +33,7 @@ import {
   loadPrescriptionRiskQueue,
   loadPrescriptionWorkbench,
 } from './pharmacyApi';
+import { downloadPharmacyJson, notifyPharmacy, printPharmacyView, promptPharmacyText } from './pharmacyActions';
 
 const PAGE_CONFIG = {
   pending_verification: {
@@ -223,7 +224,7 @@ function getMetrics(data, group) {
   ];
 }
 
-function CommandHeader({ config, onRefresh, loading }) {
+function CommandHeader({ config, onRefresh, loading, onScan, onPrint, onExport }) {
   const Icon = config.icon;
   return (
     <section className="rx-command-header">
@@ -234,9 +235,9 @@ function CommandHeader({ config, onRefresh, loading }) {
       </div>
       <div className="rx-command-header__tools">
         <span className="rx-live"><Bell size={15} />Realtime: Đang bật</span>
-        <button type="button" title="Quét mã đơn"><Search size={16} /></button>
-        <button type="button" title="In danh sách"><Printer size={16} /></button>
-        <button type="button" title="Xuất Excel"><Download size={16} /></button>
+        <button type="button" title="Quét mã đơn" onClick={onScan}><Search size={16} /></button>
+        <button type="button" title="In danh sách" onClick={onPrint}><Printer size={16} /></button>
+        <button type="button" title="Xuất Excel" onClick={onExport}><Download size={16} /></button>
         <button type="button" title="Làm mới" onClick={onRefresh} disabled={loading}>
           <RefreshCw size={16} className={loading ? 'is-spinning' : ''} />
         </button>
@@ -599,7 +600,7 @@ export function PrescriptionCommandCenterPage({ group = 'history' }) {
     try {
       if (action === 'verify' || action === 'override_verify') {
         const hasOverride = Number(row.risk_summary?.allergy_count || 0) > 0 || Number(row.risk_summary?.interaction_count || 0) > 0;
-        const reason = hasOverride ? window.prompt('Nhập lý do override/duyệt đơn có cảnh báo') : '';
+        const reason = hasOverride ? promptPharmacyText({ title: 'Override duyệt đơn', message: 'Nhập lý do override/duyệt đơn có cảnh báo.', defaultValue: '' }) : '';
         if (hasOverride && !reason) return;
         await prescriptionAPI.verify(row.prescription_id, {
           override_allergy: Number(row.risk_summary?.allergy_count || 0) > 0,
@@ -611,7 +612,7 @@ export function PrescriptionCommandCenterPage({ group = 'history' }) {
         await prescriptionAPI.createDispense(row.prescription_id, { allow_multiple_drafts: true, note: 'Tạo từ Prescription Command Center.' });
         setToast('Đã tạo phiếu cấp phát.');
       } else if (action === 'cancel') {
-        const reason = window.prompt('Nhập lý do hủy đơn thuốc');
+        const reason = promptPharmacyText({ title: 'Hủy đơn thuốc', message: row.prescription_no || row.prescription_id || '', defaultValue: '' });
         if (!reason) return;
         await prescriptionAPI.cancel(row.prescription_id, { reason });
         setToast('Đã hủy đơn thuốc.');
@@ -622,7 +623,7 @@ export function PrescriptionCommandCenterPage({ group = 'history' }) {
         await prescriptionAPI.duplicate(row.prescription_id);
         setToast('Đã nhân bản đơn thuốc.');
       } else if (action === 'renew') {
-        const reason = window.prompt('Nhập lý do renew đơn thuốc');
+        const reason = promptPharmacyText({ title: 'Renew đơn thuốc', message: row.prescription_no || row.prescription_id || '', defaultValue: '' });
         if (!reason) return;
         await prescriptionAPI.renew(row.prescription_id, { reason });
         setToast('Đã renew đơn thuốc.');
@@ -630,12 +631,12 @@ export function PrescriptionCommandCenterPage({ group = 'history' }) {
         await prescriptionAPI.approveRefillRequest(row.refill_request_id, { note: 'Duyệt từ Prescription Command Center.' });
         setToast('Đã duyệt yêu cầu refill.');
       } else if (action === 'reject_refill') {
-        const reason = window.prompt('Nhập lý do từ chối refill');
+        const reason = promptPharmacyText({ title: 'Từ chối refill', message: row.request_no || row.refill_request_id || '', defaultValue: '' });
         if (!reason) return;
         await prescriptionAPI.rejectRefillRequest(row.refill_request_id, { reason });
         setToast('Đã từ chối yêu cầu refill.');
       } else if (action === 'convert_refill' || action === 'convert_to_prescription') {
-        const reason = window.prompt('Nhập lý do tạo đơn renew từ refill');
+        const reason = promptPharmacyText({ title: 'Tạo đơn renew từ refill', message: row.request_no || row.refill_request_id || '', defaultValue: '' });
         if (!reason) return;
         await prescriptionAPI.convertRefillRequestToPrescription(row.refill_request_id, { reason });
         setToast('Đã tạo đơn renew từ refill request.');
@@ -647,14 +648,23 @@ export function PrescriptionCommandCenterPage({ group = 'history' }) {
       }
       await refresh();
     } catch (error) {
-      setToast(getApiErrorMessage(error, 'Không thể thực hiện thao tác.'));
+      const message = getApiErrorMessage(error, 'Không thể thực hiện thao tác.');
+      setToast(message);
+      notifyPharmacy({ tone: 'danger', title: 'Đơn thuốc', message });
     }
   }
 
   return (
     <div className="rx-command-page">
       {toast ? <button type="button" className="rx-toast" onClick={() => setToast('')}><span>{toast}</span><X size={14} /></button> : null}
-      <CommandHeader config={config} onRefresh={refresh} loading={state.loading} />
+      <CommandHeader
+        config={config}
+        onRefresh={refresh}
+        loading={state.loading}
+        onScan={() => notifyPharmacy({ title: 'Quét mã đơn', message: 'Quét barcode hoặc nhập mã vào ô tìm kiếm để mở đúng đơn thuốc.' })}
+        onPrint={() => printPharmacyView('In danh sách đơn thuốc')}
+        onExport={() => downloadPharmacyJson(`don-thuoc-${group}.json`, { group, filters, rows }, 'Xuất danh sách đơn thuốc')}
+      />
       <section className="rx-kpi-strip">
         {metrics.map((metric) => <Metric key={metric.label} {...metric} value={formatNumber(metric.value)} />)}
       </section>

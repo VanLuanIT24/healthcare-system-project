@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
@@ -31,6 +32,7 @@ import {
   X,
 } from 'lucide-react';
 import { clinicalOrderCenterAPI, getClinicalOrderCenterError } from './clinicalOrderCenterApi';
+import { downloadClinicalOpsCsv, notifyClinicalOps } from '../ClinicalOpsWorkspace/clinicalOpsActions';
 import './clinicalOrderCenter.css';
 
 const ORDER_TYPE_META = {
@@ -223,7 +225,7 @@ function PatientCell({ row }) {
   );
 }
 
-function KpiStrip({ summary = {}, loading }) {
+function KpiStrip({ summary = {}, loading, onSelect }) {
   const items = [
     ['Tổng order', summary.total_orders ?? summary.total, LayoutGrid, 'neutral', 'Tất cả lab/CĐHA/thủ thuật'],
     ['STAT', summary.stat, ShieldAlert, 'danger', 'Ưu tiên cao nhất'],
@@ -242,7 +244,7 @@ function KpiStrip({ summary = {}, loading }) {
   return (
     <section className="order-center-kpi-strip">
       {items.map(([label, value, Icon, tone, hint]) => (
-        <button key={label} type="button" className={`is-${tone}`}>
+        <button key={label} type="button" className={`is-${tone}`} onClick={() => onSelect?.(label)}>
           <Icon size={19} strokeWidth={2.25} />
           <span>
             <small>{label}</small>
@@ -643,6 +645,7 @@ function OrderCenterPage({
   statusLocked = false,
   showBoard = true,
 }) {
+  const navigate = useNavigate();
   const [filters, update] = useOrderCenterFilters(defaultFilters);
   const state = useOrderCenterData(endpoint, filters);
   const [detail, setDetail] = useState(null);
@@ -673,13 +676,30 @@ function OrderCenterPage({
         await clinicalOrderCenterAPI.notifyDoctor(row.order_id, { message: `${row.order_no} cần được chú ý.` });
         setToast(`Đã gửi thông báo bác sĩ cho ${row.order_no}.`);
       } else {
+        notifyClinicalOps({
+          title: ACTION_LABEL[action] || 'Mở nghiệp vụ order',
+          message: 'Đã mở detail drawer để kiểm tra context trước khi chuyển xử lý chuyên môn.',
+        });
         openDetail(row);
         return;
       }
+      notifyClinicalOps({ tone: 'success', title: ACTION_LABEL[action] || 'Thao tác order', message: `${row.order_no} đã được cập nhật.` });
       state.refresh();
     } catch (error) {
       setToast(getClinicalOrderCenterError(error));
+      notifyClinicalOps({ tone: 'danger', title: ACTION_LABEL[action] || 'Thao tác order', message: getClinicalOrderCenterError(error) });
     }
+  }
+
+  function handleKpiSelect(label) {
+    const statusByLabel = {
+      'Chờ tiếp nhận': 'ordered',
+      'Đang thực hiện': 'in_progress',
+      'Hoàn tất': 'completed',
+    };
+    const status = statusByLabel[label];
+    if (status) update('status', status);
+    else notifyClinicalOps({ title: label, message: 'KPI này đang áp dụng theo bộ lọc hiện tại của trung tâm order.' });
   }
 
   return (
@@ -691,13 +711,13 @@ function OrderCenterPage({
         description={description}
         actions={(
           <>
-            <button type="button"><ClipboardCheck size={16} />Tạo chỉ định</button>
-            <button type="button"><Search size={16} />Tìm BN</button>
-            <button type="button"><FileText size={16} />Xuất Excel</button>
+            <button type="button" onClick={() => notifyClinicalOps({ title: 'Tạo chỉ định', message: 'Tạo order mới được thực hiện từ workspace bác sĩ hoặc encounter để bảo toàn context lâm sàng.' })}><ClipboardCheck size={16} />Tạo chỉ định</button>
+            <button type="button" onClick={() => navigate('/clinical-ops/patient-lookup/by-patient')}><Search size={16} />Tìm BN</button>
+            <button type="button" onClick={() => downloadClinicalOpsCsv('clinical-order-center.csv', state.data.items || [], 'Xuất order cận lâm sàng')}><FileText size={16} />Xuất Excel</button>
           </>
         )}
       />
-      <KpiStrip summary={state.data.summary || {}} loading={state.loading} />
+      <KpiStrip summary={state.data.summary || {}} loading={state.loading} onSelect={handleKpiSelect} />
       {showBoard ? <StatusBoard board={state.data.status_board || {}} onSelect={(status) => update('status', status)} /> : null}
       <FilterBar filters={filters} update={update} refresh={state.refresh} loading={state.loading} statusLocked={statusLocked} />
       <WidgetError message={state.error} onRetry={state.refresh} />
