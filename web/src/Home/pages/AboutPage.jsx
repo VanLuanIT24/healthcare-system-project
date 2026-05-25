@@ -214,7 +214,12 @@ export function AboutPage() {
             <path d="M0 70H130L154 70L176 34L204 98L234 18L264 70H380L412 70L438 46L466 88L498 70H760" />
           </svg>
           <div className="about-hero__content">
-            <span className="about-hero__badge">Về Bộ Y tế</span>
+            <span className="about-hero__badge">
+              <span className="badge-icon">
+                <Hospital size={16} strokeWidth={2.4} aria-hidden="true" />
+              </span>
+              VỀ BỘ Y TẾ
+            </span>
             <h1>Chăm sóc sức khỏe chuẩn quốc tế, gần gũi hơn</h1>
             <p>
               Bộ Y tế kết hợp bác sĩ chuyên môn cao, điều phối lịch khám rõ ràng và
@@ -224,6 +229,7 @@ export function AboutPage() {
               <Link to="/contact" className="about-hero__cta">
                 <CalendarCheck size={19} strokeWidth={2.5} aria-hidden="true" />
                 <span>Đặt lịch tư vấn</span>
+                <ArrowRight size={19} strokeWidth={2.5} aria-hidden="true" className="action-arrow" />
               </Link>
               <Link to="/specialties" className="about-hero__ghost">
                 <Stethoscope size={19} strokeWidth={2.5} aria-hidden="true" />
@@ -231,18 +237,18 @@ export function AboutPage() {
               </Link>
             </div>
             <div className="about-hero__trust-line" aria-label="Các điểm nổi bật của Bộ Y tế">
-              <span>
-                <ShieldCheck size={16} strokeWidth={2.4} aria-hidden="true" />
-                Kiểm soát chất lượng
-              </span>
-              <span>
-                <FileText size={16} strokeWidth={2.4} aria-hidden="true" />
-                Hồ sơ số liên tục
-              </span>
-              <span>
-                <HeartPulse size={16} strokeWidth={2.4} aria-hidden="true" />
-                Điều phối 24/7
-              </span>
+              <div className="trust-card">
+                <span className="trust-icon"><ShieldCheck size={18} strokeWidth={2.4} aria-hidden="true" /></span>
+                <span>Kiểm soát<br />chất lượng</span>
+              </div>
+              <div className="trust-card">
+                <span className="trust-icon"><FileText size={18} strokeWidth={2.4} aria-hidden="true" /></span>
+                <span>Hồ sơ<br />số liên tục</span>
+              </div>
+              <div className="trust-card">
+                <span className="trust-icon"><HeartPulse size={18} strokeWidth={2.4} aria-hidden="true" /></span>
+                <span>Điều phối<br />24/7</span>
+              </div>
             </div>
           </div>
           <div className="about-hero__visual about-hero__visual--complete" aria-label="Đội ngũ bác sĩ Bộ Y tế">
@@ -253,27 +259,34 @@ export function AboutPage() {
               />
             </div>
             <div className="about-hero__metric-stack" aria-hidden="true">
-              <article>
-                <strong>15'</strong>
-                <span>Điều phối lịch hẹn trung bình</span>
+              <article className="metric-card">
+                <span className="metric-icon is-blue">
+                  <CalendarCheck size={22} strokeWidth={2.4} />
+                </span>
+                <div className="metric-content">
+                  <strong>15'</strong>
+                  <span>Điều phối lịch hẹn<br />trung bình</span>
+                </div>
               </article>
-              <article>
-                <strong>4.9</strong>
-                <span>Đánh giá trải nghiệm sau khám</span>
+              <article className="metric-card">
+                <span className="metric-icon is-green">
+                  <Sparkles size={22} strokeWidth={2.4} />
+                </span>
+                <div className="metric-content">
+                  <strong>4.9</strong>
+                  <span>Đánh giá trải nghiệm<br />sau khám</span>
+                </div>
               </article>
-            </div>
-            <div className="about-hero__visual-ribbon" aria-hidden="true">
-              <span>Connected care</span>
-              <strong>Doctor · Lab · Follow-up</strong>
             </div>
             <div className="about-hero__glass-note">
-              <span className="about-hero__glass-icon">
+              <span className="glass-note-icon">
                 <HeartPulse size={22} strokeWidth={2.4} aria-hidden="true" />
               </span>
-              <div>
+              <div className="glass-note-content">
                 <strong>International care desk</strong>
-                <span>Điều phối lịch khám, kết quả và tái khám trong một quy trình.</span>
+                <span>Điều phối lịch khám, kết quả và<br />tái khám trong một quy trình.</span>
               </div>
+              <ArrowRight size={20} strokeWidth={2.4} className="glass-note-arrow" />
             </div>
           </div>
         </section>
@@ -353,8 +366,8 @@ export function AboutPage() {
             </p>
           </div>
           <div className="about-story__media" aria-hidden="true">
-            <div className="about-story__image about-story__image--main" />
-            <div className="about-story__image about-story__image--side" />
+            <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=84" alt="Câu chuyện Bộ Y tế 1" className="about-story__image about-story__image--main" />
+            <img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=900&q=84" alt="Câu chuyện Bộ Y tế 2" className="about-story__image about-story__image--side" />
           </div>
         </section>
 
@@ -384,7 +397,7 @@ export function AboutPage() {
         </section>
 
         <section className="home-section about-facilities">
-          <div className="about-facilities__visual" aria-hidden="true" />
+          <img src="https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1200&q=84" alt="Cơ sở vật chất" className="about-facilities__visual" />
           <div className="about-facilities__content">
             <span>Cơ sở vật chất & trải nghiệm</span>
             <h2>Không gian khám được tổ chức để giảm chờ đợi và tăng sự riêng tư</h2>

@@ -182,9 +182,9 @@ function normalizeSessions(payload = {}) {
   if (!items.length) return [];
   return items.map((session) => ({
     id: session.session_id,
-    device: session.device_name || session.os || session.browser || 'Thiáº¿t bá»‹',
+    device: session.device_name || session.os || session.browser || 'Thiết bị',
     detail: formatSessionDetail(session),
-    status: session.is_current ? 'Hiá»‡n táº¡i' : (session.is_active ? 'Äang hoáº¡t Ä‘á»™ng' : 'ÄÃ£ thu há»“i'),
+    status: session.is_current ? 'Hiện tại' : (session.is_active ? 'Đang hoạt động' : 'Đã thu hồi'),
     current: Boolean(session.is_current),
   }));
 }

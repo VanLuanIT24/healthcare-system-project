@@ -1001,7 +1001,7 @@ function PartnerIcon({ type }) {
   }
 
   return (
-    <main className="home-shell" id="top">
+    <main className="home-shell home-shell--full" id="top">
       <MarketingHeader
         labels={t}
         language={language}
@@ -1044,7 +1044,10 @@ function PartnerIcon({ type }) {
               <span>{careDesk.response}</span>
             </article>
           </div>
-          <a href="#visit">{careDesk.hotline}</a>
+          <a href="#visit">
+            <PhoneCall size={19} strokeWidth={2.8} />
+            <span>{careDesk.hotline}</span>
+          </a>
         </div>
 
         <div className="home-hero__content">
@@ -1216,8 +1219,8 @@ function PartnerIcon({ type }) {
           <span>{t.partnerKicker}</span>
         </div>
         <div className="home-partners__track">
-          {[...partners, ...partners].map((partner, index) => (
-            <article key={`${partner.name}-${index}`} className="home-partners__card">
+          {partners.map((partner) => (
+            <article key={partner.name} className="home-partners__card">
               <PartnerIcon type={partner.icon} />
               <strong>{partner.name}</strong>
             </article>

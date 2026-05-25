@@ -24,6 +24,16 @@ function getLanguageLabel(language) {
   return 'Tiếng Việt';
 }
 
+function getInitials(name) {
+  return String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'BN';
+}
+
 const pageCopy = {
   vi: {
     hotline: 'Hotline 1900-8888',
@@ -129,7 +139,9 @@ export function MarketingPageShell({ activeKey, hero, children }) {
   const profile = auth?.patient;
   const [language, setLanguageState] = useState(() => readStoredSiteLanguage());
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const profileMenuRef = useRef(null);
   const t = useMemo(() => pageCopy[language] || pageCopy.vi, [language]);
 
   useEffect(() => {
@@ -137,11 +149,19 @@ export function MarketingPageShell({ activeKey, hero, children }) {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsLanguageMenuOpen(false);
       }
+
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setIsProfileMenuOpen(false);
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+  }, [profile]);
 
   function setLanguage(nextLanguage) {
     setLanguageState(nextLanguage);
@@ -214,18 +234,49 @@ export function MarketingPageShell({ activeKey, hero, children }) {
         </nav>
 
         <div className="home-header__actions">
-          {profile ? <span className="home-header__welcome">{t.hello}, {profile.full_name}</span> : null}
           {profile ? (
-            <Link className="home-header__ghost home-header__portal" to="/portal/dashboard">
-              <LayoutDashboard size={17} aria-hidden="true" />
-              Dashboard
-            </Link>
+            <div className="home-header__profile-menu" ref={profileMenuRef}>
+              <button
+                type="button"
+                className="home-header__profile-trigger"
+                onClick={() => setIsProfileMenuOpen((current) => !current)}
+                aria-expanded={isProfileMenuOpen}
+                aria-haspopup="menu"
+              >
+                <span className="home-header__profile-avatar" aria-hidden="true">
+                  {getInitials(profile.full_name)}
+                </span>
+                <span className="home-header__profile-copy">
+                  <strong>{profile.full_name}</strong>
+                  <small>Bệnh nhân</small>
+                </span>
+                <span className="home-header__profile-caret" aria-hidden="true">
+                  {isProfileMenuOpen ? '⌃' : '⌄'}
+                </span>
+              </button>
+
+              {isProfileMenuOpen ? (
+                <div className="home-header__profile-dropdown" role="menu" aria-label="Menu hồ sơ bệnh nhân">
+                  <Link to="/portal/dashboard" role="menuitem" onClick={() => setIsProfileMenuOpen(false)}>
+                    <LayoutDashboard size={16} aria-hidden="true" />
+                    Dashboard bệnh nhân
+                  </Link>
+                  <Link to="/portal?section=settings" role="menuitem" onClick={() => setIsProfileMenuOpen(false)}>
+                    <span className="home-header__profile-menu-icon" aria-hidden="true">⚙</span>
+                    Hồ sơ và cài đặt
+                  </Link>
+                  <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); handleLogout(); }}>
+                    <span className="home-header__profile-menu-icon" aria-hidden="true">↪</span>
+                    {t.logout}
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ) : null}
           <Link className="home-header__button" to="/support">
             <CalendarPlus size={19} strokeWidth={2.5} aria-hidden="true" />
             <span>{t.book}</span>
           </Link>
-          {profile ? <button type="button" className="home-header__ghost" onClick={handleLogout}>{t.logout}</button> : null}
         </div>
       </header>
 

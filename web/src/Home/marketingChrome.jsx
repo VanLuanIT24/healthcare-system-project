@@ -17,15 +17,32 @@ function getLanguageLabel(language) {
   return 'Tiếng Việt';
 }
 function getMarketingNavItems(labels) {
-  return [
-    { key: 'home', label: labels.nav[0], to: '/home' },
-    { key: 'about', label: labels.nav[1], to: '/about' },
-    { key: 'specialties', label: labels.nav[2], to: '/specialties' },
-    { key: 'doctors', label: labels.nav[3], to: '/doctors' },
-    { key: 'news', label: labels.nav[4], to: '/news' },
-    { key: 'faq', label: labels.nav[5], to: '/faq' },
-    { key: 'contact', label: labels.nav[6], to: '/contact' },
+  const defaults = [
+    { key: 'home', label: 'Home', to: '/home' },
+    { key: 'about', label: 'About', to: '/about' },
+    { key: 'specialties', label: 'Specialties', to: '/specialties' },
+    { key: 'doctors', label: 'Doctors', to: '/doctors' },
+    { key: 'news', label: 'News', to: '/news' },
+    { key: 'faq', label: 'FAQ', to: '/faq' },
+    { key: 'contact', label: 'Contact', to: '/contact' },
   ];
+
+  return defaults.map((item, index) => {
+    const navItem = labels.nav?.[index];
+
+    if (navItem && typeof navItem === 'object') {
+      return {
+        key: navItem.key || item.key,
+        label: navItem.label || item.label,
+        to: navItem.to || item.to,
+      };
+    }
+
+    return {
+      ...item,
+      label: navItem || item.label,
+    };
+  });
 }
 
 function getInitials(name) {

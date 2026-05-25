@@ -8321,7 +8321,7 @@
 }
 
 .doctor-dashboard-quick-card.is-locked::after {
-  content: 'Quyá»n háº¡n';
+  content: 'Quyền hạn';
   position: absolute;
   top: 14px;
   right: 16px;
@@ -15976,7 +15976,7 @@
 }
 
 .doctor-performance-actions button::after {
-  content: 'Ã¢â‚¬Âº';
+  content: '›';
   color: #071762;
   font-size: 24px;
   font-weight: 400;

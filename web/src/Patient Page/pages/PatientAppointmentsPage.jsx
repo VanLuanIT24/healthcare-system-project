@@ -2300,7 +2300,7 @@ export default function PatientAppointmentsPage({
                 </div>
                 <div className="patient-booking-perk">
                   <PatientIcon name="schedule" aria-hidden="true" />
-                  <span>Thời gian khám â‰ˆ 45 phút</span>
+                  <span>Thời gian khám ≈ 45 phút</span>
                 </div>
               </div>
 

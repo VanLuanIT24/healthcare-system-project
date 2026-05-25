@@ -239,8 +239,8 @@ function ScheduleCell({ bundle, onOpen }) {
 
 function shiftPeriodOf(bundle = {}) {
   const raw = String(bundle.schedule?.shift_type || bundle.schedule?.type || bundle.shiftName || '').toLowerCase()
-  if (raw.includes('morning') || raw.includes('sáng') || raw.includes('sÃ¡ng')) return 'morning'
-  if (raw.includes('afternoon') || raw.includes('chiều') || raw.includes('chiá»u')) return 'afternoon'
+  if (raw.includes('morning') || raw.includes('sáng')) return 'morning'
+  if (raw.includes('afternoon') || raw.includes('chiều')) return 'afternoon'
   const hour = new Date(bundle.schedule?.shift_start || bundle.schedule?.start_time).getHours()
   if (!Number.isNaN(hour) && hour < 12) return 'morning'
   return 'afternoon'
