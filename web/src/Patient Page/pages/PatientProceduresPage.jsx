@@ -3,10 +3,12 @@ import PatientIcon from '../components/PatientIcon'
 import procedureRoomHero from '../assets/procedure-room-hero.png'
 
 const procedureFilters = [
-  { id: 'all', label: 'Tất cả', icon: 'dashboard' },
-  { id: 'completed', label: 'Hoàn tất', icon: 'check_circle' },
-  { id: 'urgent', label: 'Ưu tiên cao', icon: 'warning' },
-  { id: 'with-result', label: 'Có kết quả', icon: 'description' },
+  { id: 'upcoming', label: 'Sắp thực hiện', icon: 'event_upcoming' },
+  { id: 'waiting-confirmation', label: 'Chờ xác nhận', icon: 'pending_actions' },
+  { id: 'preparing', label: 'Đang chuẩn bị', icon: 'inventory_2' },
+  { id: 'completed', label: 'Đã thực hiện', icon: 'check_circle' },
+  { id: 'results', label: 'Kết quả thủ thuật', icon: 'description' },
+  { id: 'history', label: 'Lịch sử thủ thuật', icon: 'history' },
 ]
 
 const performerAvatars = [
@@ -91,15 +93,19 @@ function getResultSummary(note) {
   return trimmed
 }
 
+function getId(value) {
+  return String(value?._id || value?.id || value || '')
+}
+
 function getPercentText(part, total) {
   if (!total) return '0% tổng số'
   const percent = (part / total) * 100
   return `${Number.isInteger(percent) ? percent : percent.toFixed(1)}% tổng số`
 }
 
-function mapProcedure(procedure, index) {
+function mapProcedure(procedure, index, result = null) {
   const id = procedure.procedure_order_id || procedure._id || procedure.id || `procedure-${index}`
-  const hasResult = Boolean(String(procedure.result_note || '').trim())
+  const hasResult = Boolean(result || String(procedure.result_note || '').trim())
   const status = getProcedureStatusMeta(procedure.status, hasResult, procedure.priority)
   const eventTime =
     procedure.completed_at ||
@@ -124,12 +130,28 @@ function mapProcedure(procedure, index) {
     timeLabel: formatProcedureTime(eventTime),
     scheduledAt: `${formatProcedureDay(procedure.scheduled_start)} ${formatProcedureTime(procedure.scheduled_start)}`,
     completedAt: `${formatProcedureDay(procedure.completed_at)} ${formatProcedureTime(procedure.completed_at)}`,
-    resultNote: getResultSummary(procedure.result_note),
+    resultNote: getResultSummary(result?.conclusion || result?.findings || result?.recommendation || procedure.result_note),
     clinicalIndication: procedure.clinical_indication || 'Chưa có chỉ định lâm sàng.',
+    preparation: procedure.preparation_instruction || procedure.metadata?.preparation_instruction || 'Chưa có yêu cầu chuẩn bị đặc biệt.',
+    room: getName(procedure.room_id || procedure.procedure_room_id, 'Chưa có phòng thực hiện'),
+    expectedCost: getChargeText(procedure.charge_summary),
+    resultNo: result?.result_no || '',
+    attachmentCount: Number(result?.attachment_count || procedure.attachment_count || 0),
     chargeText: getChargeText(procedure.charge_summary),
     hasResult,
     rawPriority: procedure.priority,
+    rawStatus: procedure.status,
   }
+}
+
+function getFilterGroup(procedure) {
+  const status = String(procedure.rawStatus || '').toLowerCase()
+  if (procedure.hasResult) return 'results'
+  if (['completed'].includes(status) || procedure.statusGroup === 'completed') return 'completed'
+  if (['in_progress', 'started'].includes(status)) return 'preparing'
+  if (['ordered', 'requested'].includes(status)) return 'waiting-confirmation'
+  if (['scheduled', 'confirmed'].includes(status)) return 'upcoming'
+  return 'history'
 }
 
 function getStatusIcon(tone) {
@@ -170,24 +192,35 @@ function ProcedureEmptyState() {
   )
 }
 
-export default function PatientProceduresPage({ error = '', loading = false, procedures = [] }) {
-  const [activeFilter, setActiveFilter] = useState('all')
+export default function PatientProceduresPage({ error = '', loading = false, procedures = [], results = [] }) {
+  const [activeFilter, setActiveFilter] = useState('upcoming')
   const [selectedProcedureId, setSelectedProcedureId] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
-  const procedureRows = useMemo(() => procedures.map(mapProcedure), [procedures])
+  const resultsByOrder = useMemo(
+    () =>
+      new Map(
+        results.map((result) => [
+          getId(result.procedure_order_id),
+          result,
+        ]),
+      ),
+    [results],
+  )
+  const procedureRows = useMemo(
+    () => procedures.map((procedure, index) => mapProcedure(procedure, index, resultsByOrder.get(getId(procedure._id || procedure.procedure_order_id)))),
+    [procedures, resultsByOrder],
+  )
   const completedCount = procedureRows.filter((procedure) => procedure.statusGroup === 'completed').length
-  const urgentCount = procedureRows.filter((procedure) => ['urgent', 'stat'].includes(procedure.rawPriority)).length
+  const preparingCount = procedureRows.filter((procedure) => getFilterGroup(procedure) === 'preparing').length
   const resultCount = procedureRows.filter((procedure) => procedure.hasResult).length
   const filteredRows = useMemo(() => {
-    if (activeFilter === 'all') return procedureRows
+    if (activeFilter === 'history') return procedureRows
+    if (activeFilter === 'results') return procedureRows.filter((procedure) => procedure.hasResult)
     if (activeFilter === 'completed') {
       return procedureRows.filter((procedure) => procedure.statusGroup === 'completed')
     }
-    if (activeFilter === 'urgent') {
-      return procedureRows.filter((procedure) => ['urgent', 'stat'].includes(procedure.rawPriority))
-    }
-    return procedureRows.filter((procedure) => procedure.hasResult)
+    return procedureRows.filter((procedure) => getFilterGroup(procedure) === activeFilter)
   }, [activeFilter, procedureRows])
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const safeCurrentPage = Math.min(currentPage, pageCount)
@@ -229,18 +262,18 @@ export default function PatientProceduresPage({ error = '', loading = false, pro
     },
     {
       id: 'completed',
-      label: 'Hoàn tất',
+      label: 'Đã thực hiện',
       value: completedCount,
       helper: getPercentText(completedCount, procedureRows.length),
       icon: 'check_circle',
       tone: 'green',
     },
     {
-      id: 'urgent',
-      label: 'Ưu tiên cao',
-      value: urgentCount,
-      helper: 'Cần theo dõi',
-      icon: 'warning',
+      id: 'preparing',
+      label: 'Đang chuẩn bị',
+      value: preparingCount,
+      helper: 'Đang xử lý',
+      icon: 'inventory_2',
       tone: 'orange',
     },
     {
@@ -259,7 +292,7 @@ export default function PatientProceduresPage({ error = '', loading = false, pro
         <div>
           <span className="patient-care-eyebrow">Can thiệp và thủ thuật</span>
           <h1>Thủ thuật</h1>
-          <p>Theo dõi thủ thuật đã hoàn tất, người thực hiện, lịch thực hiện, ghi chú kết quả và viện phí liên quan.</p>
+          <p>Theo dõi quy trình trước/sau thủ thuật, lịch thực hiện, chi phí dự kiến và kết quả đã phát hành từ backend.</p>
         </div>
 
         <div className="patient-procedure-stats">
@@ -285,7 +318,7 @@ export default function PatientProceduresPage({ error = '', loading = false, pro
 
       <div className="patient-procedure-workspace">
         <div className="patient-procedure-main">
-          <div className="patient-procedure-tabs" role="tablist" aria-label="Lọc lịch sử thủ thuật">
+          <div className="patient-procedure-tabs" role="tablist" aria-label="Lọc thủ thuật">
             {procedureFilters.map((filter) => {
               const isActive = activeFilter === filter.id
 
@@ -441,9 +474,21 @@ export default function PatientProceduresPage({ error = '', loading = false, pro
                 <p>{selectedProcedure.clinicalIndication}</p>
               </section>
               <section>
+                <h4>Yêu cầu chuẩn bị</h4>
+                <p>{selectedProcedure.preparation}</p>
+              </section>
+              <section>
                 <h4>Kết quả thủ thuật</h4>
                 <p>{selectedProcedure.resultNote}</p>
               </section>
+              <div className="patient-procedure-result-foot">
+                <span>Phòng: {selectedProcedure.room}</span>
+                <span>File: {selectedProcedure.attachmentCount}</span>
+              </div>
+              <div className="patient-procedure-result-foot">
+                <button type="button">Xem hướng dẫn chuẩn bị</button>
+                <button type="button">Xem kết quả</button>
+              </div>
               <div className="patient-procedure-result-foot">
                 <span>{selectedProcedure.chargeText}</span>
                 <span>{selectedProcedure.encounterCode}</span>

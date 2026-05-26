@@ -443,6 +443,41 @@
   height: 42px;
 }
 
+.patient-labs-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.patient-labs-note-actions button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #0d63f3;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.patient-labs-note-actions button:disabled {
+  background: #d7e0ed;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.patient-labs-row.is-selected {
+  background: #f4f8ff;
+  box-shadow: inset 0 0 0 1px rgba(13, 99, 243, 0.22);
+}
+
 @media (max-width: 1180px) {
   .patient-labs-page {
     margin: -18px -28px -34px;

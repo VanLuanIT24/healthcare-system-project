@@ -250,7 +250,6 @@ function assertProcedureOrderAccess(procedureOrder, context, actor = {}, permiss
   if (actorType(actor) === 'patient') {
     if (
       sameId(procedureOrder.patient_id, actor.patientId || actor.patient_id)
-      && procedureOrder.status === PROCEDURE_STATUS.COMPLETED
       && hasPermission(actor, PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED)
     ) {
       return true;
@@ -343,7 +342,7 @@ async function buildProcedureScopeCondition(query = {}, actor = {}) {
     if (!patientId || !hasPermission(actor, PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED)) {
       throw createError('Bạn không có quyền xem danh sách procedure order.', 403);
     }
-    return { patient_id: toObjectId(patientId, 'patientId'), status: PROCEDURE_STATUS.COMPLETED };
+    return { patient_id: toObjectId(patientId, 'patientId') };
   }
 
   if (actor.userId && hasAnyPermission(actor, [PERMISSION.PROCEDURE_ORDERS.READ_OWN, PERMISSION.ORDERS.READ_OWN])) {
@@ -643,7 +642,7 @@ async function getProcedureOrderDetail(procedureOrderId, actor = {}) {
   const context = await loadProcedureOrderContext(rawProcedureOrder);
   assertProcedureOrderAccess(rawProcedureOrder, context, actor, readAccessPermissions());
 
-  const [attachments, charges, result, preparation, postProcedureObservations, logs] = await Promise.all([
+  const [attachments, charges, rawResult, preparation, postProcedureObservations, logs] = await Promise.all([
     Attachment.find({
       order_id: context.order._id,
       status: { $in: ACTIVE_ATTACHMENT_STATUSES },
@@ -675,9 +674,22 @@ async function getProcedureOrderDetail(procedureOrderId, actor = {}) {
     }).sort({ created_at: -1 }).limit(30).lean(),
   ]);
 
+  const result = actorType(actor) === 'patient'
+    && rawResult
+    && (
+      rawResult.released_to_patient !== true
+      || rawResult.release_revoked_at
+      || !FINAL_PROCEDURE_RESULT_STATUSES.includes(rawResult.status)
+    )
+    ? null
+    : rawResult;
+  const visibleAttachments = actorType(actor) === 'patient'
+    ? attachments.filter((attachment) => attachment.released_to_patient === true)
+    : attachments;
+
   return {
     procedure_order: procedureOrder,
-    attachments: attachments.map((attachment) => sanitizeAttachmentForActor(attachment, actor)),
+    attachments: visibleAttachments.map((attachment) => sanitizeAttachmentForActor(attachment, actor)),
     charges,
     result,
     preparation,
@@ -2013,6 +2025,124 @@ async function getPatientProcedureHistory(patientId, query = {}, actor = {}) {
   }, actor);
 }
 
+function assertSelfProcedurePatient(actor = {}) {
+  const patientId = actor.patientId || actor.patient_id;
+  if (actorType(actor) !== 'patient' || !patientId) {
+    throw createError('Chỉ tài khoản bệnh nhân được truy cập kết quả thủ thuật cá nhân.', 403);
+  }
+  return patientId;
+}
+
+async function listMyProcedureOrders(actor = {}, query = {}) {
+  const patientId = assertSelfProcedurePatient(actor);
+  return listProcedureOrders({ ...query, patient_id: patientId }, actor);
+}
+
+async function listMyProcedureOrderAttachments(actor = {}, procedureOrderId) {
+  const detail = await getProcedureOrderDetail(procedureOrderId, actor);
+  return { items: detail.attachments || [] };
+}
+
+function buildReleasedProcedureResultFilter(patientId, query = {}) {
+  const filter = {
+    patient_id: patientId,
+    released_to_patient: true,
+    release_revoked_at: { $exists: false },
+    status: { $in: FINAL_PROCEDURE_RESULT_STATUSES },
+  };
+  if (query.unviewed === true || query.unviewed === 'true') filter.patient_viewed_at = null;
+  return filter;
+}
+
+async function serializeProcedureResultsForPatient(results = []) {
+  const orderIds = [...new Set(results.map((item) => String(item.procedure_order_id)).filter(Boolean))];
+  const orders = orderIds.length
+    ? await ProcedureOrder.find({ _id: { $in: orderIds } })
+      .select('_id procedure_order_no procedure_name procedure_code scheduled_start performed_start performed_end status priority')
+      .lean()
+    : [];
+  const orderMap = new Map(orders.map((item) => [String(item._id), item]));
+
+  return results.map((item) => {
+    const order = orderMap.get(String(item.procedure_order_id));
+    return {
+      ...item,
+      result_id: String(item._id),
+      procedure_order_id: String(item.procedure_order_id),
+      procedure_order: order
+        ? {
+            procedure_order_id: String(order._id),
+            procedure_order_no: order.procedure_order_no,
+            procedure_name: order.procedure_name,
+            procedure_code: order.procedure_code,
+            scheduled_start: order.scheduled_start,
+            performed_start: order.performed_start,
+            performed_end: order.performed_end,
+            status: order.status,
+            priority: order.priority,
+          }
+        : null,
+    };
+  });
+}
+
+async function listMyProcedureResults(actor = {}, query = {}) {
+  const patientId = assertSelfProcedurePatient(actor);
+  const { page, limit, skip } = getPagination(query);
+  const filter = buildReleasedProcedureResultFilter(patientId, query);
+
+  const [results, total] = await Promise.all([
+    ProcedureResult.find(filter)
+      .sort({ released_to_patient_at: -1, reported_at: -1, created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    ProcedureResult.countDocuments(filter),
+  ]);
+
+  return {
+    items: await serializeProcedureResultsForPatient(results),
+    pagination: buildPagination(page, limit, total),
+  };
+}
+
+async function getMyProcedureResultDetail(resultId, actor = {}) {
+  const patientId = assertSelfProcedurePatient(actor);
+  const result = await ProcedureResult.findOne({
+    _id: resultId,
+    ...buildReleasedProcedureResultFilter(patientId),
+  }).lean();
+  if (!result) throw createError('Không tìm thấy kết quả thủ thuật đã phát hành.', 404);
+  const [item] = await serializeProcedureResultsForPatient([result]);
+  return item;
+}
+
+async function markMyProcedureResultViewed(resultId, actor = {}, requestMeta = {}) {
+  const patientId = assertSelfProcedurePatient(actor);
+  const result = await ProcedureResult.findOne({
+    _id: resultId,
+    ...buildReleasedProcedureResultFilter(patientId),
+  });
+  if (!result) throw createError('Không tìm thấy kết quả thủ thuật đã phát hành.', 404);
+
+  if (!result.patient_viewed_at) {
+    result.patient_viewed_at = new Date();
+    await result.save();
+    await recordAuditLog({
+      actor,
+      action: 'procedure_result.patient_viewed',
+      targetType: 'procedure_result',
+      targetId: result._id,
+      status: 'success',
+      message: 'Bệnh nhân đánh dấu đã xem kết quả thủ thuật.',
+      requestMeta,
+      metadata: { patient_id: String(patientId) },
+    });
+  }
+
+  return getMyProcedureResultDetail(result._id, actor);
+}
+
 async function getProcedureDashboardSummary(query = {}, actor = {}) {
   assertStaffPermission(actor, [PERMISSION.PROCEDURE_ORDERS.SUMMARY_READ, PERMISSION.PROCEDURE_ORDERS.READ]);
   const filter = await buildProcedureListFilter(query, actor);
@@ -2292,6 +2422,16 @@ module.exports = {
   getEncounterProcedureSummary,
   // getPatientProcedureHistory: Lấy lịch sử thủ thuật của bệnh nhân.
   getPatientProcedureHistory,
+  // listMyProcedureOrders: Liệt kê chỉ định thủ thuật của patient portal.
+  listMyProcedureOrders,
+  // listMyProcedureOrderAttachments: Liệt kê file thủ thuật đã phát hành cho patient.
+  listMyProcedureOrderAttachments,
+  // listMyProcedureResults: Liệt kê kết quả thủ thuật đã phát hành cho bệnh nhân hiện tại.
+  listMyProcedureResults,
+  // getMyProcedureResultDetail: Lấy chi tiết kết quả thủ thuật đã phát hành cho bệnh nhân hiện tại.
+  getMyProcedureResultDetail,
+  // markMyProcedureResultViewed: Đánh dấu bệnh nhân đã xem kết quả thủ thuật.
+  markMyProcedureResultViewed,
   // getProcedureDashboardSummary: Lấy tổng hợp dashboard thủ thuật.
   getProcedureDashboardSummary,
   // getProcedureWorklistCounts: Lấy counter worklist thủ thuật.

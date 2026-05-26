@@ -194,14 +194,14 @@ export function ResetPasswordDialog({ staff, onClose, onSubmit, isSubmitting }) 
 
 const STATUS_COPY = {
   activate: {
-    title: 'Kích hoạt hồ sơ',
-    subtitle: 'Mở lại quyền truy cập hệ thống cho nhân sự này.',
+    title: 'Kích hoạt tài khoản',
+    subtitle: 'Xác nhận tài khoản đã được bàn giao và sẵn sàng sử dụng.',
     button: 'Xác nhận kích hoạt',
     tone: 'success',
     icon: '✓',
     noticeTone: 'info',
     noticeTitle: 'Thông tin',
-    noticeBody: 'Hành động này sẽ ghi nhận vào nhật ký hệ thống. Sau khi kích hoạt, nhân sự có thể đăng nhập ngay lập tức.',
+    noticeBody: 'Hành động này sẽ ghi nhận vào nhật ký hệ thống, mở trạng thái active và đưa tài khoản ra khỏi hàng chờ kích hoạt.',
   },
   deactivate: {
     title: 'Vô hiệu hóa tài khoản',

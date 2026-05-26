@@ -12,7 +12,10 @@ const realtimeService = require('../../realtime/realtime.service');
 const presenceService = require('../../realtime/presence.service');
 const roomNaming = require('../../realtime/room-naming');
 const auditService = require('../audit.service');
+const appointmentService = require('../appointment.service');
 const clinicalDocumentFilesService = require('../clinical-document-files.service');
+const queueService = require('../queue.service');
+const scheduleService = require('../schedule.service');
 const workerHealthService = require('../worker-health.service');
 const {
   EVENT_OUTBOX_STATUS,
@@ -215,6 +218,129 @@ function ageMs(date) {
 
 function buildComponent(key, name, status, signal, action, counters = {}) {
   return { key, name, status, signal, action, counters };
+}
+
+function localDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value || '').slice(0, 10);
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function operationDate(query = {}) {
+  return localDateKey(query.date || new Date());
+}
+
+async function safeSchedulingRead(label, read, fallback) {
+  try {
+    return { label, value: await read(), error: null };
+  } catch (error) {
+    if (error?.statusCode === 401 || error?.statusCode === 403) {
+      return { label, value: fallback, error: error.message };
+    }
+    throw error;
+  }
+}
+
+function appointmentHour(item = {}) {
+  const date = new Date(item.appointment_time || item.time || item.start);
+  return Number.isNaN(date.getTime()) ? null : date.getHours();
+}
+
+function queueHour(item = {}) {
+  const date = new Date(item.checkin_time || item.created_at);
+  return Number.isNaN(date.getTime()) ? null : date.getHours();
+}
+
+function queueWaitMinutes(item = {}) {
+  const start = new Date(item.checkin_time || item.created_at).getTime();
+  const end = item.service_start_time ? new Date(item.service_start_time).getTime() : Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+  return Math.round((end - start) / 60000);
+}
+
+function buildHourlyFlowItems(appointments = [], queueTickets = []) {
+  return Array.from({ length: 12 }).map((_, index) => {
+    const hour = index + 7;
+    const appointmentItems = appointments.filter((item) => appointmentHour(item) === hour);
+    const queueItems = queueTickets.filter((item) => queueHour(item) === hour);
+    return {
+      hour: `${String(hour).padStart(2, '0')}:00`,
+      appointments: appointmentItems.length,
+      checked_in: appointmentItems.filter((item) => item.status === 'checked_in').length,
+      queue_waiting: queueItems.filter((item) => item.status === 'waiting').length,
+      in_service: queueItems.filter((item) => item.status === 'in_service').length,
+      completed: appointmentItems.filter((item) => item.status === 'completed').length,
+      no_show: appointmentItems.filter((item) => item.status === 'no_show').length,
+    };
+  });
+}
+
+async function getSchedulingDashboardToday(query = {}, actor = {}) {
+  const date = operationDate(query);
+  const [scheduleResult, appointmentResult, queueResult, queueListResult] = await Promise.all([
+    safeSchedulingRead('schedule', () => scheduleService.getSchedulingSystemSummary({ date_from: date, date_to: date }, actor), {}),
+    safeSchedulingRead('appointments', () => appointmentService.getAppointmentSummary({ date }, actor), {}),
+    safeSchedulingRead('queue', () => queueService.getTodayQueueSummary({ date }, actor), {}),
+    safeSchedulingRead('queue_items', () => queueService.listQueueTickets({ date, limit: 200 }, actor), { items: [] }),
+  ]);
+
+  const scheduleOverview = scheduleResult.value?.overview || {};
+  const appointmentSummary = appointmentResult.value || {};
+  const queueSummary = queueResult.value || {};
+  const queueItems = queueListResult.value?.items || [];
+  const maxWaitMinutes = queueItems.reduce((max, item) => Math.max(max, queueWaitMinutes(item)), 0);
+  const criticalAlerts = [
+    Number(queueSummary.waiting || 0) > 20,
+    maxWaitMinutes >= 30,
+    Number(appointmentSummary.no_show_rate || 0) >= 10,
+  ].filter(Boolean).length;
+  const warningAlerts = [
+    Number(scheduleOverview.unpublished_schedules || 0) > 0,
+    Number(queueSummary.skipped || 0) > 0,
+    Number(appointmentSummary.cancellation_rate || 0) >= 10,
+  ].filter(Boolean).length;
+
+  return {
+    date,
+    health: {
+      status: criticalAlerts > 0 ? 'warning' : 'healthy',
+      score: Math.max(50, 100 - criticalAlerts * 12 - warningAlerts * 5),
+      critical_alerts: criticalAlerts,
+      warning_alerts: warningAlerts,
+    },
+    schedules: scheduleOverview,
+    appointments: appointmentSummary,
+    queue: {
+      ...queueSummary,
+      max_wait_minutes: maxWaitMinutes,
+      waiting_over_15m: queueItems.filter((item) => queueWaitMinutes(item) >= 15).length,
+      waiting_over_30m: queueItems.filter((item) => queueWaitMinutes(item) >= 30).length,
+    },
+    partial_errors: [scheduleResult, appointmentResult, queueResult, queueListResult]
+      .filter((item) => item.error)
+      .map((item) => ({ source: item.label, message: item.error })),
+  };
+}
+
+async function getSchedulingHourlyFlow(query = {}, actor = {}) {
+  const date = operationDate(query);
+  const [appointmentsResult, queueResult] = await Promise.all([
+    safeSchedulingRead('appointments', () => appointmentService.listAppointments({ date, limit: 500 }, actor), { items: [] }),
+    safeSchedulingRead('queue', () => queueService.listQueueTickets({ date, limit: 500 }, actor), { items: [] }),
+  ]);
+
+  return {
+    date,
+    items: buildHourlyFlowItems(appointmentsResult.value?.items || [], queueResult.value?.items || []),
+    partial_errors: [appointmentsResult, queueResult]
+      .filter((item) => item.error)
+      .map((item) => ({ source: item.label, message: item.error })),
+  };
 }
 
 async function getHealth() {
@@ -1491,6 +1617,8 @@ function affectedMaintenanceRoutes(scope) {
 
 module.exports = {
   getDashboard,
+  getSchedulingDashboardToday,
+  getSchedulingHourlyFlow,
   getHealth,
   getJobs,
   runJobNow,

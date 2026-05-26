@@ -12,6 +12,9 @@ const router = express.Router();
 router.param('documentId', validateObjectIdParam);
 router.param('exportId', validateObjectIdParam);
 router.param('profileChangeRequestId', validateObjectIdParam);
+router.param('relativeId', validateObjectIdParam);
+router.param('authorizationId', validateObjectIdParam);
+router.param('visitId', validateObjectIdParam);
 
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['patient', 'patient_relative'] }));
@@ -24,7 +27,24 @@ const documentUploadLimit = createActionRateLimit({
 });
 
 router.get('/me/dashboard', portalController.getMyDashboard);
+router.get('/me/counters', portalController.getMyCounters);
+router.get('/me/todos', portalController.getMyTodos);
+router.get('/me/health-summary', portalController.getMyHealthSummary);
+router.get('/me/visits', portalController.getMyVisits);
+router.get('/me/visits/:visitId', portalController.getMyVisitDetail);
+router.get('/booking/departments', portalController.getBookingDepartments);
+router.get('/booking/doctors', portalController.getBookingDoctors);
+router.get('/booking/slots', portalController.getBookingSlots);
+router.get('/booking/recent-doctors', portalController.getBookingRecentDoctors);
+router.get('/booking/recommended-slots', portalController.getBookingRecommendedSlots);
 router.get('/me/access-logs', portalController.getMyAccessLogs);
+router.get('/me/relatives', portalController.listMyRelatives);
+router.post('/me/relatives', portalController.createMyRelative);
+router.patch('/me/relatives/:relativeId', portalController.updateMyRelative);
+router.delete('/me/relatives/:relativeId', portalController.deleteMyRelative);
+router.get('/me/authorizations', portalController.listMyAuthorizations);
+router.post('/me/authorizations', portalController.createMyAuthorization);
+router.post('/me/authorizations/:authorizationId/revoke', portalController.revokeMyAuthorization);
 router.post('/me/profile-change-requests', portalController.createProfileChangeRequest);
 router.get('/me/profile-change-requests', portalController.listProfileChangeRequests);
 router.post('/me/profile-change-requests/:profileChangeRequestId/cancel', portalController.cancelProfileChangeRequest);

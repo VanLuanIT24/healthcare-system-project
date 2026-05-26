@@ -1,55 +1,15 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
 import labResultsPatientHero from '../assets/lab-results-patient-hero.png'
 
 const labTabs = [
   { id: 'all', label: 'Tất cả' },
-  { id: 'normal', label: 'Bình thường' },
-  { id: 'watch', label: 'Cần theo dõi' },
-  { id: 'warning', label: 'Cảnh báo' },
-]
-
-const fallbackLabResults = [
-  {
-    id: 'lab-1',
-    name: 'Công thức máu (CBC)',
-    date: '20/05/2024',
-    status: 'Bình thường',
-    tone: 'normal',
-    icon: 'experiment',
-  },
-  {
-    id: 'lab-2',
-    name: 'Đường huyết lúc đói (FPG)',
-    date: '20/05/2024',
-    status: 'Bình thường',
-    tone: 'normal',
-    icon: 'bloodtype',
-  },
-  {
-    id: 'lab-3',
-    name: 'Chức năng gan (ALT, AST)',
-    date: '20/05/2024',
-    status: 'Cảnh báo',
-    tone: 'warning',
-    icon: 'folder_shared',
-  },
-  {
-    id: 'lab-4',
-    name: 'Mỡ máu (Cholesterol)',
-    date: '20/05/2024',
-    status: 'Bình thường',
-    tone: 'normal',
-    icon: 'favorite',
-  },
-  {
-    id: 'lab-5',
-    name: 'Creatinine',
-    date: '20/05/2024',
-    status: 'Bình thường',
-    tone: 'normal',
-    icon: 'water_drop',
-  },
+  { id: 'new', label: 'Kết quả mới' },
+  { id: 'unviewed', label: 'Chưa xem' },
+  { id: 'viewed', label: 'Đã xem' },
+  { id: 'abnormal', label: 'Bất thường' },
+  { id: 'encounter', label: 'Theo lượt khám' },
+  { id: 'group', label: 'Theo nhóm xét nghiệm' },
 ]
 
 function formatLabDate(value) {
@@ -136,61 +96,78 @@ function mapLabResult(result, index) {
   return {
     id: result.lab_result_id || result._id || result.id || `${name}-${index}`,
     name,
-    date: formatLabDate(
-      result.reported_at ||
-        result.verified_at ||
-        result.released_at ||
-        result.completed_at ||
-        order.completed_at ||
-        order.ordered_at ||
-        result.created_at,
-    ),
+    orderedDate: formatLabDate(order.ordered_at || result.ordered_at),
+    specimenDate: formatLabDate(result.specimen_collected_at || result.collected_at || order.collected_at),
+    resultDate: formatLabDate(result.reported_at || result.verified_at || result.released_at || result.created_at),
+    date: formatLabDate(result.reported_at || result.verified_at || result.released_at || result.created_at),
     icon: getLabIcon(name),
+    doctor: result.ordered_by?.full_name || result.doctor_name || order.ordered_by?.full_name || 'Chưa cập nhật',
+    releaseStatus: result.released_to_patient ? 'Đã phát hành' : 'Chưa phát hành',
+    pdfUrl: result.pdf_url || result.file_url || result.attachment_url || '',
+    patientViewedAt: result.patient_viewed_at,
+    encounterCode: result.encounter_id?.encounter_code || order.encounter_id?.encounter_code || 'Chưa gắn lượt khám',
+    groupName: result.test_group || order.test_group || order.department_name || 'Nhóm xét nghiệm',
+    raw: result,
     ...tone,
   }
 }
 
-export default function PatientLabResultsPage({ labResults = [], loading = false }) {
+export default function PatientLabResultsPage({ labResults = [], loading = false, onMarkViewed }) {
   const [activeTab, setActiveTab] = useState('all')
-  const sourceResults = labResults.length ? labResults.map(mapLabResult) : loading ? [] : fallbackLabResults
-  const visibleResults =
-    activeTab === 'all' ? sourceResults : sourceResults.filter((result) => result.tone === activeTab)
+  const [selectedResultId, setSelectedResultId] = useState('')
+  const sourceResults = useMemo(() => labResults.map(mapLabResult), [labResults])
+  const visibleResults = useMemo(() => {
+    if (activeTab === 'all' || activeTab === 'encounter' || activeTab === 'group') return sourceResults
+    if (activeTab === 'new' || activeTab === 'unviewed') return sourceResults.filter((result) => !result.patientViewedAt)
+    if (activeTab === 'viewed') return sourceResults.filter((result) => result.patientViewedAt)
+    if (activeTab === 'abnormal') return sourceResults.filter((result) => ['watch', 'warning'].includes(result.tone))
+    return sourceResults
+  }, [activeTab, sourceResults])
+  const selectedResult = sourceResults.find((result) => result.id === selectedResultId) || visibleResults[0] || null
   const totalCount = sourceResults.length
-  const normalCount = sourceResults.filter((result) => result.tone === 'normal').length
-  const warningCount = sourceResults.filter((result) => result.tone === 'warning').length
-  const watchCount = sourceResults.filter((result) => result.tone === 'watch').length
+  const unviewedCount = sourceResults.filter((result) => !result.patientViewedAt).length
+  const abnormalCount = sourceResults.filter((result) => ['watch', 'warning'].includes(result.tone)).length
+  const viewedCount = sourceResults.filter((result) => result.patientViewedAt).length
 
   const summaryCards = [
     {
       id: 'all',
-      label: 'Tất cả kết quả',
-      count: totalCount,
-      unit: 'xét nghiệm',
-      icon: 'experiment',
+      label: 'Kết quả mới',
+      count: unviewedCount,
+      unit: 'chưa xem',
+      icon: 'new_releases',
       tone: 'blue',
     },
     {
-      id: 'normal',
-      label: 'Bình thường',
-      count: normalCount,
-      unit: 'xét nghiệm',
-      icon: 'check',
-      tone: 'green',
+      id: 'unviewed',
+      label: 'Chưa xem',
+      count: unviewedCount,
+      unit: 'kết quả',
+      icon: 'visibility_off',
+      tone: 'soft',
     },
     {
-      id: 'warning',
-      label: 'Cảnh báo',
-      count: warningCount,
-      unit: 'xét nghiệm',
+      id: 'abnormal',
+      label: 'Bất thường',
+      count: abnormalCount,
+      unit: 'kết quả',
       icon: 'warning',
       tone: 'orange',
     },
     {
-      id: 'watch',
-      label: 'Cần theo dõi',
-      count: watchCount,
+      id: 'viewed',
+      label: 'Đã xem',
+      count: viewedCount,
+      unit: 'kết quả',
+      icon: 'check',
+      tone: 'green',
+    },
+    {
+      id: 'all',
+      label: 'Lịch sử',
+      count: totalCount,
       unit: 'xét nghiệm',
-      icon: 'verified_user',
+      icon: 'experiment',
       tone: 'soft',
     },
   ]
@@ -266,7 +243,12 @@ export default function PatientLabResultsPage({ labResults = [], loading = false
           ) : null}
 
           {visibleResults.map((result) => (
-            <button key={result.id} className="patient-labs-row" type="button">
+            <button
+              key={result.id}
+              className={`patient-labs-row${selectedResult?.id === result.id ? ' is-selected' : ''}`}
+              type="button"
+              onClick={() => setSelectedResultId(result.id)}
+            >
               <span className={`patient-labs-test-icon ${result.tone}`} aria-hidden="true">
                 <PatientIcon name={result.icon} />
               </span>
@@ -287,6 +269,34 @@ export default function PatientLabResultsPage({ labResults = [], loading = false
           ))}
         </div>
       </div>
+
+      {selectedResult ? (
+        <div className="patient-labs-note">
+          <span className="patient-labs-note-icon" aria-hidden="true">
+            <PatientIcon name="science" />
+          </span>
+          <div>
+            <strong>{selectedResult.name}</strong>
+            <p>
+              Chỉ định: {selectedResult.orderedDate} | Lấy mẫu: {selectedResult.specimenDate} | Có kết quả: {selectedResult.resultDate}
+            </p>
+            <p>
+              Bác sĩ chỉ định: {selectedResult.doctor} | Trạng thái: {selectedResult.releaseStatus} | Lượt khám: {selectedResult.encounterCode}
+            </p>
+            <p>Chi tiết chỉ số gồm giá trị, đơn vị, khoảng tham chiếu, cờ bất thường, ghi chú và so sánh lần trước.</p>
+          </div>
+          <div className="patient-labs-note-actions">
+            <button type="button" onClick={() => onMarkViewed?.(selectedResult.id)}>
+              <PatientIcon name="visibility" aria-hidden="true" />
+              Đánh dấu đã xem
+            </button>
+            <button type="button" disabled={!selectedResult.pdfUrl}>
+              <PatientIcon name="download" aria-hidden="true" />
+              Tải PDF
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="patient-labs-note">
         <span className="patient-labs-note-icon" aria-hidden="true">

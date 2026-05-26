@@ -40,9 +40,29 @@ const labChargeCreatePermissions = [
 router.use(authenticate);
 
 router.get(
+  '/me/results/summary',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.LAB_RESULTS.SELF_READ_RELEASED] }),
+  laboratoryController.getMyLabResultsSummary,
+);
+router.get(
   '/me/results',
   authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.LAB_RESULTS.SELF_READ_RELEASED] }),
   laboratoryController.getMyLabResults,
+);
+router.get(
+  '/me/results/:resultId/items',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.LAB_RESULTS.SELF_READ_RELEASED] }),
+  laboratoryController.getMyLabResultItems,
+);
+router.post(
+  '/me/results/:resultId/mark-viewed',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.LAB_RESULTS.SELF_READ_RELEASED] }),
+  laboratoryController.markMyLabResultViewed,
+);
+router.get(
+  '/me/results/:resultId/compare',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.LAB_RESULTS.SELF_READ_RELEASED] }),
+  laboratoryController.compareMyLabResult,
 );
 router.get(
   '/me/results/:resultId',

@@ -3605,6 +3605,106 @@ async function getMyLabResults(actor = {}, query = {}) {
   return { items, pagination: buildPagination(page, limit, total) };
 }
 
+function assertSelfLabResultPatient(actor = {}) {
+  if (actorType(actor) !== 'patient') throw createError('Chỉ patient được gọi API này.', 403);
+  if (!hasPermission(actor, PERMISSION.LAB_RESULTS.SELF_READ_RELEASED)) throw createError('Bạn không có quyền xem lab results.', 403);
+  const patientId = actor.patientId || actor.patient_id;
+  if (!patientId) throw createError('Không xác định được patient_id.', 403);
+  return patientId;
+}
+
+function buildReleasedLabResultFilter(patientId) {
+  return {
+    patient_id: patientId,
+    released_to_patient: true,
+    release_revoked_at: { $exists: false },
+    is_current: { $ne: false },
+    status: { $in: [LAB_RESULT_STATUS.FINAL, LAB_RESULT_STATUS.AMENDED] },
+  };
+}
+
+async function getMyLabResultsSummary(actor = {}) {
+  const patientId = assertSelfLabResultPatient(actor);
+  const filter = buildReleasedLabResultFilter(patientId);
+  const [total, unviewed, abnormal, recent] = await Promise.all([
+    LabResult.countDocuments(filter),
+    LabResult.countDocuments({ ...filter, patient_viewed_at: null }),
+    LabResult.countDocuments({ ...filter, is_critical: true }),
+    LabResult.find(filter).sort({ released_at: -1, reported_at: -1, created_at: -1 }).limit(5).lean(),
+  ]);
+
+  return {
+    total,
+    new_count: unviewed,
+    unviewed,
+    abnormal,
+    viewed: Math.max(0, total - unviewed),
+    recent,
+  };
+}
+
+async function getMyLabResultItems(resultId, actor = {}) {
+  const detail = await getLabResultDetail(resultId, actor);
+  return { result: detail.result, items: detail.items || [] };
+}
+
+async function markMyLabResultViewed(resultId, actor = {}, requestMeta = {}) {
+  const patientId = assertSelfLabResultPatient(actor);
+  const result = await LabResult.findOne({
+    _id: resultId,
+    ...buildReleasedLabResultFilter(patientId),
+  });
+  if (!result) throw createError('Không tìm thấy lab result đã phát hành.', 404);
+
+  if (!result.patient_viewed_at) {
+    result.patient_viewed_at = new Date();
+    await result.save();
+    await recordAuditLog({
+      actor,
+      action: 'lab_result.patient_viewed',
+      targetType: 'lab_result',
+      targetId: result._id,
+      status: 'success',
+      message: 'Bệnh nhân đánh dấu đã xem kết quả xét nghiệm.',
+      requestMeta,
+    });
+  }
+
+  return getLabResultDetail(resultId, actor);
+}
+
+async function compareMyLabResult(resultId, actor = {}) {
+  const patientId = assertSelfLabResultPatient(actor);
+  const current = await LabResult.findOne({
+    _id: resultId,
+    ...buildReleasedLabResultFilter(patientId),
+  }).lean();
+  if (!current) throw createError('Không tìm thấy lab result đã phát hành.', 404);
+
+  const currentOrder = await LabOrder.findById(current.lab_order_id).select('test_name').lean();
+  const matchingOrders = currentOrder?.test_name
+    ? await LabOrder.find({ patient_id: patientId, test_name: currentOrder.test_name }).select('_id').lean()
+    : [];
+  const previous = matchingOrders.length
+    ? await LabResult.findOne({
+      _id: { $ne: current._id },
+      ...buildReleasedLabResultFilter(patientId),
+      lab_order_id: { $in: matchingOrders.map((order) => order._id) },
+      reported_at: { $lte: current.reported_at || current.created_at || new Date() },
+    }).sort({ reported_at: -1, created_at: -1 }).lean()
+    : null;
+
+  const [currentItems, previousItems] = await Promise.all([
+    LabResultItem.find({ lab_result_id: current._id }).sort({ display_order: 1, created_at: 1 }).lean(),
+    previous ? LabResultItem.find({ lab_result_id: previous._id }).sort({ display_order: 1, created_at: 1 }).lean() : [],
+  ]);
+
+  return {
+    current: { result: current, items: currentItems },
+    previous: previous ? { result: previous, items: previousItems } : null,
+  };
+}
+
 async function getEncounterLabSummary(encounterId, actor = {}) {
   const encounter = await Encounter.findById(encounterId).lean();
   if (!encounter) throw createError('Không tìm thấy encounter.', 404);
@@ -3750,6 +3850,14 @@ const laboratoryServiceExports = {
   getSpecimenLabelPdf,
   // getMyLabResults: Lấy kết quả xét nghiệm của người dùng hiện tại.
   getMyLabResults,
+  // getMyLabResultsSummary: Tổng hợp kết quả xét nghiệm đã phát hành cho patient.
+  getMyLabResultsSummary,
+  // getMyLabResultItems: Lấy bảng chỉ số của lab result đã phát hành.
+  getMyLabResultItems,
+  // markMyLabResultViewed: Đánh dấu bệnh nhân đã xem lab result.
+  markMyLabResultViewed,
+  // compareMyLabResult: So sánh lab result với lần trước cùng test.
+  compareMyLabResult,
   // getEncounterLabSummary: Lấy tổng hợp xét nghiệm của lượt khám.
   getEncounterLabSummary,
 };

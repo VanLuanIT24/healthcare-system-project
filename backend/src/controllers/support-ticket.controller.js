@@ -4,6 +4,7 @@ const { controllerHandler: wrap, requestMeta } = require('../common/controllers'
 module.exports = {
   createTicket: wrap((req) => supportTicketService.createTicket(req.body, req.auth, requestMeta(req)), 'Tạo support ticket thành công.', 201),
   listTickets: wrap((req) => supportTicketService.listTickets(req.query, req.auth), 'Lấy danh sách support ticket thành công.'),
+  getMySummary: wrap((req) => supportTicketService.getMySummary(req.auth), 'Lấy tổng quan hỗ trợ của tôi thành công.'),
   getTicket: wrap((req) => supportTicketService.getTicket(req.params.ticketId, req.auth), 'Lấy chi tiết support ticket thành công.'),
   replyTicket: wrap((req) => supportTicketService.replyTicket(req.params.ticketId, req.body, req.auth, requestMeta(req)), 'Reply support ticket thành công.', 201),
   assignTicket: wrap((req) => supportTicketService.assignTicket(req.params.ticketId, req.body, req.auth, requestMeta(req)), 'Assign support ticket thành công.'),

@@ -49,6 +49,8 @@ router.use(authenticate);
 router.get('/', authorize({ anyPermissions: selfReadPermissions }), notificationController.getMyNotifications);
 router.get('/unread-count', authorize({ anyPermissions: selfReadPermissions }), notificationController.getUnreadCount);
 router.get('/counters', authorize({ anyPermissions: selfReadPermissions }), notificationController.getCounters);
+router.get('/preferences/me', authorize({ anyPermissions: selfReadPermissions }), notificationController.getMyNotificationPreferences);
+router.patch('/preferences/me', authorize({ anyPermissions: selfReadPermissions }), notificationController.updateMyNotificationPreferences);
 router.post('/read-all', authorize({ anyPermissions: selfMarkAllReadPermissions }), notificationController.markAllNotificationsRead);
 
 router.get('/admin', authorize({ actorTypes: ['staff'], anyPermissions: [PERMISSION.NOTIFICATIONS.READ, PERMISSION.NOTIFICATIONS.MANAGE] }), notificationController.listNotifications);

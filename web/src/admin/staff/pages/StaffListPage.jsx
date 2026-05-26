@@ -202,6 +202,10 @@ function SecurityStack({ staff }) {
   );
 }
 
+function isPendingActivation(staff = {}) {
+  return staff.activation_status === 'pending_activation';
+}
+
 function StaffInspector({ inspector, activeTab, setActiveTab, onClose, onAction }) {
   if (!inspector) return null;
 
@@ -630,7 +634,15 @@ export function StaffListPage() {
     setSubmitting(true);
     setError('');
     try {
-      await bulkStaffAction({ action, user_ids: selectedIds });
+      const result = await bulkStaffAction({ action, user_ids: selectedIds });
+      if (result?.failed) {
+        const messages = (result.results || [])
+          .filter((item) => !item.success)
+          .map((item) => `${item.user_id}: ${item.message || 'Không rõ lỗi'}`)
+          .join('; ');
+        throw new Error(messages || `${result.failed} tài khoản xử lý thất bại.`);
+      }
+      setSelectedIds([]);
       await refreshAccounts();
     } catch (submitError) {
       setError(submitError.message);
@@ -799,7 +811,7 @@ export function StaffListPage() {
           </button>
           <button type="button" onClick={() => handleBulk('activate')} disabled={submitting}>
             <CheckCircle2 size={15} strokeWidth={2.25} />
-            Activate
+            Kích hoạt
           </button>
           <button type="button" onClick={() => setSelectedIds([])}>
             <X size={15} strokeWidth={2.25} />
@@ -859,9 +871,9 @@ export function StaffListPage() {
                   applyFilters(next);
                 }} />
 
-                <span className={`staff-status-dot staff-status-dot--${getStatusTone(item.activation_status === 'pending_activation' ? 'pending_activation' : item.status)}`}>
+                <span className={`staff-status-dot staff-status-dot--${getStatusTone(isPendingActivation(item) ? 'pending_activation' : item.status)}`}>
                   <span />
-                  {item.activation_status === 'pending_activation' ? 'Chờ kích hoạt' : getStatusLabel(item.status)}
+                  {isPendingActivation(item) ? 'Chờ kích hoạt' : getStatusLabel(item.status)}
                 </span>
 
                 <SecurityStack staff={item} />
@@ -889,7 +901,11 @@ export function StaffListPage() {
                   <button type="button" title="Force logout" onClick={() => handleDirectAction('force_logout', item)}>
                     <LogOut size={16} strokeWidth={2.25} />
                   </button>
-                  {item.status === 'locked' ? (
+                  {isPendingActivation(item) ? (
+                    <button type="button" title="Kích hoạt" onClick={() => openDialog('activate', item)}>
+                      <CheckCircle2 size={16} strokeWidth={2.25} />
+                    </button>
+                  ) : item.status === 'locked' ? (
                     <button type="button" title="Mở khóa" onClick={() => openDialog('unlock', item)}>
                       <ShieldCheck size={16} strokeWidth={2.25} />
                     </button>

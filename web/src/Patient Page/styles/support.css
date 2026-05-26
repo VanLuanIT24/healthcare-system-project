@@ -378,6 +378,160 @@
   cursor: pointer;
 }
 
+.patient-support-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 18px;
+}
+
+.patient-support-tabs button {
+  min-height: 38px;
+  white-space: nowrap;
+  border: 1px solid rgba(160, 174, 203, 0.32);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--patient-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.patient-support-tabs button.is-active {
+  border-color: #0d63f3;
+  background: #0d63f3;
+  color: #fff;
+}
+
+.patient-support-ticket-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.patient-support-ticket-form label,
+.patient-support-ticket-detail form {
+  display: grid;
+  gap: 7px;
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.patient-support-ticket-form input,
+.patient-support-ticket-form select,
+.patient-support-ticket-form textarea,
+.patient-support-ticket-detail textarea {
+  width: 100%;
+  border: 1px solid rgba(160, 174, 203, 0.34);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  color: #07152f;
+  font: inherit;
+}
+
+.patient-support-ticket-form label:nth-child(3),
+.patient-support-ticket-form label:nth-child(4),
+.patient-support-ticket-form button {
+  grid-column: 1 / -1;
+}
+
+.patient-support-ticket-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 16px;
+}
+
+.patient-support-ticket-list {
+  display: grid;
+  gap: 10px;
+}
+
+.patient-support-ticket-list button {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(160, 174, 203, 0.3);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.patient-support-ticket-list button.is-active {
+  border-color: rgba(13, 99, 243, 0.45);
+  background: #f4f8ff;
+}
+
+.patient-support-ticket-list small {
+  color: var(--patient-muted);
+  font-weight: 700;
+}
+
+.patient-support-ticket-list em {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: #eef4ff;
+  color: #0d63f3;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.patient-support-ticket-detail {
+  border: 1px solid rgba(160, 174, 203, 0.3);
+  border-radius: 16px;
+  padding: 16px;
+  background: #fff;
+}
+
+.patient-support-ticket-detail dl {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.patient-support-ticket-detail dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.patient-support-ticket-detail dt {
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.patient-support-ticket-detail dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.patient-support-ticket-detail form button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: #0d63f3;
+  color: #fff;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.patient-support-ticket-empty {
+  border: 1px dashed rgba(160, 174, 203, 0.38);
+  border-radius: 14px;
+  padding: 20px;
+  color: var(--patient-muted);
+  font-weight: 800;
+}
+
 @media (max-width: 1380px) {
   .patient-support-categories {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -401,6 +555,11 @@
   .patient-support-footer {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .patient-support-ticket-layout,
+  .patient-support-ticket-form {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -1,88 +1,23 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
-import {
-  appointmentCalendarDays,
-  appointmentDoctors,
-  appointmentHistory,
-  appointmentTimeSlots,
-} from '../data/patientPageData'
 import { appointmentAPI, scheduleAPI } from '../../utils/api'
 import { HealthcareChatAssistCard } from '../../components/HealthcareChatbot'
 import '../styles/appointments.css'
 
 const weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
 
-const onlineDoctorAvatars = [
-  'https://randomuser.me/api/portraits/men/32.jpg',
-  'https://randomuser.me/api/portraits/women/44.jpg',
-  'https://randomuser.me/api/portraits/men/46.jpg',
-  'https://randomuser.me/api/portraits/men/75.jpg',
-  'https://randomuser.me/api/portraits/women/65.jpg',
-  'https://randomuser.me/api/portraits/men/52.jpg',
-  'https://randomuser.me/api/portraits/women/68.jpg',
-  'https://randomuser.me/api/portraits/men/85.jpg',
-  'https://randomuser.me/api/portraits/women/17.jpg',
-  'https://randomuser.me/api/portraits/men/22.jpg',
-  'https://randomuser.me/api/portraits/women/32.jpg',
-  'https://randomuser.me/api/portraits/men/41.jpg',
+const stableAvatarPalettes = [
+  ['#2563eb', '#0f766e'],
+  ['#7c3aed', '#2563eb'],
+  ['#0891b2', '#16a34a'],
+  ['#db2777', '#7c3aed'],
+  ['#ea580c', '#dc2626'],
+  ['#0f766e', '#047857'],
+  ['#4f46e5', '#0ea5e9'],
+  ['#be123c', '#9333ea'],
 ]
 
-const appointmentShowcaseRows = [
-  {
-    id: 'showcase-apt-1',
-    title: 'Khám chuyên khoa Tim mạch',
-    doctor: 'BS. Nguyễn Văn An',
-    specialty: 'Tim mạch',
-    date: '28/05/2024',
-    time: '09:30',
-    facility: 'Bệnh viện Đa khoa Bộ Y tế',
-    location: 'Phòng 302 - Tầng 3',
-    status: 'Sắp tới',
-    tone: 'upcoming',
-    isPast: false,
-  },
-  {
-    id: 'showcase-apt-2',
-    title: 'Tái khám',
-    doctor: 'BS. Trần Thị Mai',
-    specialty: 'Nội tổng quát',
-    date: '31/05/2024',
-    time: '10:00',
-    facility: 'Bệnh viện Đa khoa Bộ Y tế',
-    location: 'Phòng 201 - Tầng 2',
-    status: 'Sắp tới',
-    tone: 'upcoming',
-    isPast: false,
-  },
-  {
-    id: 'showcase-apt-3',
-    title: 'Khám tổng quát định kỳ',
-    doctor: 'BS. Lê Hoàng Nam',
-    specialty: 'Khám tổng quát',
-    date: '10/06/2024',
-    time: '08:00',
-    facility: 'Bệnh viện Đa khoa Bộ Y tế',
-    location: 'Phòng 101 - Tầng 1',
-    status: 'Đã xác nhận',
-    tone: 'good',
-    isPast: false,
-  },
-  {
-    id: 'showcase-apt-4',
-    title: 'Khám chuyên khoa Hô hấp',
-    doctor: 'BS. Phạm Thị Thu',
-    specialty: 'Hô hấp',
-    date: '20/05/2024',
-    time: '09:00',
-    facility: 'Bệnh viện Đa khoa Bộ Y tế',
-    location: 'Phòng 205 - Tầng 2',
-    status: 'Đã hoàn thành',
-    tone: 'good',
-    isPast: true,
-  },
-]
-
-const defaultPatientSpecialties = [
+const patientSpecialtyDisplayOrder = [
   'Khám tổng quát',
   'Nội tổng quát',
   'Tim mạch',
@@ -176,6 +111,20 @@ function formatDateOnly(value) {
   }
 
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(date)
+}
+
+function formatVnd(value, emptyLabel = '0 ₫') {
+  const amount = Number(value || 0)
+
+  if (!amount) {
+    return emptyLabel
+  }
+
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(amount)
 }
 
 function parseAppointmentDate(value, timeValue) {
@@ -386,6 +335,35 @@ const appointmentStatusFilterOptions = [
   { value: 'rescheduled', label: 'Đã đổi lịch' },
 ]
 
+const appointmentTabOptions = [
+  { key: 'all', label: 'Tất cả', icon: 'dashboard', empty: 'Chưa có lịch hẹn phù hợp.' },
+  { key: 'upcoming', label: 'Sắp tới', icon: 'event', empty: 'Chưa có lịch hẹn sắp tới.' },
+  { key: 'pending', label: 'Chờ xác nhận', icon: 'schedule', empty: 'Chưa có lịch hẹn chờ xác nhận.' },
+  { key: 'confirmed', label: 'Đã xác nhận', icon: 'verified', empty: 'Chưa có lịch hẹn đã xác nhận.' },
+  { key: 'payment_due', label: 'Cần thanh toán', icon: 'payments', empty: 'Không có lịch hẹn cần thanh toán.' },
+  { key: 'today', label: 'Hôm nay', icon: 'calendar_today', empty: 'Hôm nay chưa có lịch hẹn.' },
+  { key: 'checked_in', label: 'Đã check-in', icon: 'check_circle', empty: 'Chưa có lịch đã check-in.' },
+  { key: 'completed', label: 'Đã hoàn thành', icon: 'check_circle', empty: 'Chưa có lịch hẹn đã hoàn thành.' },
+  { key: 'cancelled', label: 'Đã hủy', icon: 'close', empty: 'Chưa có lịch hẹn đã hủy.' },
+  { key: 'no_show', label: 'Không đến', icon: 'warning', empty: 'Chưa có lịch hẹn không đến.' },
+]
+
+const appointmentDateFilterOptions = [
+  { value: 'all', label: 'Tất cả thời gian' },
+  { value: 'today', label: 'Hôm nay' },
+  { value: 'next7', label: '7 ngày tới' },
+  { value: 'next30', label: '30 ngày tới' },
+  { value: 'past', label: 'Đã qua' },
+]
+
+const appointmentPaymentFilterOptions = [
+  { value: 'all', label: 'Tất cả thanh toán' },
+  { value: 'unpaid', label: 'Chưa thanh toán' },
+  { value: 'pending', label: 'Chờ xác nhận' },
+  { value: 'paid', label: 'Đã thanh toán' },
+  { value: 'none', label: 'Chưa phát sinh' },
+]
+
 function canCancelAppointmentStatus(status) {
   return status && !terminalAppointmentStatuses.has(status) && status !== 'in_consultation'
 }
@@ -437,6 +415,114 @@ function normalizeAppointmentFilterValue(value) {
     .toLowerCase()
 }
 
+function normalizeAppointmentStatus(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function isSameLocalDate(left, right = new Date()) {
+  if (!(left instanceof Date) || Number.isNaN(left.getTime())) {
+    return false
+  }
+
+  return getLocalDateKey(left) === getLocalDateKey(right)
+}
+
+function getAppointmentPaymentMeta(appointment) {
+  const rawStatus =
+    appointment?.payment_status ||
+    appointment?.paymentStatus ||
+    appointment?.invoice_status ||
+    appointment?.billing_status ||
+    appointment?.payment?.status ||
+    appointment?.invoice?.status ||
+    ''
+  const status = normalizeAppointmentStatus(rawStatus)
+  const balanceDue = Number(
+    appointment?.balance_due ??
+      appointment?.balanceDue ??
+      appointment?.amount_due ??
+      appointment?.remaining_amount ??
+      appointment?.invoice?.balance_due ??
+      appointment?.invoice?.remaining_amount ??
+      0,
+  )
+
+  if (['paid', 'settled', 'completed'].includes(status) || appointment?.is_paid || appointment?.paid_at) {
+    return { key: 'paid', label: 'Đã thanh toán', tone: 'good' }
+  }
+
+  if (['pending', 'pending_manual_confirmation', 'processing', 'submitted'].includes(status)) {
+    return { key: 'pending', label: 'Chờ xác nhận', tone: 'pending' }
+  }
+
+  if (
+    balanceDue > 0 ||
+    appointment?.requires_payment ||
+    ['unpaid', 'issued', 'partially_paid', 'overdue', 'payment_due', 'pending_payment'].includes(status)
+  ) {
+    return { key: 'unpaid', label: 'Chưa thanh toán', tone: 'rose' }
+  }
+
+  return { key: 'none', label: 'Chưa phát sinh', tone: 'soft' }
+}
+
+function getAppointmentCheckinMeta(appointment, statusKey) {
+  const queueTicket = appointment?.queue_ticket || appointment?.queueTicket || null
+  const checkedInAt = appointment?.checked_in_at || appointment?.checkin_time || queueTicket?.checkin_time
+  const normalizedStatus = normalizeAppointmentStatus(statusKey)
+
+  if (checkedInAt || queueTicket || ['checked_in', 'in_consultation'].includes(normalizedStatus)) {
+    return { key: 'checked_in', label: 'Đã check-in', tone: 'good' }
+  }
+
+  if (normalizedStatus === 'completed') {
+    return { key: 'completed', label: 'Hoàn tất', tone: 'good' }
+  }
+
+  if (['cancelled', 'no_show'].includes(normalizedStatus)) {
+    return { key: 'not_applicable', label: 'Không áp dụng', tone: 'soft' }
+  }
+
+  return { key: 'not_checked_in', label: 'Chưa check-in', tone: 'pending' }
+}
+
+function getAppointmentTimeRemainingText(startsAt, statusKey) {
+  if (!(startsAt instanceof Date) || Number.isNaN(startsAt.getTime())) {
+    return 'Chưa có thời gian'
+  }
+
+  const normalizedStatus = normalizeAppointmentStatus(statusKey)
+
+  if (terminalAppointmentStatuses.has(normalizedStatus)) {
+    return 'Đã kết thúc'
+  }
+
+  const diff = startsAt.getTime() - Date.now()
+
+  if (diff <= 0) {
+    return 'Đã đến giờ hẹn'
+  }
+
+  const totalMinutes = Math.ceil(diff / 60000)
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+
+  if (days > 0) {
+    return hours > 0 ? `Còn ${days} ngày ${hours} giờ` : `Còn ${days} ngày`
+  }
+
+  if (hours > 0) {
+    return minutes > 0 ? `Còn ${hours} giờ ${minutes} phút` : `Còn ${hours} giờ`
+  }
+
+  return `Còn ${Math.max(minutes, 1)} phút`
+}
+
+function hasAppointmentPaymentDue(appointment) {
+  return ['unpaid', 'pending'].includes(appointment?.paymentStatusKey)
+}
+
 const pendingAppointmentStatuses = new Set([
   'booked',
   'pending',
@@ -483,10 +569,157 @@ function getAppointmentCategoryKey(appointment) {
   return 'other'
 }
 
+function appointmentMatchesTab(appointment, tabKey) {
+  const status = normalizeAppointmentStatus(appointment?.statusKey)
+  const startsAt = appointment?.startsAt
+  const isFuture = startsAt instanceof Date && !Number.isNaN(startsAt.getTime()) && startsAt.getTime() >= Date.now()
+
+  switch (tabKey) {
+    case 'all':
+      return true
+    case 'upcoming':
+      return isFuture && !['cancelled', 'completed', 'no_show'].includes(status)
+    case 'pending':
+      return pendingAppointmentStatuses.has(status)
+    case 'confirmed':
+      return status === 'confirmed'
+    case 'payment_due':
+      return hasAppointmentPaymentDue(appointment)
+    case 'today':
+      return isSameLocalDate(startsAt)
+    case 'checked_in':
+      return ['checked_in', 'in_consultation'].includes(status) || appointment?.checkinStatusKey === 'checked_in'
+    case 'completed':
+      return status === 'completed'
+    case 'cancelled':
+      return status === 'cancelled'
+    case 'no_show':
+      return status === 'no_show'
+    default:
+      return true
+  }
+}
+
+function appointmentMatchesDateFilter(appointment, filterKey) {
+  const startsAt = appointment?.startsAt
+
+  if (filterKey === 'all') {
+    return true
+  }
+
+  if (!(startsAt instanceof Date) || Number.isNaN(startsAt.getTime())) {
+    return false
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (filterKey === 'today') {
+    return isSameLocalDate(startsAt)
+  }
+
+  if (filterKey === 'past') {
+    return startsAt < today
+  }
+
+  const maxDate = new Date(today)
+  maxDate.setDate(today.getDate() + (filterKey === 'next7' ? 7 : 30))
+
+  return startsAt >= today && startsAt <= maxDate
+}
+
+function buildAppointmentSearchText(appointment) {
+  return [
+    appointment?.id,
+    appointment?.appointmentCode,
+    appointment?.title,
+    appointment?.doctor,
+    appointment?.specialty,
+    appointment?.facility,
+    appointment?.location,
+    appointment?.reason,
+    appointment?.status,
+    appointment?.statusKey,
+    appointment?.paymentStatusLabel,
+    appointment?.checkinStatusLabel,
+    appointment?.date,
+    appointment?.time,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function getAppointmentActionItems(appointment) {
+  const status = normalizeAppointmentStatus(appointment?.statusKey)
+  const actions = [{ id: 'detail', label: 'Chi tiết', icon: 'chevron_right', tone: 'soft' }]
+
+  if (status === 'booked') {
+    actions.unshift(
+      { id: 'reschedule', label: 'Dời lịch', icon: 'calendar_add_on', tone: 'primary' },
+      { id: 'cancel', label: 'Hủy lịch', icon: 'close', tone: 'danger' },
+    )
+    actions.push({ id: 'pending', label: 'Chờ xác nhận', icon: 'schedule', tone: 'muted', disabled: true })
+    return actions
+  }
+
+  if (status === 'confirmed') {
+    actions.unshift(
+      { id: 'checkin', label: 'Check-in online', icon: 'check_circle', tone: 'primary' },
+      { id: 'reschedule', label: 'Dời lịch', icon: 'calendar_add_on', tone: 'soft' },
+      { id: 'cancel', label: 'Hủy lịch', icon: 'close', tone: 'danger' },
+      { id: 'directions', label: 'Hướng dẫn đến phòng', icon: 'directions', tone: 'soft' },
+    )
+
+    if (hasAppointmentPaymentDue(appointment)) {
+      actions.splice(1, 0, { id: 'pay', label: 'Thanh toán trước', icon: 'payments', tone: 'primary' })
+    }
+
+    return actions
+  }
+
+  if (['checked_in', 'in_consultation'].includes(status)) {
+    actions.unshift(
+      { id: 'queue', label: 'Xem queue', icon: 'receipt_long', tone: 'primary' },
+      { id: 'directions', label: 'Xem phòng khám', icon: 'directions', tone: 'soft' },
+    )
+    return actions
+  }
+
+  if (status === 'completed') {
+    actions.unshift(
+      { id: 'visit', label: 'Xem lượt khám', icon: 'clinical_notes', tone: 'primary' },
+      { id: 'results', label: 'Xem kết quả', icon: 'science', tone: 'soft' },
+      { id: 'prescription', label: 'Xem đơn thuốc', icon: 'medication', tone: 'soft' },
+      { id: 'invoice', label: 'Xem hóa đơn', icon: 'receipt_long', tone: 'soft' },
+      { id: 'feedback', label: 'Đánh giá dịch vụ', icon: 'star', tone: 'soft' },
+    )
+    return actions
+  }
+
+  if (status === 'cancelled') {
+    actions.unshift(
+      { id: 'rebook', label: 'Đặt lại lịch', icon: 'calendar_add_on', tone: 'primary' },
+      { id: 'support', label: 'Liên hệ hỗ trợ', icon: 'support_agent', tone: 'soft' },
+    )
+    return actions
+  }
+
+  if (status === 'no_show') {
+    actions.unshift(
+      { id: 'rebook', label: 'Đặt lại lịch', icon: 'calendar_add_on', tone: 'primary' },
+      { id: 'support', label: 'Liên hệ hỗ trợ', icon: 'support_agent', tone: 'soft' },
+    )
+  }
+
+  return actions
+}
+
 function mapApiAppointment(appointment) {
   const status = getAppointmentStatusMeta(appointment.status)
   const startsAt = parseAppointmentDate(appointment.appointment_time)
   const statusKey = appointment.status || ''
+  const paymentStatus = getAppointmentPaymentMeta(appointment)
+  const checkinStatus = getAppointmentCheckinMeta(appointment, statusKey)
   const doctorName = appointment.doctor_name || `Bác sĩ ${String(appointment.doctor_id || '').slice(-6)}`
   const specialty =
     translateMedicalLabel(appointment.department_name) ||
@@ -497,19 +730,27 @@ function mapApiAppointment(appointment) {
     appointment.reason ||
     appointment.visit_reason ||
     (specialty ? `Khám chuyên khoa ${specialty}` : 'Lịch hẹn khám')
+  const location =
+    appointment.room_name ||
+    appointment.room ||
+    appointment.clinic_room ||
+    appointment.location_name ||
+    appointment.department_name ||
+    'Đang cập nhật'
 
   return {
     id: appointment.appointment_id || `${appointment.doctor_id}-${appointment.appointment_time}`,
+    appointmentCode:
+      appointment.appointment_code ||
+      appointment.appointment_no ||
+      appointment.code ||
+      appointment.appointment_id ||
+      `${appointment.doctor_id || 'APT'}-${formatDateOnly(appointment.appointment_time) || 'NEW'}`,
     startsAt,
     isPast: Boolean(isTerminalAppointmentStatus(statusKey) || (startsAt && startsAt.getTime() <= Date.now())),
     dateParts: getAppointmentDateParts(startsAt),
     facility: appointment.facility_name || appointment.hospital_name || 'Bệnh viện Đa khoa Bộ Y tế',
-    location:
-      appointment.room_name ||
-      appointment.room ||
-      appointment.clinic_room ||
-      appointment.department_name ||
-      'Đang cập nhật',
+    location,
     title,
     doctor: doctorName,
     doctorAvatar:
@@ -526,6 +767,27 @@ function mapApiAppointment(appointment) {
     status: status.label,
     statusKey,
     tone: status.tone,
+    paymentStatusKey: paymentStatus.key,
+    paymentStatusLabel: paymentStatus.label,
+    paymentTone: paymentStatus.tone,
+    checkinStatusKey: checkinStatus.key,
+    checkinStatusLabel: checkinStatus.label,
+    checkinTone: checkinStatus.tone,
+    reason: appointment.reason || appointment.visit_reason || appointment.chief_complaint || 'Chưa có lý do khám',
+    preparationNote:
+      appointment.preparation_note ||
+      appointment.preparation_instructions ||
+      appointment.instructions ||
+      'Đến sớm 15 phút và mang theo giấy tờ tùy thân.',
+    remainingText: getAppointmentTimeRemainingText(startsAt, statusKey),
+    queueTicketNo:
+      appointment.queue_ticket?.queue_number ||
+      appointment.queue_ticket?.ticket_no ||
+      appointment.queue_number ||
+      appointment.ticket_no ||
+      '',
+    invoiceId: appointment.invoice_id || appointment.invoice?.invoice_id || appointment.billing_invoice_id || '',
+    encounterId: appointment.encounter_id || appointment.encounter?.encounter_id || '',
     icon: 'medical_services',
     apiBacked: Boolean(appointment.appointment_id),
     raw: appointment,
@@ -538,9 +800,13 @@ function mapApiAppointment(appointment) {
 
 function mapLegacyAppointment(appointment) {
   const startsAt = parseAppointmentDate(appointment.date, appointment.time)
+  const statusKey = appointment.statusKey || ''
+  const paymentStatus = getAppointmentPaymentMeta(appointment)
+  const checkinStatus = getAppointmentCheckinMeta(appointment, statusKey)
 
   return {
     id: appointment.id,
+    appointmentCode: appointment.code || appointment.id,
     startsAt,
     isPast: appointment.isPast ?? Boolean(startsAt && startsAt.getTime() <= Date.now()),
     dateParts: getAppointmentDateParts(startsAt),
@@ -554,8 +820,20 @@ function mapLegacyAppointment(appointment) {
     shortDate: formatDateOnly(startsAt) || appointment.date,
     time: appointment.time,
     status: appointment.status,
-    statusKey: '',
+    statusKey,
     tone: appointment.tone || 'soft',
+    paymentStatusKey: paymentStatus.key,
+    paymentStatusLabel: paymentStatus.label,
+    paymentTone: paymentStatus.tone,
+    checkinStatusKey: checkinStatus.key,
+    checkinStatusLabel: checkinStatus.label,
+    checkinTone: checkinStatus.tone,
+    reason: appointment.reason || appointment.title || 'Chưa có lý do khám',
+    preparationNote: appointment.preparationNote || 'Đến sớm 15 phút và mang theo giấy tờ tùy thân.',
+    remainingText: getAppointmentTimeRemainingText(startsAt, statusKey),
+    queueTicketNo: appointment.queueTicketNo || '',
+    invoiceId: appointment.invoiceId || '',
+    encounterId: appointment.encounterId || '',
     icon: appointment.icon || 'medical_services',
     apiBacked: false,
     raw: appointment,
@@ -587,11 +865,41 @@ function getInitialsFromLabel(label = '') {
     .join('')
 }
 
-function getStableAvatar(seed) {
-  const text = String(seed || 'doctor')
-  const hash = [...text].reduce((sum, char) => sum + char.charCodeAt(0), 0)
+function escapeSvgText(value) {
+  return String(value || '').replace(/[&<>"']/g, (char) => {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }
 
-  return onlineDoctorAvatars[hash % onlineDoctorAvatars.length]
+    return map[char] || char
+  })
+}
+
+function getStableAvatar(label = 'TK') {
+  const source = String(label || 'TK').trim() || 'TK'
+  const hash = [...source].reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  const [from, to] = stableAvatarPalettes[hash % stableAvatarPalettes.length]
+  const initials = (getInitialsFromLabel(source) || 'TK').slice(0, 2)
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop stop-color="${from}"/>
+          <stop offset="1" stop-color="${to}"/>
+        </linearGradient>
+      </defs>
+      <rect width="160" height="160" rx="80" fill="url(#g)"/>
+      <circle cx="118" cy="42" r="26" fill="rgba(255,255,255,.14)"/>
+      <circle cx="38" cy="128" r="34" fill="rgba(255,255,255,.10)"/>
+      <text x="80" y="94" text-anchor="middle" font-family="Arial, sans-serif" font-size="52" font-weight="700" fill="#fff">${escapeSvgText(initials)}</text>
+    </svg>
+  `
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
 function getScheduleDoctorName(schedule) {
@@ -616,8 +924,9 @@ function getScheduleDoctorCode(schedule) {
   )
 }
 
-function getScheduleDoctorAvatar(schedule, fallbackSeed) {
+function getScheduleDoctorAvatar(schedule) {
   const avatar =
+    schedule.doctor_avatar_url ||
     schedule.avatar ||
     schedule.avatar_url ||
     schedule.profile_image ||
@@ -630,7 +939,7 @@ function getScheduleDoctorAvatar(schedule, fallbackSeed) {
     return avatar
   }
 
-  return getStableAvatar(fallbackSeed || schedule.doctor_id)
+  return ''
 }
 
 function buildScheduleRating(schedule) {
@@ -646,7 +955,7 @@ function buildScheduleRating(schedule) {
 }
 
 function sortSpecialtyOptions(specialties) {
-  const preferredOrder = defaultPatientSpecialties
+  const preferredOrder = patientSpecialtyDisplayOrder
 
   return [...specialties].sort((a, b) => {
     const aIndex = preferredOrder.indexOf(a)
@@ -663,19 +972,22 @@ function sortSpecialtyOptions(specialties) {
   })
 }
 
-function buildDateFromSelection(dayLabel, timeLabel) {
-  const day = Number.parseInt(String(dayLabel || '').trim(), 10)
-  const [hours, minutes] = String(timeLabel || '')
-    .split(':')
-    .map((value) => Number.parseInt(value, 10))
+function getSpecialtyIconName(label) {
+  const key = normalizeSpecialtyKey(label)
 
-  if (!Number.isInteger(day) || !Number.isInteger(hours) || !Number.isInteger(minutes)) {
-    return null
-  }
+  if (!key || key === 'tat ca') return 'local_hospital'
+  if (key.includes('tim mach')) return 'ecg_heart'
+  if (key.includes('ho hap')) return 'pulmonology'
+  if (key.includes('huyet hoc') || key.includes('xet nghiem')) return 'lab_research'
+  if (key.includes('chan doan') || key.includes('hinh anh')) return 'radiology'
+  if (key.includes('than kinh')) return 'psychology'
+  if (key.includes('hoi suc') || key.includes('cap cuu')) return 'emergency'
+  if (key.includes('san') || key.includes('phu khoa')) return 'favorite'
+  if (key.includes('nhi')) return 'help_clinic'
+  if (key.includes('tieu hoa')) return 'gastroenterology'
+  if (key.includes('noi tiet') || key.includes('dai thao duong')) return 'bloodtype'
 
-  const base = new Date()
-  const monthOffset = day < base.getDate() ? 1 : 0
-  return new Date(base.getFullYear(), base.getMonth() + monthOffset, day, hours, minutes, 0, 0)
+  return 'medical_services'
 }
 
 function formatIcsDate(date) {
@@ -695,7 +1007,7 @@ function escapeIcsText(value) {
 }
 
 function mapScheduleOption(schedule, departments) {
-  const specialty = getDepartmentName(departments, schedule.department_id)
+  const specialty = translateMedicalLabel(schedule.specialty) || getDepartmentName(departments, schedule.department_id)
   const doctorCode = getScheduleDoctorCode(schedule)
   const doctorName = schedule.doctor_name || `Bác sĩ ${String(schedule.doctor_id || '').slice(-6)}`
 
@@ -722,8 +1034,50 @@ function mapScheduleOption(schedule, departments) {
     nextAvailableLabel: formatAppointmentDate(schedule.work_date),
     availability: schedule.status === 'active' ? 'Đang mở' : 'Có lịch',
     initials: getInitialsFromLabel(resolvedDoctorName) || 'BS',
-    avatar: getScheduleDoctorAvatar(schedule, resolvedDoctorName),
+    avatar: getScheduleDoctorAvatar(schedule),
+    consultationFee: Number(schedule.consultation_fee || 0),
+    consultationDurationMinutes: Number(schedule.consultation_duration_minutes || schedule.slot_duration_minutes || 15),
+    locationNote: schedule.location_note || '',
     schedule,
+  }
+}
+
+function mapBookingDoctorOption(doctor) {
+  const specialty = translateMedicalLabel(doctor.specialty || doctor.department_name) || 'Khám tổng quát'
+  const doctorName = doctor.full_name || doctor.name || `Bác sĩ ${String(doctor.doctor_id || '').slice(-6)}`
+  const doctorCode = doctor.doctor_code || doctor.employee_code || ''
+  const doctorKey = [
+    doctor.doctor_id || doctorCode || doctorName,
+    doctor.department_id || specialty,
+  ]
+    .filter(Boolean)
+    .map(String)
+    .join('::')
+  const ratingMeta = buildScheduleRating({
+    doctor_id: doctor.doctor_id || doctor.doctor_profile_id || doctorCode || doctorName,
+  })
+  const nextAvailableLabel = doctor.next_available_at ? formatAppointmentDate(doctor.next_available_at) : ''
+
+  return {
+    id: doctorKey,
+    scheduleId: doctor.next_schedule_id || null,
+    doctorKey,
+    name: doctorName,
+    displayName: doctorName,
+    doctorCode,
+    specialty,
+    rating: ratingMeta.rating,
+    reviews: ratingMeta.reviews,
+    nextAvailableLabel,
+    availability: doctor.next_schedule_id ? 'Có lịch' : 'Chưa có lịch',
+    initials: getInitialsFromLabel(doctorName) || 'BS',
+    avatar: doctor.avatar_url || doctor.avatar || getStableAvatar(doctorName || doctor.doctor_id),
+    consultationFee: Number(doctor.consultation_fee || 0),
+    consultationDurationMinutes: Number(doctor.consultation_duration_minutes || 15),
+    locationNote: doctor.location_note || '',
+    hasApiSchedule: Boolean(doctor.next_schedule_id),
+    schedule: null,
+    schedules: [],
   }
 }
 
@@ -785,11 +1139,21 @@ function buildUniqueDoctorOptions(scheduleOptions) {
   })
 }
 
-function normalizeDoctorName(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
+function mergeDoctorOptions(scheduleDoctorOptions, bookingDoctorOptions) {
+  const groups = new Map()
+
+  scheduleDoctorOptions.forEach((doctor) => {
+    groups.set(getDoctorGroupKey(doctor), doctor)
+  })
+
+  bookingDoctorOptions.forEach((doctor) => {
+    const key = getDoctorGroupKey(doctor)
+    if (!groups.has(key)) {
+      groups.set(key, doctor)
+    }
+  })
+
+  return Array.from(groups.values())
 }
 
 function normalizeSpecialtyKey(value) {
@@ -868,7 +1232,7 @@ function buildBackendSpecialtyLabels(departments, scheduleOptions) {
     ? departmentLabels
     : scheduleOptions.map((option) => option.specialty).filter(isPatientVisibleSpecialty)
 
-  return sortSpecialtyOptions(Array.from(new Set([...defaultPatientSpecialties, ...source])))
+  return sortSpecialtyOptions(Array.from(new Set(source)))
 }
 
 function resolveSpecialtyLabel(value, specialtyLookup) {
@@ -888,64 +1252,37 @@ function withResolvedSpecialty(doctor, specialtyLookup) {
   }
 }
 
-function buildDisplayDoctorOptions(apiDoctorOptions, fallbackDoctors, hasApiSchedules, specialtyLookup) {
-  const visibleApiDoctorOptions = apiDoctorOptions
+function buildDisplayDoctorOptions(apiDoctorOptions, specialtyLookup) {
+  return apiDoctorOptions
     .map((doctor) => withResolvedSpecialty(doctor, specialtyLookup))
     .filter((doctor) => isPatientVisibleSpecialty(doctor.specialty))
-
-  if (!hasApiSchedules) {
-    return fallbackDoctors
-      .map((doctor) => ({
-        ...withResolvedSpecialty(doctor, specialtyLookup),
-        hasApiSchedule: false,
-      }))
-      .filter((doctor) => isPatientVisibleSpecialty(doctor.specialty))
-  }
-
-  const apiNames = new Set(
-    visibleApiDoctorOptions.map((doctor) => normalizeDoctorName(doctor.displayName || doctor.name)),
-  )
-  const fallbackOnlyDoctors = fallbackDoctors
-    .filter((doctor) => !apiNames.has(normalizeDoctorName(doctor.displayName || doctor.name)))
-    .map((doctor) => ({
-      ...withResolvedSpecialty(doctor, specialtyLookup),
-      availability: 'Chưa có lịch',
-      nextAvailableLabel: 'Chưa có lịch từ hệ thống',
-      hasApiSchedule: false,
-    }))
-    .filter((doctor) => isPatientVisibleSpecialty(doctor.specialty))
-
-  return [
-    ...visibleApiDoctorOptions.map((doctor) => ({ ...doctor, hasApiSchedule: true })),
-    ...fallbackOnlyDoctors,
-  ]
 }
 
 export default function PatientAppointmentsPage({
   appointments = [],
+  authorizations = [],
+  bookingDoctors = [],
   departments = [],
   loading = false,
   onAppointmentCreated,
+  onBookAppointment,
+  onNavigate,
+  onOpenSupportChat,
   patientProfile,
+  relatives = [],
   schedules = [],
   user,
   viewMode = 'booking',
 }) {
-  const defaultDoctor =
-    appointmentDoctors.find((doctor) => doctor.id === 'doc-2')?.id || appointmentDoctors[0]?.id
-  const defaultDate =
-    appointmentCalendarDays.find((day) => day.selected)?.label || appointmentCalendarDays[0]?.label
-  const defaultTime =
-    appointmentTimeSlots.find((slot) => slot.selected)?.value || appointmentTimeSlots[0]?.value
-
-  const [selectedDoctorId, setSelectedDoctorId] = useState(defaultDoctor)
+  const [selectedDoctorId, setSelectedDoctorId] = useState('')
   const [selectedScheduleId, setSelectedScheduleId] = useState(null)
-  const [selectedDate, setSelectedDate] = useState(defaultDate)
   const [calendarViewMonth, setCalendarViewMonth] = useState('')
-  const [selectedTime, setSelectedTime] = useState(defaultTime)
+  const [selectedTime, setSelectedTime] = useState('')
   const [visitMode, setVisitMode] = useState('outpatient')
   const [selectedSpecialty, setSelectedSpecialty] = useState('all')
   const [doctorSearch, setDoctorSearch] = useState('')
+  const [bookingFor, setBookingFor] = useState('self')
+  const [selectedRelativeId, setSelectedRelativeId] = useState('')
   const [step, setStep] = useState(1)
   const [reason, setReason] = useState('')
   const [availableSlots, setAvailableSlots] = useState([])
@@ -970,6 +1307,13 @@ export default function PatientAppointmentsPage({
   const [rescheduleReason, setRescheduleReason] = useState('')
   const [appointmentSearchTerm, setAppointmentSearchTerm] = useState('')
   const [appointmentStatusFilter, setAppointmentStatusFilter] = useState('all')
+  const [appointmentDateFilter, setAppointmentDateFilter] = useState('all')
+  const [appointmentSpecialtyFilter, setAppointmentSpecialtyFilter] = useState('all')
+  const [appointmentDoctorFilter, setAppointmentDoctorFilter] = useState('all')
+  const [appointmentPaymentFilter, setAppointmentPaymentFilter] = useState('all')
+  const [waitlistItems, setWaitlistItems] = useState([])
+  const [waitlistLoading, setWaitlistLoading] = useState(false)
+  const [waitlistError, setWaitlistError] = useState('')
   const deferredAppointmentSearchTerm = useDeferredValue(appointmentSearchTerm)
   const appointmentRows = useMemo(
     () => appointments.map(mapApiAppointment),
@@ -983,116 +1327,38 @@ export default function PatientAppointmentsPage({
       return leftTime - rightTime
     })
   }, [appointmentRows])
-  const filteredAppointmentTimelineRows = useMemo(() => {
-    const query = normalizeAppointmentFilterValue(deferredAppointmentSearchTerm.trim())
+  const appointmentSpecialtyOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(appointmentTimelineRows.map((appointment) => appointment.specialty).filter(Boolean)),
+    ).sort((left, right) => left.localeCompare(right, 'vi'))
 
-    return appointmentTimelineRows.filter((appointment) => {
-      const matchesStatus =
-        appointmentStatusFilter === 'all' || appointment.statusKey === appointmentStatusFilter
+    return [{ value: 'all', label: 'Tất cả chuyên khoa' }, ...values.map((value) => ({ value, label: value }))]
+  }, [appointmentTimelineRows])
+  const appointmentDoctorOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(appointmentTimelineRows.map((appointment) => appointment.doctor).filter(Boolean)),
+    ).sort((left, right) => left.localeCompare(right, 'vi'))
 
-      if (!matchesStatus) {
-        return false
-      }
-
-      if (!query) {
-        return true
-      }
-
-      return [
-        appointment.id,
-        appointment.title,
-        appointment.doctor,
-        appointment.specialty,
-        appointment.facility,
-        appointment.location,
-        appointment.status,
-        appointment.statusKey,
-        appointment.date,
-        appointment.time,
-      ].some((value) => normalizeAppointmentFilterValue(value).includes(query))
-    })
-  }, [appointmentStatusFilter, appointmentTimelineRows, deferredAppointmentSearchTerm])
-  const appointmentFiltersActive = appointmentStatusFilter !== 'all' || appointmentSearchTerm.trim().length > 0
-  const filteredAppointmentCount = filteredAppointmentTimelineRows.length
-  const upcomingAppointments = useMemo(
-    () => filteredAppointmentTimelineRows.filter((appointment) => getAppointmentCategoryKey(appointment) === 'upcoming'),
-    [filteredAppointmentTimelineRows],
-  )
-  const completedAppointments = useMemo(
-    () => filteredAppointmentTimelineRows.filter((appointment) => getAppointmentCategoryKey(appointment) === 'completed'),
-    [filteredAppointmentTimelineRows],
-  )
-  const confirmedAppointments = useMemo(
-    () => filteredAppointmentTimelineRows.filter((appointment) => getAppointmentCategoryKey(appointment) === 'confirmed'),
-    [filteredAppointmentTimelineRows],
-  )
-  const pendingAppointments = useMemo(
-    () => filteredAppointmentTimelineRows.filter((appointment) => getAppointmentCategoryKey(appointment) === 'pending'),
-    [filteredAppointmentTimelineRows],
-  )
-  const appointmentSections = useMemo(
-    () => [
-      {
-        key: 'upcoming',
-        label: 'Sắp tới',
-        description: 'Các lịch sắp diễn ra theo lịch hẹn.',
-        icon: 'event',
-        rows: upcomingAppointments,
-      },
-      {
-        key: 'pending',
-        label: 'Đang chờ',
-        description: 'Các lịch đang chờ bệnh viện xác nhận.',
-        icon: 'schedule',
-        rows: pendingAppointments,
-      },
-      {
-        key: 'confirmed',
-        label: 'Đã xác nhận',
-        description: 'Các lịch đã được bệnh viện xác nhận và chờ đến giờ khám.',
-        icon: 'verified',
-        rows: confirmedAppointments,
-      },
-      {
-        key: 'completed',
-        label: 'Đã hoàn thành',
-        description: 'Các lịch đã hoàn tất hoặc đã đóng trạng thái.',
-        icon: 'check_circle',
-        rows: completedAppointments,
-      },
-    ],
-    [completedAppointments, confirmedAppointments, pendingAppointments, upcomingAppointments],
-  )
-  const activeAppointmentSection = useMemo(
-    () => appointmentSections.find((section) => section.key === appointmentTab) || appointmentSections[0],
-    [appointmentSections, appointmentTab],
-  )
-  const visibleAppointmentSections = useMemo(() => {
-    if (appointmentFiltersActive) {
-      const matchingSections = appointmentSections.filter((section) => section.rows.length > 0)
-
-      return matchingSections.length > 0 && activeAppointmentSection
-        ? [
-            ...matchingSections.filter((section) => section.key === activeAppointmentSection.key),
-            ...matchingSections.filter((section) => section.key !== activeAppointmentSection.key),
-          ]
-        : [activeAppointmentSection].filter(Boolean)
-    }
-
-    return activeAppointmentSection ? [activeAppointmentSection] : appointmentSections
-  }, [activeAppointmentSection, appointmentFiltersActive, appointmentSections])
+    return [{ value: 'all', label: 'Tất cả bác sĩ' }, ...values.map((value) => ({ value, label: value }))]
+  }, [appointmentTimelineRows])
   const appointmentSummaryCards = useMemo(() => {
     const upcomingCount = appointmentTimelineRows.filter(
-      (appointment) => getAppointmentCategoryKey(appointment) === 'upcoming',
+      (appointment) => appointmentMatchesTab(appointment, 'upcoming'),
     ).length
     const completedCount = appointmentTimelineRows.filter(
-      (appointment) => getAppointmentCategoryKey(appointment) === 'completed',
+      (appointment) => appointmentMatchesTab(appointment, 'completed'),
     ).length
     const confirmedCount = appointmentTimelineRows.filter(
-      (appointment) => getAppointmentCategoryKey(appointment) === 'confirmed',
+      (appointment) => appointmentMatchesTab(appointment, 'confirmed'),
     ).length
     const pendingCount = appointmentTimelineRows.filter(
-      (appointment) => getAppointmentCategoryKey(appointment) === 'pending',
+      (appointment) => appointmentMatchesTab(appointment, 'pending'),
+    ).length
+    const todayCount = appointmentTimelineRows.filter(
+      (appointment) => appointmentMatchesTab(appointment, 'today'),
+    ).length
+    const cancelledCount = appointmentTimelineRows.filter(
+      (appointment) => appointmentMatchesTab(appointment, 'cancelled'),
     ).length
 
     return [
@@ -1110,7 +1376,7 @@ export default function PatientAppointmentsPage({
         id: 'pending',
         icon: 'schedule',
         tone: 'orange',
-        label: 'Đang chờ',
+        label: 'Chờ xác nhận',
         count: pendingCount,
         unit: 'lịch hẹn',
         filter: { tab: 'pending', status: 'all' },
@@ -1127,6 +1393,16 @@ export default function PatientAppointmentsPage({
         ariaLabel: 'Xem lịch hẹn đã xác nhận',
       },
       {
+        id: 'today',
+        icon: 'calendar_today',
+        tone: 'soft',
+        label: 'Hôm nay',
+        count: todayCount,
+        unit: 'lịch hẹn',
+        filter: { tab: 'today', status: 'all' },
+        ariaLabel: 'Xem lịch hẹn hôm nay',
+      },
+      {
         id: 'completed',
         icon: 'check_circle',
         tone: 'green',
@@ -1136,8 +1412,74 @@ export default function PatientAppointmentsPage({
         filter: { tab: 'completed', status: 'all' },
         ariaLabel: 'Xem lịch hẹn đã hoàn thành',
       },
+      {
+        id: 'cancelled',
+        icon: 'close',
+        tone: 'rose',
+        label: 'Đã hủy',
+        count: cancelledCount,
+        unit: 'lịch hẹn',
+        filter: { tab: 'cancelled', status: 'all' },
+        ariaLabel: 'Xem lịch hẹn đã hủy',
+      },
     ]
   }, [appointmentTimelineRows])
+  const activeAppointmentTab = useMemo(
+    () => appointmentTabOptions.find((tab) => tab.key === appointmentTab) || appointmentTabOptions[0],
+    [appointmentTab],
+  )
+  const filteredAppointmentRows = useMemo(() => {
+    const query = normalizeAppointmentFilterValue(deferredAppointmentSearchTerm.trim())
+
+    return appointmentTimelineRows.filter((appointment) => {
+      if (!appointmentMatchesTab(appointment, appointmentTab)) {
+        return false
+      }
+
+      if (appointmentStatusFilter !== 'all' && normalizeAppointmentStatus(appointment.statusKey) !== appointmentStatusFilter) {
+        return false
+      }
+
+      if (!appointmentMatchesDateFilter(appointment, appointmentDateFilter)) {
+        return false
+      }
+
+      if (appointmentSpecialtyFilter !== 'all' && appointment.specialty !== appointmentSpecialtyFilter) {
+        return false
+      }
+
+      if (appointmentDoctorFilter !== 'all' && appointment.doctor !== appointmentDoctorFilter) {
+        return false
+      }
+
+      if (appointmentPaymentFilter !== 'all' && appointment.paymentStatusKey !== appointmentPaymentFilter) {
+        return false
+      }
+
+      if (!query) {
+        return true
+      }
+
+      return normalizeAppointmentFilterValue(buildAppointmentSearchText(appointment)).includes(query)
+    })
+  }, [
+    appointmentDateFilter,
+    appointmentDoctorFilter,
+    appointmentPaymentFilter,
+    appointmentSpecialtyFilter,
+    appointmentStatusFilter,
+    appointmentTab,
+    appointmentTimelineRows,
+    deferredAppointmentSearchTerm,
+  ])
+  const appointmentFiltersActive =
+    appointmentDateFilter !== 'all' ||
+    appointmentDoctorFilter !== 'all' ||
+    appointmentPaymentFilter !== 'all' ||
+    appointmentSpecialtyFilter !== 'all' ||
+    appointmentStatusFilter !== 'all' ||
+    appointmentSearchTerm.trim().length > 0
+  const filteredAppointmentCount = filteredAppointmentRows.length
   const scheduleOptions = useMemo(
     () =>
       schedules
@@ -1150,6 +1492,17 @@ export default function PatientAppointmentsPage({
     () => buildUniqueDoctorOptions(scheduleOptions),
     [scheduleOptions],
   )
+  const bookingDoctorOptions = useMemo(
+    () =>
+      bookingDoctors
+        .map(mapBookingDoctorOption)
+        .filter((option) => isPatientVisibleSpecialty(option.specialty)),
+    [bookingDoctors],
+  )
+  const mergedDoctorOptions = useMemo(
+    () => mergeDoctorOptions(uniqueDoctorOptions, bookingDoctorOptions),
+    [bookingDoctorOptions, uniqueDoctorOptions],
+  )
   const backendSpecialtyLabels = useMemo(
     () => buildBackendSpecialtyLabels(departments, scheduleOptions),
     [departments, scheduleOptions],
@@ -1159,20 +1512,17 @@ export default function PatientAppointmentsPage({
     [backendSpecialtyLabels],
   )
   const doctorOptions = useMemo(
-    () => buildDisplayDoctorOptions(uniqueDoctorOptions, appointmentDoctors, usingApiSchedules, specialtyLookup),
-    [specialtyLookup, uniqueDoctorOptions, usingApiSchedules],
+    () => buildDisplayDoctorOptions(mergedDoctorOptions, specialtyLookup),
+    [mergedDoctorOptions, specialtyLookup],
   )
   const specialtyOptions = useMemo(() => {
-    const specialtyDoctors = usingApiSchedules
-      ? doctorOptions.filter((doctor) => doctor.hasApiSchedule)
-      : doctorOptions
     const doctorSpecialtySet = new Set(
-      specialtyDoctors
+      doctorOptions
         .map((doctor) => doctor.specialtyFilterValue || doctor.specialty)
         .filter(isPatientVisibleSpecialty),
     )
     const specialties = sortSpecialtyOptions(Array.from(
-      new Set([...defaultPatientSpecialties, ...doctorSpecialtySet]),
+      new Set(doctorSpecialtySet),
     ))
 
     return [
@@ -1183,7 +1533,38 @@ export default function PatientAppointmentsPage({
         hasDoctor: doctorSpecialtySet.has(specialty),
       })),
     ]
-  }, [doctorOptions, usingApiSchedules])
+  }, [doctorOptions])
+  const specialtyDoctorCounts = useMemo(() => {
+    const counts = new Map()
+
+    doctorOptions.forEach((doctor) => {
+      const specialty = doctor.specialtyFilterValue || doctor.specialty
+
+      if (!isPatientVisibleSpecialty(specialty)) {
+        return
+      }
+
+      counts.set(specialty, (counts.get(specialty) || 0) + 1)
+    })
+
+    return counts
+  }, [doctorOptions])
+  const selectedSpecialtyMeta = useMemo(() => {
+    const option =
+      specialtyOptions.find((specialty) => specialty.value === selectedSpecialty) ||
+      specialtyOptions[0] ||
+      { value: 'all', label: 'Tất cả' }
+    const doctorCount =
+      option.value === 'all'
+        ? doctorOptions.length
+        : specialtyDoctorCounts.get(option.value) || 0
+
+    return {
+      ...option,
+      doctorCount,
+      iconName: getSpecialtyIconName(option.label),
+    }
+  }, [doctorOptions.length, selectedSpecialty, specialtyDoctorCounts, specialtyOptions])
   const filteredDoctorOptions = useMemo(
     () => {
       const keyword = doctorSearch.trim().toLowerCase()
@@ -1214,10 +1595,11 @@ export default function PatientAppointmentsPage({
     [doctorOptions, doctorSearch, selectedSpecialty],
   )
   const selectedDoctor =
-    filteredDoctorOptions.find((d) => d.id === selectedDoctorId) ||
+    doctorOptions.find((d) => d.id === selectedDoctorId) ||
     filteredDoctorOptions[0] ||
-    doctorOptions[0]
-  const selectedDoctorGroupKey = usingApiSchedules ? selectedDoctor?.id : getDoctorGroupKey(selectedDoctor)
+    (!doctorSearch.trim() && selectedSpecialty === 'all' ? doctorOptions[0] : null) ||
+    null
+  const selectedDoctorGroupKey = selectedDoctor?.id || getDoctorGroupKey(selectedDoctor)
   const selectedDoctorScheduleOptions = useMemo(
     () =>
       usingApiSchedules
@@ -1243,26 +1625,20 @@ export default function PatientAppointmentsPage({
     selectedDoctorScheduleOptions.find((option) => option.id === selectedScheduleId) ||
     selectedDoctorScheduleOptions[0] ||
     null
-  const selectedSchedule = usingApiSchedules ? selectedScheduleOption?.schedule : selectedDoctor?.schedule
-  const calendarDays = usingApiSchedules
-    ? selectedDoctorUniqueScheduleOptions.map((option) => ({
+  const selectedSchedule = selectedScheduleOption?.schedule || null
+  const calendarDays =
+    selectedDoctorUniqueScheduleOptions.map((option) => ({
         label: formatAppointmentDate(option.schedule.work_date),
         value: option.id,
         dateValue: option.schedule.work_date,
         muted: false,
         selected: option.id === selectedScheduleOption?.id,
       }))
-    : appointmentCalendarDays
-  const timeSlots = usingApiSchedules
-    ? availableSlots.map((slot) => ({
+  const timeSlots =
+    availableSlots.map((slot) => ({
         value: slot.slot_time,
         label: formatAppointmentTime(slot.slot_time),
         disabled: !slot.is_available || slot.is_booked || slot.is_blocked || isPastSlotTime(slot.slot_time),
-      }))
-    : appointmentTimeSlots.map((slot) => ({
-        value: slot.value,
-        label: slot.value,
-        disabled: false,
       }))
   const calendarDateItems = calendarDays
     .map((day, index) => {
@@ -1274,10 +1650,7 @@ export default function PatientAppointmentsPage({
         dateKey: getLocalDateKey(date),
         dayNumber: date?.getDate() || day.label,
         listLabel: formatAvailableDate(date),
-        selected:
-          usingApiSchedules
-            ? day.selected
-            : selectedDate === day.label,
+        selected: day.selected,
       }
     })
     .filter((item) => item.dateKey)
@@ -1290,14 +1663,16 @@ export default function PatientAppointmentsPage({
   const monthCalendarCells = buildMonthCalendar(calendarReferenceDate, calendarDateItems)
   const availableDateItems = calendarDateItems.filter((item) => !item.muted).slice(0, 7)
   const canBookSelectedSlot =
-    !usingApiSchedules || timeSlots.some((slot) => slot.value === selectedTime && !slot.disabled)
-  const selectedDoctorCanBook =
-    !usingApiSchedules || Boolean(selectedDoctor?.hasApiSchedule && selectedScheduleOption)
+    Boolean(selectedSchedule && timeSlots.some((slot) => slot.value === selectedTime && !slot.disabled))
+  const selectedDoctorCanBook = Boolean(selectedDoctor?.hasApiSchedule && selectedScheduleOption)
   const visitModeLabel = visitMode === 'telemedicine' ? 'Tư vấn trực tuyến' : 'Khám tại bệnh viện'
-  const selectedDateLabel = usingApiSchedules
-    ? formatAppointmentDate(selectedSchedule?.work_date)
-    : selectedDate
-  const selectedTimeLabel = usingApiSchedules ? formatAppointmentTime(selectedTime) : selectedTime
+  const selectedDateLabel = formatAppointmentDate(selectedSchedule?.work_date)
+  const selectedTimeLabel = formatAppointmentTime(selectedTime)
+  const consultationFee = Number(selectedSchedule?.consultation_fee || selectedDoctor?.consultationFee || 0)
+  const adminFee = consultationFee > 0 ? 15000 : 0
+  const totalEstimatedFee = consultationFee + adminFee
+  const selectedLocationName = selectedSchedule?.department_name || selectedDoctor?.specialty || 'Cơ sở y tế'
+  const selectedLocationNote = selectedSchedule?.location_note || selectedDoctor?.locationNote || 'Thông tin vị trí sẽ được cập nhật theo lịch khám.'
   const detailAppointmentRecord = appointmentDetail?.appointment || selectedAppointment?.raw || null
   const detailAppointmentRow = useMemo(() => {
     if (appointmentDetail?.appointment) {
@@ -1361,6 +1736,61 @@ export default function PatientAppointmentsPage({
   const patientPhone = patient.phone || user?.phone || 'Chưa cập nhật'
   const patientEmail = patient.email || user?.email || ''
   const patientBirthDate = formatDateOnly(patient.date_of_birth)
+  const authorizedRelativeOptions = useMemo(() => {
+    const relativeMap = new Map()
+
+    relatives.forEach((relative, index) => {
+      const id = relative.relative_id || relative._id || relative.id || `relative-${index}`
+      relativeMap.set(String(id), {
+        id: String(id),
+        fullName: relative.full_name || relative.name || relative.relative_name || 'Người thân',
+        relationship: relative.relationship || relative.relation || 'Người thân',
+        phone: relative.phone || relative.mobile || '',
+      })
+    })
+
+    authorizations.forEach((authorization, index) => {
+      const relative = authorization.relative || authorization.relative_id || {}
+      const id =
+        authorization.relative_id?._id ||
+        authorization.relative_id ||
+        relative.relative_id ||
+        relative._id ||
+        relative.id ||
+        authorization.authorization_id ||
+        authorization._id ||
+        `authorization-${index}`
+
+      if (!relativeMap.has(String(id))) {
+        relativeMap.set(String(id), {
+          id: String(id),
+          fullName:
+            relative.full_name ||
+            authorization.relative_name ||
+            authorization.grantee_name ||
+            'Người thân được ủy quyền',
+          relationship:
+            relative.relationship ||
+            authorization.relationship ||
+            authorization.authorization_type ||
+            'Ủy quyền',
+          phone: relative.phone || authorization.relative_phone || '',
+        })
+      }
+    })
+
+    return Array.from(relativeMap.values())
+  }, [authorizations, relatives])
+  const selectedRelative =
+    authorizedRelativeOptions.find((relative) => relative.id === selectedRelativeId) ||
+    authorizedRelativeOptions[0] ||
+    null
+  const hasAuthorizedRelativeBooking = authorizedRelativeOptions.length > 0
+  const bookingForRelative =
+    hasAuthorizedRelativeBooking && bookingFor === 'authorized_relative' && Boolean(selectedRelative)
+  const bookingPatientDisplayName = bookingForRelative ? selectedRelative.fullName : patientDisplayName
+  const bookingPatientPhone = bookingForRelative ? selectedRelative.phone || patientPhone : patientPhone
+  const bookingPatientRelation = bookingForRelative ? selectedRelative.relationship : 'Tôi'
   const appointmentNote = reason.trim() || 'Chưa có ghi chú'
   const shiftCalendarMonth = (offset) => {
     const base = getMonthStartFromKey(calendarViewMonth) || selectedDateItem?.date || new Date()
@@ -1374,10 +1804,6 @@ export default function PatientAppointmentsPage({
       appointmentRecord?.appointment_time || selectedTime || selectedSchedule?.work_date || null
 
     let startDate = rawStartTime ? new Date(rawStartTime) : null
-
-    if (!startDate || Number.isNaN(startDate.getTime())) {
-      startDate = buildDateFromSelection(selectedDate, selectedTime)
-    }
 
     if (!startDate || Number.isNaN(startDate.getTime())) {
       return null
@@ -1401,11 +1827,11 @@ export default function PatientAppointmentsPage({
         .filter(Boolean)
         .join('\n'),
       fileName: `lich-kham-${appointmentId || formatIcsDate(startDate).slice(0, 8)}.ics`,
-      location: 'Cơ sở y tế St. Jude, 245 Đường Y tế, Quận 1, TP. Hồ Chí Minh',
+      location: [selectedLocationName, selectedLocationNote].filter(Boolean).join(', '),
       startDate,
       endDate,
     }
-  }, [confirmedAppointment, reason, selectedDate, selectedDoctor, selectedSchedule, selectedTime])
+  }, [confirmedAppointment, reason, selectedDoctor, selectedLocationName, selectedLocationNote, selectedSchedule, selectedTime])
 
   const handleAddToCalendar = () => {
     if (!calendarEvent) {
@@ -1454,6 +1880,8 @@ export default function PatientAppointmentsPage({
   useEffect(() => {
     if (!usingApiSchedules) {
       setHasSyncedApiDefaultDoctor(false)
+      setSelectedDoctorId('')
+      setSelectedScheduleId(null)
       return
     }
 
@@ -1489,6 +1917,50 @@ export default function PatientAppointmentsPage({
   }, [selectedSpecialty, specialtyOptions])
 
   useEffect(() => {
+    if (step > 1 && !selectedDoctorCanBook) {
+      setStep(1)
+    }
+  }, [selectedDoctorCanBook, step])
+
+  useEffect(() => {
+    if (viewMode === 'booking' || !appointmentAPI.getMyWaitlist) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadWaitlist() {
+      setWaitlistLoading(true)
+      setWaitlistError('')
+
+      try {
+        const response = await appointmentAPI.getMyWaitlist({ limit: 20 })
+        const payload = unwrapApiPayload(response)
+        const items = payload?.items || payload?.data || payload || []
+
+        if (!cancelled) {
+          setWaitlistItems(Array.isArray(items) ? items : [])
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setWaitlistItems([])
+          setWaitlistError(getApiErrorMessage(error, 'Không tải được danh sách chờ.'))
+        }
+      } finally {
+        if (!cancelled) {
+          setWaitlistLoading(false)
+        }
+      }
+    }
+
+    loadWaitlist()
+
+    return () => {
+      cancelled = true
+    }
+  }, [viewMode])
+
+  useEffect(() => {
     if (filteredDoctorOptions.length === 0) {
       return
     }
@@ -1496,13 +1968,9 @@ export default function PatientAppointmentsPage({
     if (!filteredDoctorOptions.some((doctor) => doctor.id === selectedDoctorId)) {
       const nextDoctor = filteredDoctorOptions[0]
       setSelectedDoctorId(nextDoctor.id)
-      setSelectedScheduleId(
-        usingApiSchedules
-          ? nextDoctor.scheduleId || nextDoctor.schedule?.doctor_schedule_id || null
-          : null,
-      )
+      setSelectedScheduleId(nextDoctor.scheduleId || nextDoctor.schedule?.doctor_schedule_id || null)
     }
-  }, [filteredDoctorOptions, selectedDoctorId, usingApiSchedules])
+  }, [filteredDoctorOptions, selectedDoctorId])
 
   useEffect(() => {
     if (!usingApiSchedules) {
@@ -1649,7 +2117,7 @@ export default function PatientAppointmentsPage({
   }, [detailAppointmentRecord?.appointment_time, detailCanReschedule, rescheduleScheduleId, selectedAppointment])
 
   useEffect(() => {
-    if (!usingApiSchedules || timeSlots.length === 0) {
+    if (timeSlots.length === 0) {
       return
     }
 
@@ -1659,12 +2127,10 @@ export default function PatientAppointmentsPage({
     if (!stillValid && firstAvailable) {
       setSelectedTime(firstAvailable.value)
     }
-  }, [selectedTime, timeSlots, usingApiSchedules])
+  }, [selectedTime, timeSlots])
 
   const handleAppointmentTabChange = (nextTab) => {
     setAppointmentTab(nextTab)
-    setAppointmentStatusFilter('all')
-    setAppointmentSearchTerm('')
   }
 
   const handleAppointmentSummaryCardClick = (card) => {
@@ -1675,6 +2141,19 @@ export default function PatientAppointmentsPage({
     setAppointmentTab(card.filter.tab)
     setAppointmentStatusFilter(card.filter.status)
     setAppointmentSearchTerm('')
+    setAppointmentDateFilter('all')
+    setAppointmentSpecialtyFilter('all')
+    setAppointmentDoctorFilter('all')
+    setAppointmentPaymentFilter('all')
+  }
+
+  const handleResetAppointmentFilters = () => {
+    setAppointmentSearchTerm('')
+    setAppointmentStatusFilter('all')
+    setAppointmentDateFilter('all')
+    setAppointmentSpecialtyFilter('all')
+    setAppointmentDoctorFilter('all')
+    setAppointmentPaymentFilter('all')
   }
 
   const handleCloseAppointmentDetail = () => {
@@ -1728,6 +2207,117 @@ export default function PatientAppointmentsPage({
     }
     setAppointmentActionFeedback({ type: 'success', message })
     await onAppointmentCreated?.()
+  }
+
+  const handleQuickCancelAppointment = async (appointment) => {
+    if (!appointment?.apiBacked || !canCancelAppointmentStatus(appointment.statusKey) || appointmentActionLoading) {
+      return
+    }
+
+    const confirmed = window.confirm('Bạn chắc chắn muốn hủy lịch hẹn này?')
+    if (!confirmed) {
+      return
+    }
+
+    const reasonText = 'Bệnh nhân hủy từ danh sách lịch hẹn'
+    setAppointmentActionLoading(`cancel:${appointment.id}`)
+    setAppointmentActionFeedback(null)
+
+    try {
+      const response = await appointmentAPI.cancelMyAppointment(appointment.id, {
+        reason: reasonText,
+        cancel_reason: reasonText,
+      })
+      const payload = unwrapApiPayload(response)
+      setAppointmentDetail(payload)
+      setAppointmentActionFeedback({ type: 'success', message: 'Đã hủy lịch hẹn thành công.' })
+      await onAppointmentCreated?.()
+    } catch (error) {
+      setAppointmentActionFeedback({
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể hủy lịch hẹn.'),
+      })
+    } finally {
+      setAppointmentActionLoading('')
+    }
+  }
+
+  const handleQuickCheckInAppointment = async (appointment) => {
+    if (!appointment?.apiBacked || appointmentActionLoading) {
+      return
+    }
+
+    setAppointmentActionLoading(`checkin:${appointment.id}`)
+    setAppointmentActionFeedback(null)
+
+    try {
+      const response = await appointmentAPI.checkInMyAppointment(appointment.id, {
+        method: 'online',
+        source: 'patient_portal',
+      })
+      const payload = unwrapApiPayload(response)
+      setAppointmentDetail(payload)
+      setAppointmentActionFeedback({ type: 'success', message: 'Đã check-in online thành công.' })
+      await onAppointmentCreated?.()
+      onNavigate?.('checkin-queue')
+    } catch (error) {
+      setAppointmentActionFeedback({
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể check-in online.'),
+      })
+    } finally {
+      setAppointmentActionLoading('')
+    }
+  }
+
+  const handleAppointmentCardAction = (event, appointment, actionId) => {
+    event.stopPropagation()
+
+    if (!appointment || actionId === 'pending') {
+      return
+    }
+
+    if (actionId === 'detail' || actionId === 'reschedule') {
+      handleOpenAppointmentDetail(appointment)
+      return
+    }
+
+    if (actionId === 'cancel') {
+      handleQuickCancelAppointment(appointment)
+      return
+    }
+
+    if (actionId === 'checkin') {
+      handleQuickCheckInAppointment(appointment)
+      return
+    }
+
+    if (actionId === 'rebook') {
+      onBookAppointment?.()
+      onNavigate?.('book-appointment')
+      return
+    }
+
+    const navigationMap = {
+      directions: 'checkin-queue',
+      feedback: 'support',
+      invoice: 'billing-receipts',
+      pay: 'billing',
+      prescription: 'medications',
+      queue: 'checkin-queue',
+      results: 'lab-results',
+      support: 'support',
+      visit: 'history',
+    }
+
+    if (actionId === 'feedback' || actionId === 'support') {
+      onOpenSupportChat?.()
+    }
+
+    const targetSection = navigationMap[actionId]
+    if (targetSection) {
+      onNavigate?.(targetSection)
+    }
   }
 
   const handleCancelAppointment = async () => {
@@ -1809,11 +2399,6 @@ export default function PatientAppointmentsPage({
       return
     }
 
-    if (!usingApiSchedules) {
-      goTo(3)
-      return
-    }
-
     if (!selectedSchedule || !canBookSelectedSlot) {
       setBookingError('Vui lòng chọn lịch bác sĩ và khung giờ còn trống.')
       return
@@ -1830,6 +2415,9 @@ export default function PatientAppointmentsPage({
         appointment_time: selectedTime,
         appointment_type: visitMode,
         reason: reason.trim() || 'Đặt lịch từ cổng bệnh nhân',
+        notes: bookingForRelative
+          ? `Đặt qua portal cho người thân được ủy quyền: ${bookingPatientDisplayName}`
+          : undefined,
       })
 
       setConfirmedAppointment(response.data?.data || null)
@@ -2106,26 +2694,53 @@ export default function PatientAppointmentsPage({
     </div>
   ) : null
 
+  const bookingWizardSteps = hasAuthorizedRelativeBooking
+    ? [
+        'Chọn bệnh nhân',
+        'Chọn chuyên khoa',
+        'Chọn bác sĩ',
+        'Chọn ngày giờ',
+        'Nhập lý do khám',
+        'Xác nhận thông tin',
+        'Thanh toán trước nếu cần',
+        'Nhận mã lịch hẹn',
+      ]
+    : [
+        'Chọn chuyên khoa',
+        'Chọn bác sĩ',
+        'Chọn ngày giờ',
+        'Nhập lý do khám',
+        'Xác nhận thông tin',
+        'Thanh toán trước nếu cần',
+        'Nhận mã lịch hẹn',
+      ]
+  const activeWizardStep = hasAuthorizedRelativeBooking
+    ? step === 1 ? 1 : step === 2 ? (reason.trim() ? 6 : 4) : 8
+    : step === 1 ? 1 : step === 2 ? (reason.trim() ? 5 : 3) : 7
+  const specialtyStepNumber = hasAuthorizedRelativeBooking ? 2 : 1
+  const dateTimeStepNumber = hasAuthorizedRelativeBooking ? 4 : 3
+  const reasonStepNumber = hasAuthorizedRelativeBooking ? 5 : 4
+
   /* ---- PROGRESS BAR ---- */
   const ProgressBar = () => (
-    <div className="patient-panel patient-booking-progress">
-      <div className="patient-progress-steps">
-        <div className={`patient-progress-step ${step >= 1 ? 'is-active' : ''}`}>
-          {step > 1 ? <PatientIcon name="check" aria-hidden="true" /> : <span>1</span>}
-          <strong>Chọn bác sĩ</strong>
-        </div>
-        <div className={`patient-progress-step ${step >= 2 ? 'is-active' : ''}`}>
-          {step > 2 ? <PatientIcon name="check" aria-hidden="true" /> : <span>2</span>}
-          <strong>Ngày &amp; Giờ</strong>
-        </div>
-        <div className={`patient-progress-step ${step >= 3 ? 'is-active' : ''}`}>
-          <span>3</span>
-          <strong>Hoàn tất</strong>
-        </div>
+    <div className="patient-panel patient-booking-progress patient-booking-progress--wizard">
+      <div className="patient-progress-steps patient-progress-steps--wizard">
+        {bookingWizardSteps.map((label, index) => {
+          const number = index + 1
+          const isDone = activeWizardStep > number
+          const isActive = activeWizardStep >= number
+
+          return (
+            <div className={`patient-progress-step ${isActive ? 'is-active' : ''}`} key={label}>
+              {isDone ? <PatientIcon name="check" aria-hidden="true" /> : <span>{number}</span>}
+              <strong>{label}</strong>
+            </div>
+          )
+        })}
       </div>
       <div className="patient-progress-state">
         <PatientIcon name="check_circle" aria-hidden="true" />
-        <span>Lịch trống hôm nay</span>
+        <span>Đặt lịch khám</span>
       </div>
     </div>
   )
@@ -2139,8 +2754,69 @@ export default function PatientAppointmentsPage({
           <ProgressBar />
           <div className="patient-booking-grid">
             <section className="patient-panel patient-doctor-panel">
+              {hasAuthorizedRelativeBooking ? (
+              <div className="patient-booking-patient-step">
+                <div>
+                  <span className="patient-step-number">1</span>
+                  <div>
+                    <p className="patient-section-label">Bước 1</p>
+                    <h2>Chọn bệnh nhân</h2>
+                  </div>
+                </div>
+                <div className="patient-booking-for-switch" role="group" aria-label="Chọn người được đặt lịch">
+                  <button
+                    className={bookingFor === 'self' ? 'is-selected' : ''}
+                    type="button"
+                    onClick={() => setBookingFor('self')}
+                  >
+                    <PatientIcon name="person" aria-hidden="true" />
+                    Đặt cho tôi
+                  </button>
+                  <button
+                    className={bookingFor === 'authorized_relative' ? 'is-selected' : ''}
+                    type="button"
+                    onClick={() => setBookingFor('authorized_relative')}
+                    disabled={authorizedRelativeOptions.length === 0}
+                  >
+                    <PatientIcon name="shield_plus" aria-hidden="true" />
+                    Đặt cho người thân được ủy quyền
+                  </button>
+                </div>
+                <div className="patient-booking-patient-summary">
+                  <div>
+                    <span>Người được đặt lịch</span>
+                    <strong>{bookingPatientDisplayName}</strong>
+                    <small>{bookingPatientRelation}</small>
+                  </div>
+                  {bookingFor === 'authorized_relative' ? (
+                    authorizedRelativeOptions.length ? (
+                      <label>
+                        <span>Hồ sơ ủy quyền</span>
+                        <select
+                          value={selectedRelative?.id || ''}
+                          onChange={(event) => setSelectedRelativeId(event.target.value)}
+                          aria-label="Chọn người thân được ủy quyền"
+                        >
+                          {authorizedRelativeOptions.map((relative) => (
+                            <option key={relative.id} value={relative.id}>
+                              {relative.fullName} - {relative.relationship}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <p>Chưa có người thân được ủy quyền đặt lịch.</p>
+                    )
+                  ) : null}
+                </div>
+              </div>
+              ) : null}
+
               <div className="patient-doctor-toolbar">
-                <h2>Chọn bác sĩ chuyên khoa</h2>
+                <div>
+                  <span className="patient-step-number">{specialtyStepNumber}</span>
+                  <h2>Chọn chuyên khoa và bác sĩ</h2>
+                </div>
                 <label className="patient-doctor-search">
                   <PatientIcon name="search" aria-hidden="true" />
                   <input
@@ -2152,25 +2828,69 @@ export default function PatientAppointmentsPage({
                   />
                 </label>
               </div>
-              <div className="patient-specialty-filter" aria-label="Lọc bác sĩ theo chuyên khoa">
-                {specialtyOptions.map((specialty) => (
-                  <button
-                    key={specialty.value}
-                    className={`patient-specialty-chip${
-                      selectedSpecialty === specialty.value ? ' is-active' : ''
-                    }${specialty.hasDoctor === false ? ' is-disabled' : ''}`}
-                    type="button"
-                    disabled={specialty.hasDoctor === false}
-                    onClick={() => setSelectedSpecialty(specialty.value)}
-                  >
-                    {specialty.label}
-                  </button>
-                ))}
+              <div className="patient-specialty-selector" aria-label="Chọn chuyên khoa khám">
+                <div className="patient-specialty-selector-head">
+                  <div className="patient-specialty-current">
+                    <span className="patient-specialty-current-icon">
+                      <PatientIcon name={selectedSpecialtyMeta.iconName} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <span>Đang chọn khoa</span>
+                      <strong>{selectedSpecialtyMeta.label}</strong>
+                      <small>
+                        {selectedSpecialtyMeta.doctorCount
+                          ? `${selectedSpecialtyMeta.doctorCount} bác sĩ phù hợp`
+                          : 'Chưa có bác sĩ khả dụng'}
+                      </small>
+                    </div>
+                  </div>
+                  <span className="patient-specialty-count">
+                    {specialtyOptions.length} lựa chọn
+                  </span>
+                </div>
+                <div className="patient-specialty-filter" aria-label="Danh sách chuyên khoa">
+                  {specialtyOptions.map((specialty) => {
+                    const active = selectedSpecialty === specialty.value
+                    const doctorCount =
+                      specialty.value === 'all'
+                        ? doctorOptions.length
+                        : specialtyDoctorCounts.get(specialty.value) || 0
+
+                    return (
+                      <button
+                        key={specialty.value}
+                        className={`patient-specialty-chip${active ? ' is-active' : ''}${
+                          specialty.hasDoctor === false ? ' is-disabled' : ''
+                        }`}
+                        type="button"
+                        disabled={specialty.hasDoctor === false}
+                        aria-pressed={active}
+                        title={specialty.label}
+                        onClick={() => setSelectedSpecialty(specialty.value)}
+                      >
+                        <span className="patient-specialty-chip-icon">
+                          <PatientIcon name={getSpecialtyIconName(specialty.label)} aria-hidden="true" />
+                        </span>
+                        <span className="patient-specialty-chip-copy">
+                          <strong>{specialty.label}</strong>
+                          <small>
+                            {doctorCount
+                              ? `${doctorCount} bác sĩ`
+                              : specialty.hasDoctor === false ? 'Chưa có lịch' : 'Đang cập nhật'}
+                          </small>
+                        </span>
+                        {active ? (
+                          <PatientIcon name="check_circle" className="patient-specialty-chip-check" aria-hidden="true" />
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <div className="patient-doctor-grid">
                 {filteredDoctorOptions.map((doctor) => {
                   const active = doctor.id === selectedDoctorId
-                  const canOpenSchedule = !usingApiSchedules || doctor.hasApiSchedule
+                  const canOpenSchedule = doctor.hasApiSchedule
                   return (
                     <article
                       key={doctor.id}
@@ -2181,13 +2901,11 @@ export default function PatientAppointmentsPage({
                         type="button"
                         onClick={() => {
                           setSelectedDoctorId(doctor.id)
-                          if (usingApiSchedules) {
-                            setSelectedScheduleId(
-                              doctor.hasApiSchedule
-                                ? doctor.scheduleId || doctor.schedule?.doctor_schedule_id || null
-                                : null,
-                            )
-                          }
+                          setSelectedScheduleId(
+                            doctor.hasApiSchedule
+                              ? doctor.scheduleId || doctor.schedule?.doctor_schedule_id || null
+                              : null,
+                          )
                         }}
                       >
                         <div className="patient-doctor-avatar">
@@ -2225,9 +2943,7 @@ export default function PatientAppointmentsPage({
                           }
 
                           setSelectedDoctorId(doctor.id)
-                          if (usingApiSchedules) {
-                            setSelectedScheduleId(doctor.scheduleId || doctor.schedule?.doctor_schedule_id || null)
-                          }
+                          setSelectedScheduleId(doctor.scheduleId || doctor.schedule?.doctor_schedule_id || null)
                           goTo(2)
                         }}
                       >
@@ -2247,39 +2963,51 @@ export default function PatientAppointmentsPage({
 
             <section className="patient-panel patient-step1-sidebar">
               <div>
-                <p className="patient-section-label">Bác sĩ đã chọn</p>
+                <p className="patient-section-label">Tóm tắt lịch đang chọn</p>
                 <h2>Tóm tắt lựa chọn</h2>
               </div>
 
-              {/* Doctor summary */}
-              <div className="patient-selected-doctor-card">
-                <div className="patient-selected-doctor-avatar">
-                  {selectedDoctor.avatar ? (
-                    <img
-                      src={selectedDoctor.avatar}
-                      alt={selectedDoctor.displayName || selectedDoctor.name}
-                    />
-                  ) : (
-                    <span>{selectedDoctor.initials}</span>
-                  )}
-                </div>
+              <div className="patient-selected-patient-card">
+                <PatientIcon name={bookingForRelative ? 'shield_plus' : 'person'} aria-hidden="true" />
                 <div>
-                  <p className="patient-selected-doctor-label">Bác sĩ phụ trách</p>
-                  <p className="patient-selected-doctor-name">
-                    {selectedDoctor.displayName || selectedDoctor.name}
-                  </p>
-                  <p className="patient-selected-doctor-specialty">{selectedDoctor.specialty}</p>
-                  <div className="patient-selected-doctor-meta">
-                    <span>{selectedDateLabel}</span>
-                    <span>{usingApiSchedules ? 'Lịch từ hệ thống' : 'Lịch mẫu'}</span>
-                  </div>
-                  {selectedDoctor.doctorCode ? (
-                    <p className="patient-selected-doctor-code">
-                      Mã bác sĩ: {selectedDoctor.doctorCode}
-                    </p>
-                  ) : null}
+                  <span>Bệnh nhân</span>
+                  <strong>{bookingPatientDisplayName}</strong>
+                  <small>{bookingPatientRelation}</small>
                 </div>
               </div>
+
+              {selectedDoctor ? (
+                <div className="patient-selected-doctor-card">
+                  <div className="patient-selected-doctor-avatar">
+                    {selectedDoctor.avatar ? (
+                      <img
+                        src={selectedDoctor.avatar}
+                        alt={selectedDoctor.displayName || selectedDoctor.name}
+                      />
+                    ) : (
+                      <span>{selectedDoctor.initials}</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="patient-selected-doctor-label">Bác sĩ phụ trách</p>
+                    <p className="patient-selected-doctor-name">
+                      {selectedDoctor.displayName || selectedDoctor.name}
+                    </p>
+                    <p className="patient-selected-doctor-specialty">{selectedDoctor.specialty}</p>
+                    <div className="patient-selected-doctor-meta">
+                      <span>{selectedDateLabel}</span>
+                      <span>Lịch từ hệ thống</span>
+                    </div>
+                    {selectedDoctor.doctorCode ? (
+                      <p className="patient-selected-doctor-code">
+                        Mã bác sĩ: {selectedDoctor.doctorCode}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="patient-empty-state">Chưa có lịch khám công khai từ hệ thống.</div>
+              )}
 
               <HealthcareChatAssistCard
                 compact
@@ -2319,27 +3047,41 @@ export default function PatientAppointmentsPage({
 
         {viewMode !== 'booking' && (
         <section className="patient-panel patient-appointments-history patient-appointments-shell">
-          <div className="patient-appointments-hero">
+          <div className="patient-appointments-hero patient-appointments-workspace-hero">
             <div>
-              <h1>Lịch hẹn</h1>
+              <p className="patient-section-label">Chăm sóc</p>
+              <h1>Lịch hẹn của tôi</h1>
+              <p>Quản lý lịch khám, dời lịch, hủy lịch và theo dõi trạng thái xác nhận.</p>
             </div>
-            <div className="patient-appointments-tabs" role="tablist" aria-label="Lịch hẹn">
-              {appointmentSections.map((section) => {
-                const active = section.key === appointmentTab
-
-                return (
-                  <button
-                    key={section.key}
-                    className={`patient-appointments-tab${active ? ' is-active' : ''}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => handleAppointmentTabChange(section.key)}
-                  >
-                    <span>{section.label}</span>
-                  </button>
-                )
-              })}
+            <div className="patient-appointment-workspace-actions">
+              <button
+                className="patient-hero-button"
+                type="button"
+                onClick={() => {
+                  onBookAppointment?.()
+                  onNavigate?.('book-appointment')
+                }}
+              >
+                <PatientIcon name="calendar_add_on" aria-hidden="true" />
+                Đặt lịch mới
+              </button>
+              <button
+                className="patient-soft-button"
+                type="button"
+                onClick={() => handleAppointmentTabChange('completed')}
+              >
+                <PatientIcon name="history_edu" aria-hidden="true" />
+                Lịch sử lịch hẹn
+              </button>
+              <button
+                className="patient-soft-button"
+                type="button"
+                onClick={() => handleAppointmentTabChange('pending')}
+              >
+                <PatientIcon name="schedule" aria-hidden="true" />
+                Danh sách chờ
+                {waitlistItems.length > 0 ? <b>{waitlistItems.length}</b> : null}
+              </button>
             </div>
           </div>
 
@@ -2348,14 +3090,12 @@ export default function PatientAppointmentsPage({
               const active =
                 card.filter?.tab === appointmentTab &&
                 card.filter?.status === appointmentStatusFilter &&
-                appointmentSearchTerm.trim().length === 0
+                !appointmentFiltersActive
 
               return (
                 <button
                   key={card.id}
-                  className={`patient-appointments-summary-card ${card.tone}${card.note ? ' is-reminder' : ''}${
-                    active ? ' is-active' : ''
-                  }`}
+                  className={`patient-appointments-summary-card ${card.tone}${active ? ' is-active' : ''}`}
                   type="button"
                   aria-label={card.ariaLabel}
                   aria-pressed={active}
@@ -2366,137 +3106,286 @@ export default function PatientAppointmentsPage({
                   </span>
                   <div>
                     <strong>{card.label}</strong>
-                    {card.note ? (
-                      <p>{card.note}</p>
-                    ) : (
-                      <span>
-                        <b>{card.count}</b>
-                        {card.unit}
-                      </span>
-                    )}
+                    <span>
+                      <b>{card.count}</b>
+                      {card.unit}
+                    </span>
                   </div>
                 </button>
               )
             })}
           </div>
 
-          <div className="patient-appointments-stack">
-            {loading ? (
-              <div className="patient-appointments-history-shell">
-                <div className="patient-empty-state">Đang tải lịch hẹn từ backend...</div>
+          <div className="patient-appointments-tabs" role="tablist" aria-label="Lọc lịch hẹn theo trạng thái">
+            {appointmentTabOptions.map((tab) => {
+              const active = tab.key === appointmentTab
+
+              return (
+                <button
+                  key={tab.key}
+                  className={`patient-appointments-tab${active ? ' is-active' : ''}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => handleAppointmentTabChange(tab.key)}
+                >
+                  <PatientIcon name={tab.icon} aria-hidden="true" />
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="patient-appointments-filter-bar" aria-label="Bộ lọc lịch hẹn">
+            <label className="patient-appointment-filter-field patient-appointment-filter-field-wide">
+              <span>Từ khóa</span>
+              <div className="patient-appointment-search-shell">
+                <PatientIcon name="search" aria-hidden="true" />
+                <input
+                  value={appointmentSearchTerm}
+                  onChange={(event) => setAppointmentSearchTerm(event.target.value)}
+                  placeholder="Mã lịch, bác sĩ, chuyên khoa, lý do khám..."
+                />
               </div>
-            ) : null}
+            </label>
+            <label className="patient-appointment-filter-field">
+              <span>Thời gian</span>
+              <select value={appointmentDateFilter} onChange={(event) => setAppointmentDateFilter(event.target.value)}>
+                {appointmentDateFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="patient-appointment-filter-field">
+              <span>Chuyên khoa</span>
+              <select
+                value={appointmentSpecialtyFilter}
+                onChange={(event) => setAppointmentSpecialtyFilter(event.target.value)}
+              >
+                {appointmentSpecialtyOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="patient-appointment-filter-field">
+              <span>Bác sĩ</span>
+              <select value={appointmentDoctorFilter} onChange={(event) => setAppointmentDoctorFilter(event.target.value)}>
+                {appointmentDoctorOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="patient-appointment-filter-field">
+              <span>Trạng thái</span>
+              <select value={appointmentStatusFilter} onChange={(event) => setAppointmentStatusFilter(event.target.value)}>
+                {appointmentStatusFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="patient-appointment-filter-field">
+              <span>Thanh toán</span>
+              <select value={appointmentPaymentFilter} onChange={(event) => setAppointmentPaymentFilter(event.target.value)}>
+                {appointmentPaymentFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <button className="patient-soft-button patient-appointment-filter-reset" type="button" onClick={handleResetAppointmentFilters}>
+              <PatientIcon name="filter_list" aria-hidden="true" />
+              Xóa lọc
+            </button>
+          </div>
 
-            {!loading &&
-              visibleAppointmentSections.map((section) => (
-                <div key={section.key} className="patient-appointments-group">
-                  <div className="patient-appointments-section-head">
-                    <div className="patient-appointments-section-title">
-                      <span className="patient-appointments-section-icon">
-                        <PatientIcon name={section.icon} aria-hidden="true" />
+          {appointmentActionFeedback ? (
+            <div
+              className={`patient-dashboard-state${
+                appointmentActionFeedback.type === 'error'
+                  ? ' patient-dashboard-state-error'
+                  : ' patient-appointment-action-success'
+              }`}
+            >
+              {appointmentActionFeedback.message}
+            </div>
+          ) : null}
+
+          {waitlistItems.length > 0 || waitlistLoading || waitlistError ? (
+            <section className="patient-appointment-waitlist-panel" aria-label="Danh sách chờ">
+              <div className="patient-appointment-waitlist-head">
+                <div>
+                  <h3>Danh sách chờ</h3>
+                  <p>Theo dõi các yêu cầu chờ slot trống từ backend.</p>
+                </div>
+                <span>{waitlistLoading ? 'Đang tải...' : `${waitlistItems.length} yêu cầu`}</span>
+              </div>
+              {waitlistError ? (
+                <div className="patient-dashboard-state patient-dashboard-state-error">{waitlistError}</div>
+              ) : null}
+              {!waitlistLoading && waitlistItems.length > 0 ? (
+                <div className="patient-appointment-waitlist-list">
+                  {waitlistItems.slice(0, 3).map((item) => (
+                    <div key={item.waitlist_id || item.appointment_waitlist_id || item.id} className="patient-appointment-waitlist-item">
+                      <strong>
+                        {translateMedicalLabel(item.department_name || item.specialty || item.appointment_type) || 'Chuyên khoa đang cập nhật'}
+                      </strong>
+                      <span>
+                        {item.doctor_name || 'Bác sĩ bất kỳ'} · {formatAppointmentDate(item.preferred_date || item.created_at)}
                       </span>
-                      <div>
-                        <h3>{section.label}</h3>
-                      </div>
+                      <em>{getAppointmentStatusMeta(item.status || 'booked').label}</em>
                     </div>
-                  </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
-                  <div className="patient-appointments-history-shell">
-                    {section.rows.length === 0 ? (
-                      <div className="patient-empty-state">
-                        {section.key === 'upcoming'
-                          ? 'Chưa có lịch hẹn sắp tới.'
-                          : section.key === 'confirmed'
-                            ? 'Chưa có lịch hẹn đã xác nhận.'
-                          : section.key === 'completed'
-                            ? 'Chưa có lịch hẹn đã hoàn thành.'
-                            : 'Chưa có lịch hẹn đang chờ.'}
-                      </div>
-                      ) : (
-                        <div className="patient-appointment-list">
-                          {section.rows.map((appointment) => {
-                            const openAppointmentDetail = () => handleOpenAppointmentDetail(appointment)
-                            const displayedLocation = appointment.specialty || appointment.location
-
-                            return (
-                            <article
-                              key={appointment.id}
-                              className="patient-appointment-card"
-                              role="button"
-                              tabIndex={0}
-                            onClick={openAppointmentDetail}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault()
-                                openAppointmentDetail()
-                              }
-                            }}
-                            aria-label={`Xem chi tiet lich hen ${appointment.title}`}
-                          >
-                            <div className="patient-appointment-date">
-                              <span>{appointment.dateParts.weekday}</span>
-                              <strong>{appointment.dateParts.day}</strong>
-                              <em>{appointment.dateParts.month}</em>
-                            </div>
-
-                            <div className="patient-appointment-doctor-avatar">
-                              <img src={appointment.doctorAvatar} alt={appointment.doctor} loading="lazy" />
-                              <span aria-hidden="true" />
-                            </div>
-
-                            <div className="patient-appointment-body">
-                              <div className="patient-appointment-title-row">
-                                <div>
-                                  <h4>{appointment.title}</h4>
-                                  <div className="patient-appointment-doctor-line">
-                                    <p>{appointment.doctor}</p>
-                                    {appointment.specialty ? (
-                                      <span className="patient-appointment-specialty-pill">
-                                        {appointment.specialty}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <span>{appointment.facility}</span>
-                                </div>
-                              </div>
-
-                              <div className="patient-appointment-meta">
-                                <div className="patient-appointment-meta-item">
-                                  <PatientIcon name="schedule" aria-hidden="true" />
-                                  <span className="patient-appointment-time-stack">
-                                    <strong>{appointment.time}</strong>
-                                    {appointment.shortDate ? (
-                                      <small>{appointment.shortDate}</small>
-                                    ) : null}
-                                  </span>
-                                </div>
-                                <div className="patient-appointment-meta-item">
-                                  <PatientIcon name="location_on" aria-hidden="true" />
-                                  <span>{displayedLocation}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="patient-appointment-aside">
-                              <span className={`patient-status-pill ${appointment.tone}`}>
-                                <PatientIcon name="check_circle" aria-hidden="true" />
-                                {appointment.status}
-                              </span>
-                              <span
-                                className="patient-appointment-action"
-                                aria-hidden="true"
-                              >
-                                <PatientIcon name="chevron_right" aria-hidden="true" />
-                              </span>
-                            </div>
-                          </article>
-                          )
-                        })}
-                      </div>
-                    )}
+          <div className="patient-appointments-stack">
+            <div className="patient-appointments-group">
+              <div className="patient-appointments-section-head">
+                <div className="patient-appointments-section-title">
+                  <span className="patient-appointments-section-icon">
+                    <PatientIcon name={activeAppointmentTab.icon} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h3>{activeAppointmentTab.label}</h3>
+                    <p>
+                      {filteredAppointmentCount} lịch hẹn phù hợp
+                      {appointmentFiltersActive ? ' sau khi áp dụng bộ lọc' : ''}
+                    </p>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div className="patient-appointments-history-shell">
+                {loading ? (
+                  <div className="patient-empty-state">Đang tải lịch hẹn từ backend...</div>
+                ) : null}
+
+                {!loading && filteredAppointmentRows.length === 0 ? (
+                  <div className="patient-empty-state">{activeAppointmentTab.empty}</div>
+                ) : null}
+
+                {!loading && filteredAppointmentRows.length > 0 ? (
+                  <div className="patient-appointment-list">
+                    {filteredAppointmentRows.map((appointment) => {
+                      const openAppointmentDetail = () => handleOpenAppointmentDetail(appointment)
+                      const actionItems = getAppointmentActionItems(appointment)
+
+                      return (
+                        <article
+                          key={appointment.id}
+                          className="patient-appointment-card patient-appointment-rich-card"
+                          role="button"
+                          tabIndex={0}
+                          onClick={openAppointmentDetail}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              openAppointmentDetail()
+                            }
+                          }}
+                          aria-label={`Xem chi tiết lịch hẹn ${appointment.title}`}
+                        >
+                          <div className="patient-appointment-date">
+                            <span>{appointment.dateParts.weekday}</span>
+                            <strong>{appointment.dateParts.day}</strong>
+                            <em>{appointment.dateParts.month}</em>
+                            <small>{appointment.dateParts.year}</small>
+                          </div>
+
+                          <div className="patient-appointment-doctor-avatar">
+                            <img src={appointment.doctorAvatar} alt={appointment.doctor} loading="lazy" />
+                            <span aria-hidden="true" />
+                          </div>
+
+                          <div className="patient-appointment-body">
+                            <div className="patient-appointment-title-row">
+                              <div>
+                                <span className="patient-appointment-code">Mã lịch hẹn: {appointment.appointmentCode}</span>
+                                <h4>{appointment.title}</h4>
+                                <div className="patient-appointment-doctor-line">
+                                  <p>{appointment.doctor}</p>
+                                  {appointment.specialty ? (
+                                    <span className="patient-appointment-specialty-pill">{appointment.specialty}</span>
+                                  ) : null}
+                                </div>
+                                <span>{appointment.facility}</span>
+                              </div>
+                            </div>
+
+                            <div className="patient-appointment-info-grid">
+                              <div>
+                                <span>Ngày giờ khám</span>
+                                <strong>{appointment.time} · {appointment.shortDate || appointment.date}</strong>
+                              </div>
+                              <div>
+                                <span>Phòng khám</span>
+                                <strong>{appointment.location}</strong>
+                              </div>
+                              <div>
+                                <span>Lý do khám</span>
+                                <strong>{appointment.reason}</strong>
+                              </div>
+                              <div>
+                                <span>Thời gian còn lại</span>
+                                <strong>{appointment.remainingText}</strong>
+                              </div>
+                            </div>
+
+                            <div className="patient-appointment-status-row">
+                              <span className={`patient-status-pill ${appointment.tone}`}>
+                                <PatientIcon name="calendar_today" aria-hidden="true" />
+                                {appointment.status}
+                              </span>
+                              <span className={`patient-status-pill ${appointment.paymentTone}`}>
+                                <PatientIcon name="payments" aria-hidden="true" />
+                                {appointment.paymentStatusLabel}
+                              </span>
+                              <span className={`patient-status-pill ${appointment.checkinTone}`}>
+                                <PatientIcon name="check_circle" aria-hidden="true" />
+                                {appointment.checkinStatusLabel}
+                              </span>
+                            </div>
+
+                            <div className="patient-appointment-prep-note">
+                              <PatientIcon name="info" aria-hidden="true" />
+                              <span>{appointment.preparationNote}</span>
+                            </div>
+                          </div>
+
+                          <div className="patient-appointment-aside patient-appointment-action-column">
+                            {appointment.queueTicketNo ? (
+                              <span className="patient-appointment-queue-chip">Số {appointment.queueTicketNo}</span>
+                            ) : null}
+                            <div className="patient-appointment-card-actions">
+                              {actionItems.map((action) => {
+                                const busy =
+                                  appointmentActionLoading === `${action.id}:${appointment.id}` ||
+                                  (action.id === 'cancel' && appointmentActionLoading === `cancel:${appointment.id}`) ||
+                                  (action.id === 'checkin' && appointmentActionLoading === `checkin:${appointment.id}`)
+
+                                return (
+                                  <button
+                                    key={action.id}
+                                    className={`patient-appointment-card-action is-${action.tone}`}
+                                    type="button"
+                                    disabled={action.disabled || busy}
+                                    onClick={(event) => handleAppointmentCardAction(event, appointment, action.id)}
+                                  >
+                                    <PatientIcon name={action.icon} aria-hidden="true" />
+                                    <span>{busy ? 'Đang xử lý...' : action.label}</span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </div>
 
             <div className="patient-appointments-note">
               <div className="patient-appointments-note-icon">
@@ -2507,7 +3396,6 @@ export default function PatientAppointmentsPage({
                 đến, hãy hủy hoặc đổi lịch sớm để hệ thống cập nhật kịp thời.
               </p>
             </div>
-
           </div>
         </section>
         )}
@@ -2555,17 +3443,15 @@ export default function PatientAppointmentsPage({
                   </span>
                   <span>
                     <PatientIcon name="local_hospital" aria-hidden="true" />
-                    Cơ sở y tế St. Jude
+                    {selectedLocationName}
                   </span>
                 </div>
               </div>
             </div>
             <div className="patient-step2-support-box">
-              <p>Bảo hiểm hỗ trợ</p>
+              <p>Bảo hiểm</p>
               <div>
-                <span>BHYT</span>
-                <span>Bảo Việt</span>
-                <span>PVI Care</span>
+                <span>Xác minh tại quầy</span>
               </div>
             </div>
             <button
@@ -2583,11 +3469,30 @@ export default function PatientAppointmentsPage({
         <div className="patient-step2-layout">
           {/* Left: Calendar + Time */}
           <div className="patient-step2-left">
+            <div className="patient-panel patient-booking-left-summary" aria-label="Thông tin chọn lịch">
+              <div>
+                <span>Chuyên khoa</span>
+                <strong>{selectedDoctor.specialty}</strong>
+              </div>
+              <div>
+                <span>Bác sĩ</span>
+                <strong>{selectedDoctor.displayName || selectedDoctor.name}</strong>
+              </div>
+              <div>
+                <span>Ngày khám</span>
+                <strong>{selectedDateLabel}</strong>
+              </div>
+              <div>
+                <span>Slot còn trống</span>
+                <strong>{timeSlots.filter((slot) => !slot.disabled).length}</strong>
+              </div>
+            </div>
+
             {/* Calendar */}
             <div className="patient-panel patient-calendar-panel-inner">
               <div className="patient-panel-head patient-panel-head-mb">
                 <div>
-                  <span className="patient-step-number">1</span>
+                  <span className="patient-step-number">{dateTimeStepNumber}</span>
                   <h2 className="patient-calendar-h2">Chọn ngày khám</h2>
                 </div>
                 <div className="patient-calendar-actions">
@@ -2621,12 +3526,7 @@ export default function PatientAppointmentsPage({
                         onClick={() => {
                           if (!day.item) return
 
-                          if (usingApiSchedules) {
-                            setSelectedScheduleId(day.item.value)
-                            return
-                          }
-
-                          setSelectedDate(day.item.label)
+                          setSelectedScheduleId(day.item.value)
                         }}
                       >
                         <span>{day.dayNumber}</span>
@@ -2647,12 +3547,7 @@ export default function PatientAppointmentsPage({
                       className={day.selected ? 'is-selected' : ''}
                       type="button"
                       onClick={() => {
-                        if (usingApiSchedules) {
-                          setSelectedScheduleId(day.value)
-                          return
-                        }
-
-                        setSelectedDate(day.label)
+                        setSelectedScheduleId(day.value)
                       }}
                     >
                       <span />
@@ -2667,7 +3562,7 @@ export default function PatientAppointmentsPage({
             <div className="patient-panel patient-time-panel">
               <div className="patient-time-header">
                 <div>
-                  <span className="patient-step-number">2</span>
+                  <span className="patient-step-number">{dateTimeStepNumber}</span>
                   <h3 className="patient-time-h3">Chọn giờ khám cho {selectedDateLabel}</h3>
                 </div>
               </div>
@@ -2721,7 +3616,7 @@ export default function PatientAppointmentsPage({
           <div className="patient-step2-sidebar">
             <div className="patient-panel patient-sidebar-panel">
               <div className="patient-sidebar-title-row">
-                <h3 className="patient-sidebar-title">Thông tin đặt khám</h3>
+                <h3 className="patient-sidebar-title">Tóm tắt lịch đang chọn</h3>
                 <button className="patient-inline-link" type="button" onClick={() => goTo(1)}>
                   <PatientIcon name="edit" aria-hidden="true" />
                   Sửa
@@ -2749,12 +3644,17 @@ export default function PatientAppointmentsPage({
                 <div>
                   <PatientIcon name="person" aria-hidden="true" />
                   <span>Bệnh nhân</span>
-                  <strong>{patientDisplayName}</strong>
+                  <strong>{bookingPatientDisplayName}</strong>
                 </div>
                 <div>
                   <PatientIcon name="phone" aria-hidden="true" />
                   <span>Số điện thoại</span>
-                  <strong>{patientPhone}</strong>
+                  <strong>{bookingPatientPhone || 'Chưa cập nhật'}</strong>
+                </div>
+                <div>
+                  <PatientIcon name="shield_plus" aria-hidden="true" />
+                  <span>Hình thức đặt</span>
+                  <strong>{bookingForRelative ? 'Người thân được ủy quyền' : 'Đặt cho tôi'}</strong>
                 </div>
                 {patientEmail ? (
                   <div>
@@ -2792,8 +3692,8 @@ export default function PatientAppointmentsPage({
                   </div>
                   <div>
                     <p className="patient-sidebar-detail-label">Địa điểm</p>
-                    <p className="patient-sidebar-detail-main">Bệnh viện Bạch Mai</p>
-                    <p className="patient-sidebar-detail-sub">78 Giải Phóng, Đống Đa, Hà Nội</p>
+                    <p className="patient-sidebar-detail-main">{selectedLocationName}</p>
+                    <p className="patient-sidebar-detail-sub">{selectedLocationNote}</p>
                   </div>
                 </div>
 
@@ -2809,7 +3709,7 @@ export default function PatientAppointmentsPage({
               </div>
 
               <label className="patient-sidebar-note-field">
-                <span>Ghi chú / Lý do khám</span>
+                <span>Bước {reasonStepNumber}: Nhập lý do khám</span>
                 <textarea
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
@@ -2821,22 +3721,24 @@ export default function PatientAppointmentsPage({
 
               {/* Fee breakdown */}
               <div className="patient-sidebar-fees">
+                <h4 className="patient-sidebar-section-title">Phí dự kiến</h4>
                 <div className="patient-fee-row">
                   <span className="patient-fee-label">Phí khám</span>
-                  <strong className="patient-fee-value">350.000 ₫</strong>
+                  <strong className="patient-fee-value">{formatVnd(consultationFee, 'Chưa cập nhật')}</strong>
                 </div>
                 <div className="patient-fee-row">
                   <span className="patient-fee-label">Phí admin</span>
-                  <strong className="patient-fee-value">15.000 ₫</strong>
+                  <strong className="patient-fee-value">{formatVnd(adminFee)}</strong>
                 </div>
                 <div className="patient-fee-row-last">
                   <strong className="patient-fee-total-label">Tổng cộng</strong>
-                  <strong className="patient-fee-total-value">365.000 ₫</strong>
+                  <strong className="patient-fee-total-value">{formatVnd(totalEstimatedFee)}</strong>
                 </div>
               </div>
 
               {/* Buttons */}
               <div className="patient-sidebar-actions">
+                <h4 className="patient-sidebar-section-title">Nút xác nhận</h4>
                 <button
                   className="patient-hero-button patient-sidebar-btn-full"
                   type="button"
@@ -2861,7 +3763,7 @@ export default function PatientAppointmentsPage({
               </div>
 
               <div className="patient-visit-reminders">
-                <h4>Lưu ý trước khi khám</h4>
+                <h4>Điều kiện chuẩn bị</h4>
                 <p>
                   <PatientIcon name="schedule" aria-hidden="true" />
                   Vui lòng đến sớm 15 phút để làm thủ tục.
@@ -2872,7 +3774,7 @@ export default function PatientAppointmentsPage({
                 </p>
                 <p>
                   <PatientIcon name="event_busy" aria-hidden="true" />
-                  Hủy hoặc đổi lịch trước ít nhất 4 giờ để tránh phí.
+                  Chính sách dời/hủy: hủy hoặc đổi lịch trước ít nhất 4 giờ để tránh phí.
                 </p>
               </div>
 
@@ -2900,8 +3802,10 @@ export default function PatientAppointmentsPage({
       {/* Progress label */}
       <div className="patient-step3-progress">
         <div className="patient-step3-progress-labels">
-          <span className="patient-step3-progress-step">Bước 03 / 03</span>
-          <span className="patient-step3-progress-label">Xác nhận &amp; Hoàn tất</span>
+          <span className="patient-step3-progress-step">
+            Bước {bookingWizardSteps.length.toString().padStart(2, '0')} / {bookingWizardSteps.length.toString().padStart(2, '0')}
+          </span>
+          <span className="patient-step3-progress-label">Nhận mã lịch hẹn</span>
         </div>
         <div className="patient-step3-progress-track">
           <div className="patient-step3-progress-fill" />
@@ -2986,8 +3890,8 @@ export default function PatientAppointmentsPage({
                   <PatientIcon name="person" aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="patient-detail-doc-name">{patientDisplayName}</p>
-                  <p className="patient-detail-doc-specialty">{patientPhone}</p>
+                  <p className="patient-detail-doc-name">{bookingPatientDisplayName}</p>
+                  <p className="patient-detail-doc-specialty">{bookingPatientPhone || 'Chưa cập nhật'}</p>
                 </div>
               </div>
             </div>
@@ -3000,7 +3904,7 @@ export default function PatientAppointmentsPage({
                 </div>
                 <div>
                   <p className="patient-detail-doc-name">{visitModeLabel}</p>
-                  <p className="patient-detail-doc-specialty">Phí dự kiến: 365.000 ₫</p>
+                  <p className="patient-detail-doc-specialty">Phí dự kiến: {formatVnd(totalEstimatedFee, 'Chưa cập nhật')}</p>
                 </div>
               </div>
             </div>
@@ -3011,8 +3915,8 @@ export default function PatientAppointmentsPage({
             <p className="patient-detail-label">Địa điểm phòng khám</p>
             <div className="patient-location-row">
               <div>
-                <p className="patient-location-name">Cơ sở y tế St. Jude</p>
-                <p className="patient-location-address">245 Đường Y tế, Quận 1, TP. Hồ Chí Minh</p>
+                <p className="patient-location-name">{selectedLocationName}</p>
+                <p className="patient-location-address">{selectedLocationNote}</p>
               </div>
               <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="patient-map-link">
                 <PatientIcon name="map" aria-hidden="true" />

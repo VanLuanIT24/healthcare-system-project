@@ -81,6 +81,9 @@ module.exports = {
   updateImagingReportTemplate: wrap((req) => imagingService.updateImagingReportTemplate(req.params.templateId, req.body, req.auth, requestMeta(req)), 'Cập nhật imaging report template thành công.'),
 
   getMyImagingReports: wrap((req) => imagingService.getMyImagingReports(req.auth, req.query), 'Lấy imaging reports của tôi thành công.'),
+  getMyImagingReportsSummary: wrap((req) => imagingService.getMyImagingReportsSummary(req.auth), 'Lấy tổng hợp imaging reports của tôi thành công.'),
+  getMyImagingReportFiles: wrap((req) => imagingService.getMyImagingReportFiles(req.params.reportId, req.auth), 'Lấy file imaging report của tôi thành công.'),
+  markMyImagingReportViewed: wrap((req) => imagingService.markMyImagingReportViewed(req.params.reportId, req.auth, requestMeta(req)), 'Đã đánh dấu imaging report là đã xem.'),
   getEncounterImagingSummary: wrap((req) => imagingService.getEncounterImagingSummary(req.params.encounterId, req.auth), 'Lấy imaging summary của encounter thành công.'),
   getImagingTimeline: wrap((req) => imagingService.getImagingTimeline(req.params.imagingOrderId, req.auth), 'Lấy imaging timeline thành công.'),
 };

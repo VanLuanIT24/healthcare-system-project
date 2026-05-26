@@ -24,6 +24,10 @@ router.post('/tickets', authorize({
   actorTypes: ['patient', 'patient_relative', 'staff'],
   anyPermissions: [PERMISSION.SUPPORT_TICKETS.SELF_CREATE, PERMISSION.SUPPORT_TICKETS.MANAGE],
 }), supportCreateLimit, idempotencyRequired({ route: '/api/support/tickets' }), supportTicketController.createTicket);
+router.get('/me/summary', authorize({
+  actorTypes: ['patient', 'patient_relative'],
+  anyPermissions: [PERMISSION.SUPPORT_TICKETS.SELF_READ],
+}), supportTicketController.getMySummary);
 router.get('/tickets', authorize({
   actorTypes: ['patient', 'patient_relative', 'staff'],
   anyPermissions: [PERMISSION.SUPPORT_TICKETS.SELF_READ, PERMISSION.SUPPORT_TICKETS.MANAGE],

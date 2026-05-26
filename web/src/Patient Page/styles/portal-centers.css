@@ -1,0 +1,568 @@
+.patient-feature-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.patient-feature-header h1 {
+  margin: 4px 0 8px;
+  color: var(--patient-copy);
+  font-size: 32px;
+  line-height: 1.12;
+}
+
+.patient-feature-header p:not(.patient-section-label) {
+  max-width: 720px;
+  margin: 0;
+  color: var(--patient-muted);
+  line-height: 1.6;
+}
+
+.patient-checkin-page,
+.patient-relatives-page,
+.patient-receipts-page {
+  display: grid;
+  gap: 18px;
+}
+
+.patient-checkin-state-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.patient-checkin-state-tabs button,
+.patient-checkin-state-tabs span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--patient-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.patient-checkin-state-tabs button:hover:not(.is-active),
+.patient-checkin-state-tabs button:focus-visible {
+  background: #eef5ff;
+  color: var(--patient-primary);
+  outline: none;
+}
+
+.patient-checkin-state-tabs button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+.patient-checkin-state-tabs button.is-active,
+.patient-checkin-state-tabs span.is-active {
+  background: var(--patient-primary);
+  color: #fff;
+}
+
+.patient-checkin-empty-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.patient-checkin-empty-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.85fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.patient-checkin-empty-layout .patient-checkin-empty-panel {
+  grid-column: 1 / -1;
+}
+
+.patient-checkin-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.patient-checkin-empty-panel h2,
+.patient-checkin-guide h2,
+.patient-checkin-next-card h2,
+.patient-checkin-prep-card h2 {
+  margin: 0 0 6px;
+  color: var(--patient-copy);
+  font-size: 18px;
+}
+
+.patient-checkin-empty-panel p,
+.patient-checkin-guide p,
+.patient-checkin-next-card p {
+  margin: 0;
+  color: var(--patient-muted);
+  line-height: 1.55;
+}
+
+.patient-checkin-empty-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #eaf3ff;
+  color: var(--patient-primary);
+}
+
+.patient-checkin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.patient-checkin-actions button {
+  min-height: 42px;
+}
+
+.patient-checkin-upcoming-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.patient-checkin-upcoming-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  background: #f8fafc;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.patient-checkin-upcoming-row:hover {
+  border-color: rgba(37, 99, 235, 0.38);
+  background: #eef5ff;
+}
+
+.patient-checkin-upcoming-row span {
+  color: var(--patient-primary);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.patient-checkin-upcoming-row strong {
+  min-width: 0;
+  color: var(--patient-copy);
+  font-size: 14px;
+}
+
+.patient-checkin-upcoming-row small {
+  grid-column: 2;
+  color: var(--patient-muted);
+  font-size: 12px;
+}
+
+.patient-checkin-prep-card ul {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--patient-muted);
+  line-height: 1.55;
+}
+
+.patient-checkin-qr {
+  width: min(180px, 100%);
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin: 12px 0 4px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.patient-checkin-qr span {
+  border-radius: 3px;
+  background: #e2e8f0;
+}
+
+.patient-checkin-qr span.is-filled {
+  background: #0f172a;
+}
+
+.patient-checkin-room-card {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 12px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.patient-checkin-room-card strong {
+  color: var(--patient-copy);
+}
+
+.patient-checkin-room-card span {
+  color: var(--patient-muted);
+  font-size: 13px;
+}
+
+.patient-checkin-grid,
+.patient-relatives-summary-grid,
+.patient-receipts-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.patient-checkin-queue-card {
+  grid-column: span 2;
+}
+
+.patient-checkin-card-head,
+.patient-relatives-summary-card,
+.patient-receipts-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.patient-checkin-card-icon,
+.patient-relatives-summary-card > .patient-lucide-icon,
+.patient-receipts-summary-card > .patient-lucide-icon,
+.patient-receipt-row-icon,
+.patient-relative-avatar {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(36, 99, 235, 0.1);
+  color: var(--patient-primary);
+  flex: 0 0 auto;
+}
+
+.patient-relatives-summary-card span,
+.patient-receipts-summary-card span,
+.patient-checkin-meta-grid span,
+.patient-receipt-detail-grid span {
+  display: block;
+  color: var(--patient-muted);
+  font-size: 13px;
+}
+
+.patient-relatives-summary-card strong,
+.patient-receipts-summary-card strong {
+  color: var(--patient-copy);
+  font-size: 24px;
+}
+
+.patient-checkin-number {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  margin: 22px 0;
+}
+
+.patient-checkin-number strong {
+  color: var(--patient-primary);
+  font-size: 64px;
+  line-height: 1;
+}
+
+.patient-checkin-number span {
+  color: var(--patient-copy);
+  font-weight: 800;
+}
+
+.patient-checkin-progress {
+  height: 8px;
+  overflow: hidden;
+  margin: -8px 0 18px;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.patient-checkin-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0d63f3, #10b981);
+  transition: width 0.25s ease;
+}
+
+.patient-checkin-meta-grid,
+.patient-receipt-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.patient-checkin-meta-grid div,
+.patient-receipt-detail-grid div {
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.patient-checkin-meta-grid strong,
+.patient-receipt-detail-grid strong {
+  color: var(--patient-copy);
+  font-size: 15px;
+}
+
+.patient-checkin-guide ol {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+  color: var(--patient-muted);
+  line-height: 1.55;
+}
+
+.patient-checkin-list,
+.patient-relatives-list,
+.patient-receipts-list {
+  display: grid;
+  gap: 12px;
+}
+
+.patient-checkin-appointment-card,
+.patient-receipt-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.9fr) minmax(220px, 1.3fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.patient-receipt-row {
+  grid-template-columns: auto minmax(220px, 1.4fr) minmax(150px, 0.8fr) auto auto;
+}
+
+.patient-checkin-date,
+.patient-receipt-row-money {
+  display: grid;
+  gap: 5px;
+}
+
+.patient-checkin-date {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  color: var(--patient-primary);
+}
+
+.patient-checkin-appointment-main h3,
+.patient-relative-card h3,
+.patient-authorization-card h3,
+.patient-receipt-row-main h3 {
+  margin: 0 0 5px;
+  color: var(--patient-copy);
+  font-size: 16px;
+}
+
+.patient-checkin-appointment-main p,
+.patient-relative-card p,
+.patient-authorization-card p,
+.patient-receipt-row-main p,
+.patient-receipt-row-money span {
+  margin: 0;
+  color: var(--patient-muted);
+  font-size: 13px;
+}
+
+.patient-checkin-action,
+.patient-receipt-download {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.patient-relatives-tabs,
+.patient-receipts-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.patient-relatives-tabs button,
+.patient-receipts-tabs button {
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: #fff;
+  color: var(--patient-muted);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.patient-relatives-tabs button.is-active,
+.patient-receipts-tabs button.is-active {
+  background: var(--patient-primary);
+  color: #fff;
+  border-color: var(--patient-primary);
+}
+
+.patient-relatives-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.7fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.patient-relatives-form {
+  display: grid;
+  gap: 12px;
+}
+
+.patient-relatives-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--patient-copy);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.patient-relatives-form input,
+.patient-relatives-form select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 0 12px;
+  color: var(--patient-copy);
+  background: #fff;
+}
+
+.patient-relatives-checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.patient-relatives-checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--patient-muted);
+  font-weight: 700;
+}
+
+.patient-relatives-checks input {
+  width: auto;
+  min-height: auto;
+}
+
+.patient-relative-card,
+.patient-authorization-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.patient-authorization-card {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.patient-relative-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--patient-muted);
+  font-size: 13px;
+}
+
+.patient-receipt-row-money strong {
+  color: var(--patient-copy);
+}
+
+.patient-receipt-detail {
+  position: sticky;
+  bottom: 16px;
+  z-index: 4;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+}
+
+@media (max-width: 980px) {
+  .patient-checkin-grid,
+  .patient-checkin-empty-layout,
+  .patient-relatives-summary-grid,
+  .patient-receipts-summary-grid,
+  .patient-relatives-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-checkin-queue-card {
+    grid-column: auto;
+  }
+
+  .patient-checkin-appointment-card,
+  .patient-receipt-row,
+  .patient-relative-card,
+  .patient-authorization-card {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .patient-feature-header h1 {
+    font-size: 26px;
+  }
+
+  .patient-checkin-number strong {
+    font-size: 48px;
+  }
+
+  .patient-checkin-meta-grid,
+  .patient-receipt-detail-grid,
+  .patient-relatives-checks {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-checkin-empty-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-checkin-empty-actions {
+    justify-content: flex-start;
+  }
+
+  .patient-checkin-upcoming-row {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-checkin-upcoming-row small {
+    grid-column: auto;
+  }
+}

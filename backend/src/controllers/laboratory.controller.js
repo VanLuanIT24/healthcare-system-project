@@ -77,6 +77,10 @@ module.exports = {
   removeLabResultItem: wrap((req) => laboratoryService.removeLabResultItem(req.params.itemId, req.auth, requestMeta(req)), 'Remove lab result item thành công.'),
 
   getMyLabResults: wrap((req) => laboratoryService.getMyLabResults(req.auth, req.query), 'Lấy lab results của tôi thành công.'),
+  getMyLabResultsSummary: wrap((req) => laboratoryService.getMyLabResultsSummary(req.auth), 'Lấy tổng hợp lab results của tôi thành công.'),
+  getMyLabResultItems: wrap((req) => laboratoryService.getMyLabResultItems(req.params.resultId, req.auth), 'Lấy chỉ số lab result của tôi thành công.'),
+  markMyLabResultViewed: wrap((req) => laboratoryService.markMyLabResultViewed(req.params.resultId, req.auth, requestMeta(req)), 'Đã đánh dấu lab result là đã xem.'),
+  compareMyLabResult: wrap((req) => laboratoryService.compareMyLabResult(req.params.resultId, req.auth), 'So sánh lab result thành công.'),
   getEncounterLabSummary: wrap((req) => laboratoryService.getEncounterLabSummary(req.params.encounterId, req.auth), 'Lấy lab summary của encounter thành công.'),
   getLabWorkspaceSummary: wrap((req) => laboratoryService.getLabWorkspaceSummary(req.query, req.auth), 'Lấy tổng hợp lab workspace thành công.'),
   getLabWorkspaceOverdue: wrap((req) => laboratoryService.getLabWorkspaceOverdue(req.query, req.auth), 'Lấy danh sách lab quá SLA thành công.'),

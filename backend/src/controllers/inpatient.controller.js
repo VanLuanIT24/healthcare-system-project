@@ -26,6 +26,11 @@ module.exports = {
   listAdmissionCharges: wrap((req) => inpatientService.listAdmissionCharges(req.params.admissionId, req.auth), 'Lấy admission charges thành công.'),
   createRoomBedCharge: wrap((req) => inpatientService.createRoomBedCharge(req.params.admissionId, req.body, req.auth, requestMeta(req)), 'Tạo room/bed charge thành công.', 201),
   getMyAdmissions: wrap((req) => inpatientService.listAdmissions({ ...req.query, patient_id: req.auth.patientId || req.auth.patient_id }, req.auth), 'Lấy admission của tôi thành công.'),
+  getMyCurrentAdmission: wrap((req) => inpatientService.getMyCurrentAdmission(req.auth), 'Lấy nội trú hiện tại của tôi thành công.'),
+  getMyAdmissionHistory: wrap((req) => inpatientService.listMyAdmissionHistory(req.auth, req.query), 'Lấy lịch sử nội trú của tôi thành công.'),
+  getMyAdmissionSummary: wrap((req) => inpatientService.getMyAdmissionSummary(req.auth, req.params.admissionId), 'Lấy tóm tắt nội trú của tôi thành công.'),
+  getMyAdmissionCharges: wrap((req) => inpatientService.listAdmissionCharges(req.params.admissionId, req.auth), 'Lấy chi phí nội trú của tôi thành công.'),
+  getMyAdmissionDischargeDocuments: wrap((req) => inpatientService.listMyAdmissionDischargeDocuments(req.auth, req.params.admissionId, req.query), 'Lấy giấy ra viện của tôi thành công.'),
 
   assignBed: wrap((req) => inpatientService.assignBed(req.params.admissionId, req.body, req.auth, requestMeta(req)), 'Assign bed thành công.', 201),
   transferBedByAdmission: wrap((req) => inpatientService.transferBed(req.params.admissionId, req.body, req.auth, requestMeta(req)), 'Transfer bed thành công.'),

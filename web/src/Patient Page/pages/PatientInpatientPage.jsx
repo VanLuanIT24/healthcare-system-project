@@ -3,11 +3,13 @@ import PatientIcon from '../components/PatientIcon'
 import inpatientWardHero from '../assets/inpatient-ward-hero.png'
 
 const admissionFilters = [
-  { id: 'all', label: 'Tất cả' },
-  { id: 'active', label: 'Đang nội trú' },
-  { id: 'planned', label: 'Chờ nhập viện' },
-  { id: 'completed', label: 'Đã ra viện' },
-  { id: 'cancelled', label: 'Đã hủy' },
+  { id: 'current', label: 'Hiện tại' },
+  { id: 'history', label: 'Lịch sử nội trú' },
+  { id: 'bed', label: 'Phòng / giường' },
+  { id: 'medications', label: 'Thuốc nội trú' },
+  { id: 'nursing', label: 'Chăm sóc điều dưỡng' },
+  { id: 'charges', label: 'Chi phí nội trú' },
+  { id: 'documents', label: 'Giấy ra viện' },
 ]
 
 const admissionTypeLabels = {
@@ -81,6 +83,17 @@ function formatStayLength(startValue, endValue) {
   return `${days} ngày`
 }
 
+function formatCurrency(value) {
+  const number = Number(value || 0)
+  if (!number) return 'Chưa cập nhật'
+
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(number)
+}
+
 function getAdmissionStatusMeta(status) {
   const map = {
     planned: { label: 'Chờ nhập viện', tone: 'waiting', group: 'planned' },
@@ -134,6 +147,7 @@ function mapAdmission(admission, index) {
 
   return {
     id,
+    raw: admission,
     number: admission.admission_no || `NT-${String(index + 1).padStart(4, '0')}`,
     type: admissionTypeLabels[admission.admission_type] || admission.admission_type || 'Nội trú',
     department: getDepartmentName(admission),
@@ -144,12 +158,35 @@ function mapAdmission(admission, index) {
     statusGroup: status.group,
     admittedAt: formatDateTime(admittedAt),
     dischargedAt: endedAt ? formatDateTime(endedAt) : 'Chưa ra viện',
+    expectedDischargeAt: formatDate(admission.expected_discharge_at || admission.estimated_discharge_at),
     stayLength: formatStayLength(admittedAt, endedAt),
     admittedDate: formatShortDate(admittedAt),
     endedDate: endedAt ? formatShortDate(endedAt) : 'Chưa cập nhật',
     endLabel,
     reason: admission.reason || admission.discharge_summary || 'Chưa có ghi chú từ backend.',
     disposition: admission.discharge_disposition || 'Chưa cập nhật',
+    nurse:
+      getName(admission.primary_nurse_id, admission.primary_nurse_name || admission.nurse_name || 'Chưa phân công điều dưỡng'),
+    mainOrders:
+      admission.main_orders ||
+      admission.active_orders_summary ||
+      admission.care_plan_summary ||
+      'Y lệnh chính sẽ được cập nhật từ hồ sơ nội trú.',
+    medications:
+      admission.medications_summary ||
+      admission.inpatient_medications_summary ||
+      'Thuốc nội trú sẽ hiển thị khi khoa điều trị phát hành.',
+    charges:
+      formatCurrency(
+        admission.estimated_charges ||
+          admission.current_charges ||
+          admission.charges_summary?.total_amount ||
+          admission.charges_summary?.balance_due,
+      ),
+    paperwork:
+      admission.paperwork_status ||
+      admission.discharge_documents_status ||
+      'Chưa có giấy tờ cần hoàn tất.',
     rawAdmittedAt: admittedAt,
   }
 }
@@ -198,14 +235,22 @@ function InpatientEmptyState() {
 }
 
 export default function PatientInpatientPage({ admissions = [], error = '', loading = false }) {
-  const [activeFilter, setActiveFilter] = useState('all')
+  const [activeFilter, setActiveFilter] = useState('current')
   const [selectedAdmissionId, setSelectedAdmissionId] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const admissionRows = useMemo(() => admissions.map(mapAdmission), [admissions])
   const filteredRows = useMemo(() => {
-    if (activeFilter === 'all') return admissionRows
-    return admissionRows.filter((admission) => admission.statusGroup === activeFilter)
+    if (activeFilter === 'current') {
+      const currentRows = admissionRows.filter((admission) => admission.statusGroup === 'active')
+      return currentRows.length ? currentRows : admissionRows.slice(0, 1)
+    }
+
+    if (activeFilter === 'history') {
+      return admissionRows.filter((admission) => admission.statusGroup !== 'active')
+    }
+
+    return admissionRows
   }, [activeFilter, admissionRows])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const pagedRows = useMemo(() => {
@@ -215,6 +260,8 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
   const selectedAdmission =
     filteredRows.find((admission) => admission.id === selectedAdmissionId) || null
   const latestAdmission = getLatestAdmission(admissionRows)
+  const currentAdmission =
+    admissionRows.find((admission) => admission.statusGroup === 'active') || latestAdmission
   const activeCount = admissionRows.filter((admission) => admission.statusGroup === 'active').length
   const completedCount = admissionRows.filter((admission) => admission.statusGroup === 'completed').length
   const displayStart = filteredRows.length ? (currentPage - 1) * pageSize + 1 : 0
@@ -230,7 +277,7 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
 
   useEffect(() => {
     if (!filteredRows.some((admission) => admission.id === selectedAdmissionId)) {
-      setSelectedAdmissionId('')
+      setSelectedAdmissionId(filteredRows[0]?.id || '')
     }
   }, [filteredRows, selectedAdmissionId])
 
@@ -309,6 +356,61 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
 
       {loading ? <div className="patient-care-state">Đang tải dữ liệu nội trú...</div> : null}
       {!loading && error ? <div className="patient-care-state is-error">{error}</div> : null}
+
+      {!loading && currentAdmission ? (
+        <section className="patient-panel patient-inpatient-current-panel">
+          <div className="patient-inpatient-current-head">
+            <div>
+              <p className="patient-section-label">Đợt nội trú hiện tại</p>
+              <h2>{currentAdmission.number}</h2>
+              <span className={`patient-care-status ${currentAdmission.statusTone}`}>{currentAdmission.status}</span>
+            </div>
+            <strong>{currentAdmission.department}</strong>
+          </div>
+
+          <div className="patient-inpatient-current-grid">
+            <div>
+              <span>Khoa / phòng / giường</span>
+              <strong>{currentAdmission.bed}</strong>
+            </div>
+            <div>
+              <span>Bác sĩ điều trị</span>
+              <strong>{currentAdmission.doctor}</strong>
+            </div>
+            <div>
+              <span>Điều dưỡng phụ trách</span>
+              <strong>{currentAdmission.nurse}</strong>
+            </div>
+            <div>
+              <span>Ngày nhập viện</span>
+              <strong>{currentAdmission.admittedAt}</strong>
+            </div>
+            <div>
+              <span>Dự kiến ra viện</span>
+              <strong>{currentAdmission.expectedDischargeAt}</strong>
+            </div>
+            <div>
+              <span>Chi phí tạm tính</span>
+              <strong>{currentAdmission.charges}</strong>
+            </div>
+          </div>
+
+          <div className="patient-inpatient-current-notes">
+            <article>
+              <h3>Y lệnh chính</h3>
+              <p>{currentAdmission.mainOrders}</p>
+            </article>
+            <article>
+              <h3>Thuốc nội trú</h3>
+              <p>{currentAdmission.medications}</p>
+            </article>
+            <article>
+              <h3>Giấy tờ cần hoàn tất</h3>
+              <p>{currentAdmission.paperwork}</p>
+            </article>
+          </div>
+        </section>
+      ) : null}
 
       <div className="patient-care-tabs" role="tablist" aria-label="Lọc hồ sơ nội trú">
         {admissionFilters.map((filter) => {
@@ -455,6 +557,46 @@ export default function PatientInpatientPage({ admissions = [], error = '', load
                   <strong>{selectedAdmission.stayLength}</strong>
                 </div>
               </div>
+
+              <section className="patient-inpatient-tab-detail">
+                {activeFilter === 'bed' ? (
+                  <>
+                    <h3>Phòng / giường</h3>
+                    <p>{selectedAdmission.bed}</p>
+                    <small>Khoa {selectedAdmission.department}</small>
+                  </>
+                ) : null}
+                {activeFilter === 'medications' ? (
+                  <>
+                    <h3>Thuốc nội trú</h3>
+                    <p>{selectedAdmission.medications}</p>
+                  </>
+                ) : null}
+                {activeFilter === 'nursing' ? (
+                  <>
+                    <h3>Chăm sóc điều dưỡng</h3>
+                    <p>Điều dưỡng phụ trách: {selectedAdmission.nurse}</p>
+                  </>
+                ) : null}
+                {activeFilter === 'charges' ? (
+                  <>
+                    <h3>Chi phí nội trú</h3>
+                    <p>Tạm tính: {selectedAdmission.charges}</p>
+                  </>
+                ) : null}
+                {activeFilter === 'documents' ? (
+                  <>
+                    <h3>Giấy ra viện</h3>
+                    <p>{selectedAdmission.paperwork}</p>
+                  </>
+                ) : null}
+                {['current', 'history'].includes(activeFilter) ? (
+                  <>
+                    <h3>Tóm tắt nội trú</h3>
+                    <p>{selectedAdmission.mainOrders}</p>
+                  </>
+                ) : null}
+              </section>
 
               <section className="patient-care-note">
                 <h3>Lý do / ghi chú</h3>

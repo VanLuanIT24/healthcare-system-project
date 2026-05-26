@@ -8,12 +8,16 @@ import {
   imagingAPI,
   inpatientAPI,
   labAPI,
+  emergencyAPI,
   notificationAPI,
   patientAPI,
+  portalAPI,
   prescriptionAPI,
   procedureAPI,
+  queueAPI,
   recordsAPI,
   scheduleAPI,
+  supportAPI,
 } from '../utils/api'
 import { clearStoredAuth, readStoredAuth, writeStoredAuth } from '../lib/storage'
 import { HealthcareChatAssistCard, openHealthcareChatbot } from '../components/HealthcareChatbot'
@@ -23,6 +27,8 @@ import PatientTopbar from './components/PatientTopbar'
 import { notificationFeed } from './data/patientPageData'
 import PatientAppointmentsPage from './pages/PatientAppointmentsPage'
 import PatientBillingPage from './pages/PatientBillingPage'
+import PatientBillingReceiptsPage from './pages/PatientBillingReceiptsPage'
+import PatientCheckinQueuePage from './pages/PatientCheckinQueuePage'
 import PatientDashboardPage from './pages/PatientDashboardPage'
 import PatientDirectoryPage from './pages/PatientDirectoryPage'
 import PatientDocumentsPage from './pages/PatientDocumentsPage'
@@ -38,6 +44,7 @@ import PatientMessagesPage from './pages/PatientMessagesPage'
 import PatientNotificationsPage from './pages/PatientNotificationsPage'
 import PatientProceduresPage from './pages/PatientProceduresPage'
 import PatientProfileSettingsPage from './pages/PatientProfileSettingsPage'
+import PatientRelativesAuthorizationPage from './pages/PatientRelativesAuthorizationPage'
 import PatientPlaceholderPage from './pages/PatientPlaceholderPage'
 import PatientSupportPage from './pages/PatientSupportPage'
 import { getInitials } from './utils/patientHelpers'
@@ -58,6 +65,7 @@ import './styles/medications.css'
 import './styles/messages.css'
 import './styles/notifications.css'
 import './styles/profile-settings.css'
+import './styles/portal-centers.css'
 import './styles/support.css'
 import './styles/compact-desktop.css'
 
@@ -77,6 +85,10 @@ function normalizeClearableText(value) {
 
 function getResponseData(result) {
   return result.status === 'fulfilled' ? result.value.data?.data : null
+}
+
+function optionalApiCall(promise, fallback = null) {
+  return promise.catch(() => ({ data: { data: fallback } }))
 }
 
 function getRelativeTime(value) {
@@ -100,28 +112,53 @@ function getRelativeTime(value) {
 function getNotificationCategory(item) {
   const type = String(item.notification_type || item.created_by_module || '').toLowerCase()
   if (type.includes('appointment') || type.includes('schedule')) return 'appointments'
-  if (type.includes('lab') || type.includes('result')) return 'labs'
-  return 'hospital'
+  if (type.includes('queue') || type.includes('checkin')) return 'queue'
+  if (type.includes('lab') || type.includes('imaging') || type.includes('result') || type.includes('procedure')) return 'results'
+  if (type.includes('prescription') || type.includes('medication') || type.includes('pharmacy')) return 'prescriptions'
+  if (type.includes('billing') || type.includes('payment') || type.includes('invoice') || type.includes('receipt')) return 'billing'
+  if (type.includes('insurance') || type.includes('claim')) return 'insurance'
+  if (type.includes('support') || type.includes('ticket') || type.includes('message')) return 'support'
+  return 'system'
+}
+
+function getTargetSectionFromNotification(item) {
+  const target = String(item.target_type || item.created_by_module || item.notification_type || item.target_url || '').toLowerCase()
+  if (target.includes('appointment')) return 'appointments'
+  if (target.includes('queue') || target.includes('checkin')) return 'checkin-queue'
+  if (target.includes('lab')) return 'lab-results'
+  if (target.includes('imaging')) return 'imaging'
+  if (target.includes('procedure')) return 'procedures'
+  if (target.includes('prescription') || target.includes('medication')) return 'medications'
+  if (target.includes('billing') || target.includes('payment') || target.includes('invoice') || target.includes('receipt')) return 'billing'
+  if (target.includes('insurance')) return 'insurance'
+  if (target.includes('support') || target.includes('ticket')) return 'support'
+  if (target.includes('document') || target.includes('record')) return 'documents'
+  return 'dashboard'
 }
 
 function mapApiNotification(item) {
   const category = getNotificationCategory(item)
   const iconByCategory = {
     appointments: 'calendar_today',
-    labs: 'biotech',
-    hospital: 'campaign',
+    queue: 'confirmation_number',
+    results: 'biotech',
+    prescriptions: 'pill',
+    billing: 'payments',
+    insurance: 'health_and_safety',
+    support: 'support_agent',
+    system: 'campaign',
   }
 
   return {
     id: item.notification_id || item._id,
     category,
     icon: iconByCategory[category] || 'notifications',
-    iconTone: category === 'appointments' ? 'mint' : category === 'labs' ? 'soft' : 'neutral',
+    iconTone: category === 'appointments' ? 'mint' : category === 'results' ? 'soft' : category === 'billing' ? 'rose' : 'neutral',
     title: item.title || 'Thông báo',
     time: getRelativeTime(item.created_at || item.sent_at || item.delivered_at),
     body: item.message || '',
     unread: item.status !== 'read' && !item.read_at,
-    actions: [],
+    actions: item.target_url || item.target_type ? [{ label: 'Đi tới chức năng', tone: 'primary', targetSection: getTargetSectionFromNotification(item) }] : [],
     apiBacked: Boolean(item.notification_id || item._id),
   }
 }
@@ -162,6 +199,7 @@ function readPatientAuth() {
 const patientSectionKeys = new Set([
   'dashboard',
   'book-appointment',
+  'checkin-queue',
   'appointments',
   'medical-records',
   'emergency',
@@ -177,7 +215,9 @@ const patientSectionKeys = new Set([
   'inpatient',
   'procedures',
   'billing',
+  'billing-receipts',
   'profile',
+  'relatives-authorizations',
   'settings',
   'support',
 ])
@@ -247,9 +287,13 @@ export default function PatientPage() {
   const [patientEncounters, setPatientEncounters] = useState([])
   const [patientAdmissions, setPatientAdmissions] = useState([])
   const [patientProcedureHistory, setPatientProcedureHistory] = useState([])
+  const [patientProcedureOrders, setPatientProcedureOrders] = useState([])
+  const [patientProcedureResults, setPatientProcedureResults] = useState([])
   const [patientPrescriptions, setPatientPrescriptions] = useState([])
+  const [patientPrescriptionRefillRequests, setPatientPrescriptionRefillRequests] = useState([])
   const [patientDepartments, setPatientDepartments] = useState([])
   const [patientSchedules, setPatientSchedules] = useState([])
+  const [patientBookingDoctors, setPatientBookingDoctors] = useState([])
   const [patientMedicalRecords, setPatientMedicalRecords] = useState([])
   const [patientDocuments, setPatientDocuments] = useState([])
   const [patientDocumentTimeline, setPatientDocumentTimeline] = useState([])
@@ -258,14 +302,28 @@ export default function PatientPage() {
   const [patientBillingSummary, setPatientBillingSummary] = useState(null)
   const [patientInvoices, setPatientInvoices] = useState([])
   const [patientPayments, setPatientPayments] = useState([])
+  const [patientReceipts, setPatientReceipts] = useState([])
   const [patientInsurancePolicies, setPatientInsurancePolicies] = useState([])
   const [patientInsuranceClaims, setPatientInsuranceClaims] = useState([])
+  const [patientCurrentQueue, setPatientCurrentQueue] = useState(null)
+  const [patientRelatives, setPatientRelatives] = useState([])
+  const [patientAuthorizations, setPatientAuthorizations] = useState([])
+  const [patientPortalDashboard, setPatientPortalDashboard] = useState(null)
+  const [patientPortalCounters, setPatientPortalCounters] = useState(null)
+  const [patientPortalTodos, setPatientPortalTodos] = useState([])
+  const [patientHealthSummary, setPatientHealthSummary] = useState(null)
+  const [patientVisits, setPatientVisits] = useState([])
+  const [patientSupportTickets, setPatientSupportTickets] = useState([])
+  const [patientSupportSummary, setPatientSupportSummary] = useState(null)
+  const [patientEmergencyCases, setPatientEmergencyCases] = useState([])
   const [accountLoading, setAccountLoading] = useState(true)
   const [patientDataLoading, setPatientDataLoading] = useState(true)
   const [accountError, setAccountError] = useState('')
   const [patientDataError, setPatientDataError] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
+  const [checkInLoadingId, setCheckInLoadingId] = useState('')
+  const [relativeActionLoading, setRelativeActionLoading] = useState('')
   const [feedback, setFeedback] = useState(null)
 
   const authLoading = false
@@ -470,9 +528,13 @@ export default function PatientPage() {
       setPatientEncounters([])
       setPatientAdmissions([])
       setPatientProcedureHistory([])
+      setPatientProcedureOrders([])
+      setPatientProcedureResults([])
       setPatientPrescriptions([])
+      setPatientPrescriptionRefillRequests([])
       setPatientDepartments([])
       setPatientSchedules([])
+      setPatientBookingDoctors([])
       setPatientMedicalRecords([])
       setPatientDocuments([])
       setPatientDocumentTimeline([])
@@ -481,8 +543,20 @@ export default function PatientPage() {
       setPatientBillingSummary(null)
       setPatientInvoices([])
       setPatientPayments([])
+      setPatientReceipts([])
       setPatientInsurancePolicies([])
       setPatientInsuranceClaims([])
+      setPatientCurrentQueue(null)
+      setPatientRelatives([])
+      setPatientAuthorizations([])
+      setPatientPortalDashboard(null)
+      setPatientPortalCounters(null)
+      setPatientPortalTodos([])
+      setPatientHealthSummary(null)
+      setPatientVisits([])
+      setPatientSupportTickets([])
+      setPatientSupportSummary(null)
+      setPatientEmergencyCases([])
       setNotificationItems(notificationFeed)
       setPatientDataLoading(false)
       return
@@ -493,7 +567,7 @@ export default function PatientPage() {
 
     const today = new Date()
     const dateFrom = today.toISOString().slice(0, 10)
-    const dateTo = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const dateTo = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
     const results = await Promise.allSettled([
       patientAPI.getMyProfile(),
@@ -507,7 +581,7 @@ export default function PatientPage() {
         date_from: dateFrom,
         date_to: dateTo,
         status: 'published,active',
-        limit: 50,
+        limit: 100,
       }),
       recordsAPI.getMyMedicalRecords({ limit: 30 }),
       recordsAPI.getMyAttachments({ limit: 100 }),
@@ -517,9 +591,30 @@ export default function PatientPage() {
       billingAPI.getMySummary(),
       billingAPI.getMyInvoices({ limit: 100 }),
       billingAPI.getMyPayments({ limit: 50 }),
+      billingAPI.getMyReceipts({ limit: 100 }),
       billingAPI.getMyInsurancePolicies(),
       billingAPI.getMyInsuranceClaims({ limit: 50 }),
+      optionalApiCall(queueAPI.getMyCurrentDetail()),
+      portalAPI.getMyRelatives({ limit: 100 }),
+      portalAPI.getMyAuthorizations({ limit: 100 }),
       notificationAPI.getMyNotifications({ limit: 20 }),
+      optionalApiCall(portalAPI.getMyDashboard()),
+      optionalApiCall(portalAPI.getMyCounters()),
+      optionalApiCall(portalAPI.getMyTodos({ limit: 8 }), { items: [] }),
+      optionalApiCall(portalAPI.getMyHealthSummary()),
+      optionalApiCall(portalAPI.getMyVisits({ limit: 20 }), { items: [] }),
+      optionalApiCall(procedureAPI.getMyOrders({ limit: 50 }), { items: [] }),
+      optionalApiCall(procedureAPI.getMyResults({ limit: 50 }), { items: [] }),
+      optionalApiCall(prescriptionAPI.getMyRefillRequests({ limit: 50 }), { items: [] }),
+      optionalApiCall(supportAPI.listTickets({ limit: 50 }), { items: [] }),
+      optionalApiCall(supportAPI.getMySummary()),
+      optionalApiCall(emergencyAPI.getMyCases({ limit: 20 }), { items: [] }),
+      optionalApiCall(portalAPI.getBookingDoctors({
+        date_from: dateFrom,
+        date_to: dateTo,
+        include_unavailable: 'true',
+        limit: 200,
+      }), { items: [] }),
     ])
 
     const profileData = getResponseData(results[0])
@@ -538,18 +633,38 @@ export default function PatientPage() {
     const billingSummaryData = getResponseData(results[13])
     const invoicesData = getResponseData(results[14])
     const paymentsData = getResponseData(results[15])
-    const insurancePoliciesData = getResponseData(results[16])
-    const insuranceClaimsData = getResponseData(results[17])
-    const notificationsData = getResponseData(results[18])
+    const receiptsData = getResponseData(results[16])
+    const insurancePoliciesData = getResponseData(results[17])
+    const insuranceClaimsData = getResponseData(results[18])
+    const currentQueueData = getResponseData(results[19])
+    const relativesData = getResponseData(results[20])
+    const authorizationsData = getResponseData(results[21])
+    const notificationsData = getResponseData(results[22])
+    const portalDashboardData = getResponseData(results[23])
+    const portalCountersData = getResponseData(results[24])
+    const portalTodosData = getResponseData(results[25])
+    const healthSummaryData = getResponseData(results[26])
+    const visitsData = getResponseData(results[27])
+    const procedureOrdersData = getResponseData(results[28])
+    const procedureResultsData = getResponseData(results[29])
+    const refillRequestsData = getResponseData(results[30])
+    const supportTicketsData = getResponseData(results[31])
+    const supportSummaryData = getResponseData(results[32])
+    const emergencyCasesData = getResponseData(results[33])
+    const bookingDoctorsData = getResponseData(results[34])
 
     setPatientProfile(profileData || null)
     setPatientAppointments(appointmentsData?.items || [])
     setPatientEncounters(encountersData?.items || [])
     setPatientAdmissions(admissionsData?.items || [])
     setPatientProcedureHistory(proceduresData?.items || [])
+    setPatientProcedureOrders(procedureOrdersData?.items || [])
+    setPatientProcedureResults(procedureResultsData?.items || [])
     setPatientPrescriptions(prescriptionsData?.items || [])
+    setPatientPrescriptionRefillRequests(refillRequestsData?.items || [])
     setPatientDepartments(departmentsData?.items || [])
     setPatientSchedules(schedulesData?.items || [])
+    setPatientBookingDoctors(bookingDoctorsData?.items || [])
     setPatientMedicalRecords(medicalRecordsData?.items || [])
     setPatientDocuments(documentsData?.items || [])
     setPatientDocumentTimeline(documentTimelineData?.items || [])
@@ -558,8 +673,20 @@ export default function PatientPage() {
     setPatientBillingSummary(billingSummaryData || null)
     setPatientInvoices(invoicesData?.items || [])
     setPatientPayments(paymentsData?.items || [])
+    setPatientReceipts(receiptsData?.items || [])
     setPatientInsurancePolicies(Array.isArray(insurancePoliciesData) ? insurancePoliciesData : insurancePoliciesData?.items || [])
     setPatientInsuranceClaims(insuranceClaimsData?.items || [])
+    setPatientCurrentQueue(currentQueueData || null)
+    setPatientRelatives(relativesData?.items || [])
+    setPatientAuthorizations(authorizationsData?.items || [])
+    setPatientPortalDashboard(portalDashboardData || null)
+    setPatientPortalCounters(portalCountersData || null)
+    setPatientPortalTodos(portalTodosData?.items || [])
+    setPatientHealthSummary(healthSummaryData || null)
+    setPatientVisits(visitsData?.items || [])
+    setPatientSupportTickets(supportTicketsData?.items || [])
+    setPatientSupportSummary(supportSummaryData || null)
+    setPatientEmergencyCases(emergencyCasesData?.items || [])
     if (Array.isArray(notificationsData?.items)) {
       setNotificationItems(notificationsData.items.map(mapApiNotification))
     }
@@ -740,6 +867,211 @@ export default function PatientPage() {
     return response.data?.data
   }
 
+  const handleCheckInAppointment = async (appointmentId) => {
+    if (!appointmentId) return
+
+    setCheckInLoadingId(appointmentId)
+    setFeedback(null)
+
+    try {
+      await appointmentAPI.checkInMyAppointment(appointmentId, { method: 'online' })
+      setFeedback({ context: 'checkin', type: 'success', message: 'Check-in thành công. Queue đã được cập nhật từ backend.' })
+      await loadPatientPortalData()
+    } catch (error) {
+      setFeedback({
+        context: 'checkin',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể check-in lịch hẹn này.'),
+      })
+    } finally {
+      setCheckInLoadingId('')
+    }
+  }
+
+  const handleCreateRelative = async (payload) => {
+    setRelativeActionLoading('create-relative')
+    setFeedback(null)
+
+    try {
+      await portalAPI.createMyRelative(payload)
+      setFeedback({ context: 'relatives', type: 'success', message: 'Đã thêm người thân vào hồ sơ portal.' })
+      await loadPatientPortalData()
+    } catch (error) {
+      setFeedback({
+        context: 'relatives',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể thêm người thân.'),
+      })
+    } finally {
+      setRelativeActionLoading('')
+    }
+  }
+
+  const handleCreateAuthorization = async (payload) => {
+    setRelativeActionLoading('create-authorization')
+    setFeedback(null)
+
+    try {
+      await portalAPI.createMyAuthorization(payload)
+      setFeedback({ context: 'relatives', type: 'success', message: 'Đã gửi yêu cầu ủy quyền chờ xử lý.' })
+      await loadPatientPortalData()
+    } catch (error) {
+      setFeedback({
+        context: 'relatives',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể tạo yêu cầu ủy quyền.'),
+      })
+    } finally {
+      setRelativeActionLoading('')
+    }
+  }
+
+  const handleRevokeAuthorization = async (authorizationId) => {
+    if (!authorizationId) return
+
+    setRelativeActionLoading(`revoke-${authorizationId}`)
+    setFeedback(null)
+
+    try {
+      await portalAPI.revokeMyAuthorization(authorizationId)
+      setFeedback({ context: 'relatives', type: 'success', message: 'Đã thu hồi ủy quyền.' })
+      await loadPatientPortalData()
+    } catch (error) {
+      setFeedback({
+        context: 'relatives',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể thu hồi ủy quyền.'),
+      })
+    } finally {
+      setRelativeActionLoading('')
+    }
+  }
+
+  const handleMarkLabResultViewed = async (resultId) => {
+    if (!resultId) return
+    try {
+      await labAPI.markMyResultViewed(resultId)
+      await loadPatientPortalData()
+    } catch (error) {
+      setPatientDataError(getApiErrorMessage(error, 'Không thể đánh dấu kết quả xét nghiệm đã xem.'))
+    }
+  }
+
+  const handleMarkImagingReportViewed = async (reportId) => {
+    if (!reportId) return
+    try {
+      await imagingAPI.markMyReportViewed(reportId)
+      await loadPatientPortalData()
+    } catch (error) {
+      setPatientDataError(getApiErrorMessage(error, 'Không thể đánh dấu báo cáo CĐHA đã xem.'))
+    }
+  }
+
+  const handleCreateRefillRequest = async (prescriptionId, payload = {}) => {
+    if (!prescriptionId) return false
+    setFeedback(null)
+    try {
+      await prescriptionAPI.createMyRefillRequest(prescriptionId, payload)
+      setFeedback({ context: 'prescriptions', type: 'success', message: 'Đã gửi yêu cầu cấp lại thuốc.' })
+      await loadPatientPortalData()
+      return true
+    } catch (error) {
+      setFeedback({
+        context: 'prescriptions',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể gửi yêu cầu cấp lại thuốc.'),
+      })
+      return false
+    }
+  }
+
+  const handleCreateSupportTicket = async (payload) => {
+    setFeedback(null)
+    try {
+      await supportAPI.createTicket(payload)
+      setFeedback({ context: 'support', type: 'success', message: 'Đã tạo ticket hỗ trợ.' })
+      await loadPatientPortalData()
+      return true
+    } catch (error) {
+      setFeedback({
+        context: 'support',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể tạo ticket hỗ trợ.'),
+      })
+      return false
+    }
+  }
+
+  const handleReplySupportTicket = async (ticketId, payload) => {
+    if (!ticketId) return false
+    setFeedback(null)
+    try {
+      await supportAPI.replyTicket(ticketId, payload)
+      setFeedback({ context: 'support', type: 'success', message: 'Đã gửi phản hồi ticket.' })
+      await loadPatientPortalData()
+      return true
+    } catch (error) {
+      setFeedback({
+        context: 'support',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể phản hồi ticket.'),
+      })
+      return false
+    }
+  }
+
+  const handleCreateEmergencySos = async (payload) => {
+    setFeedback(null)
+    try {
+      await emergencyAPI.createSos(payload)
+      setFeedback({ context: 'emergency', type: 'success', message: 'SOS đã được gửi tới hệ thống cấp cứu.' })
+      await loadPatientPortalData()
+      return true
+    } catch (error) {
+      setFeedback({
+        context: 'emergency',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể gửi SOS.'),
+      })
+      return false
+    }
+  }
+
+  const handleCreateInsurancePolicy = async (payload) => {
+    setFeedback(null)
+    try {
+      await billingAPI.createMyInsurancePolicy(payload)
+      setFeedback({ context: 'insurance', type: 'success', message: 'Đã gửi thông tin bảo hiểm.' })
+      await loadPatientPortalData()
+      return true
+    } catch (error) {
+      setFeedback({
+        context: 'insurance',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể lưu thông tin bảo hiểm.'),
+      })
+      return false
+    }
+  }
+
+  const handleCancelEmergencyCase = async (caseId, payload = {}) => {
+    if (!caseId) return false
+    setFeedback(null)
+    try {
+      await emergencyAPI.cancelMyCase(caseId, payload)
+      setFeedback({ context: 'emergency', type: 'success', message: 'Đã hủy ca SOS.' })
+      await loadPatientPortalData()
+      return true
+    } catch (error) {
+      setFeedback({
+        context: 'emergency',
+        type: 'error',
+        message: getApiErrorMessage(error, 'Không thể hủy ca SOS.'),
+      })
+      return false
+    }
+  }
+
   const renderContent = () => {
     if (activeSection === 'dashboard') {
       return (
@@ -754,7 +1086,12 @@ export default function PatientPage() {
           onOpenHistory={() => openSection('history')}
           onOpenNotifications={() => openSection('notifications')}
           onOpenProfile={() => openSection('profile')}
+          onOpenSection={openSection}
           patientName={patientName}
+          portalCounters={patientPortalCounters}
+          portalDashboard={patientPortalDashboard}
+          portalTodos={patientPortalTodos}
+          healthSummary={patientHealthSummary}
           patientProfile={patientProfile}
           patientDataError={patientDataError}
           patientDataLoading={patientDataLoading}
@@ -768,11 +1105,15 @@ export default function PatientPage() {
       return (
         <PatientAppointmentsPage
           appointments={patientAppointments}
+          authorizations={patientAuthorizations}
           departments={patientDepartments}
+          bookingDoctors={patientBookingDoctors}
           loading={patientDataLoading}
           onOpenSupportChat={openPatientSupportChat}
           onAppointmentCreated={loadPatientPortalData}
+          onNavigate={openSection}
           patientProfile={patientProfile}
+          relatives={patientRelatives}
           schedules={patientSchedules}
           user={user}
           viewMode="booking"
@@ -784,14 +1125,34 @@ export default function PatientPage() {
       return (
         <PatientAppointmentsPage
           appointments={patientAppointments}
+          authorizations={patientAuthorizations}
           departments={patientDepartments}
+          bookingDoctors={patientBookingDoctors}
           loading={patientDataLoading}
+          onBookAppointment={() => openSection('book-appointment')}
           onOpenSupportChat={openPatientSupportChat}
           onAppointmentCreated={loadPatientPortalData}
+          onNavigate={openSection}
           patientProfile={patientProfile}
+          relatives={patientRelatives}
           schedules={patientSchedules}
           user={user}
           viewMode="history"
+        />
+      )
+    }
+
+    if (activeSection === 'checkin-queue') {
+      return (
+        <PatientCheckinQueuePage
+          appointments={patientAppointments}
+          checkingInAppointmentId={checkInLoadingId}
+          currentQueue={patientCurrentQueue}
+          error={patientDataError}
+          feedback={feedback}
+          loading={patientDataLoading}
+          onCheckIn={handleCheckInAppointment}
+          onNavigate={openSection}
         />
       )
     }
@@ -809,13 +1170,24 @@ export default function PatientPage() {
     }
 
     if (activeSection === 'emergency') {
-      return <PatientEmergencyIdentityPage />
+      return (
+        <PatientEmergencyIdentityPage
+          cases={patientEmergencyCases}
+          feedback={feedback}
+          healthSummary={patientHealthSummary}
+          loading={patientDataLoading}
+          onCancelCase={handleCancelEmergencyCase}
+          onCreateSos={handleCreateEmergencySos}
+          patientProfile={patientProfile}
+        />
+      )
     }
 
     if (activeSection === 'imaging') {
       return (
         <PatientImagingPage
           loading={patientDataLoading}
+          onMarkViewed={handleMarkImagingReportViewed}
           reports={patientImagingReports}
         />
       )
@@ -826,6 +1198,7 @@ export default function PatientPage() {
         <PatientLabResultsPage
           labResults={patientLabResults}
           loading={patientDataLoading}
+          onMarkViewed={handleMarkLabResultViewed}
         />
       )
     }
@@ -835,8 +1208,10 @@ export default function PatientPage() {
         <PatientInsurancePage
           claims={patientInsuranceClaims}
           error={patientDataError}
+          feedback={feedback}
           loading={patientDataLoading}
           onBackToDashboard={() => setActiveSection('dashboard')}
+          onCreatePolicy={handleCreateInsurancePolicy}
           onOpenSupportChat={openPatientSupportChat}
           policies={patientInsurancePolicies}
         />
@@ -847,7 +1222,10 @@ export default function PatientPage() {
       return (
         <PatientMedicationsPage
           loading={patientDataLoading}
+          onCreateRefillRequest={handleCreateRefillRequest}
           prescriptions={patientPrescriptions}
+          refillRequests={patientPrescriptionRefillRequests}
+          feedback={feedback}
         />
       )
     }
@@ -890,7 +1268,9 @@ export default function PatientPage() {
           labResults={patientLabResults}
           loading={patientDataLoading}
           medicalRecords={patientMedicalRecords}
+          onNavigate={openSection}
           prescriptions={patientPrescriptions}
+          visits={patientVisits}
           viewMode="history"
         />
       )
@@ -911,7 +1291,8 @@ export default function PatientPage() {
         <PatientProceduresPage
           error={patientDataError}
           loading={patientDataLoading}
-          procedures={patientProcedureHistory}
+          procedures={patientProcedureOrders.length ? patientProcedureOrders : patientProcedureHistory}
+          results={patientProcedureResults}
         />
       )
     }
@@ -925,6 +1306,34 @@ export default function PatientPage() {
           loading={patientDataLoading}
           onOpenSupportChat={openPatientSupportChat}
           payments={patientPayments}
+        />
+      )
+    }
+
+    if (activeSection === 'relatives-authorizations') {
+      return (
+        <PatientRelativesAuthorizationPage
+          authorizations={patientAuthorizations}
+          busyAction={relativeActionLoading}
+          error={patientDataError}
+          feedback={feedback}
+          loading={patientDataLoading}
+          onCreateAuthorization={handleCreateAuthorization}
+          onCreateRelative={handleCreateRelative}
+          onRevokeAuthorization={handleRevokeAuthorization}
+          relatives={patientRelatives}
+        />
+      )
+    }
+
+    if (activeSection === 'billing-receipts') {
+      return (
+        <PatientBillingReceiptsPage
+          error={patientDataError}
+          invoices={patientInvoices}
+          loading={patientDataLoading}
+          payments={patientPayments}
+          receipts={patientReceipts}
         />
       )
     }
@@ -961,7 +1370,17 @@ export default function PatientPage() {
     }
 
     if (activeSection === 'support') {
-      return <PatientSupportPage onOpenSupportChat={openPatientSupportChat} />
+      return (
+        <PatientSupportPage
+          feedback={feedback}
+          loading={patientDataLoading}
+          onCreateTicket={handleCreateSupportTicket}
+          onOpenSupportChat={openPatientSupportChat}
+          onReplyTicket={handleReplySupportTicket}
+          summary={patientSupportSummary}
+          tickets={patientSupportTickets}
+        />
+      )
     }
 
     return (
@@ -976,6 +1395,7 @@ export default function PatientPage() {
     <div className="patient-shell">
       <PatientSidebar
         activeSection={activeSection}
+        counters={patientPortalCounters}
         onSectionChange={openSection}
         onLogout={handleLogout}
       />

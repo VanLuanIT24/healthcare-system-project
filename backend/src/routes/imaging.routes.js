@@ -40,9 +40,24 @@ const imagingChargeCreatePermissions = [
 router.use(authenticate);
 
 router.get(
+  '/me/reports/summary',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.IMAGING_REPORTS.SELF_READ_RELEASED] }),
+  imagingController.getMyImagingReportsSummary,
+);
+router.get(
   '/me/reports',
   authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.IMAGING_REPORTS.SELF_READ_RELEASED] }),
   imagingController.getMyImagingReports,
+);
+router.get(
+  '/me/reports/:reportId/files',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.IMAGING_REPORTS.SELF_READ_RELEASED] }),
+  imagingController.getMyImagingReportFiles,
+);
+router.post(
+  '/me/reports/:reportId/mark-viewed',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.IMAGING_REPORTS.SELF_READ_RELEASED] }),
+  imagingController.markMyImagingReportViewed,
 );
 router.get(
   '/me/reports/:reportId',

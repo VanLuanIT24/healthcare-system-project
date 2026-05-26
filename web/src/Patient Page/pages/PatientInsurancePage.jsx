@@ -1,86 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
 
-const fallbackPolicies = [
-  {
-    id: 'demo-bhyt',
-    payer_name: 'Bảo hiểm Bảo Việt',
-    payer_code: 'BVI',
-    policy_no: 'BV12345678910',
-    member_no: 'BHYT-9876543210',
-    coverage_type: 'Khám chữa bệnh đúng tuyến',
-    coverage_percent: 80,
-    coverage_limit: 50000000,
-    valid_from: '2024-01-01',
-    valid_to: '2026-12-31',
-    status: 'active',
-    is_primary: true,
-  },
-]
-
-const fallbackClaims = [
-  {
-    id: 'CLM-2026-0008',
-    policy_id: 'demo-bhyt',
-    claim_no: 'CLM-2026-0008',
-    service_name: 'Nội trú - Phẫu thuật nội soi',
-    submitted_amount: 18500000,
-    approved_amount: 14800000,
-    paid_amount: 14800000,
-    submitted_at: '2026-05-20',
-    status: 'approved',
-  },
-  {
-    id: 'CLM-2026-0007',
-    policy_id: 'demo-bhyt',
-    claim_no: 'CLM-2026-0007',
-    service_name: 'Khám chuyên khoa',
-    submitted_amount: 1250000,
-    approved_amount: 875000,
-    paid_amount: 875000,
-    submitted_at: '2026-05-15',
-    status: 'approved',
-  },
-  {
-    id: 'CLM-2026-0006',
-    policy_id: 'demo-bhyt',
-    claim_no: 'CLM-2026-0006',
-    service_name: 'Xét nghiệm',
-    submitted_amount: 650000,
-    approved_amount: 455000,
-    paid_amount: 455000,
-    submitted_at: '2026-05-05',
-    status: 'approved',
-  },
-  {
-    id: 'CLM-2026-0005',
-    policy_id: 'demo-bhyt',
-    claim_no: 'CLM-2026-0005',
-    service_name: 'Vật lý trị liệu',
-    submitted_amount: 2400000,
-    approved_amount: 0,
-    paid_amount: 0,
-    submitted_at: '2026-04-28',
-    status: 'submitted',
-  },
-  {
-    id: 'CLM-2026-0004',
-    policy_id: 'demo-bhyt',
-    claim_no: 'CLM-2026-0004',
-    service_name: 'Nội trú - Điều trị',
-    submitted_amount: 6200000,
-    approved_amount: 0,
-    paid_amount: 0,
-    submitted_at: '2026-04-22',
-    status: 'under_review',
-  },
-]
-
 const dashboardTabs = [
-  { key: 'overview', label: 'Tổng quan', icon: 'dashboard' },
-  { key: 'claims', label: 'Yêu cầu bồi thường', icon: 'receipt_long' },
-  { key: 'benefits', label: 'Quyền lợi', icon: 'verified_user' },
-  { key: 'documents', label: 'Tài liệu', icon: 'folder_shared' },
+  { key: 'overview', label: 'Thông tin bảo hiểm', icon: 'dashboard' },
+  { key: 'claims', label: 'Claims', icon: 'receipt_long' },
+  { key: 'missing', label: 'Hồ sơ cần bổ sung', icon: 'upload_file' },
+  { key: 'pending', label: 'Chờ xử lý', icon: 'schedule' },
+  { key: 'approved', label: 'Đã duyệt', icon: 'verified_user' },
+  { key: 'rejected', label: 'Bị từ chối', icon: 'block' },
+  { key: 'history', label: 'Lịch sử', icon: 'history' },
 ]
 
 const coveredServices = [
@@ -243,8 +171,10 @@ function getInitialCarePlace(policy) {
 export default function PatientInsurancePage({
   claims = [],
   error = '',
+  feedback = null,
   loading = false,
   onBackToDashboard,
+  onCreatePolicy,
   onOpenSupportChat,
   policies = [],
 }) {
@@ -253,12 +183,11 @@ export default function PatientInsurancePage({
   const [notice, setNotice] = useState('')
   const [showInsuranceForm, setShowInsuranceForm] = useState(false)
   const [insuranceForm, setInsuranceForm] = useState(insuranceFormDefaults)
-  const [submittedPolicies, setSubmittedPolicies] = useState([])
   const sourcePolicies = useMemo(
-    () => (policies.length || submittedPolicies.length ? [...policies, ...submittedPolicies] : fallbackPolicies),
-    [policies, submittedPolicies],
+    () => policies,
+    [policies],
   )
-  const sourceClaims = claims.length ? claims : fallbackClaims
+  const sourceClaims = claims
   const normalizedPolicies = useMemo(() => sourcePolicies.map(normalizePolicy), [sourcePolicies])
 
   useEffect(() => {
@@ -296,7 +225,12 @@ export default function PatientInsurancePage({
   const paymentRate = Number.parseInt(getBenefitPercent(selectedPolicy || {}).replace(/[^\d]/g, ''), 10) || 80
   const approvedClaims = selectedClaims.filter((claim) => getClaimGroup(claim.status) === 'approved')
   const pendingClaims = selectedClaims.filter((claim) => getClaimGroup(claim.status) === 'pending')
-  const claimRows = activeTab === 'claims' ? selectedClaims : selectedClaims.slice(0, 5)
+  const claimRows = useMemo(() => {
+    if (activeTab === 'approved') return selectedClaims.filter((claim) => getClaimGroup(claim.status) === 'approved')
+    if (activeTab === 'rejected') return selectedClaims.filter((claim) => getClaimGroup(claim.status) === 'rejected')
+    if (activeTab === 'pending' || activeTab === 'missing') return selectedClaims.filter((claim) => getClaimGroup(claim.status) === 'pending')
+    return activeTab === 'claims' || activeTab === 'history' ? selectedClaims : selectedClaims.slice(0, 5)
+  }, [activeTab, selectedClaims])
 
   const dashboardKpis = [
     {
@@ -344,7 +278,7 @@ export default function PatientInsurancePage({
     : []
 
   const handleUploadNotice = () => {
-    setNotice('Chức năng tải tài liệu bảo hiểm đang chờ API tự phục vụ từ backend.')
+    setNotice('Tải tài liệu bảo hiểm qua kho tài liệu rồi gắn vào hồ sơ bảo hiểm.')
   }
 
   const handleInsuranceFormChange = (event) => {
@@ -360,30 +294,28 @@ export default function PatientInsurancePage({
     setInsuranceForm(insuranceFormDefaults)
   }
 
-  const handleInsuranceFormSubmit = (event) => {
+  const handleInsuranceFormSubmit = async (event) => {
     event.preventDefault()
 
-    const newPolicy = {
-      id: `patient-insurance-${Date.now()}`,
+    const payload = {
       payer_name: normalizeText(insuranceForm.providerName, 'Bảo hiểm mới'),
       payer_code: '',
       policy_no: normalizeText(insuranceForm.policyNo, 'Chưa có mã thẻ'),
       member_no: normalizeText(insuranceForm.memberNo || insuranceForm.policyNo, 'Chưa có mã thành viên'),
       coverage_type: normalizeText(insuranceForm.coverageType, 'Khám chữa bệnh đúng tuyến'),
       coverage_percent: Math.max(0, Math.min(100, Number(insuranceForm.coveragePercent) || 0)),
-      coverage_limit: Math.max(0, Number(insuranceForm.coverageLimit) || 0),
       valid_from: insuranceForm.validFrom,
       valid_to: insuranceForm.validTo,
-      status: 'active',
       is_primary: !normalizedPolicies.length,
       note: insuranceForm.note,
     }
 
-    setSubmittedPolicies((currentPolicies) => [newPolicy, ...currentPolicies])
-    setSelectedPolicyId(newPolicy.id)
-    setShowInsuranceForm(false)
-    setInsuranceForm(insuranceFormDefaults)
-    setNotice('Đã thêm bảo hiểm vào hồ sơ xem thử. Cần nối API backend để lưu dữ liệu lâu dài.')
+    const saved = await onCreatePolicy?.(payload)
+    if (saved !== false) {
+      setShowInsuranceForm(false)
+      setInsuranceForm(insuranceFormDefaults)
+      setNotice('Đã gửi thông tin bảo hiểm.')
+    }
   }
 
   return (
@@ -406,6 +338,12 @@ export default function PatientInsurancePage({
             <div className="pi-notice" role="status">
               <PatientIcon name="info" aria-hidden="true" />
               <span>{notice}</span>
+            </div>
+          ) : null}
+          {feedback?.context === 'insurance' ? (
+            <div className="pi-notice" role="status">
+              <PatientIcon name={feedback.type === 'error' ? 'warning' : 'check_circle'} aria-hidden="true" />
+              <span>{feedback.message || feedback.text}</span>
             </div>
           ) : null}
           {loading ? <div className="patient-dashboard-state">Đang tải thông tin bảo hiểm...</div> : null}
@@ -530,13 +468,13 @@ export default function PatientInsurancePage({
               <div className="pi-hero-provider">
                 <span>Nhà bảo hiểm</span>
                 <strong>{selectedPolicy.payerName}</strong>
-                <small>{getPolicyTypeLabel(selectedPolicy)} {selectedPolicy.id === 'demo-bhyt' ? '· Dữ liệu demo' : ''}</small>
+                <small>{getPolicyTypeLabel(selectedPolicy)}</small>
                 <div className="pi-hero-actions">
                   <button type="button" className="pi-hero-add-button" onClick={() => setShowInsuranceForm(true)}>
                     <PatientIcon name="add_circle" aria-hidden="true" />
                     Thêm bảo hiểm
                   </button>
-                  <button type="button" className="pi-hero-link-button" onClick={() => setActiveTab('benefits')}>
+                  <button type="button" className="pi-hero-link-button" onClick={() => setActiveTab('overview')}>
                     Xem chi tiết hợp đồng
                     <PatientIcon name="arrow_forward" aria-hidden="true" />
                   </button>
@@ -559,6 +497,13 @@ export default function PatientInsurancePage({
               <div className="pi-hero-ring" style={{ '--pi-ring': `${Math.min(paymentRate, 100) * 3.6}deg` }} aria-hidden="true">
                 <span><PatientIcon name="shield_plus" /></span>
               </div>
+            </section>
+          ) : !loading ? (
+            <section className="pi-document-state">
+              <PatientIcon name="health_and_safety" aria-hidden="true" />
+              <strong>Chưa có bảo hiểm trong hồ sơ</strong>
+              <p>Thêm thông tin thẻ bảo hiểm để theo dõi xác minh, claims và hồ sơ cần bổ sung.</p>
+              <button type="button" onClick={() => setShowInsuranceForm(true)}>Thêm bảo hiểm</button>
             </section>
           ) : null}
 
@@ -600,7 +545,7 @@ export default function PatientInsurancePage({
               ))}
             </div>
 
-            {activeTab === 'benefits' ? (
+            {activeTab === 'overview' ? (
               <div className="pi-benefit-grid">
                 {benefitRows.map(([label, value]) => (
                   <article key={label}>
@@ -609,12 +554,12 @@ export default function PatientInsurancePage({
                   </article>
                 ))}
               </div>
-            ) : activeTab === 'documents' ? (
+            ) : activeTab === 'missing' ? (
               <div className="pi-document-state">
                 <PatientIcon name="upload_file" aria-hidden="true" />
-                <strong>Tải tài liệu yêu cầu bồi thường</strong>
-                <p>Hóa đơn, chứng từ và hồ sơ liên quan sẽ được gửi tới bộ phận bảo hiểm.</p>
-                <button type="button" onClick={handleUploadNotice}>Chọn file để tải lên</button>
+                <strong>Hồ sơ cần bổ sung</strong>
+                <p>Hóa đơn, chứng từ và giấy tờ bổ sung theo từng claim sẽ hiển thị tại đây.</p>
+                <button type="button" onClick={handleUploadNotice}>Upload hồ sơ bổ sung</button>
               </div>
             ) : (
               <>
@@ -682,7 +627,7 @@ export default function PatientInsurancePage({
                 </article>
               ))}
             </div>
-            <button type="button" onClick={() => setActiveTab('benefits')}>
+            <button type="button" onClick={() => setActiveTab('overview')}>
               Xem đầy đủ quyền lợi
               <PatientIcon name="arrow_forward" aria-hidden="true" />
             </button>

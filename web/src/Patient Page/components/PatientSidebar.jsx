@@ -2,8 +2,35 @@ import { AppLogo, APP_BRAND_NAME } from '../../app/AppLogo'
 import PatientIcon from './PatientIcon'
 import { sidebarSections } from '../data/patientPageData'
 
-function SidebarItem({ item, activeSection, onSectionChange, variant = 'default' }) {
+function getBadgeValue(itemKey, counters = {}) {
+  const safeCounters = counters || {}
+  const countMap = {
+    dashboard: safeCounters.overview_total,
+    appointments: Number(safeCounters.appointments_upcoming || 0) + Number(safeCounters.appointments_pending || 0),
+    'checkin-queue': safeCounters.queue_active,
+    medications: safeCounters.prescriptions_active,
+    'lab-results': safeCounters.lab_results_new,
+    imaging: safeCounters.imaging_results_new,
+    procedures: safeCounters.procedure_results_new,
+    billing: safeCounters.unpaid_invoices,
+    'billing-receipts': safeCounters.unpaid_invoices,
+    insurance: Number(safeCounters.insurance_expiring || 0) + Number(safeCounters.insurance_missing_documents || 0),
+    notifications: safeCounters.notifications_unread,
+    support: Number(safeCounters.support_open || 0) + Number(safeCounters.unread_messages || 0),
+    documents: safeCounters.documents_pending_review,
+    profile: safeCounters.profile_changes_pending,
+  }
+
+  const value = countMap[itemKey]
+  if (value === undefined || value === null || value === '' || Number(value) <= 0) return ''
+  if (itemKey === 'checkin-queue') return 'Đang chờ'
+  if (Number(value) > 99) return '99+'
+  return String(value)
+}
+
+function SidebarItem({ item, activeSection, onSectionChange, counters, variant = 'default' }) {
   const isActive = activeSection === item.key
+  const badge = getBadgeValue(item.key, counters)
 
   return (
     <button
@@ -18,11 +45,12 @@ function SidebarItem({ item, activeSection, onSectionChange, variant = 'default'
         <PatientIcon name={item.icon} />
       </span>
       <span className="patient-sidebar__item-label">{item.label}</span>
+      {badge ? <span className="patient-sidebar__item-badge">{badge}</span> : null}
     </button>
   )
 }
 
-function SidebarSection({ section, activeSection, onSectionChange }) {
+function SidebarSection({ section, activeSection, counters, onSectionChange }) {
   return (
     <section className="patient-sidebar__section" aria-label={section.title}>
       <div className="patient-sidebar__section-head">
@@ -36,6 +64,7 @@ function SidebarSection({ section, activeSection, onSectionChange }) {
             key={item.key}
             item={item}
             activeSection={activeSection}
+            counters={counters}
             onSectionChange={onSectionChange}
           />
         ))}
@@ -44,7 +73,7 @@ function SidebarSection({ section, activeSection, onSectionChange }) {
   )
 }
 
-export default function PatientSidebar({ activeSection, onSectionChange, onLogout }) {
+export default function PatientSidebar({ activeSection, counters, onSectionChange, onLogout }) {
   return (
     <aside className="patient-sidebar">
       <div className="patient-sidebar__brand">
@@ -62,6 +91,7 @@ export default function PatientSidebar({ activeSection, onSectionChange, onLogou
         <SidebarItem
           item={{ key: 'dashboard', icon: 'dashboard', label: 'Tổng quan' }}
           activeSection={activeSection}
+          counters={counters}
           onSectionChange={onSectionChange}
           variant="overview"
         />
@@ -73,6 +103,7 @@ export default function PatientSidebar({ activeSection, onSectionChange, onLogou
             key={section.key}
             section={section}
             activeSection={activeSection}
+            counters={counters}
             onSectionChange={onSectionChange}
           />
         ))}

@@ -41,11 +41,13 @@ function summarizeBillingAmount(summary, groupKey, amountKey = 'total_amount') {
 
 export default function PatientBillingPage({
   billingSummary,
+  description = 'Thanh toán nhanh chóng, an toàn và tiện lợi.',
   error = '',
   invoices = [],
   loading = false,
   onOpenSupportChat,
   payments = [],
+  title = 'Thanh toán',
 }) {
   const checkoutItems = useMemo(() => invoices.map(mapInvoiceToCheckoutItem), [invoices])
   const [selectedItem, setSelectedItem] = useState('')
@@ -75,8 +77,8 @@ export default function PatientBillingPage({
   return (
     <div className="patient-billing-page">
       <header className="pb-header">
-        <h1>Thanh toán</h1>
-        <p>Thanh toán nhanh chóng, an toàn và tiện lợi.</p>
+        <h1>{title}</h1>
+        <p>{description}</p>
       </header>
 
       {loading ? (

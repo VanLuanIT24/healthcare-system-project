@@ -1,5 +1,6 @@
 const {
   Admission,
+  Attachment,
   Bed,
   BedAssignment,
   Charge,
@@ -14,6 +15,8 @@ const { PERMISSION } = require('../constants/permissions');
 const ERROR_CODE = require('../common/errors/error-codes');
 const {
   ADMISSION_STATUS,
+  ATTACHMENT_ENTITY_TYPE,
+  ATTACHMENT_STATUS,
   BED_ASSIGNMENT_STATUS,
   BED_STATUS,
   CHARGE_STATUS,
@@ -759,7 +762,15 @@ async function listAdmissions(query = {}, actor = {}) {
   const { page, limit, skip } = getPagination(query);
   let filter = {};
   for (const field of ['patient_id', 'department_id', 'attending_doctor_id', 'status', 'admission_type']) {
-    if (query[field]) filter[field] = query[field];
+    if (!query[field]) continue;
+    if (field === 'status' && (Array.isArray(query[field]) || String(query[field]).includes(','))) {
+      const statuses = (Array.isArray(query[field]) ? query[field] : String(query[field]).split(','))
+        .map((status) => normalizeString(status))
+        .filter(Boolean);
+      if (statuses.length) filter[field] = { $in: statuses };
+    } else {
+      filter[field] = query[field];
+    }
   }
   if (query.admitted_from || query.admitted_to) {
     filter.admitted_at = {};
@@ -1557,6 +1568,86 @@ async function getAdmissionBedHistory(admissionId, actor = {}) {
     .lean();
 }
 
+async function getMyCurrentAdmission(actor = {}) {
+  assertPatientSelf(actor, actor.patientId || actor.patient_id);
+  const result = await listAdmissions({
+    patient_id: actor.patientId || actor.patient_id,
+    status: [ADMISSION_STATUS.ADMITTED, ADMISSION_STATUS.TRANSFERRED].join(','),
+    page: 1,
+    limit: 1,
+  }, actor);
+
+  const admission = result.items?.[0];
+  if (!admission) return null;
+  return getAdmissionDetail(admission._id || admission.admission_id || admission.id, actor);
+}
+
+async function listMyAdmissionHistory(actor = {}, query = {}) {
+  assertPatientSelf(actor, actor.patientId || actor.patient_id);
+  return listAdmissions({
+    ...query,
+    patient_id: actor.patientId || actor.patient_id,
+    status: query.status || [ADMISSION_STATUS.DISCHARGED, ADMISSION_STATUS.CANCELLED].join(','),
+  }, actor);
+}
+
+async function getMyAdmissionSummary(actor = {}, admissionId) {
+  assertPatientSelf(actor, actor.patientId || actor.patient_id);
+  const detail = await getAdmissionDetail(admissionId, actor);
+  const charges = await listAdmissionCharges(admissionId, actor);
+  const totalChargeAmount = charges.reduce((sum, charge) => sum + Number(charge.total_amount || charge.amount || 0), 0);
+  const activeTasks = [];
+
+  return {
+    admission: detail,
+    current_bed_assignment: detail.current_bed_assignment || null,
+    bed_history: detail.bed_history || [],
+    charges_summary: {
+      charge_count: charges.length,
+      total_amount: totalChargeAmount,
+      currency: charges.find((charge) => charge.currency)?.currency || 'VND',
+      open_amount: charges
+        .filter((charge) => !ACTIVE_CHARGE_EXCLUDED_STATUSES.includes(charge.status))
+        .reduce((sum, charge) => sum + Number(charge.total_amount || charge.amount || 0), 0),
+    },
+    nursing_summary: {
+      active_task_count: activeTasks.length,
+      note: 'Chi tiết chăm sóc điều dưỡng được cập nhật từ hồ sơ nội trú.',
+    },
+    documents_summary: {
+      discharge_summary_available: Boolean(detail.discharge_summary),
+      discharge_disposition: detail.discharge_disposition || '',
+    },
+  };
+}
+
+async function listMyAdmissionDischargeDocuments(actor = {}, admissionId, query = {}) {
+  assertPatientSelf(actor, actor.patientId || actor.patient_id);
+  const detail = await getAdmissionDetail(admissionId, actor);
+  const { page, limit, skip } = getPagination(query);
+  const filter = {
+    patient_id: actor.patientId || actor.patient_id,
+    status: ATTACHMENT_STATUS.ACTIVE,
+    released_to_patient: true,
+    release_revoked_at: { $exists: false },
+    $or: [
+      { entity_type: ATTACHMENT_ENTITY_TYPE.ADMISSION, entity_id: detail._id },
+      ...(detail.encounter_id?._id || detail.encounter_id
+        ? [{ entity_type: ATTACHMENT_ENTITY_TYPE.ENCOUNTER, entity_id: detail.encounter_id?._id || detail.encounter_id }]
+        : []),
+    ],
+  };
+  const [items, total] = await Promise.all([
+    Attachment.find(filter).sort({ released_at: -1, created_at: -1 }).skip(skip).limit(limit).lean(),
+    Attachment.countDocuments(filter),
+  ]);
+
+  return {
+    items,
+    pagination: buildPagination(page, limit, total),
+  };
+}
+
 module.exports = {
   // createRoom: Tạo phòng nội trú.
   createRoom,
@@ -1616,6 +1707,10 @@ module.exports = {
   getBedAssignmentDetail,
   // getAdmissionBedHistory: Lấy lịch sử giường của hồ sơ nhập viện.
   getAdmissionBedHistory,
+  getMyCurrentAdmission,
+  listMyAdmissionHistory,
+  getMyAdmissionSummary,
+  listMyAdmissionDischargeDocuments,
   // createRoomBedCharge: Tạo khoản phí phòng/giường.
   createRoomBedCharge,
   // listAdmissionCharges: Liệt kê khoản phí của hồ sơ nhập viện.

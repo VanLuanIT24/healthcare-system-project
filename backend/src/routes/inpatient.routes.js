@@ -66,8 +66,13 @@ const inpatientHandoverWritePermissions = [
 
 router.use(authenticate);
 
+router.get('/me/current', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.ADMISSIONS.SELF_READ] }), inpatientController.getMyCurrentAdmission);
+router.get('/me/history', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.ADMISSIONS.SELF_READ] }), inpatientController.getMyAdmissionHistory);
 router.get('/me/admissions', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.ADMISSIONS.SELF_READ] }), inpatientController.getMyAdmissions);
 router.get('/me/admissions/:admissionId', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.ADMISSIONS.SELF_READ] }), inpatientController.getAdmissionDetail);
+router.get('/me/:admissionId/summary', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.ADMISSIONS.SELF_READ] }), inpatientController.getMyAdmissionSummary);
+router.get('/me/:admissionId/charges', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.ADMISSIONS.SELF_READ] }), inpatientController.getMyAdmissionCharges);
+router.get('/me/:admissionId/discharge-documents', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.ADMISSIONS.SELF_READ] }), inpatientController.getMyAdmissionDischargeDocuments);
 
 router.use(authorize({ actorTypes: ['staff'] }));
 

@@ -25,6 +25,7 @@ const passwordService = require('./password.service');
 const rateLimitService = require('./rate-limit.service');
 const tokenService = require('./token.service');
 const eventBus = require('../../events/event-bus.service');
+const doctorProfileProvisioning = require('../doctor-profile-provisioning.service');
 
 function buildStaffIdentifierFilter(identifier) {
   const raw = normalizeString(identifier);
@@ -300,6 +301,10 @@ async function createStaffAccount(payload = {}, actor = {}, requestMeta = {}) {
     return createdUser;
   }, { fallbackToNoTransaction: env.nodeEnv !== 'production' });
 
+  if (roleCodes.includes(ROLE_CODE.DOCTOR)) {
+    await doctorProfileProvisioning.ensureDoctorProfileForUser(user, { actorId: getActorId(actor) });
+  }
+
   await auditService.recordAuditLog({
     actor,
     action: 'users.create',
@@ -366,6 +371,10 @@ async function assignRolesToStaff({ user_id: userId, role_codes: roleCodes = [] 
   }, { fallbackToNoTransaction: env.nodeEnv !== 'production' });
 
   await bumpUserPermissionVersion(user._id);
+
+  if (roleCodes.includes(ROLE_CODE.DOCTOR)) {
+    await doctorProfileProvisioning.ensureDoctorProfileForUser(user, { actorId: getActorId(actor) });
+  }
 
   await sessionService.invalidateAllUserSessions(ACTOR_TYPE.STAFF, user._id, requestMeta, {
     actorType: actor.actorType,
@@ -440,7 +449,7 @@ async function listStaffAccounts(query = {}) {
   };
 }
 
-async function updateStaffAccountStatus({ user_id: userId, status } = {}, actor = {}, requestMeta = {}) {
+async function updateStaffAccountStatus({ user_id: userId, status, clear_pending_activation: clearPendingActivationFlag = false } = {}, actor = {}, requestMeta = {}) {
   if (!userId || !status) {
     throw ApiError.validation('user_id và status là bắt buộc.');
   }
@@ -464,11 +473,17 @@ async function updateStaffAccountStatus({ user_id: userId, status } = {}, actor 
     }
   }
 
+  const clearPendingActivation = status === 'active' &&
+    user.must_change_password === true &&
+    !user.last_login_at &&
+    clearPendingActivationFlag === true;
+
   user.status = status;
   user.updated_by = getActorId(actor);
   if (status === 'active') {
     user.failed_login_attempts = 0;
     user.locked_until = undefined;
+    if (clearPendingActivation) user.must_change_password = false;
   }
   if (status === 'locked' && !user.locked_until) {
     user.locked_until = new Date(Date.now() + 15 * 60 * 1000);
@@ -510,7 +525,7 @@ async function updateStaffAccountStatus({ user_id: userId, status } = {}, actor 
     status: AUDIT_STATUS.SUCCESS,
     message: 'Staff account status updated.',
     requestMeta,
-    metadata: { status },
+    metadata: { status, clear_pending_activation: clearPendingActivation },
   });
 
   return {
@@ -523,7 +538,15 @@ async function unlockStaffAccount({ user_id: userId } = {}, actor = {}, requestM
 }
 
 async function activateStaffAccount(payload = {}, actor = {}, requestMeta = {}) {
-  return updateStaffAccountStatus({ ...payload, status: 'active' }, actor, requestMeta);
+  return updateStaffAccountStatus(
+    {
+      ...payload,
+      status: 'active',
+      clear_pending_activation: payload.clear_pending_activation !== false,
+    },
+    actor,
+    requestMeta,
+  );
 }
 
 async function deactivateStaffAccount(payload = {}, actor = {}, requestMeta = {}) {

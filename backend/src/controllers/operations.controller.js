@@ -11,6 +11,8 @@ function actionMeta(req) {
 
 module.exports = {
   getDashboard: wrap(() => operationsService.getDashboard(), 'Lấy Operations Center dashboard thành công.'),
+  getSchedulingDashboardToday: wrap((req) => operationsService.getSchedulingDashboardToday(req.query, req.auth), 'Lấy dashboard vận hành hôm nay thành công.'),
+  getSchedulingHourlyFlow: wrap((req) => operationsService.getSchedulingHourlyFlow(req.query, req.auth), 'Lấy luồng vận hành theo giờ thành công.'),
   getHealth: wrap(() => operationsService.getHealth(), 'Lấy Operations Center health thành công.'),
 
   getJobs: wrap((req) => operationsService.getJobs(req.query), 'Lấy danh sách job thành công.'),

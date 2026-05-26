@@ -133,6 +133,7 @@ router.use('/nursing', nursingRoutes);
 router.use('/messages', messageRoutes);
 router.use('/orders', orderRoutes);
 router.use('/ops', operationsRoutes);
+router.use('/operations', operationsRoutes);
 router.use('/payments', paymentsRoutes);
 router.use('/pharmacy-config', pharmacyConfigRoutes);
 router.use('/pharmacy', pharmacyOverviewRoutes);

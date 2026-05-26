@@ -108,8 +108,8 @@ function errorCodeFromError(error) {
 
 function validateDateRangeInput(dateFromValue, dateToValue) {
   if (!dateFromValue && !dateToValue) return null;
-  const dateFrom = dateFromValue ? getStartOfDay(dateFromValue) : null;
-  const dateTo = dateToValue ? getEndOfDay(dateToValue) : null;
+  const dateFrom = dateFromValue ? getStartOfDay(parseScheduleDate(dateFromValue)) : null;
+  const dateTo = dateToValue ? getEndOfDay(parseScheduleDate(dateToValue)) : null;
   if ((dateFrom && Number.isNaN(dateFrom.getTime())) || (dateTo && Number.isNaN(dateTo.getTime()))) {
     throw createError('date_from/date_to không hợp lệ.', 400);
   }
@@ -180,10 +180,32 @@ function sessionOptions(session) {
   return session ? { session } : {};
 }
 
+function parseScheduleDate(value) {
+  if (value instanceof Date) {
+    return new Date(value.getTime());
+  }
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    }
+  }
+  return new Date(value);
+}
+
+function localDateKey(value) {
+  const date = value instanceof Date ? value : parseScheduleDate(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function validateScheduleTimeRange(payload) {
-  const shiftStart = new Date(payload.shift_start);
-  const shiftEnd = new Date(payload.shift_end);
-  const workDate = new Date(payload.work_date || payload.shift_start);
+  const shiftStart = parseScheduleDate(payload.shift_start);
+  const shiftEnd = parseScheduleDate(payload.shift_end);
+  const workDate = parseScheduleDate(payload.work_date || payload.shift_start);
   const slotDuration = Number(payload.slot_duration_minutes || 15);
 
   if (Number.isNaN(shiftStart.getTime()) || Number.isNaN(shiftEnd.getTime()) || Number.isNaN(workDate.getTime())) {
@@ -195,7 +217,7 @@ function validateScheduleTimeRange(payload) {
   }
 
   const workDay = getStartOfDay(workDate);
-  if (getStartOfDay(shiftStart).getTime() !== workDay.getTime() || getStartOfDay(shiftEnd).getTime() !== workDay.getTime()) {
+  if (localDateKey(shiftStart) !== localDateKey(workDay) || localDateKey(shiftEnd) !== localDateKey(workDay)) {
     throw createError('shift_start và shift_end phải cùng ngày với work_date.', 400);
   }
 
@@ -503,7 +525,7 @@ async function buildScheduleDoctorMap(schedules = []) {
   }
 
   const doctors = await User.find({ _id: { $in: doctorIds }, is_deleted: false })
-    .select('full_name employee_code department_id')
+    .select('full_name employee_code department_id avatar_url')
     .lean();
 
   return new Map(doctors.map((doctor) => [String(doctor._id), doctor]));
@@ -517,10 +539,29 @@ async function buildScheduleDepartmentMap(schedules = []) {
   }
 
   const departments = await Department.find({ _id: { $in: departmentIds }, is_deleted: false })
-    .select('department_name department_code')
+    .select('department_name department_code location_note department_type')
     .lean();
 
   return new Map(departments.map((department) => [String(department._id), department]));
+}
+
+async function buildScheduleProfileMap(schedules = []) {
+  const doctorIds = [...new Set(schedules.map((schedule) => String(schedule.doctor_id)).filter(Boolean))];
+
+  if (doctorIds.length === 0) {
+    return new Map();
+  }
+
+  const profiles = await DoctorProfile.find({
+    user_id: { $in: doctorIds },
+    is_deleted: false,
+    status: DOCTOR_PROFILE_STATUS.ACTIVE,
+    public_profile_enabled: { $ne: false },
+  })
+    .select('user_id specialty subspecialty qualification academic_title years_of_experience consultation_duration_minutes consultation_fee avatar_url status public_profile_enabled')
+    .lean();
+
+  return new Map(profiles.map((profile) => [String(profile.user_id), profile]));
 }
 
 function getScheduleSlotStats(schedule, bookedCount = 0) {
@@ -637,6 +678,7 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
   const publicView = options.publicView === true;
   const doctor = doctorMap.get(String(schedule.doctor_id));
   const department = departmentMap.get(String(schedule.department_id));
+  const profile = options.profileMap?.get(String(schedule.doctor_id));
   const stats = slotStats || getScheduleSlotStats(schedule);
 
   const formatted = {
@@ -644,9 +686,19 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
     doctor_id: String(schedule.doctor_id),
     doctor_name: doctor?.full_name || null,
     doctor_code: doctor?.employee_code || null,
+    doctor_avatar_url: profile?.avatar_url || doctor?.avatar_url || null,
     department_id: String(schedule.department_id),
     department_name: department?.department_name || null,
     department_code: department?.department_code || null,
+    department_type: department?.department_type || null,
+    location_note: department?.location_note || '',
+    specialty: profile?.specialty || department?.department_name || null,
+    subspecialty: profile?.subspecialty || '',
+    qualification: profile?.qualification || '',
+    academic_title: profile?.academic_title || '',
+    years_of_experience: profile?.years_of_experience || 0,
+    consultation_duration_minutes: profile?.consultation_duration_minutes || schedule.slot_duration_minutes || 15,
+    consultation_fee: Number(profile?.consultation_fee || 0),
     work_date: schedule.work_date,
     shift_start: schedule.shift_start,
     shift_end: schedule.shift_end,
@@ -677,9 +729,19 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
     doctor_id: formatted.doctor_id,
     doctor_name: formatted.doctor_name,
     doctor_code: formatted.doctor_code,
+    doctor_avatar_url: formatted.doctor_avatar_url,
     department_id: formatted.department_id,
     department_name: formatted.department_name,
     department_code: formatted.department_code,
+    department_type: formatted.department_type,
+    location_note: formatted.location_note,
+    specialty: formatted.specialty,
+    subspecialty: formatted.subspecialty,
+    qualification: formatted.qualification,
+    academic_title: formatted.academic_title,
+    years_of_experience: formatted.years_of_experience,
+    consultation_duration_minutes: formatted.consultation_duration_minutes,
+    consultation_fee: formatted.consultation_fee,
     work_date: formatted.work_date,
     shift_start: formatted.shift_start,
     shift_end: formatted.shift_end,
@@ -690,16 +752,17 @@ function formatDoctorSchedule(schedule, doctorMap = new Map(), departmentMap = n
 }
 
 async function formatDoctorSchedulesWithStats(schedules = [], options = {}) {
-  const [doctorMap, departmentMap, bookedCountMap, slotStatsMap] = await Promise.all([
+  const [doctorMap, departmentMap, profileMap, bookedCountMap, slotStatsMap] = await Promise.all([
     buildScheduleDoctorMap(schedules),
     buildScheduleDepartmentMap(schedules),
+    buildScheduleProfileMap(schedules),
     buildScheduleBookedCountMap(schedules),
     buildScheduleSlotStatsMap(schedules),
   ]);
 
   return schedules.map((schedule) => {
     const stats = slotStatsMap.get(String(schedule._id)) || getScheduleSlotStats(schedule, bookedCountMap.get(String(schedule._id)) || 0);
-    return formatDoctorSchedule(schedule, doctorMap, departmentMap, stats, options);
+    return formatDoctorSchedule(schedule, doctorMap, departmentMap, stats, { ...options, profileMap });
   });
 }
 
@@ -2212,6 +2275,139 @@ async function getDoctorCalendarView(doctorId, query = {}, actor = {}) {
   return listSchedulesByDoctor(doctorId, query, actor);
 }
 
+function buildScheduleCalendarEvent(item = {}) {
+  const warnings = [];
+  const stats = item.slots_summary || {};
+  const totalSlots = Number(stats.total_slots || 0);
+  const blockedSlots = Number(stats.blocked_slots || item.blocked_slots_count || 0);
+
+  if (['published', 'active'].includes(item.status) && totalSlots === 0) {
+    warnings.push({
+      code: 'PUBLISHED_WITHOUT_SLOTS',
+      severity: 'warning',
+      message: 'Lịch đã mở nhưng chưa có slot.',
+    });
+  }
+  if (blockedSlots > 0) {
+    warnings.push({
+      code: 'BLOCKED_SLOTS',
+      severity: 'info',
+      message: `${blockedSlots} slot đang bị khóa.`,
+    });
+  }
+
+  return {
+    id: item.doctor_schedule_id,
+    title: [item.doctor_name, item.department_name].filter(Boolean).join(' - ') || 'Lịch làm việc',
+    start: item.shift_start,
+    end: item.shift_end,
+    date: localDateKey(item.work_date),
+    resource_id: item.doctor_id,
+    doctor_id: item.doctor_id,
+    doctor_name: item.doctor_name,
+    department_id: item.department_id,
+    department_name: item.department_name,
+    status: item.status,
+    schedule_type: item.schedule_type,
+    utilization_rate: item.utilization_rate,
+    slots_summary: stats,
+    warnings,
+  };
+}
+
+async function getScheduleOperationalList(query = {}, actor = {}) {
+  return listDoctorSchedules(query, actor);
+}
+
+async function getScheduleCalendar(query = {}, actor = {}) {
+  const result = await listDoctorSchedules(query, actor);
+  return {
+    ...result,
+    events: result.items.map(buildScheduleCalendarEvent),
+  };
+}
+
+function buildScheduleConflictItems(items = []) {
+  const conflicts = [];
+
+  items.forEach((item, index) => {
+    const itemStart = new Date(item.shift_start);
+    const itemEnd = new Date(item.shift_end);
+    const itemStatus = String(item.status || '').toLowerCase();
+    const itemStats = item.slots_summary || {};
+
+    if (!FINAL_SCHEDULE_STATUSES.includes(itemStatus) && Number(itemStats.total_slots || 0) === 0 && ['published', 'active'].includes(itemStatus)) {
+      conflicts.push({
+        id: `${item.doctor_schedule_id}-published-without-slots`,
+        type: 'published_without_slots',
+        severity: 'warning',
+        doctor_id: item.doctor_id,
+        doctor_name: item.doctor_name,
+        department_id: item.department_id,
+        department_name: item.department_name,
+        work_date: item.work_date,
+        message: 'Lịch đã publish/active nhưng chưa có slot hợp lệ.',
+        schedule_ids: [item.doctor_schedule_id],
+      });
+    }
+
+    if (localDateKey(item.shift_start) !== localDateKey(item.work_date) || localDateKey(item.shift_end) !== localDateKey(item.work_date)) {
+      conflicts.push({
+        id: `${item.doctor_schedule_id}-date-mismatch`,
+        type: 'date_mismatch',
+        severity: 'critical',
+        doctor_id: item.doctor_id,
+        doctor_name: item.doctor_name,
+        department_id: item.department_id,
+        department_name: item.department_name,
+        work_date: item.work_date,
+        message: 'shift_start/shift_end không cùng ngày với work_date.',
+        schedule_ids: [item.doctor_schedule_id],
+      });
+    }
+
+    items.slice(index + 1).forEach((other) => {
+      const otherStatus = String(other.status || '').toLowerCase();
+      if (FINAL_SCHEDULE_STATUSES.includes(itemStatus) || FINAL_SCHEDULE_STATUSES.includes(otherStatus)) return;
+      if (String(item.doctor_id) !== String(other.doctor_id)) return;
+      if (localDateKey(item.work_date) !== localDateKey(other.work_date)) return;
+
+      const otherStart = new Date(other.shift_start);
+      const otherEnd = new Date(other.shift_end);
+      if (itemStart < otherEnd && otherStart < itemEnd) {
+        conflicts.push({
+          id: `${item.doctor_schedule_id}-${other.doctor_schedule_id}-overlap`,
+          type: 'schedule_overlap',
+          severity: 'critical',
+          doctor_id: item.doctor_id,
+          doctor_name: item.doctor_name,
+          department_id: item.department_id,
+          department_name: item.department_name,
+          work_date: item.work_date,
+          message: 'Bác sĩ có hai lịch bị chồng thời gian.',
+          schedule_ids: [item.doctor_schedule_id, other.doctor_schedule_id],
+        });
+      }
+    });
+  });
+
+  return conflicts;
+}
+
+async function getScheduleConflicts(query = {}, actor = {}) {
+  const result = await listDoctorSchedules(query, actor);
+  const items = buildScheduleConflictItems(result.items);
+  return {
+    items,
+    total: items.length,
+    source_count: result.items.length,
+  };
+}
+
+async function scanScheduleConflicts(payload = {}, actor = {}) {
+  return getScheduleConflicts(payload.query || payload, actor);
+}
+
 async function getScheduleUtilization(scheduleId, actor = {}) {
   const schedule = await DoctorSchedule.findById(scheduleId).lean();
   if (!schedule || schedule.is_deleted) {
@@ -2665,6 +2861,9 @@ async function previewRescheduleImpact(scheduleId, payload = {}, actor = {}) {
     shift_end: payload.shift_end || schedule.shift_end,
     slot_duration_minutes: payload.slot_duration_minutes || schedule.slot_duration_minutes,
   };
+  if (!payload.work_date && localDateKey(mergedPayload.work_date) !== localDateKey(mergedPayload.shift_start)) {
+    mergedPayload.work_date = mergedPayload.shift_start;
+  }
   const normalized = validateScheduleTimeRange(mergedPayload);
   const proposedSchedule = {
     ...schedule,
@@ -3003,6 +3202,14 @@ module.exports = {
   previewCreateDoctorSchedule,
   // listDoctorSchedules: Liệt kê lịch làm việc của bác sĩ.
   listDoctorSchedules,
+  // getScheduleOperationalList: Liệt kê lịch làm việc cho màn hình vận hành.
+  getScheduleOperationalList,
+  // getScheduleCalendar: Lấy dữ liệu calendar lịch làm việc.
+  getScheduleCalendar,
+  // getScheduleConflicts: Lấy xung đột lịch làm việc.
+  getScheduleConflicts,
+  // scanScheduleConflicts: Quét xung đột lịch làm việc theo bộ lọc.
+  scanScheduleConflicts,
   // getDoctorScheduleDetail: Lấy chi tiết lịch làm việc của bác sĩ.
   getDoctorScheduleDetail,
   // updateDoctorSchedule: Cập nhật lịch làm việc của bác sĩ.

@@ -117,6 +117,18 @@ function isPatientActor(actor = {}) {
   return actorType(actor) === 'patient';
 }
 
+function isPatientRelativeActor(actor = {}) {
+  return actorType(actor) === 'patient_relative';
+}
+
+function isPortalPatientActor(actor = {}) {
+  return isPatientActor(actor) || isPatientRelativeActor(actor);
+}
+
+function getPortalPatientId(actor = {}) {
+  return actor.patientId || actor.patient_id || actor.patient?._id || actor.patient?.id || null;
+}
+
 function isDoctorActor(actor = {}) {
   return hasRole(actor, 'doctor');
 }
@@ -142,16 +154,17 @@ function sameId(left, right) {
 
 function applyQueueReadScope(filter, actor = {}) {
   if (!actorType(actor)) return filter;
-  if (isPatientActor(actor)) {
-    if (!actor.patientId) {
+  if (isPortalPatientActor(actor)) {
+    const patientId = getPortalPatientId(actor);
+    if (!patientId) {
       filter._id = null;
       return filter;
     }
-    if (filter.patient_id && !sameId(filter.patient_id, actor.patientId)) {
+    if (filter.patient_id && !sameId(filter.patient_id, patientId)) {
       filter._id = null;
       return filter;
     }
-    filter.patient_id = actor.patientId;
+    filter.patient_id = patientId;
     return filter;
   }
   if (hasGlobalQueueScope(actor)) return filter;
@@ -193,7 +206,12 @@ function assertQueueReadable(ticket, actor = {}) {
 
 function assertQueueTargetWritable(target = {}, actor = {}, action = 'update') {
   if (!actorType(actor)) return true;
-  if (isPatientActor(actor)) throw createError('Patient không có quyền thao tác queue.', 403);
+  if (isPortalPatientActor(actor)) {
+    if (action === 'create' && target.patient_id && sameId(target.patient_id, getPortalPatientId(actor))) {
+      return true;
+    }
+    throw createError('Patient không có quyền thao tác queue.', 403);
+  }
 
   const actionPermissions = QUEUE_WRITE_PERMISSIONS_BY_ACTION[action] || QUEUE_WRITE_PERMISSIONS_BY_ACTION.update;
   if (!hasAnyPermission(actor, actionPermissions) && !hasGlobalQueueScope(actor)) {
@@ -243,7 +261,7 @@ function scopedQueueTarget(target = {}, actor = {}, action = 'call') {
 
 function canSeeQueuePatientData(actor = {}) {
   if (!actorType(actor)) return true;
-  if (isPatientActor(actor)) return true;
+  if (isPortalPatientActor(actor)) return true;
   return hasAnyPermission(actor, [
     PERMISSION.SYSTEM.FULL_ACCESS,
     PERMISSION.PATIENTS.READ,
@@ -411,7 +429,7 @@ async function createQueueTicket(payload, actor, requestMeta = {}, options = {})
   const queueDate = getStartOfDay(checkinTime);
   let ticketId;
   const work = async (session) => {
-    assertQueueTargetWritable({ doctor_id: payload.doctor_id, department_id: payload.department_id }, actor, 'create');
+    assertQueueTargetWritable({ doctor_id: payload.doctor_id, department_id: payload.department_id, patient_id: payload.patient_id }, actor, 'create');
     const { appointment } = await validateQueueCreation({ ...payload, queue_type, checkin_time: checkinTime }, { session });
     const queueNumber = await generateQueueNumber({
       department_id: payload.department_id,
@@ -1225,12 +1243,77 @@ async function completeQueueTicketByEncounter(encounterId, actor, requestMeta = 
 }
 
 async function getMyCurrentQueue(actor = {}) {
-  const patientId = actor.patientId || actor.patient_id;
+  const patientId = getPortalPatientId(actor);
   if (!patientId) throw createError('Không xác định được patient.', 403);
   return QueueTicket.findOne({
     patient_id: patientId,
     status: { $in: ACTIVE_QUEUE_STATUSES },
   }).sort({ queue_date: -1, created_at: -1 }).lean();
+}
+
+async function getMyCurrentQueueDetail(actor = {}) {
+  const patientId = getPortalPatientId(actor);
+  if (!patientId) throw createError('Không xác định được patient.', 403);
+  const ticket = await getMyCurrentQueue(actor);
+  if (!ticket) return null;
+
+  const queueDateStart = getStartOfDay(ticket.queue_date || new Date());
+  const queueDateEnd = getEndOfDay(ticket.queue_date || new Date());
+  const queueScope = {
+    department_id: ticket.department_id,
+    queue_date: { $gte: queueDateStart, $lte: queueDateEnd },
+  };
+  if (ticket.doctor_id) queueScope.doctor_id = ticket.doctor_id;
+
+  const [currentServing, peopleAhead, department, doctor, appointment] = await Promise.all([
+    QueueTicket.findOne({
+      ...queueScope,
+      status: { $in: [QUEUE_STATUS.IN_SERVICE, QUEUE_STATUS.CALLED] },
+    }).sort({ service_start_time: -1, called_time: -1, created_at: -1 }).lean(),
+    QueueTicket.countDocuments({
+      ...queueScope,
+      status: { $in: [QUEUE_STATUS.WAITING, QUEUE_STATUS.CALLED, QUEUE_STATUS.RECALLED, QUEUE_STATUS.SKIPPED, QUEUE_STATUS.IN_SERVICE] },
+      created_at: { $lt: ticket.created_at },
+    }),
+    Department.findById(ticket.department_id).select('department_name department_code location room floor building').lean(),
+    User.findById(ticket.doctor_id).select('full_name employee_code').lean(),
+    ticket.appointment_id ? Appointment.findById(ticket.appointment_id).select('appointment_time reason status').lean() : null,
+  ]);
+
+  const estimatedWaitMinutes = ticket.estimated_called_at
+    ? Math.max(0, Math.round((new Date(ticket.estimated_called_at).getTime() - Date.now()) / 60000))
+    : peopleAhead * 6;
+
+  return {
+    ...ticket,
+    queue_ticket_id: String(ticket._id),
+    ticket_no: ticket.display_number || ticket.queue_number,
+    current_serving_no: currentServing ? currentServing.display_number || currentServing.queue_number : null,
+    people_ahead: peopleAhead,
+    estimated_wait_minutes: estimatedWaitMinutes,
+    room: {
+      name: ticket.doctor_room_id || department?.location || department?.room || '',
+      floor: department?.floor || '',
+      building: department?.building || '',
+      department_name: department?.department_name || '',
+      department_code: department?.department_code || '',
+    },
+    doctor: doctor
+      ? {
+          doctor_id: String(doctor._id),
+          name: doctor.full_name,
+          code: doctor.employee_code,
+        }
+      : null,
+    appointment: appointment
+      ? {
+          appointment_id: String(appointment._id),
+          appointment_time: appointment.appointment_time,
+          reason: appointment.reason,
+          status: appointment.status,
+        }
+      : null,
+  };
 }
 
 async function getPublicQueueBoard(query = {}) {
@@ -1330,6 +1413,7 @@ module.exports = {
   // checkQueueTicketCanCreateEncounter: Kiểm tra điều kiện tạo lượt khám từ phiếu hàng đợi.
   checkQueueTicketCanCreateEncounter,
   getMyCurrentQueue,
+  getMyCurrentQueueDetail,
   getPublicQueueBoard,
   generateQueueTicketQr,
   markQueueTicketNoShow,

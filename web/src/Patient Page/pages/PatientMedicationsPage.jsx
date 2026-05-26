@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
-import { preferredPharmacy } from '../data/patientPageData'
 import medicationEmptyIllustration from '../assets/medication-empty-rx-clear.png'
 import medicationClockImage from '../assets/medication-clock.png'
 import medicationInfoHeroImage from '../assets/medication-info-hero.png'
@@ -8,6 +7,18 @@ import medStatTotalImage from '../assets/med-stat-total.png'
 import medStatActiveImage from '../assets/med-stat-active.png'
 import medStatCompletedImage from '../assets/med-stat-completed.png'
 import medStatItemsImage from '../assets/med-stat-items.png'
+
+const prescriptionTabs = [
+  { id: 'active', label: 'Đang hiệu lực' },
+  { id: 'waiting', label: 'Chờ cấp phát' },
+  { id: 'preparing', label: 'Đang chuẩn bị' },
+  { id: 'dispensed', label: 'Đã cấp phát' },
+  { id: 'partial', label: 'Cấp phát một phần' },
+  { id: 'completed', label: 'Đã hoàn thành' },
+  { id: 'cancelled', label: 'Đã hủy' },
+  { id: 'refill', label: 'Refill request' },
+  { id: 'history', label: 'Lịch sử đơn thuốc' },
+]
 
 function MedicationEmptyArtwork() {
   return (
@@ -122,6 +133,39 @@ function getPrescriptionStatusMeta(status) {
   return map[status] || { label: status || 'Chưa cập nhật', tone: 'soft' }
 }
 
+function getPrescriptionId(prescription, index = 0) {
+  return prescription._id || prescription.prescription_id || prescription.id || prescription.prescription_no || `prescription-${index}`
+}
+
+function getMedicationName(item) {
+  const medication = item.medication_id || {}
+  return item.medication_name || medication.brand_name || medication.generic_name || 'Thuốc chưa định danh'
+}
+
+function getDoctorName(prescription) {
+  return prescription.prescribed_by?.full_name || prescription.doctor_name || 'Bác sĩ kê đơn'
+}
+
+function getDispenseGroup(prescription) {
+  const status = String(prescription.status || '').toLowerCase()
+  const dispenseStatus = String(prescription.dispense_status || '').toLowerCase()
+  const workflow = String(prescription.dispense_workflow_stage || '').toLowerCase()
+
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'completed') return 'completed'
+  if (status === 'partially_dispensed' || dispenseStatus === 'partially_dispensed') return 'partial'
+  if (status === 'fully_dispensed' || ['dispensed'].includes(dispenseStatus)) return 'dispensed'
+  if (['picking', 'checking', 'ready_to_handover', 'assigned'].includes(workflow)) return 'preparing'
+  if (['active', 'verified'].includes(status)) return dispenseStatus ? 'preparing' : 'waiting'
+  return 'history'
+}
+
+function filterPrescriptionByTab(prescription, tabId) {
+  if (tabId === 'history') return true
+  if (tabId === 'active') return ['active', 'verified', 'partially_dispensed'].includes(String(prescription.status || '').toLowerCase())
+  return getDispenseGroup(prescription) === tabId
+}
+
 function getRouteLabel(route) {
   const normalized = String(route || '').toLowerCase()
   const map = {
@@ -171,8 +215,9 @@ function mapPrescriptionEntries(prescriptions = []) {
     return (prescription.items || []).map((item) => ({
       id:
         item.prescription_item_id ||
-        `${prescription.prescription_id}-${item.medication_name}`,
-      name: item.medication_name || 'Thuốc chưa định danh',
+        item._id ||
+        `${getPrescriptionId(prescription)}-${getMedicationName(item)}`,
+      name: getMedicationName(item),
       dose: item.dose || 'Theo chỉ định',
       frequency: item.frequency || '',
       instructions:
@@ -186,10 +231,8 @@ function mapPrescriptionEntries(prescriptions = []) {
       prescriptionNo: prescription.prescription_no || 'Đơn thuốc',
       prescribedAt: prescription.prescribed_at,
       prescribedAtLabel: formatPrescriptionDate(prescription.prescribed_at),
-      doctorName:
-        prescription.doctor_name ||
-        `Bác sĩ ${String(prescription.doctor_id || '').slice(-6)}`,
-      departmentName: prescription.department_name || 'Khám ngoại trú',
+      doctorName: getDoctorName(prescription),
+      departmentName: prescription.encounter_id?.department_id?.department_name || prescription.department_name || 'Khám ngoại trú',
       note: prescription.note || '',
       status: prescription.status,
       statusLabel: status.label,
@@ -199,17 +242,41 @@ function mapPrescriptionEntries(prescriptions = []) {
 }
 
 export default function PatientMedicationsPage({
+  feedback = null,
+  onCreateRefillRequest,
   prescriptions = [],
+  refillRequests = [],
   loading = false,
 }) {
+  const [activeTab, setActiveTab] = useState('active')
+  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState('')
+  const filteredPrescriptions = useMemo(
+    () => (activeTab === 'refill' ? [] : prescriptions.filter((prescription) => filterPrescriptionByTab(prescription, activeTab))),
+    [activeTab, prescriptions],
+  )
+  const selectedPrescription =
+    filteredPrescriptions.find((prescription, index) => getPrescriptionId(prescription, index) === selectedPrescriptionId) ||
+    filteredPrescriptions[0] ||
+    null
   const medicationEntries = useMemo(
-    () => mapPrescriptionEntries(prescriptions),
-    [prescriptions],
+    () => mapPrescriptionEntries(selectedPrescription ? [selectedPrescription] : filteredPrescriptions),
+    [filteredPrescriptions, selectedPrescription],
   )
   const [activeDoseId, setActiveDoseId] = useState(
     () => medicationEntries[0]?.id || null,
   )
   const [reminderCreated, setReminderCreated] = useState(false)
+
+  useEffect(() => {
+    if (!filteredPrescriptions.length) {
+      setSelectedPrescriptionId('')
+      return
+    }
+
+    if (!filteredPrescriptions.some((prescription, index) => getPrescriptionId(prescription, index) === selectedPrescriptionId)) {
+      setSelectedPrescriptionId(getPrescriptionId(filteredPrescriptions[0]))
+    }
+  }, [filteredPrescriptions, selectedPrescriptionId])
 
   useEffect(() => {
     if (!medicationEntries.length) {
@@ -235,6 +302,8 @@ export default function PatientMedicationsPage({
   const completedPrescriptionCount = prescriptions.filter((item) =>
     ['completed', 'fully_dispensed'].includes(item.status),
   ).length
+  const waitingDispenseCount = prescriptions.filter((item) => getDispenseGroup(item) === 'waiting').length
+  const partialDispenseCount = prescriptions.filter((item) => getDispenseGroup(item) === 'partial').length
 
   const statCards = [
     {
@@ -254,19 +323,19 @@ export default function PatientMedicationsPage({
       tone: 'green',
     },
     {
-      label: 'Đơn đã hoàn tất',
-      value: completedPrescriptionCount,
-      note: 'Trong quá khứ',
+      label: 'Chờ cấp phát',
+      value: waitingDispenseCount,
+      note: 'Đang chờ nhà thuốc',
       image: medStatCompletedImage,
-      icon: 'check_circle',
+      icon: 'pending_actions',
       tone: 'violet',
     },
     {
-      label: 'Mục thuốc',
-      value: medicationEntries.length,
-      note: 'Tổng số mục thuốc',
+      label: 'Refill request',
+      value: refillRequests.length,
+      note: `${partialDispenseCount} đơn cấp một phần`,
       image: medStatItemsImage,
-      icon: 'pill',
+      icon: 'repeat',
       tone: 'orange',
     },
   ]
@@ -303,6 +372,27 @@ export default function PatientMedicationsPage({
         ))}
       </section>
 
+      <div className="patient-medications-tabs" role="tablist" aria-label="Lọc đơn thuốc">
+        {prescriptionTabs.map((tab) => (
+          <button
+            key={tab.id}
+            className={activeTab === tab.id ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {feedback?.context === 'prescriptions' ? (
+        <div className={`patient-dashboard-state ${feedback.type === 'error' ? 'patient-dashboard-state-error' : ''}`}>
+          {feedback.message || feedback.text}
+        </div>
+      ) : null}
+
       <div className="patient-medications-layout">
         <section className="patient-medications-main">
           <div className="patient-panel patient-medications-schedule-card">
@@ -322,6 +412,30 @@ export default function PatientMedicationsPage({
                 </div>
                 <h3>Đang tải đơn thuốc...</h3>
                 <p>Hệ thống đang lấy dữ liệu đơn thuốc từ backend.</p>
+              </div>
+            ) : activeTab === 'refill' ? (
+              <div className="patient-medications-dose-list">
+                {refillRequests.length ? refillRequests.map((request) => (
+                  <article className="patient-medications-dose" key={request._id || request.id}>
+                    <button className="patient-medications-dose-body" type="button">
+                      <div className="patient-medications-dose-time">
+                        <PatientIcon name="repeat" aria-hidden="true" />
+                        <strong>{request.status || 'pending'}</strong>
+                      </div>
+                      <div className="patient-medications-dose-copy">
+                        <h3>{request.prescription_id?.prescription_no || 'Yêu cầu cấp lại thuốc'}</h3>
+                        <p>{request.reason || request.review_note || 'Yêu cầu đang được xử lý.'}</p>
+                        <small>{formatPrescriptionDate(request.created_at)}</small>
+                      </div>
+                    </button>
+                  </article>
+                )) : (
+                  <div className="patient-medications-empty">
+                    <PatientIcon name="repeat" aria-hidden="true" />
+                    <h3>Chưa có yêu cầu cấp lại thuốc</h3>
+                    <p>Các refill request của bạn sẽ hiển thị tại đây.</p>
+                  </div>
+                )}
               </div>
             ) : medicationEntries.length === 0 ? (
               <div className="patient-medications-empty">
@@ -345,6 +459,26 @@ export default function PatientMedicationsPage({
               </div>
             ) : (
               <div className="patient-medications-dose-list">
+                {filteredPrescriptions.length ? (
+                  <div className="patient-medications-prescription-list">
+                    {filteredPrescriptions.map((prescription, index) => {
+                      const prescriptionId = getPrescriptionId(prescription, index)
+                      const status = getPrescriptionStatusMeta(prescription.status)
+                      return (
+                        <button
+                          className={selectedPrescriptionId === prescriptionId ? 'is-active' : ''}
+                          key={prescriptionId}
+                          type="button"
+                          onClick={() => setSelectedPrescriptionId(prescriptionId)}
+                        >
+                          <strong>{prescription.prescription_no || 'Đơn thuốc'}</strong>
+                          <span>{formatPrescriptionDate(prescription.prescribed_at)} | {getDoctorName(prescription)}</span>
+                          <em>{status.label}</em>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
                 {medicationEntries.map((dose) => (
                   <article
                     key={dose.id}
@@ -505,19 +639,28 @@ export default function PatientMedicationsPage({
           </div>
 
           <div className="patient-panel patient-medications-pharmacy-card">
-            <h3>Nhà thuốc ưu tiên</h3>
-            <div className="patient-medications-map">
-              <div className="patient-medications-map-pin">
-                <PatientIcon name="local_pharmacy" aria-hidden="true" />
-              </div>
-            </div>
-            <button className="patient-medications-pharmacy-link" type="button">
-              <span>Xem danh sách nhà thuốc gần bạn</span>
-              <PatientIcon name="chevron_right" aria-hidden="true" />
-            </button>
-            <p>
-              {preferredPharmacy.name} | {preferredPharmacy.meta}
-            </p>
+            <h3>Trạng thái cấp phát</h3>
+            {selectedPrescription ? (
+              <>
+                <div className="patient-medications-chip-list">
+                  <span>{selectedPrescription.prescription_no || 'Đơn thuốc'}</span>
+                  <span>{selectedPrescription.dispense_status || 'Chờ cấp phát'}</span>
+                  <span>{selectedPrescription.dispense_workflow_stage || 'Chưa chuẩn bị'}</span>
+                  <span>{selectedPrescription.items_count || selectedPrescription.items?.length || 0} thuốc</span>
+                </div>
+                <p>{selectedPrescription.pharmacist_note || selectedPrescription.note || 'Chưa có ghi chú dược sĩ.'}</p>
+                <button
+                  className="patient-medications-pharmacy-link"
+                  type="button"
+                  onClick={() => onCreateRefillRequest?.(getPrescriptionId(selectedPrescription), { reason: 'Bệnh nhân yêu cầu cấp lại thuốc từ portal.' })}
+                >
+                  <span>Yêu cầu cấp lại thuốc</span>
+                  <PatientIcon name="repeat" aria-hidden="true" />
+                </button>
+              </>
+            ) : (
+              <p>Chọn một đơn thuốc để xem trạng thái cấp phát và ghi chú dược sĩ.</p>
+            )}
           </div>
         </aside>
       </div>

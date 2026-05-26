@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  AlertTriangle,
   BadgeCheck,
+  Briefcase,
   Building2,
   CheckCircle2,
   ClipboardCheck,
   Fingerprint,
   KeyRound,
   Mail,
+  MapPin,
   Phone,
   RefreshCw,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -68,6 +70,93 @@ const WORKSPACE_BY_ROLE = {
   medical_record_staff: ['reports'],
 };
 
+const ROLE_GROUPS = [
+  { id: 'all', label: 'Tất cả', roleCodes: [] },
+  { id: 'front_office', label: 'Tiếp nhận & lịch', roleCodes: ['receptionist', 'scheduler'] },
+  { id: 'clinical', label: 'Lâm sàng', roleCodes: ['doctor', 'nurse', 'department_head'] },
+  { id: 'diagnostics', label: 'Cận lâm sàng', roleCodes: ['lab_technician', 'lab_manager', 'radiologist', 'imaging_technician', 'procedure_staff'] },
+  { id: 'finance_ops', label: 'Tài chính & vận hành', roleCodes: ['cashier', 'billing_staff', 'insurance_staff', 'pharmacist', 'inventory_staff', 'medical_record_staff'] },
+  { id: 'governance', label: 'Quản trị', roleCodes: ['super_admin', 'admin', 'manager'] },
+];
+
+const ROLE_GROUP_BY_CODE = ROLE_GROUPS.reduce((map, group) => {
+  group.roleCodes.forEach((roleCode) => map.set(roleCode, group.id));
+  return map;
+}, new Map());
+
+const ROLE_ARCHETYPE_BY_CODE = {
+  vn_seed_bac_si: { groupId: 'clinical', baseRoleCode: 'doctor' },
+  vn_seed_dieu_duong: { groupId: 'clinical', baseRoleCode: 'nurse' },
+  vn_seed_ky_thuat_xet_nghiem: { groupId: 'diagnostics', baseRoleCode: 'lab_technician' },
+  vn_seed_ky_thuat_cdha: { groupId: 'diagnostics', baseRoleCode: 'imaging_technician' },
+  vn_seed_duoc_si: { groupId: 'finance_ops', baseRoleCode: 'pharmacist' },
+  vn_seed_thu_ngan: { groupId: 'finance_ops', baseRoleCode: 'cashier' },
+  vn_seed_quan_tri: { groupId: 'governance', baseRoleCode: 'admin' },
+  vn_seed_cham_soc_khach_hang: { groupId: 'front_office', baseRoleCode: 'receptionist' },
+  vn_seed_quan_ly_khoa: { groupId: 'clinical', baseRoleCode: 'department_head' },
+  vn_seed_bao_hiem: { groupId: 'finance_ops', baseRoleCode: 'insurance_staff' },
+  vn_seed_ho_so_benh_an: { groupId: 'finance_ops', baseRoleCode: 'medical_record_staff' },
+  vn_seed_dieu_phoi: { groupId: 'front_office', baseRoleCode: 'scheduler' },
+};
+
+const DEPARTMENT_SCOPED_ROLE_CODES = new Set([
+  'receptionist',
+  'scheduler',
+  'department_head',
+  'doctor',
+  'nurse',
+  'lab_technician',
+  'lab_manager',
+  'radiologist',
+  'imaging_technician',
+  'procedure_staff',
+  'pharmacist',
+  'inventory_staff',
+  'cashier',
+  'billing_staff',
+  'insurance_staff',
+  'medical_record_staff',
+]);
+
+function normalizeRoleText(role = {}) {
+  return `${role.role_code || ''} ${role.role_name || ''} ${role.description || ''}`.toLowerCase();
+}
+
+function getRoleArchetype(role = {}) {
+  const roleCode = typeof role === 'string' ? role : role.role_code;
+  if (ROLE_ARCHETYPE_BY_CODE[roleCode]) return ROLE_ARCHETYPE_BY_CODE[roleCode];
+  if (ROLE_GROUP_BY_CODE.has(roleCode)) {
+    return { groupId: ROLE_GROUP_BY_CODE.get(roleCode), baseRoleCode: roleCode };
+  }
+
+  const text = normalizeRoleText(role);
+  if (/bác sĩ|bac_si|doctor|physician/.test(text)) return { groupId: 'clinical', baseRoleCode: 'doctor' };
+  if (/điều dưỡng|dieu_duong|nurse/.test(text)) return { groupId: 'clinical', baseRoleCode: 'nurse' };
+  if (/quản lý khoa|quan_ly_khoa|department head|department_head/.test(text)) return { groupId: 'clinical', baseRoleCode: 'department_head' };
+  if (/lễ tân|le_tan|tiếp nhận|tiep_nhan|chăm sóc khách|support|reception/.test(text)) return { groupId: 'front_office', baseRoleCode: 'receptionist' };
+  if (/điều phối|dieu_phoi|scheduler|lịch/.test(text)) return { groupId: 'front_office', baseRoleCode: 'scheduler' };
+  if (/xét nghiệm|xet_nghiem|lab/.test(text)) return { groupId: 'diagnostics', baseRoleCode: 'lab_technician' };
+  if (/chẩn đoán hình ảnh|chan_doan_hinh_anh|cdha|imaging|radiology/.test(text)) return { groupId: 'diagnostics', baseRoleCode: 'imaging_technician' };
+  if (/dược|duoc|pharmac/.test(text)) return { groupId: 'finance_ops', baseRoleCode: 'pharmacist' };
+  if (/thu ngân|thu_ngan|cashier/.test(text)) return { groupId: 'finance_ops', baseRoleCode: 'cashier' };
+  if (/bảo hiểm|bao_hiem|insurance/.test(text)) return { groupId: 'finance_ops', baseRoleCode: 'insurance_staff' };
+  if (/hồ sơ|ho_so|record/.test(text)) return { groupId: 'finance_ops', baseRoleCode: 'medical_record_staff' };
+  if (/admin|quản trị|quan_tri/.test(text)) return { groupId: 'governance', baseRoleCode: 'admin' };
+  return { groupId: 'governance', baseRoleCode: roleCode };
+}
+
+function getRoleGroupId(role) {
+  return getRoleArchetype(role).groupId;
+}
+
+function getWorkspaceRoleCode(role) {
+  return getRoleArchetype(role).baseRoleCode || role.role_code;
+}
+
+function isDepartmentScopedRole(role) {
+  return DEPARTMENT_SCOPED_ROLE_CODES.has(getWorkspaceRoleCode(role));
+}
+
 function roleRisk(role = {}) {
   if (['super_admin'].includes(role.role_code)) return 'critical';
   if (['admin', 'manager'].includes(role.role_code) || Number(role.priority_level || 0) >= 80) return 'high';
@@ -94,6 +183,8 @@ export function StaffCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState(INITIAL_FORM);
+  const [activeRoleGroup, setActiveRoleGroup] = useState('all');
+  const [roleQuery, setRoleQuery] = useState('');
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [uniqueCheck, setUniqueCheck] = useState(null);
@@ -164,10 +255,46 @@ export function StaffCreatePage() {
     [form.role_codes, roles],
   );
   const selectedDepartment = departments.find((department) => department.department_id === form.department_id);
+  const visibleRoles = useMemo(() => {
+    const keyword = roleQuery.trim().toLowerCase();
+    return roles.filter((role) => {
+      const roleGroupId = getRoleGroupId(role);
+      const matchGroup = activeRoleGroup === 'all' || roleGroupId === activeRoleGroup;
+      const matchKeyword =
+        !keyword ||
+        [
+          role.role_name,
+          role.role_code,
+          role.description,
+          ROLE_GROUPS.find((group) => group.id === roleGroupId)?.label,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(keyword);
+      return matchGroup && matchKeyword;
+    });
+  }, [activeRoleGroup, roleQuery, roles]);
+  const roleGroupCounts = useMemo(() => {
+    const counts = { all: roles.length };
+    roles.forEach((role) => {
+      const group = getRoleGroupId(role);
+      counts[group] = (counts[group] || 0) + 1;
+    });
+    return counts;
+  }, [roles]);
+  const needsDepartmentScope = selectedRoles.some((role) => isDepartmentScopedRole(role));
+  const departmentScopeLabel = needsDepartmentScope ? 'Scope khoa/phòng bắt buộc' : 'Scope khoa/phòng tùy chọn';
+  const accessProfileLabel = selectedRoles.length
+    ? selectedRoles.map((role) => role.role_name || role.role_code).join(' + ')
+    : 'Chưa chọn chức năng truy cập';
   const workspacePreview = useMemo(
-    () => [...new Set(selectedRoles.flatMap((role) => WORKSPACE_BY_ROLE[role.role_code] || []))],
+    () => [...new Set(selectedRoles.flatMap((role) => WORKSPACE_BY_ROLE[getWorkspaceRoleCode(role)] || []))],
     [selectedRoles],
   );
+  const workspacePreviewHint = selectedRoles.length
+    ? 'Role custom sẽ dùng permission thực tế từ backend khi đăng nhập.'
+    : 'Chưa chọn role.';
   const maxPriority = selectedRoles.reduce((max, role) => Math.max(max, Number(role.priority_level || 0)), 0);
   const selectedRisk = selectedRoles.some((role) => roleRisk(role) === 'critical')
     ? 'critical'
@@ -216,6 +343,10 @@ export function StaffCreatePage() {
 
     if (!form.full_name || !form.email || !form.phone || !form.username || !form.role_codes.length) {
       setError('Vui lòng nhập đủ họ tên, email, số điện thoại, username và ít nhất một vai trò.');
+      return;
+    }
+    if (needsDepartmentScope && !form.department_id) {
+      setError('Vui lòng chọn khoa/phòng công tác cho các vai trò vận hành theo scope khoa/phòng.');
       return;
     }
     if (form.password && form.password !== form.confirm_password) {
@@ -312,32 +443,52 @@ export function StaffCreatePage() {
                     <button type="button" onClick={handleGenerateUsername}><Sparkles size={15} /> Gợi ý</button>
                   </div>
                 </Field>
-                <Field icon={BadgeCheck} label="Mã nhân viên" error={uniqueCheck?.employee_code?.available === false ? 'Mã nhân viên đã tồn tại.' : ''}>
-                  <div className="staff-create-pro-inline">
-                    <input value={form.employee_code} onChange={(event) => updateField('employee_code', event.target.value)} placeholder="EMP-0001" />
-                    <button type="button" onClick={handleGenerateEmployeeCode}><RefreshCw size={15} /> Sinh mã</button>
-                  </div>
-                </Field>
-                <Field icon={Building2} label="Khoa/phòng">
-                  <select value={form.department_id} onChange={(event) => updateField('department_id', event.target.value)}>
-                    <option value="">Chọn khoa/phòng active</option>
-                    {departments.map((department) => (
-                      <option key={department.department_id} value={department.department_id}>
-                        {department.department_name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
               </div>
             </section>
 
-            <section className="staff-create-pro-panel">
+            <section className="staff-create-pro-panel staff-create-pro-panel--access">
               <div className="staff-create-pro-panel__head">
                 <ShieldCheck size={19} />
-                <div><span>Bước 2</span><strong>Vai trò ban đầu</strong></div>
+                <div><span>Bước 2</span><strong>Vai trò & quyền truy cập</strong></div>
               </div>
+
+              <div className="staff-create-pro-role-toolbar">
+                <label>
+                  <Search size={15} aria-hidden="true" />
+                  <input
+                    value={roleQuery}
+                    onChange={(event) => setRoleQuery(event.target.value)}
+                    placeholder="Tìm role, mã quyền, nhóm nghiệp vụ..."
+                  />
+                </label>
+                <div className="staff-create-pro-role-tabs" role="tablist" aria-label="Nhóm vai trò">
+                  {ROLE_GROUPS.map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      className={activeRoleGroup === group.id ? 'is-active' : ''}
+                      onClick={() => setActiveRoleGroup(group.id)}
+                    >
+                      {group.label}
+                      <span>{formatNumber(roleGroupCounts[group.id] || 0)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedRoles.length ? (
+                <div className="staff-create-pro-selected-roles" aria-label="Vai trò đã chọn">
+                  {selectedRoles.map((role) => (
+                    <button key={role.role_code} type="button" onClick={() => toggleRole(role.role_code)}>
+                      <span>{role.role_name || role.role_code}</span>
+                      <code>{role.role_code}</code>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
               <div className="staff-create-pro-role-grid">
-                {roles.map((role) => {
+                {visibleRoles.map((role) => {
                   const selected = form.role_codes.includes(role.role_code);
                   return (
                     <button key={role.role_code} type="button" className={selected ? 'is-selected' : ''} onClick={() => toggleRole(role.role_code)}>
@@ -351,13 +502,51 @@ export function StaffCreatePage() {
                     </button>
                   );
                 })}
+                {!visibleRoles.length ? (
+                  <div className="staff-create-pro-empty-role">Không có role phù hợp với bộ lọc hiện tại.</div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="staff-create-pro-panel">
+              <div className="staff-create-pro-panel__head">
+                <Briefcase size={19} />
+                <div><span>Bước 3</span><strong>Đơn vị công tác & phạm vi</strong></div>
+              </div>
+              <div className="staff-create-pro-assignment-grid">
+                <div className="staff-create-pro-grid">
+                  <Field icon={Building2} label="Khoa/phòng công tác" hint={needsDepartmentScope ? 'Áp dụng làm phạm vi queue, lịch, báo cáo và dữ liệu theo khoa.' : 'Có thể để trống với role quản trị toàn hệ thống.'}>
+                    <select value={form.department_id} onChange={(event) => updateField('department_id', event.target.value)}>
+                      <option value="">Chưa gán khoa/phòng</option>
+                      {departments.map((department) => (
+                        <option key={department.department_id} value={department.department_id}>
+                          {department.department_name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field icon={BadgeCheck} label="Mã nhân viên" error={uniqueCheck?.employee_code?.available === false ? 'Mã nhân viên đã tồn tại.' : ''}>
+                    <div className="staff-create-pro-inline">
+                      <input value={form.employee_code} onChange={(event) => updateField('employee_code', event.target.value)} placeholder="EMP-0001" />
+                      <button type="button" onClick={handleGenerateEmployeeCode}><RefreshCw size={15} /> Sinh mã</button>
+                    </div>
+                  </Field>
+                </div>
+                <div className="staff-create-pro-assignment-card">
+                  <MapPin size={18} aria-hidden="true" />
+                  <div>
+                    <span>{departmentScopeLabel}</span>
+                    <strong>{selectedDepartment?.department_name || 'Chưa gán đơn vị công tác'}</strong>
+                    <p>{accessProfileLabel}</p>
+                  </div>
+                </div>
               </div>
             </section>
 
             <section className="staff-create-pro-panel">
               <div className="staff-create-pro-panel__head">
                 <KeyRound size={19} />
-                <div><span>Bước 3</span><strong>Bảo mật tài khoản</strong></div>
+                <div><span>Bước 4</span><strong>Bảo mật tài khoản</strong></div>
               </div>
               <div className="staff-create-pro-grid">
                 <Field icon={KeyRound} label="Mật khẩu tạm" hint="Để trống để backend tự sinh mật khẩu mạnh.">
@@ -395,12 +584,16 @@ export function StaffCreatePage() {
               <h2>{form.full_name || 'Nhân sự mới'}</h2>
               <p>{form.email || form.username || 'Chưa có định danh đăng nhập'}</p>
               <div className="staff-create-pro-card__badges">
-                <span>{selectedDepartment?.department_name || 'Chưa chọn khoa'}</span>
+                <span>{selectedDepartment?.department_name || 'Chưa gán đơn vị'}</span>
                 <RiskBadge level={selectedRisk} />
               </div>
             </section>
 
             <section className="staff-create-pro-card staff-create-pro-impact">
+              <div className="staff-create-pro-impact__row">
+                <span>Access profile</span>
+                <strong>{selectedRoles.length ? 'Đã chọn' : 'Trống'}</strong>
+              </div>
               <div className="staff-create-pro-impact__row">
                 <span>Role đã chọn</span>
                 <strong>{formatNumber(selectedRoles.length)}</strong>
@@ -413,8 +606,12 @@ export function StaffCreatePage() {
                 <span>Workspace dự kiến</span>
                 <strong>{formatNumber(workspacePreview.length)}</strong>
               </div>
+              <div className="staff-create-pro-impact__row">
+                <span>Scope dữ liệu</span>
+                <strong>{needsDepartmentScope ? (selectedDepartment ? 'Theo khoa' : 'Thiếu khoa') : 'Theo role'}</strong>
+              </div>
               <div className="staff-create-pro-workspaces">
-                {workspacePreview.length ? workspacePreview.map((workspace) => <span key={workspace}>{workspace}</span>) : <small>Chưa có workspace vì chưa chọn role.</small>}
+                {workspacePreview.length ? workspacePreview.map((workspace) => <span key={workspace}>{workspace}</span>) : <small>{workspacePreviewHint}</small>}
               </div>
             </section>
 

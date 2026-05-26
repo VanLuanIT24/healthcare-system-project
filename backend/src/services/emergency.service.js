@@ -367,6 +367,8 @@ async function createSos(payload = {}, actor = {}, requestMeta = {}) {
   const patientId = await resolvePatientId(actor, payload);
   const context = actorContext.buildActorContext(actor);
   const riskSnapshot = await patientRiskSnapshot(patientId);
+  const location = payload.location || {};
+  const reason = payload.reason || payload.symptoms || payload.note;
   const emergencyCase = await EmergencyCase.create({
     case_code: await generateCaseCode(),
     patient_id: patientId,
@@ -375,11 +377,11 @@ async function createSos(payload = {}, actor = {}, requestMeta = {}) {
     type: normalizeEnum(payload.type, EMERGENCY_CASE_TYPES, EMERGENCY_CASE_TYPE.SOS, 'type'),
     status: EMERGENCY_STATUS.CREATED,
     priority: normalizeEnum(payload.priority, EMERGENCY_PRIORITIES, EMERGENCY_PRIORITY.URGENT, 'priority'),
-    location_lat: payload.location_lat ?? payload.locationLat,
-    location_lng: payload.location_lng ?? payload.locationLng,
-    location_text: payload.location_text || payload.locationText,
-    symptoms: payload.symptoms,
-    note: payload.note,
+    location_lat: payload.location_lat ?? payload.locationLat ?? location.lat ?? location.latitude,
+    location_lng: payload.location_lng ?? payload.locationLng ?? location.lng ?? location.longitude,
+    location_text: payload.location_text || payload.locationText || location.text || location.address,
+    symptoms: reason,
+    note: payload.note || reason,
     assigned_to_user_id: payload.assigned_to_user_id || payload.assignedToUserId,
     assigned_department_id: payload.assigned_department_id || payload.assignedDepartmentId,
     related_appointment_id: payload.related_appointment_id || payload.relatedAppointmentId,
@@ -391,6 +393,7 @@ async function createSos(payload = {}, actor = {}, requestMeta = {}) {
       ...(payload.metadata || {}),
       source: payload.source || (context.actor_type === ACTOR_TYPE.STAFF ? 'staff_created' : context.actor_type === 'patient_relative' ? 'relative_app' : 'patient_app'),
       patient_risk_snapshot: riskSnapshot,
+      contact_phone: payload.contact_phone || payload.contactPhone,
     },
     created_by: actor.userId,
     updated_by: actor.userId,
@@ -488,6 +491,81 @@ async function listCases(query = {}, actor = {}) {
     EmergencyCase.countDocuments(filter),
   ]);
   return { items, pagination: buildPagination(page, limit, total) };
+}
+
+function assertSelfEmergencyPatient(actor = {}) {
+  const currentActorType = actorContext.getActorType(actor);
+  if (![ACTOR_TYPE.PATIENT, ACTOR_TYPE.PATIENT_RELATIVE].includes(currentActorType)) {
+    throw createError('Chỉ patient hoặc người thân được ủy quyền được gọi API này.', 403);
+  }
+  const patientId = actorContext.getPatientId(actor);
+  if (!patientId || !isValidObjectId(patientId)) throw createError('patient_id không hợp lệ.', 422);
+  return toObjectId(patientId, 'patient_id');
+}
+
+async function listMyCases(query = {}, actor = {}) {
+  const patientId = assertSelfEmergencyPatient(actor);
+  const { page, limit, skip } = getPagination(query);
+  const filter = { patient_id: patientId };
+  for (const field of ['status', 'priority', 'type']) {
+    if (!query[field]) continue;
+    const values = splitCsv(query[field]);
+    filter[field] = values.length > 1 ? { $in: values } : query[field];
+  }
+  const [items, total] = await Promise.all([
+    EmergencyCase.find(filter)
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('assigned_to_user_id', 'full_name username employee_code')
+      .populate('primary_nurse_id', 'full_name username employee_code')
+      .populate('primary_doctor_id', 'full_name username employee_code')
+      .populate('assigned_department_id', 'department_name department_code')
+      .lean(),
+    EmergencyCase.countDocuments(filter),
+  ]);
+  return { items, pagination: buildPagination(page, limit, total) };
+}
+
+async function getMyCase(caseId, actor = {}) {
+  assertSelfEmergencyPatient(actor);
+  return getCase(caseId, actor);
+}
+
+async function cancelMyCase(caseId, payload = {}, actor = {}, requestMeta = {}) {
+  const patientId = assertSelfEmergencyPatient(actor);
+  const emergencyCase = await EmergencyCase.findOne({ _id: caseId, patient_id: patientId });
+  if (!emergencyCase) throw createError('Không tìm thấy emergency case.', 404);
+  if (CLOSED_CASE_STATUSES.includes(emergencyCase.status)) throw createError('Ca cấp cứu đã kết thúc.', 409);
+
+  const fromStatus = emergencyCase.status;
+  emergencyCase.status = EMERGENCY_STATUS.CANCELLED;
+  emergencyCase.resolved_at = new Date();
+  emergencyCase.closed_at = emergencyCase.resolved_at;
+  emergencyCase.close_reason = payload.reason || payload.close_reason || 'Bệnh nhân hủy SOS từ portal.';
+  emergencyCase.metadata = {
+    ...(emergencyCase.metadata || {}),
+    patient_cancelled_at: emergencyCase.closed_at,
+    patient_cancel_reason: emergencyCase.close_reason,
+  };
+  await emergencyCase.save();
+  await appendCaseEvent(emergencyCase._id, 'patient_cancelled', {
+    actor,
+    fromStatus,
+    toStatus: EMERGENCY_STATUS.CANCELLED,
+    note: emergencyCase.close_reason,
+    payload,
+  });
+  await recordAuditLog({
+    actor,
+    action: 'emergency.case_patient_cancelled',
+    targetType: 'emergency_case',
+    targetId: emergencyCase._id,
+    status: 'success',
+    message: 'Bệnh nhân hủy SOS.',
+    requestMeta,
+  });
+  return getCase(emergencyCase._id, actor);
 }
 
 async function getCase(caseId, actor = {}) {
@@ -1154,15 +1232,18 @@ module.exports = {
   createSos,
   createCase: createSos,
   listCases,
+  listMyCases,
   listOpenCases,
   listClosedCases,
   getOpenSummary,
   getCase,
+  getMyCase,
   acknowledgeCase: (caseId, payload, actor, requestMeta) => transitionCase(caseId, EMERGENCY_STATUS.ACKNOWLEDGED, payload, actor, requestMeta),
   triageCase: (caseId, payload, actor, requestMeta) => transitionCase(caseId, EMERGENCY_STATUS.TRIAGED, payload, actor, requestMeta),
   dispatchCase: (caseId, payload, actor, requestMeta) => transitionCase(caseId, EMERGENCY_STATUS.DISPATCHED, payload, actor, requestMeta),
   resolveCase: (caseId, payload, actor, requestMeta) => transitionCase(caseId, EMERGENCY_STATUS.RESOLVED, payload, actor, requestMeta),
   cancelCase: (caseId, payload, actor, requestMeta) => transitionCase(caseId, payload.false_alarm ? EMERGENCY_STATUS.FALSE_ALARM : EMERGENCY_STATUS.CANCELLED, payload, actor, requestMeta),
+  cancelMyCase,
   assignCase,
   updateCasePriority,
   escalateCase,

@@ -19,7 +19,8 @@ function validateObjectId(value, field, errors) {
 function validateBookingRequestShape(req) {
   const body = req.body || {};
   const errors = [];
-  const isPatientBooking = req.auth?.actorType === 'patient' || req.auth?.actor_type === 'patient';
+  const actorType = req.auth?.actorType || req.auth?.actor_type;
+  const isPatientBooking = actorType === 'patient' || actorType === 'patient_relative';
 
   if (!isPatientBooking) assertRequired(body.patient_id, 'patient_id', errors);
   assertRequired(body.doctor_id, 'doctor_id', errors);

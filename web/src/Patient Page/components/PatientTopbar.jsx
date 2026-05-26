@@ -49,6 +49,7 @@ export default function PatientTopbar({
   const titleMap = {
     dashboard: 'Tổng quan',
     'book-appointment': 'Đặt lịch khám',
+    'checkin-queue': 'Check-in / Queue',
     'lab-results': '',
     emergency: 'Thông tin y tế cấp cứu',
     imaging: 'Chẩn đoán hình ảnh',
@@ -63,7 +64,9 @@ export default function PatientTopbar({
     appointments: '',
     history: 'Lịch sử khám',
     billing: 'Thanh toán và hóa đơn',
+    'billing-receipts': 'Hóa đơn / Biên lai',
     insurance: 'Bảo hiểm',
+    'relatives-authorizations': 'Người thân / Ủy quyền',
     profile: 'Hồ sơ cá nhân',
     support: 'Hỗ trợ',
     settings: 'Cài đặt',
@@ -74,6 +77,7 @@ export default function PatientTopbar({
     settings: 'Tìm cài đặt...',
     emergency: 'Tìm thông tin cấp cứu...',
     'book-appointment': 'Tìm lịch khám phù hợp...',
+    'checkin-queue': 'Tìm số thứ tự, trạng thái check-in...',
     'lab-results': 'Tìm kết quả xét nghiệm...',
     imaging: 'Tìm chẩn đoán hình ảnh...',
     inpatient: 'Tìm lần nhập viện, khoa điều trị...',
@@ -87,7 +91,9 @@ export default function PatientTopbar({
     notifications: 'Tìm thông báo...',
     history: 'Tìm lịch sử khám...',
     billing: 'Tìm dịch vụ, hóa đơn, hoặc mã thanh toán...',
+    'billing-receipts': 'Tìm hóa đơn, biên lai, hoặc mã giao dịch...',
     insurance: 'Tìm thông tin bảo hiểm...',
+    'relatives-authorizations': 'Tìm người thân hoặc quyền ủy quyền...',
   }
 
   const searchPlaceholder =

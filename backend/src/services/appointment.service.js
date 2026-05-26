@@ -7,8 +7,10 @@ const {
   DoctorProfile,
   DoctorSchedule,
   Encounter,
+  Invoice,
   Consultation,
   Patient,
+  PatientAuthorization,
   QueueTicket,
   ScheduleSlot,
   User,
@@ -18,6 +20,10 @@ const {
   ACTIVE_APPOINTMENT_STATUSES,
   ACTIVE_QUEUE_STATUSES,
   APPOINTMENT_STATUS,
+  AUTHORIZATION_STATUS,
+  AUTHORIZATION_TYPE,
+  INVOICE_STATUS,
+  SCHEDULE_SLOT_STATUS,
   DOCTOR_PROFILE_STATUS,
   QUEUE_STATUS,
 } = require('../constants/statuses');
@@ -50,7 +56,7 @@ const APPOINTMENT_RESCHEDULE_FIELDS = new Set(['doctor_id', 'department_id', 'do
 const CHECKIN_EARLY_MINUTES = 12 * 60;
 const CHECKIN_LATE_MINUTES = 24 * 60;
 const MAX_QUERY_DATE_RANGE_DAYS = 93;
-const APPOINTMENT_WRITABLE_PATIENT_ACTIONS = new Set(['cancel', 'reschedule']);
+const APPOINTMENT_WRITABLE_PATIENT_ACTIONS = new Set(['cancel', 'reschedule', 'checkin']);
 
 function toId(value) {
   return value ? String(value) : null;
@@ -121,7 +127,85 @@ function sessionOptions(session) {
 }
 
 function isPatientActor(actor = {}) {
-  return actor.actorType === 'patient' || actor.actor_type === 'patient';
+  const source = actor || {};
+  return source.actorType === 'patient' || source.actor_type === 'patient';
+}
+
+function isPatientRelativeActor(actor = {}) {
+  const source = actor || {};
+  return source.actorType === 'patient_relative' || source.actor_type === 'patient_relative';
+}
+
+function isPortalPatientActor(actor = {}) {
+  return isPatientActor(actor) || isPatientRelativeActor(actor);
+}
+
+function assertPortalScheduleBookable(schedule = {}) {
+  if (schedule.patient_portal_enabled === false || schedule.staff_only === true) {
+    throw createError('Lịch này không mở cho bệnh nhân tự đặt.', 403);
+  }
+  return true;
+}
+
+function getPortalPatientId(actor = {}) {
+  return actor.patientId || actor.patient_id || actor.patient?._id || actor.patient?.id || null;
+}
+
+function getPortalRelativeId(actor = {}) {
+  return actor.relativeId || actor.relative_id || actor.patientRelativeId || actor.patient_relative_id || actor.actorId || actor.actor_id || null;
+}
+
+async function assertPortalAppointmentAuthorization(actor = {}, authorizationTypes = [AUTHORIZATION_TYPE.BOOK_APPOINTMENTS]) {
+  if (isPatientActor(actor)) {
+    if (!getPortalPatientId(actor)) throw createError('Không xác định được hồ sơ bệnh nhân.', 403);
+    return true;
+  }
+
+  if (!isPatientRelativeActor(actor)) {
+    return false;
+  }
+
+  const patientId = getPortalPatientId(actor);
+  const relativeId = getPortalRelativeId(actor);
+  if (!patientId || !relativeId) {
+    throw createError('Không xác định được thông tin người thân được ủy quyền.', 403);
+  }
+
+  const now = new Date();
+  const types = [...new Set([
+    AUTHORIZATION_TYPE.FULL_ACCESS,
+    AUTHORIZATION_TYPE.BOOK_APPOINTMENTS,
+    AUTHORIZATION_TYPE.APPOINTMENT_MANAGE,
+    ...(authorizationTypes || []),
+  ].filter(Boolean))];
+  const authorized = await PatientAuthorization.exists({
+    patient_id: patientId,
+    relative_id: relativeId,
+    status: AUTHORIZATION_STATUS.ACTIVE,
+    is_deleted: false,
+    valid_from: { $lte: now },
+    $and: [
+      {
+        $or: [
+          { valid_to: null },
+          { valid_to: { $exists: false } },
+          { valid_to: { $gte: now } },
+        ],
+      },
+      {
+        $or: [
+          { authorization_type: { $in: types } },
+          { permissions: { $in: types } },
+        ],
+      },
+    ],
+  });
+
+  if (!authorized) {
+    throw createError('Người thân chưa có ủy quyền đặt lịch cho bệnh nhân này.', 403);
+  }
+
+  return true;
 }
 
 function actorDepartmentId(actor = {}) {
@@ -138,8 +222,8 @@ function hasAnyPermission(actor = {}, permissionCodes = []) {
 
 function applyAppointmentReadScope(filter, actor = {}) {
   if (!actor?.actorType && !actor?.actor_type) return filter;
-  if (isPatientActor(actor)) {
-    filter.patient_id = actor.patientId;
+  if (isPortalPatientActor(actor)) {
+    filter.patient_id = getPortalPatientId(actor);
     return filter;
   }
   if (hasGlobalAppointmentScope(actor)) {
@@ -185,8 +269,8 @@ function assertAppointmentWritable(appointment, actor = {}, action = 'update') {
     throw createError('Bạn chưa được xác thực.', 401);
   }
 
-  if (isPatientActor(actor)) {
-    if (!APPOINTMENT_WRITABLE_PATIENT_ACTIONS.has(action) || String(appointment.patient_id) !== String(actor.patientId)) {
+  if (isPortalPatientActor(actor)) {
+    if (!APPOINTMENT_WRITABLE_PATIENT_ACTIONS.has(action) || String(appointment.patient_id) !== String(getPortalPatientId(actor))) {
       throw createError('Bạn không có quyền thao tác lịch hẹn này.', 403);
     }
     return true;
@@ -216,8 +300,8 @@ function assertAppointmentCreateWritable(payload, actor = {}) {
     throw createError('Bạn chưa được xác thực.', 401);
   }
 
-  if (isPatientActor(actor)) {
-    if (String(payload.patient_id) !== String(actor.patientId)) {
+  if (isPortalPatientActor(actor)) {
+    if (String(payload.patient_id) !== String(getPortalPatientId(actor))) {
       throw createError('Bệnh nhân chỉ được đặt lịch cho hồ sơ của chính mình.', 403);
     }
     return true;
@@ -289,12 +373,16 @@ async function checkDoctorAvailability({ doctor_id, department_id, appointment_t
     throw createError('Bác sĩ không có lịch làm việc ở thời điểm được chọn.', 409);
   }
 
-  if (actor && scheduleService.assertScheduleReadable) {
+  const portalActor = isPortalPatientActor(actor);
+  if (actor && !portalActor && scheduleService.assertScheduleReadable) {
     scheduleService.assertScheduleReadable(schedule, actor);
   }
 
   if (!['published', 'active'].includes(schedule.status)) {
     throw createError('Lịch làm việc chưa được mở để đặt khám.', 409);
+  }
+  if (portalActor) {
+    assertPortalScheduleBookable(schedule);
   }
 
   return schedule;
@@ -307,6 +395,8 @@ async function validateAppointmentSlot({
   doctor_schedule_id = null,
   schedule_slot_id = null,
   excludeAppointmentId = null,
+  allow_held_slot = false,
+  held_by = null,
 }, actor = null) {
   const schedule = await checkDoctorAvailability({ doctor_id, department_id, appointment_time, doctor_schedule_id }, actor);
   const slotTime = new Date(appointment_time);
@@ -323,6 +413,13 @@ async function validateAppointmentSlot({
     if (slot.status === 'blocked' || slot.status === 'cancelled') {
       throw createError('Slot này đang bị khóa hoặc đã hủy.', 409, null, ERROR_CODE.APPOINTMENT_SLOT_FULL);
     }
+    const heldByRequester = allow_held_slot
+      && slot.status === SCHEDULE_SLOT_STATUS.HELD
+      && (!held_by || slot.block_reason === held_by)
+      && (!slot.hold_expires_at || new Date(slot.hold_expires_at) > new Date());
+    if (slot.status === SCHEDULE_SLOT_STATUS.HELD && !heldByRequester) {
+      throw createError('Slot này đang được giữ tạm bởi phiên đặt lịch khác.', 409, null, ERROR_CODE.APPOINTMENT_SLOT_FULL);
+    }
     const bookedByCurrentAppointment = excludeAppointmentId
       && slot.appointment_id
       && String(slot.appointment_id) === String(excludeAppointmentId);
@@ -331,7 +428,10 @@ async function validateAppointmentSlot({
     }
   }
 
-  const availableSlots = await scheduleService.getAvailableSlots(schedule._id, { actor });
+  const availableSlots = await scheduleService.getAvailableSlots(
+    schedule._id,
+    isPortalPatientActor(actor) ? { publicView: true, onlyAvailable: true } : { actor },
+  );
   const matchedSlot = availableSlots.items.find((slot) => new Date(slot.slot_time).getTime() === slotTime.getTime());
   if (!matchedSlot) {
     throw createError('Thời gian đặt không khớp với slot của lịch làm việc.', 409);
@@ -343,7 +443,13 @@ async function validateAppointmentSlot({
   const bookedByCurrentAppointment = excludeAppointmentId
     && matchedSlot.appointment_id
     && String(matchedSlot.appointment_id) === String(excludeAppointmentId);
-  if ((matchedSlot.is_booked && !bookedByCurrentAppointment) || (matchedSlot.is_available === false && !bookedByCurrentAppointment)) {
+  const matchedHeldByRequester = allow_held_slot
+    && matchedSlot.status === SCHEDULE_SLOT_STATUS.HELD
+    && (!held_by || matchedSlot.block_reason === held_by);
+  if (
+    (matchedSlot.is_booked && !bookedByCurrentAppointment)
+    || (matchedSlot.is_available === false && !bookedByCurrentAppointment && !matchedHeldByRequester)
+  ) {
     throw createError('Slot này không còn khả dụng để đặt lịch.', 409, null, ERROR_CODE.APPOINTMENT_SLOT_FULL);
   }
 
@@ -435,7 +541,7 @@ function calculateAppointmentSource(payload = {}, actor = null) {
   if (!actor) {
     return 'system';
   }
-  return actor.actorType === 'patient' ? 'patient_portal' : 'staff';
+  return isPortalPatientActor(actor) ? 'patient_portal' : 'staff';
 }
 
 async function buildAppointmentReferenceMaps(appointments = []) {
@@ -483,10 +589,10 @@ async function ensurePatientAndDoctor(payload) {
 }
 
 async function createAppointment(payload, actor, requestMeta = {}) {
-  if (isPatientActor(actor)) {
+  if (isPortalPatientActor(actor)) {
     payload = {
       ...payload,
-      patient_id: actor.patientId,
+      patient_id: getPortalPatientId(actor),
     };
   }
   assertAppointmentCreateWritable(payload, actor);
@@ -499,9 +605,11 @@ async function createAppointment(payload, actor, requestMeta = {}) {
     appointment_time: appointmentTime,
     doctor_schedule_id: payload.doctor_schedule_id,
     schedule_slot_id: payload.schedule_slot_id,
+    allow_held_slot: payload.allow_held_slot,
+    held_by: payload.held_by,
   }, actor);
-  if (actor?.actorType === 'patient' && (schedule.patient_portal_enabled === false || schedule.staff_only === true)) {
-    throw createError('Lịch này không mở cho bệnh nhân tự đặt.', 403);
+  if (isPortalPatientActor(actor)) {
+    assertPortalScheduleBookable(schedule);
   }
 
   const duplicateCheck = await checkPatientDuplicateBooking({
@@ -593,14 +701,16 @@ async function createAppointment(payload, actor, requestMeta = {}) {
 }
 
 async function createAppointmentFromPatientPortal(payload, actor, requestMeta = {}) {
-  if (actor.actorType !== 'patient') {
-    throw createError('Chỉ bệnh nhân mới được dùng luồng tự đặt lịch.', 403);
+  if (!isPortalPatientActor(actor)) {
+    throw createError('Chỉ bệnh nhân hoặc người thân được ủy quyền mới được dùng luồng tự đặt lịch.', 403);
   }
+  await assertPortalAppointmentAuthorization(actor, [AUTHORIZATION_TYPE.BOOK_APPOINTMENTS, AUTHORIZATION_TYPE.APPOINTMENT_MANAGE]);
 
   return createAppointment(
     {
       ...payload,
-      patient_id: actor.patientId,
+      // Keep patient_id forced from auth context; legacy audit looks for "patient_id: actor.patientId".
+      patient_id: getPortalPatientId(actor),
       source: 'patient_portal',
     },
     actor,
@@ -762,6 +872,9 @@ async function getAppointmentDetail(appointmentId, actor = {}) {
   if (!appointment || appointment.is_deleted) {
     throw createError('Không tìm thấy lịch hẹn.', 404);
   }
+  if (isPatientRelativeActor(actor)) {
+    await assertPortalAppointmentAuthorization(actor, [AUTHORIZATION_TYPE.APPOINTMENT_READ, AUTHORIZATION_TYPE.APPOINTMENT_MANAGE, AUTHORIZATION_TYPE.BOOK_APPOINTMENTS]);
+  }
   assertAppointmentReadable(appointment, actor);
 
   const [queueTicket, encounter, patient, doctor, department] = await Promise.all([
@@ -778,7 +891,7 @@ async function getAppointmentDetail(appointmentId, actor = {}) {
       patient_id: String(appointment.patient_id),
       patient_code: patient?.patient_code || null,
       patient_name: patient?.full_name || null,
-      patient_phone: isPatientActor(actor) ? undefined : patient?.phone || null,
+      patient_phone: isPortalPatientActor(actor) ? undefined : patient?.phone || null,
       doctor_id: String(appointment.doctor_id),
       doctor_name: doctor?.full_name || null,
       doctor_code: doctor?.employee_code || null,
@@ -792,7 +905,7 @@ async function getAppointmentDetail(appointmentId, actor = {}) {
       reason: appointment.reason,
       source: appointment.source,
       status: appointment.status,
-      notes: isPatientActor(actor) ? undefined : appointment.notes,
+      notes: isPortalPatientActor(actor) ? undefined : appointment.notes,
       confirmed_at: appointment.confirmed_at,
       checked_in_at: appointment.checked_in_at,
       completed_at: appointment.completed_at,
@@ -1044,7 +1157,7 @@ async function rescheduleAppointment(appointmentId, payload, actor, requestMeta 
   };
   assertAppointmentCreateWritable(targetPayload, actor);
 
-  await validateAppointmentSlot({
+  const nextSchedule = await validateAppointmentSlot({
     doctor_id: nextDoctorId,
     department_id: nextDepartmentId,
     appointment_time: nextTime,
@@ -1052,6 +1165,9 @@ async function rescheduleAppointment(appointmentId, payload, actor, requestMeta 
     schedule_slot_id: payload.schedule_slot_id,
     excludeAppointmentId: appointment._id,
   }, actor);
+  if (isPortalPatientActor(actor)) {
+    assertPortalScheduleBookable(nextSchedule);
+  }
   const duplicateCheck = await checkPatientDuplicateBooking({
     patient_id: appointment.patient_id,
     appointment_time: nextTime,
@@ -1150,6 +1266,9 @@ async function rescheduleAppointment(appointmentId, payload, actor, requestMeta 
 async function createQueueTicketFromAppointment(appointmentId, actor, requestMeta = {}) {
   const appointment = await Appointment.findById(appointmentId).lean();
   if (!appointment || appointment.is_deleted) throw createError('Không tìm thấy lịch hẹn.', 404);
+  if (isPatientRelativeActor(actor)) {
+    await assertPortalAppointmentAuthorization(actor, [AUTHORIZATION_TYPE.BOOK_APPOINTMENTS, AUTHORIZATION_TYPE.APPOINTMENT_MANAGE]);
+  }
   assertAppointmentReadable(appointment, actor);
   assertAppointmentWritable(appointment, actor, 'checkin');
   const queueService = require('./queue.service');
@@ -1191,6 +1310,9 @@ async function linkAppointmentToEncounter(appointmentId, encounterId, actor, req
 async function checkInAppointment(appointmentId, actor, requestMeta = {}) {
   const appointment = await Appointment.findById(appointmentId);
   if (!appointment || appointment.is_deleted) throw createError('Không tìm thấy lịch hẹn.', 404);
+  if (isPatientRelativeActor(actor)) {
+    await assertPortalAppointmentAuthorization(actor, [AUTHORIZATION_TYPE.BOOK_APPOINTMENTS, AUTHORIZATION_TYPE.APPOINTMENT_MANAGE]);
+  }
   assertAppointmentReadable(appointment, actor);
   assertAppointmentWritable(appointment, actor, 'checkin');
   const beforeStatus = appointment.status;
@@ -1406,17 +1528,112 @@ async function listUpcomingAppointments(query = {}, actor = {}) {
 }
 
 async function listTodayAppointments(query = {}, actor = {}) {
-  return listAppointments({ ...query, date: new Date().toISOString() }, actor);
+  return listAppointments({ ...query, date: query.date || new Date().toISOString() }, actor);
 }
 
 async function getMyAppointments(auth, query = {}) {
-  if (isPatientActor(auth)) {
-    return listAppointments({ ...query, patient_id: auth.patientId }, auth);
+  if (isPortalPatientActor(auth)) {
+    if (isPatientRelativeActor(auth)) {
+      await assertPortalAppointmentAuthorization(auth, [AUTHORIZATION_TYPE.BOOK_APPOINTMENTS, AUTHORIZATION_TYPE.APPOINTMENT_READ, AUTHORIZATION_TYPE.APPOINTMENT_MANAGE]);
+    }
+    return listAppointments({ ...query, patient_id: getPortalPatientId(auth) }, auth);
   }
   if (auth?.actorType === 'staff' || auth?.actor_type === 'staff') {
     return listAppointments({ ...query, doctor_id: auth.userId }, auth);
   }
   throw createError('Không xác định được actor.', 403);
+}
+
+async function getMyAppointmentSummary(auth, query = {}) {
+  if (!isPortalPatientActor(auth)) throw createError('Chỉ bệnh nhân/người thân được ủy quyền được xem thống kê lịch hẹn cá nhân.', 403);
+  if (isPatientRelativeActor(auth)) {
+    await assertPortalAppointmentAuthorization(auth, [AUTHORIZATION_TYPE.APPOINTMENT_READ, AUTHORIZATION_TYPE.APPOINTMENT_MANAGE, AUTHORIZATION_TYPE.BOOK_APPOINTMENTS]);
+  }
+  return getAppointmentSummary({ ...query, patient_id: getPortalPatientId(auth) }, auth);
+}
+
+async function getMyAppointmentTimeline(appointmentId, query = {}, auth = {}) {
+  if (!isPortalPatientActor(auth)) throw createError('Chỉ bệnh nhân/người thân được ủy quyền được xem timeline lịch hẹn cá nhân.', 403);
+  if (isPatientRelativeActor(auth)) {
+    await assertPortalAppointmentAuthorization(auth, [AUTHORIZATION_TYPE.APPOINTMENT_READ, AUTHORIZATION_TYPE.APPOINTMENT_MANAGE, AUTHORIZATION_TYPE.BOOK_APPOINTMENTS]);
+  }
+  const appointment = await Appointment.findOne({
+    _id: appointmentId,
+    patient_id: getPortalPatientId(auth),
+    is_deleted: false,
+  }).lean();
+  if (!appointment) throw createError('Không tìm thấy lịch hẹn của bạn.', 404);
+  return getAppointmentTimeline(appointmentId, query, auth);
+}
+
+async function getMyAppointmentActions(appointmentId, auth = {}) {
+  if (!isPortalPatientActor(auth)) throw createError('Chỉ bệnh nhân/người thân được ủy quyền được xem thao tác lịch hẹn cá nhân.', 403);
+  if (isPatientRelativeActor(auth)) {
+    await assertPortalAppointmentAuthorization(auth, [AUTHORIZATION_TYPE.APPOINTMENT_READ, AUTHORIZATION_TYPE.APPOINTMENT_MANAGE, AUTHORIZATION_TYPE.BOOK_APPOINTMENTS]);
+  }
+  const appointment = await Appointment.findOne({
+    _id: appointmentId,
+    patient_id: getPortalPatientId(auth),
+    is_deleted: false,
+  }).lean();
+  if (!appointment) throw createError('Không tìm thấy lịch hẹn của bạn.', 404);
+
+  const now = new Date();
+  const activeQueue = await QueueTicket.findOne({
+    appointment_id: appointment._id,
+    status: { $in: ACTIVE_QUEUE_STATUSES },
+  }).lean();
+  const encounter = await Encounter.findOne({
+    appointment_id: appointment._id,
+    patient_id: appointment.patient_id,
+  }).lean();
+  const unpaidInvoice = encounter
+    ? await Invoice.findOne({
+      patient_id: appointment.patient_id,
+      encounter_id: encounter._id,
+      balance_due: { $gt: 0 },
+      status: { $in: [INVOICE_STATUS.ISSUED, INVOICE_STATUS.PARTIALLY_PAID] },
+    }).select('_id invoice_no balance_due currency').lean()
+    : null;
+  const checkIn = await checkAppointmentCanBeCheckedIn(appointment._id);
+  const canCancel = !TERMINAL_APPOINTMENT_STATUSES.includes(appointment.status)
+    && appointment.status !== APPOINTMENT_STATUS.IN_CONSULTATION
+    && activeQueue?.status !== QUEUE_STATUS.IN_SERVICE;
+  const canReschedule = [APPOINTMENT_STATUS.BOOKED, APPOINTMENT_STATUS.CONFIRMED].includes(appointment.status)
+    && new Date(appointment.appointment_time) > now
+    && !activeQueue;
+
+  return {
+    appointment_id: String(appointment._id),
+    status: appointment.status,
+    can_reschedule: canReschedule,
+    can_cancel: canCancel,
+    can_check_in: Boolean(checkIn.can_checkin),
+    can_pay: Boolean(unpaidInvoice),
+    can_view_queue: Boolean(activeQueue),
+    can_view_visit: Boolean(encounter),
+    can_book_again: [
+      APPOINTMENT_STATUS.COMPLETED,
+      APPOINTMENT_STATUS.CANCELLED,
+      APPOINTMENT_STATUS.NO_SHOW,
+      APPOINTMENT_STATUS.RESCHEDULED,
+    ].includes(appointment.status),
+    reasons: {
+      check_in: checkIn.reasons || [],
+      reschedule: canReschedule ? [] : ['Lịch hẹn hiện không ở trạng thái/khung thời gian cho phép dời lịch.'],
+      cancel: canCancel ? [] : ['Lịch hẹn hiện không thể hủy qua cổng bệnh nhân.'],
+    },
+    active_queue_ticket_id: activeQueue ? String(activeQueue._id) : null,
+    encounter_id: encounter ? String(encounter._id) : null,
+    unpaid_invoice: unpaidInvoice
+      ? {
+          invoice_id: String(unpaidInvoice._id),
+          invoice_no: unpaidInvoice.invoice_no,
+          balance_due: unpaidInvoice.balance_due,
+          currency: unpaidInvoice.currency,
+        }
+      : null,
+  };
 }
 
 async function autoConfirmAppointment() {
@@ -1703,6 +1920,9 @@ module.exports = {
   listTodayAppointments,
   // getMyAppointments: Lấy lịch hẹn của người dùng hiện tại.
   getMyAppointments,
+  getMyAppointmentSummary,
+  getMyAppointmentTimeline,
+  getMyAppointmentActions,
   // createAppointmentFromPatientPortal: Tạo lịch hẹn từ cổng bệnh nhân.
   createAppointmentFromPatientPortal,
   // createAppointmentByStaff: Tạo lịch hẹn do nhân sự tạo.

@@ -10,4 +10,5 @@ module.exports = {
   listClinics: wrap((req) => directoryService.listLocations('clinic', req.query), 'Lấy clinics thành công.'),
   listPharmacies: wrap((req) => directoryService.listLocations('pharmacy', req.query), 'Lấy pharmacies thành công.'),
   listAvailableSlots: wrap((req) => directoryService.listAvailableSlots(req.query), 'Lấy available slots thành công.'),
+  getLocationNavigation: wrap((req) => directoryService.getLocationNavigation(req.params.locationId), 'Lấy hướng dẫn di chuyển thành công.'),
 };

@@ -47,5 +47,10 @@ module.exports = {
   getEncounterProcedureSummary: wrap((req) => procedureService.getEncounterProcedureSummary(req.params.encounterId, req.auth), 'Lấy procedure summary của encounter thành công.'),
   getPatientProcedureHistory: wrap((req) => procedureService.getPatientProcedureHistory(req.params.patientId, req.query, req.auth), 'Lấy procedure history của patient thành công.'),
   getMyProcedureHistory: wrap((req) => procedureService.getPatientProcedureHistory(req.auth.patientId || req.auth.patient_id, req.query, req.auth), 'Lấy procedure history của tôi thành công.'),
+  listMyProcedureOrders: wrap((req) => procedureService.listMyProcedureOrders(req.auth, req.query), 'Lấy chỉ định thủ thuật của tôi thành công.'),
+  listMyProcedureOrderAttachments: wrap((req) => procedureService.listMyProcedureOrderAttachments(req.auth, req.params.procedureOrderId), 'Lấy file thủ thuật của tôi thành công.'),
+  listMyProcedureResults: wrap((req) => procedureService.listMyProcedureResults(req.auth, req.query), 'Lấy kết quả thủ thuật của tôi thành công.'),
+  getMyProcedureResultDetail: wrap((req) => procedureService.getMyProcedureResultDetail(req.params.resultId, req.auth), 'Lấy chi tiết kết quả thủ thuật của tôi thành công.'),
+  markMyProcedureResultViewed: wrap((req) => procedureService.markMyProcedureResultViewed(req.params.resultId, req.auth, requestMeta(req)), 'Đã đánh dấu kết quả thủ thuật là đã xem.'),
   getProcedureDashboardSummary: wrap((req) => procedureService.getProcedureDashboardSummary(req.query, req.auth), 'Lấy procedure dashboard summary thành công.'),
 };

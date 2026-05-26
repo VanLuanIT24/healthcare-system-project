@@ -1,10 +1,19 @@
 const { model } = require('mongoose');
 const { Schema, baseSchemaOptions, auditFields, optionalString, softDeleteFields } = require('../common/base-model');
+const { buildInitialAvatar } = require('../../common/avatar');
 const { USER_STATUS, USER_STATUSES } = require('../../constants/statuses');
 
 const AUTH_PROVIDER = ['local', 'google', 'mixed'];
 
 // Bảng users: Lưu tài khoản đăng nhập, thông tin nhân viên và trạng thái bảo mật nội bộ.
+
+function buildUserAvatar(user) {
+  return buildInitialAvatar({
+    label: user.full_name || user.username || user.email || user.employee_code,
+    seed: user._id,
+    fallbackInitials: 'NV',
+  });
+}
 
 const userSchema = new Schema(
   {
@@ -35,7 +44,14 @@ const userSchema = new Schema(
     locked_until: { type: Date },
     auth_provider: { type: String, enum: AUTH_PROVIDER, default: 'local', required: true },
     google_id: { type: String, trim: true, set: optionalString },
-    avatar_url: { type: String, trim: true, set: optionalString },
+    avatar_url: {
+      type: String,
+      trim: true,
+      set: optionalString,
+      default() {
+        return buildUserAvatar(this);
+      },
+    },
     email_verified: { type: Boolean, default: false, required: true },
     email_verified_at: { type: Date },
     phone_verified_at: { type: Date },
@@ -44,6 +60,14 @@ const userSchema = new Schema(
   },
   { ...baseSchemaOptions, collection: 'users' },
 );
+
+userSchema.pre('validate', function ensureAvatarUrl(next) {
+  if (!this.avatar_url || !String(this.avatar_url).trim()) {
+    this.avatar_url = buildUserAvatar(this);
+  }
+
+  next();
+});
 
 userSchema.index({ username: 1 }, { unique: true, partialFilterExpression: { is_deleted: false } });
 userSchema.index(

@@ -5,6 +5,7 @@ export const sidebarSections = [
     items: [
       { key: 'appointments', icon: 'calendar_today', label: 'Lịch hẹn' },
       { key: 'book-appointment', icon: 'calendar_add_on', label: 'Đặt lịch khám' },
+      { key: 'checkin-queue', icon: 'receipt_long', label: 'Check-in / Queue' },
       { key: 'history', icon: 'history_edu', label: 'Lịch sử khám' },
       { key: 'inpatient', icon: 'local_hospital', label: 'Nội trú' },
       { key: 'procedures', icon: 'clinical_notes', label: 'Thủ thuật' },
@@ -19,6 +20,7 @@ export const sidebarSections = [
     items: [
       { key: 'medical-records', icon: 'folder_shared', label: 'Hồ sơ y tế' },
       { key: 'documents', icon: 'description', label: 'Kho tài liệu' },
+      { key: 'relatives-authorizations', icon: 'verified_user', label: 'Người thân / Ủy quyền' },
       { key: 'profile', icon: 'person', label: 'Hồ sơ cá nhân' },
     ],
   },
@@ -27,6 +29,7 @@ export const sidebarSections = [
     title: 'TÀI CHÍNH',
     items: [
       { key: 'billing', icon: 'payments', label: 'Thanh toán' },
+      { key: 'billing-receipts', icon: 'receipt_long', label: 'Hóa đơn / Biên lai' },
       { key: 'insurance', icon: 'shield_plus', label: 'Bảo hiểm' },
     ],
   },
@@ -363,9 +366,15 @@ export const notifications = [
 
 export const notificationFilters = [
   { key: 'all', label: 'Tất cả' },
+  { key: 'unread', label: 'Chưa đọc' },
   { key: 'appointments', label: 'Lịch hẹn' },
-  { key: 'labs', label: 'Kết quả xét nghiệm' },
-  { key: 'hospital', label: 'Bệnh viện' },
+  { key: 'queue', label: 'Queue' },
+  { key: 'results', label: 'Kết quả' },
+  { key: 'prescriptions', label: 'Đơn thuốc' },
+  { key: 'billing', label: 'Thanh toán' },
+  { key: 'insurance', label: 'Bảo hiểm' },
+  { key: 'support', label: 'Hỗ trợ' },
+  { key: 'system', label: 'Hệ thống' },
 ]
 
 export const notificationFeed = [
@@ -386,7 +395,7 @@ export const notificationFeed = [
   },
   {
     id: 'notice-2',
-    category: 'labs',
+    category: 'results',
     icon: 'biotech',
     iconTone: 'soft',
     title: 'Kết quả xét nghiệm mới',
@@ -398,7 +407,7 @@ export const notificationFeed = [
   },
   {
     id: 'notice-3',
-    category: 'hospital',
+    category: 'system',
     icon: 'campaign',
     iconTone: 'neutral',
     title: 'Thông báo bảo trì hệ thống',
@@ -1157,6 +1166,11 @@ export const sectionMeta = {
     title: 'Lịch hẹn',
     body: 'Khu vực quản lý lịch hẹn để đặt lịch, đổi lịch và theo dõi trạng thái khám của bạn.',
   },
+  'checkin-queue': {
+    eyebrow: 'Điều phối tại viện',
+    title: 'Check-in / Queue',
+    body: 'Mục check-in và hàng đợi giúp bệnh nhân theo dõi số thứ tự, trạng thái tiếp nhận và hướng dẫn tại quầy.',
+  },
   history: {
     eyebrow: 'Lưu trữ lâm sàng',
     title: 'Lịch sử khám',
@@ -1182,6 +1196,11 @@ export const sectionMeta = {
     title: 'Kho tài liệu',
     body: 'Kho tài liệu để lưu, tìm kiếm và tải về hồ sơ y tế, hóa đơn và kết quả xét nghiệm của bạn.',
   },
+  'relatives-authorizations': {
+    eyebrow: 'Ủy quyền hồ sơ',
+    title: 'Người thân / Ủy quyền',
+    body: 'Khu vực quản lý người thân, quyền đại diện và phạm vi truy cập hồ sơ bệnh nhân.',
+  },
   notifications: {
     eyebrow: 'Hộp thư',
     title: 'Thông báo',
@@ -1191,6 +1210,11 @@ export const sectionMeta = {
     eyebrow: 'Thanh toán',
     title: 'Hóa đơn',
     body: 'Màn hình hóa đơn và thanh toán hiển thị trạng thái xử lý, khoản cần thanh toán và phương thức chi trả.',
+  },
+  'billing-receipts': {
+    eyebrow: 'Chứng từ viện phí',
+    title: 'Hóa đơn / Biên lai',
+    body: 'Danh sách hóa đơn, biên lai và lịch sử thanh toán được tập trung để bệnh nhân tra cứu nhanh.',
   },
   support: {
     eyebrow: 'Hỗ trợ bệnh nhân',

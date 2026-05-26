@@ -1,10 +1,18 @@
 const express = require('express');
 const chatController = require('../controllers/chat.controller');
+const authenticate = require('../middleware/authenticate');
 const { validateObjectIdParam } = require('../common/validators');
 
 const router = express.Router();
 
 router.param('sessionId', validateObjectIdParam);
+
+function optionalAuthenticate(req, res, next) {
+  if (!req.get('authorization')) return next();
+  return authenticate(req, res, next);
+}
+
+router.use(optionalAuthenticate);
 
 router.post('/sessions', chatController.createSession);
 router.get('/sessions/:sessionId', chatController.getSession);

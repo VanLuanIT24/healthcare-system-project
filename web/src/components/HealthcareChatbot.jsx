@@ -4,7 +4,10 @@ import {
   AlertTriangle,
   CalendarPlus,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock3,
+  Copy,
   CreditCard,
   FileText,
   HeartPulse,
@@ -19,25 +22,74 @@ import {
   WalletCards,
   X,
 } from 'lucide-react'
+import botAvatarVideo from '../assets/chatbot/bot-avatar.mp4'
+import botMessageAvatar from '../assets/chatbot/bot-message-avatar.jpg'
+import { API_BASE_URL } from '../lib/api'
 import { chatbotAPI, getApiErrorMessage, unwrapData } from '../utils/api'
 
 export const HEALTHCARE_CHATBOT_EVENT = 'healthcare-chatbot:open'
 
-const hotlineNumber = '19008888'
+const hotlineNumber = '0337832953'
+const zaloNumber = '0337832953'
 const emergencyNumber = '115'
+const messengerUrl = 'https://www.facebook.com/profile.php?id=61551884413560&locale=vi_VN'
 
-function AiAgentMark({ compact = false }) {
+function publicUploadUrl(fileName) {
+  const encodedFileName = fileName.split('/').map(encodeURIComponent).join('/')
+
+  if (import.meta.env.DEV) {
+    return `/uploads/${encodedFileName}`
+  }
+
+  try {
+    const apiUrl = new URL(API_BASE_URL, window.location.origin)
+    if (apiUrl.origin === window.location.origin) {
+      return `/uploads/${encodedFileName}`
+    }
+
+    return `${apiUrl.origin}/uploads/${encodedFileName}`
+  } catch {
+    return `/uploads/${encodedFileName}`
+  }
+}
+
+const zaloLogoAsset = publicUploadUrl('logo zalo.png')
+const messengerLogoAsset = publicUploadUrl('logo messenger.jpg')
+
+function AiAgentMark({ compact = false, still = false }) {
   return (
-    <span className={`hc-ai-agent-mark${compact ? ' is-compact' : ''}`} aria-hidden="true">
-      <span className="hc-ai-agent-mark__antenna" />
-      <span className="hc-ai-agent-mark__face">
-        <span className="hc-ai-agent-mark__eye" />
-        <span className="hc-ai-agent-mark__eye" />
-        <span className="hc-ai-agent-mark__mouth" />
-      </span>
-      <span className="hc-ai-agent-mark__badge">AI</span>
+    <span
+      className={`hc-ai-agent-mark${compact ? ' is-compact' : ''}${still ? ' is-still' : ''}`}
+      aria-hidden="true"
+    >
+      {still ? (
+        <img src={botMessageAvatar} alt="" loading="eager" decoding="async" />
+      ) : (
+        <video src={botAvatarVideo} autoPlay muted loop playsInline preload="metadata" />
+      )}
+      <span className="hc-ai-agent-mark__status" />
     </span>
   )
+}
+
+function ZaloLogo() {
+  return (
+    <span className="hc-zalo-logo" aria-hidden="true">
+      <img src={zaloLogoAsset} alt="" loading="eager" decoding="async" />
+    </span>
+  )
+}
+
+function MessengerLogo() {
+  return (
+    <span className="hc-messenger-logo" aria-hidden="true">
+      <img src={messengerLogoAsset} alt="" loading="eager" decoding="async" />
+    </span>
+  )
+}
+
+function formatHotlineNumber(value) {
+  return value.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3')
 }
 
 function createLocalMessage(role, text, structuredPayload = {}) {
@@ -375,20 +427,27 @@ function SlotPicker({ slots = [], onPick, disabled }) {
   if (!Array.isArray(slots) || slots.length === 0) return null
   return (
     <div className="hc-chatbot-card-grid hc-chatbot-card-grid--slots">
-      {slots.map((slot) => (
-        <button
-          key={slot.slot_id}
-          type="button"
-          className="hc-chatbot-slot-card"
-          onClick={() => onPick({ label: `${slot.time} - ${slot.doctor_name}`, value: `Tôi chọn ${slot.time}`, action: { type: 'select_slot', slot } })}
-          disabled={disabled}
-        >
-          <span>{slot.time}</span>
-          <strong>{slot.doctor_name}</strong>
-          <small>{slot.department_name} · {slot.date}</small>
-          {slot.fee_display ? <em>{slot.fee_display}</em> : null}
-        </button>
-      ))}
+      {slots.map((slot) => {
+        const actionType = slot.action_type || 'select_slot'
+        return (
+          <button
+            key={`${slot.slot_id}-${actionType}`}
+            type="button"
+            className="hc-chatbot-slot-card"
+            onClick={() => onPick({
+              label: `${slot.time} - ${slot.doctor_name}`,
+              value: actionType === 'select_reschedule_slot' ? `Tôi chọn dời lịch sang ${slot.time}` : `Tôi chọn ${slot.time}`,
+              action: { type: actionType, slot, appointment_id: slot.appointment_id },
+            })}
+            disabled={disabled}
+          >
+            <span>{slot.time}</span>
+            <strong>{slot.doctor_name}</strong>
+            <small>{slot.department_name} · {slot.date}</small>
+            {slot.fee_display ? <em>{slot.fee_display}</em> : null}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -468,10 +527,10 @@ function BookingForm({ payload, onSubmit, disabled }) {
   function submit(event) {
     event.preventDefault()
     onSubmit({
-      label: 'Gửi thông tin đặt lịch',
-      value: 'Tôi gửi thông tin đặt lịch',
+      label: payload.submit_label || 'Gửi thông tin',
+      value: payload.submit_value || 'Tôi gửi thông tin',
       action: {
-        type: 'submit_booking_identity',
+        type: payload.submit_action || 'submit_booking_identity',
         data: form,
       },
     })
@@ -482,7 +541,7 @@ function BookingForm({ payload, onSubmit, disabled }) {
       {fields.map((field) => (
         <label key={field.name}>
           <span>{field.label}{field.required ? ' *' : ''}</span>
-          {field.name === 'note' ? (
+          {field.name === 'note' || field.multiline ? (
             <textarea
               value={form[field.name] || ''}
               onChange={(event) => setForm((current) => ({ ...current, [field.name]: event.target.value }))}
@@ -501,7 +560,7 @@ function BookingForm({ payload, onSubmit, disabled }) {
       ))}
       <button type="submit" disabled={disabled}>
         <CheckCircle2 size={15} />
-        Gửi thông tin
+        {payload.button_label || 'Gửi thông tin'}
       </button>
     </form>
   )
@@ -509,6 +568,8 @@ function BookingForm({ payload, onSubmit, disabled }) {
 
 function AppointmentSummary({ summary = {}, actions = [], onPick, disabled }) {
   const rows = [
+    ['Mã lịch hẹn', summary.appointment_code],
+    ['Mã bệnh nhân', summary.patient_code],
     ['Bệnh nhân', summary.patient_name],
     ['SĐT', summary.phone],
     ['Chuyên khoa', summary.department_name],
@@ -516,6 +577,7 @@ function AppointmentSummary({ summary = {}, actions = [], onPick, disabled }) {
     ['Ngày', summary.date],
     ['Giờ', summary.time],
     ['Phí dự kiến', summary.fee_display],
+    ['Trạng thái', summary.status],
     ['Ghi chú', summary.note],
   ].filter(([, value]) => value)
 
@@ -560,18 +622,22 @@ function MessagePayload({ message, onPick, disabled }) {
       {type === 'doctor_cards' ? <DoctorCards doctors={payload.doctors} onPick={onPick} disabled={disabled} /> : null}
       {type === 'service_cards' ? <ServiceCards services={payload.services} onPick={onPick} disabled={disabled} /> : null}
       {type === 'booking_form' ? <BookingForm payload={payload} onSubmit={onPick} disabled={disabled} /> : null}
-      {type === 'appointment_summary' ? (
+      {type === 'callback_form' ? <BookingForm payload={payload} onSubmit={onPick} disabled={disabled} /> : null}
+      {type === 'appointment_summary' || type === 'appointment_confirmed' ? (
         <AppointmentSummary summary={payload.summary} actions={payload.actions} onPick={onPick} disabled={disabled} />
       ) : null}
       {type === 'emergency_card' ? <EmergencyCard payload={payload} /> : null}
       {type === 'handoff_notice' ? (
         <div className="hc-chatbot-handoff-card">
           <MessagesSquare size={16} />
-          <span>Hàng đợi: {payload.queue || 'support_general'}</span>
+          <span>
+            Hàng đợi: {payload.queue || 'support_general'}
+            {payload.support_ticket?.support_ticket_code ? ` · Ticket ${payload.support_ticket.support_ticket_code}` : ''}
+          </span>
           {payload.expected_wait_minutes ? <strong>{payload.expected_wait_minutes} phút</strong> : null}
         </div>
       ) : null}
-      {type !== 'slot_picker' && type !== 'booking_form' && type !== 'appointment_summary' ? (
+      {type !== 'slot_picker' && type !== 'booking_form' && type !== 'appointment_summary' && type !== 'appointment_confirmed' ? (
         <QuickReplies replies={payload.quick_replies || payload.actions} onPick={onPick} disabled={disabled} />
       ) : null}
     </>
@@ -597,6 +663,9 @@ export function HealthcareChatbotLayer() {
   const [messages, setMessages] = useState(() => [createLocalMessage('bot', routeContext.welcome)])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [quickPanelOpen, setQuickPanelOpen] = useState(false)
+  const [contactPanelOpen, setContactPanelOpen] = useState(false)
+  const [contactNotice, setContactNotice] = useState('')
   const quickActions = useMemo(() => buildQuickActions(activeContext.key), [activeContext.key])
   const visible = shouldShowChatbot(location.pathname)
 
@@ -604,6 +673,9 @@ export function HealthcareChatbotLayer() {
     setEventContext(null)
     setSessionId(null)
     setError('')
+    setQuickPanelOpen(false)
+    setContactPanelOpen(false)
+    setContactNotice('')
     setMessages([createLocalMessage('bot', routeContext.welcome)])
   }, [routeContext.key, routeContext.welcome])
 
@@ -615,6 +687,9 @@ export function HealthcareChatbotLayer() {
       setEventContext(detail)
       setSessionId(null)
       setError('')
+      setQuickPanelOpen(false)
+      setContactPanelOpen(false)
+      setContactNotice('')
       setMessages([createLocalMessage('bot', nextContext.welcome)])
       setOpen(true)
     }
@@ -628,11 +703,24 @@ export function HealthcareChatbotLayer() {
     bodyRef.current.scrollTop = bodyRef.current.scrollHeight
   }, [messages, loading])
 
+  useEffect(() => {
+    if (!open) setQuickPanelOpen(false)
+  }, [open])
+
+  useEffect(() => {
+    if (!contactPanelOpen) setContactNotice('')
+  }, [contactPanelOpen])
+
   async function ensureSession() {
     if (sessionId) return sessionId
     const response = await chatbotAPI.createSession({
       channel: 'website',
       source_page: `${location.pathname}${location.search || ''}`,
+      page_context: {
+        context: activeContext.key,
+        title: activeContext.title,
+        event: eventContext || undefined,
+      },
       language: 'vi',
       referrer: document.referrer,
     })
@@ -718,42 +806,116 @@ export function HealthcareChatbotLayer() {
   }
 
   const handleQuickAction = (action) => {
+    setQuickPanelOpen(false)
     sendChatMessage({ content: action.value || action.label })
   }
 
   const goToBooking = () => {
     navigate('/portal/dashboard?section=book-appointment')
     setOpen(false)
+    setContactPanelOpen(false)
+  }
+
+  const openChatWindow = () => {
+    setContactPanelOpen(false)
+    setOpen(true)
+  }
+
+  const toggleContactPanel = () => {
+    setOpen(false)
+    setContactPanelOpen((value) => !value)
+  }
+
+  const copyHotline = async () => {
+    try {
+      await navigator.clipboard.writeText(hotlineNumber)
+      setContactNotice('Đã sao chép số hotline')
+    } catch {
+      setContactNotice(`Hotline: ${formatHotlineNumber(hotlineNumber)}`)
+    }
   }
 
   return (
     <div className={`hc-chatbot-layer${open ? ' is-open' : ''}`} aria-live="polite">
+      {contactPanelOpen ? (
+        <form className="hc-hotline-panel" aria-label="Thông tin hotline hỗ trợ" onSubmit={(event) => event.preventDefault()}>
+          <div className="hc-hotline-panel__header">
+            <div>
+              <span>Hotline hỗ trợ</span>
+              <strong>{formatHotlineNumber(hotlineNumber)}</strong>
+            </div>
+            <button type="button" aria-label="Đóng bảng hotline" onClick={() => setContactPanelOpen(false)}>
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+
+          <label className="hc-hotline-panel__field">
+            <span>Số điện thoại</span>
+            <input type="tel" value={formatHotlineNumber(hotlineNumber)} readOnly />
+          </label>
+
+          <div className="hc-hotline-panel__actions">
+            <a className="is-call" href={`tel:${hotlineNumber}`}>
+              <PhoneCall size={15} aria-hidden="true" />
+              Gọi ngay
+            </a>
+            <button type="button" onClick={copyHotline}>
+              <Copy size={15} aria-hidden="true" />
+              Sao chép
+            </button>
+            <a href={`https://zalo.me/${zaloNumber}`} target="_blank" rel="noreferrer">
+              <ZaloLogo />
+              Zalo
+            </a>
+            <a href={messengerUrl} target="_blank" rel="noreferrer">
+              <MessengerLogo />
+              Messenger
+            </a>
+            <a className="is-sos" href={`tel:${emergencyNumber}`}>
+              <Siren size={15} aria-hidden="true" />
+              SOS 115
+            </a>
+          </div>
+
+          <p>Cấp cứu hoặc triệu chứng nguy hiểm: gọi 115 trước, sau đó liên hệ hotline nếu cần hỗ trợ điều phối.</p>
+          {contactNotice ? <small>{contactNotice}</small> : null}
+        </form>
+      ) : null}
+
       <nav className="hc-chatbot-rail" aria-label="Kênh hỗ trợ nhanh">
         <button
           className="hc-chatbot-rail__item is-primary"
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={openChatWindow}
           title="Chatbot / Tư vấn"
         >
           <AiAgentMark compact />
           <span>Tư vấn</span>
         </button>
-        <a className="hc-chatbot-rail__item is-zalo" href={`https://zalo.me/${hotlineNumber}`} title="Zalo">
-          <span aria-hidden="true">Z</span>
+        <a className="hc-chatbot-rail__item is-zalo" href={`https://zalo.me/${zaloNumber}`} target="_blank" rel="noreferrer" title="Zalo 0337832953">
+          <ZaloLogo />
           <span>Zalo</span>
         </a>
         <a
           className="hc-chatbot-rail__item is-messenger"
-          href="https://m.me/healthcareplusvn"
+          href={messengerUrl}
+          target="_blank"
+          rel="noreferrer"
           title="Messenger"
         >
-          <MessagesSquare size={20} aria-hidden="true" />
+          <MessengerLogo />
           <span>Messenger</span>
         </a>
-        <a className="hc-chatbot-rail__item" href={`tel:${hotlineNumber}`} title="Gọi hotline">
+        <button
+          className="hc-chatbot-rail__item is-hotline"
+          type="button"
+          onClick={toggleContactPanel}
+          aria-expanded={contactPanelOpen}
+          title="Hotline 0337 832 953"
+        >
           <PhoneCall size={20} aria-hidden="true" />
           <span>Hotline</span>
-        </a>
+        </button>
         <button className="hc-chatbot-rail__item" type="button" onClick={goToBooking} title="Đặt lịch nhanh">
           <CalendarPlus size={20} aria-hidden="true" />
           <span>Đặt lịch</span>
@@ -774,6 +936,7 @@ export function HealthcareChatbotLayer() {
               <div>
                 <h2>{activeContext.title}</h2>
                 <p>{activeContext.subtitle}</p>
+                <span className="hc-chatbot-window__online">Online</span>
               </div>
             </div>
             <button type="button" aria-label="Đóng chatbot" onClick={() => setOpen(false)}>
@@ -793,7 +956,7 @@ export function HealthcareChatbotLayer() {
               >
                 {message.role !== 'user' ? (
                   <span className="hc-chatbot-message__avatar" aria-hidden="true">
-                    <AiAgentMark compact />
+                    <AiAgentMark compact still />
                   </span>
                 ) : null}
                 <div className="hc-chatbot-message__content">
@@ -807,7 +970,7 @@ export function HealthcareChatbotLayer() {
             {loading ? (
               <article className="hc-chatbot-message hc-chatbot-message--bot">
                 <span className="hc-chatbot-message__avatar" aria-hidden="true">
-                  <AiAgentMark compact />
+                  <AiAgentMark compact still />
                 </span>
                 <div className="hc-chatbot-message__content">
                   <p className="hc-chatbot-typing"><Loader2 size={14} /> Đang kiểm tra dữ liệu...</p>
@@ -816,31 +979,48 @@ export function HealthcareChatbotLayer() {
             ) : null}
           </div>
 
-          <div className="hc-chatbot-quick-grid" aria-label="Gợi ý nhanh">
-            {quickActions.map((action) => {
-              const Icon = action.icon
+          <div className={`hc-chatbot-actions-tray${quickPanelOpen ? ' is-open' : ''}`}>
+            <button
+              className="hc-chatbot-actions-tray__toggle"
+              type="button"
+              aria-label={quickPanelOpen ? 'Ẩn gợi ý nhanh' : 'Mở gợi ý nhanh'}
+              aria-expanded={quickPanelOpen}
+              aria-controls="hc-chatbot-actions-panel"
+              onClick={() => setQuickPanelOpen((value) => !value)}
+            >
+              {quickPanelOpen ? <ChevronDown size={18} aria-hidden="true" /> : <ChevronUp size={18} aria-hidden="true" />}
+            </button>
 
-              return (
-                <button key={action.id} type="button" onClick={() => handleQuickAction(action)} disabled={loading}>
-                  <Icon size={15} aria-hidden="true" />
-                  <span>{action.label}</span>
-                </button>
-              )
-            })}
+            {quickPanelOpen ? (
+              <div className="hc-chatbot-actions-tray__panel" id="hc-chatbot-actions-panel">
+                <div className="hc-chatbot-quick-grid" aria-label="Gợi ý nhanh">
+                  {quickActions.map((action) => {
+                    const Icon = action.icon
+
+                    return (
+                      <button key={action.id} type="button" onClick={() => handleQuickAction(action)} disabled={loading}>
+                        <Icon size={15} aria-hidden="true" />
+                        <span>{action.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="hc-chatbot-window__cta">
+                  <button type="button" onClick={goToBooking}>
+                    <CalendarPlus size={16} aria-hidden="true" />
+                    Đặt lịch nhanh
+                  </button>
+                  <a href={`tel:${hotlineNumber}`}>
+                    <PhoneCall size={16} aria-hidden="true" />
+                    Gọi 0337 832 953
+                  </a>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {error ? <div className="hc-chatbot-error">{error}</div> : null}
-
-          <div className="hc-chatbot-window__cta">
-            <button type="button" onClick={goToBooking}>
-              <CalendarPlus size={16} aria-hidden="true" />
-              Đặt lịch nhanh
-            </button>
-            <a href={`tel:${hotlineNumber}`}>
-              <PhoneCall size={16} aria-hidden="true" />
-              Gọi 1900 8888
-            </a>
-          </div>
 
           <form className="hc-chatbot-input" onSubmit={handleSubmit}>
             <input

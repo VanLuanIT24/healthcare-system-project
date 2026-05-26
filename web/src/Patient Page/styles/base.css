@@ -307,12 +307,39 @@
 
 .patient-sidebar__item-label {
   min-width: 0;
+  flex: 1;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.patient-sidebar__item-badge {
+  flex: 0 0 auto;
+  min-width: 24px;
+  max-width: 72px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.18);
+}
+
+.patient-sidebar__item.is-active .patient-sidebar__item-badge {
+  background: #0f766e;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.2);
 }
 
 .patient-sidebar__footer {

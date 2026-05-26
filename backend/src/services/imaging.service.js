@@ -14,6 +14,7 @@ const {
   Order,
   Patient,
 } = require('../models');
+const { mongoose } = require('../config/database');
 const {
   buildPagination,
   createError,
@@ -1548,6 +1549,84 @@ async function getMyImagingReports(actor = {}, query = {}) {
   return listImagingReports(query, actor);
 }
 
+function assertSelfImagingPatient(actor = {}) {
+  if (actorType(actor) !== 'patient') throw createError('Chỉ patient được gọi API này.', 403);
+  if (!hasPermission(actor, PERMISSION.IMAGING_REPORTS.SELF_READ_RELEASED)) throw createError('Bạn không có quyền xem imaging reports.', 403);
+  const patientId = actor.patientId || actor.patient_id;
+  if (!patientId) throw createError('Không xác định được patient_id.', 403);
+  return patientId;
+}
+
+function buildReleasedImagingReportFilter(patientId) {
+  const normalizedPatientId = typeof patientId === 'string' && mongoose.Types.ObjectId.isValid(patientId)
+    ? new mongoose.Types.ObjectId(patientId)
+    : patientId;
+  return {
+    patient_id: normalizedPatientId,
+    released_to_patient: true,
+    release_revoked_at: { $exists: false },
+    is_current: { $ne: false },
+    status: { $in: FINAL_REPORT_STATUSES },
+  };
+}
+
+async function getMyImagingReportsSummary(actor = {}) {
+  const patientId = assertSelfImagingPatient(actor);
+  const filter = buildReleasedImagingReportFilter(patientId);
+  const [total, unviewed, critical, recent, byModality] = await Promise.all([
+    ImagingReport.countDocuments(filter),
+    ImagingReport.countDocuments({ ...filter, patient_viewed_at: null }),
+    ImagingReport.countDocuments({ ...filter, is_critical: true }),
+    ImagingReport.find(filter).sort({ released_at: -1, reported_at: -1, created_at: -1 }).limit(5).lean(),
+    ImagingReport.aggregate([
+      { $match: filter },
+      { $lookup: { from: 'imaging_orders', localField: 'imaging_order_id', foreignField: '_id', as: 'order' } },
+      { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
+      { $group: { _id: '$order.modality', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  return {
+    total,
+    new_count: unviewed,
+    unviewed,
+    viewed: Math.max(0, total - unviewed),
+    critical,
+    recent,
+    by_modality: Object.fromEntries(byModality.map((row) => [row._id || 'other', row.count])),
+  };
+}
+
+async function getMyImagingReportFiles(reportId, actor = {}) {
+  const detail = await getImagingReportDetail(reportId, actor);
+  return { report: detail.report, files: detail.attachments || [] };
+}
+
+async function markMyImagingReportViewed(reportId, actor = {}, requestMeta = {}) {
+  const patientId = assertSelfImagingPatient(actor);
+  const report = await ImagingReport.findOne({
+    _id: reportId,
+    ...buildReleasedImagingReportFilter(patientId),
+  });
+  if (!report) throw createError('Không tìm thấy imaging report đã phát hành.', 404);
+
+  if (!report.patient_viewed_at) {
+    report.patient_viewed_at = new Date();
+    await report.save();
+    await recordAuditLog({
+      actor,
+      action: 'imaging_report.patient_viewed',
+      targetType: 'imaging_report',
+      targetId: report._id,
+      status: 'success',
+      message: 'Bệnh nhân đánh dấu đã xem báo cáo CĐHA.',
+      requestMeta,
+    });
+  }
+
+  return getImagingReportDetail(reportId, actor);
+}
+
 async function getEncounterImagingSummary(encounterId, actor = {}) {
   const encounter = await Encounter.findById(encounterId).lean();
   if (!encounter) throw createError('Không tìm thấy encounter.', 404);
@@ -2138,6 +2217,12 @@ module.exports = {
   updateImagingReportTemplate,
   // getMyImagingReports: Lấy báo cáo chẩn đoán hình ảnh của người dùng hiện tại.
   getMyImagingReports,
+  // getMyImagingReportsSummary: Tổng hợp CĐHA đã phát hành cho patient.
+  getMyImagingReportsSummary,
+  // getMyImagingReportFiles: Lấy file CĐHA đã phát hành.
+  getMyImagingReportFiles,
+  // markMyImagingReportViewed: Đánh dấu bệnh nhân đã xem report.
+  markMyImagingReportViewed,
   // getEncounterImagingSummary: Lấy tổng hợp chẩn đoán hình ảnh của lượt khám.
   getEncounterImagingSummary,
   // getImagingTimeline: Lấy dòng thời gian chẩn đoán hình ảnh.

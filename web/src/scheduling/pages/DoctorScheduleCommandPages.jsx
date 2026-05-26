@@ -130,6 +130,30 @@ function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function normalizeKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function getDoctorDepartmentId(doctor = {}) {
+  return doctor.departmentId || doctor.department_id || doctor.raw?.department_id || '';
+}
+
+function doctorBelongsToDepartment(doctor = {}, departmentId = '', departments = []) {
+  if (!doctor?.id || !departmentId) return Boolean(doctor?.id);
+  const doctorDepartmentId = getDoctorDepartmentId(doctor);
+  if (doctorDepartmentId && String(doctorDepartmentId) === String(departmentId)) return true;
+  const department = departments.find((item) => String(item.id) === String(departmentId));
+  return Boolean(department?.name && doctor.department && normalizeKey(doctor.department) === normalizeKey(department.name));
+}
+
+function firstDoctorForDepartment(doctors = [], departmentId = '', departments = []) {
+  return doctors.find((doctor) => doctorBelongsToDepartment(doctor, departmentId, departments)) || null;
+}
+
 function pct(value, total) {
   return total > 0 ? Math.round((safeNumber(value) / safeNumber(total)) * 100) : 0;
 }
@@ -805,9 +829,10 @@ function CalendarView({ data, schedules }) {
 function CreateWizard({ data }) {
   const firstDoctor = data.doctors[0] || {};
   const firstDepartment = data.departments[0] || {};
+  const initialDepartmentId = getDoctorDepartmentId(firstDoctor) || firstDepartment.id || '';
   const [form, setForm] = useState({
     doctor: firstDoctor.id || '',
-    department: firstDepartment.id || '',
+    department: initialDepartmentId,
     date: dateKey(),
     start: '07:00',
     end: '11:30',
@@ -820,14 +845,68 @@ function CreateWizard({ data }) {
     note: '',
     status: 'draft',
   });
+  const departmentDoctors = useMemo(
+    () => data.doctors.filter((doctor) => doctorBelongsToDepartment(doctor, form.department, data.departments)),
+    [data.departments, data.doctors, form.department],
+  );
+  const selectedDoctor = data.doctors.find((doctor) => String(doctor.id) === String(form.doctor)) || null;
+  const doctorMatchesDepartment = selectedDoctor ? doctorBelongsToDepartment(selectedDoctor, form.department, data.departments) : false;
+  const canSubmit = Boolean(form.department && form.doctor && doctorMatchesDepartment);
   const preview = useMemo(() => buildSlotPreview(form), [form]);
   const bookableSlots = preview.filter((item) => item.status === 'slot').length;
+
+  useEffect(() => {
+    if (!data.doctors.length && !data.departments.length) return;
+    setForm((current) => {
+      const currentDoctor = data.doctors.find((doctor) => String(doctor.id) === String(current.doctor));
+      const currentDepartment = current.department || getDoctorDepartmentId(currentDoctor) || data.departments[0]?.id || '';
+      if (currentDoctor && doctorBelongsToDepartment(currentDoctor, currentDepartment, data.departments)) {
+        return current.department === currentDepartment ? current : { ...current, department: currentDepartment };
+      }
+
+      const doctorInDepartment = firstDoctorForDepartment(data.doctors, currentDepartment, data.departments);
+      const fallbackDoctor = doctorInDepartment || data.doctors[0] || {};
+      const nextDepartment = doctorInDepartment
+        ? currentDepartment
+        : getDoctorDepartmentId(fallbackDoctor) || currentDepartment || data.departments[0]?.id || '';
+      const nextDoctorId = fallbackDoctor.id || '';
+
+      if (current.doctor === nextDoctorId && current.department === nextDepartment) return current;
+      return {
+        ...current,
+        doctor: nextDoctorId,
+        department: nextDepartment,
+      };
+    });
+  }, [data.departments, data.doctors]);
 
   function update(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
+  function updateDepartment(value) {
+    const nextDoctor = firstDoctorForDepartment(data.doctors, value, data.departments);
+    setForm((current) => ({
+      ...current,
+      department: value,
+      doctor: nextDoctor?.id || '',
+    }));
+  }
+
+  function updateDoctor(value) {
+    const doctor = data.doctors.find((item) => String(item.id) === String(value));
+    setForm((current) => ({
+      ...current,
+      doctor: value,
+      department: getDoctorDepartmentId(doctor) || current.department,
+    }));
+  }
+
   async function submit(status) {
+    if (!canSubmit) {
+      data.setActionMessage('Chọn bác sĩ thuộc đúng khoa trước khi tạo lịch.');
+      return;
+    }
     await data.runAction(status === 'published' ? 'Đã tạo và publish lịch.' : 'Đã lưu nháp lịch làm việc.', () =>
       data.actions.createScheduleFromForm({
         ...form,
@@ -853,8 +932,8 @@ function CreateWizard({ data }) {
           ))}
         </div>
         <div className="sched-doctor-form-grid">
-          <label><span>Khoa</span><select value={form.department} onChange={(event) => update('department', event.target.value)}>{data.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label><span>Bác sĩ</span><select value={form.doctor} onChange={(event) => update('doctor', event.target.value)}>{data.doctors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label><span>Khoa</span><select value={form.department} onChange={(event) => updateDepartment(event.target.value)}>{data.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label><span>Bác sĩ</span><select value={form.doctor} onChange={(event) => updateDoctor(event.target.value)}>{departmentDoctors.length ? departmentDoctors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>) : <option value="">Không có bác sĩ thuộc khoa</option>}</select></label>
           <label><span>Ngày làm việc</span><input type="date" value={form.date} onChange={(event) => update('date', event.target.value)} /></label>
           <label><span>Bắt đầu</span><input type="time" value={form.start} onChange={(event) => update('start', event.target.value)} /></label>
           <label><span>Kết thúc</span><input type="time" value={form.end} onChange={(event) => update('end', event.target.value)} /></label>
@@ -866,8 +945,8 @@ function CreateWizard({ data }) {
           <label className="sched-doctor-form-grid__wide"><span>Ghi chú nội bộ</span><textarea value={form.note} onChange={(event) => update('note', event.target.value)} placeholder="Ví dụ: ưu tiên tái khám, giới hạn loại khám..." /></label>
         </div>
         <div className="sched-doctor-create__actions">
-          <button type="button" onClick={() => submit('draft')}><Save size={15} />Lưu nháp</button>
-          <button type="button" className="is-primary" onClick={() => submit('published')}><CheckCircle2 size={15} />Tạo và publish</button>
+          <button type="button" onClick={() => submit('draft')} disabled={!canSubmit}><Save size={15} />Lưu nháp</button>
+          <button type="button" className="is-primary" onClick={() => submit('published')} disabled={!canSubmit}><CheckCircle2 size={15} />Tạo và publish</button>
         </div>
       </main>
       <aside>
@@ -877,7 +956,7 @@ function CreateWizard({ data }) {
           {preview.map((slot, index) => <span key={`${slot.time}-${index}`} className={`is-${slot.status}`}>{slot.time}</span>)}
         </div>
         <section className="sched-doctor-readiness">
-          <span><ShieldCheck size={14} />Bác sĩ thuộc khoa đã chọn</span>
+          {doctorMatchesDepartment ? <span><ShieldCheck size={14} />Bác sĩ thuộc khoa đã chọn</span> : <span><AlertTriangle size={14} />Bác sĩ chưa thuộc khoa đã chọn</span>}
           <span><ShieldCheck size={14} />Break window nằm trong ca</span>
           <span><AlertTriangle size={14} />Backend hiện capacity slot đang tối đa 1 nếu chưa nâng model</span>
         </section>

@@ -65,7 +65,11 @@ module.exports = {
   getPatientPrescriptionHistory: wrap((req) => prescriptionService.getPatientPrescriptionHistory(req.params.patientId, req.query, req.auth), 'Lấy lịch sử đơn thuốc của bệnh nhân thành công.'),
   getPatientActivePrescriptions: wrap((req) => prescriptionService.getPatientActivePrescriptions(req.params.patientId, req.query, req.auth), 'Lấy đơn thuốc active của bệnh nhân thành công.'),
   getDoctorPrescriptions: wrap((req) => prescriptionService.getDoctorPrescriptions(req.params.doctorId, req.query, req.auth), 'Lấy đơn thuốc theo bác sĩ thành công.'),
-  getMyPrescriptions: wrap((req) => prescriptionService.getPatientPrescriptionHistory(req.auth.patientId || req.auth.patient_id, req.query, req.auth), 'Lấy đơn thuốc của tôi thành công.'),
+  getMyPrescriptions: wrap((req) => prescriptionService.listMyPrescriptions(req.auth, req.query), 'Lấy đơn thuốc của tôi thành công.'),
+  listMyRefillRequests: wrap((req) => prescriptionService.listMyRefillRequests(req.auth, req.query), 'Lấy yêu cầu cấp lại thuốc của tôi thành công.'),
+  createMyRefillRequest: wrap((req) => prescriptionService.createMyRefillRequest(req.params.prescriptionId, req.body, req.auth, requestMeta(req)), 'Tạo yêu cầu cấp lại thuốc thành công.', 201),
+  getMyPrescriptionDispenseStatus: wrap((req) => prescriptionService.getMyPrescriptionDispenseStatus(req.params.prescriptionId, req.auth), 'Lấy trạng thái cấp phát đơn thuốc thành công.'),
+  getMyPrescriptionInstructions: wrap((req) => prescriptionService.getMyPrescriptionInstructions(req.params.prescriptionId, req.auth), 'Lấy hướng dẫn dùng thuốc thành công.'),
   duplicatePrescription: wrap(
     (req) => prescriptionService.duplicatePrescription(req.params.prescriptionId, req.body, req.auth, requestMeta(req)),
     'Nhân bản đơn thuốc thành công.',

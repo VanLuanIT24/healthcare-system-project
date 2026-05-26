@@ -17,7 +17,8 @@ router.get('/public/board', queueController.getPublicQueueBoard);
 
 router.use(authenticate);
 
-router.get('/me/current', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.QUEUE.SELF_READ] }), queueController.getMyCurrentQueue);
+router.get('/me/current', authorize({ actorTypes: ['patient', 'patient_relative'] }), queueController.getMyCurrentQueue);
+router.get('/me/current/detail', authorize({ actorTypes: ['patient', 'patient_relative'] }), queueController.getMyCurrentQueueDetail);
 
 router.use(authorize({ actorTypes: ['staff'] }));
 

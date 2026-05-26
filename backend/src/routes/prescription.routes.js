@@ -22,6 +22,10 @@ router.param('refillRequestId', validateObjectIdParam);
 router.use(authenticate);
 
 router.get('/me', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PRESCRIPTIONS.SELF_READ] }), prescriptionController.getMyPrescriptions);
+router.get('/me/refill-requests', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PRESCRIPTIONS.SELF_READ] }), prescriptionController.listMyRefillRequests);
+router.get('/me/:prescriptionId/dispense-status', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PRESCRIPTIONS.SELF_READ] }), prescriptionController.getMyPrescriptionDispenseStatus);
+router.get('/me/:prescriptionId/instructions', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PRESCRIPTIONS.SELF_READ] }), prescriptionController.getMyPrescriptionInstructions);
+router.post('/me/:prescriptionId/refill-requests', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PRESCRIPTIONS.SELF_READ] }), prescriptionController.createMyRefillRequest);
 router.get('/me/:prescriptionId', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PRESCRIPTIONS.SELF_READ] }), prescriptionController.getPrescriptionDetail);
 
 router.use(authorize({ actorTypes: ['staff'] }));

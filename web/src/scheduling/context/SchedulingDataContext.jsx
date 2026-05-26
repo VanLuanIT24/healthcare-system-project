@@ -444,9 +444,11 @@ export function SchedulingDataProvider({ children }) {
 
   const resolveDepartmentId = useCallback(
     (value, doctorId) => {
+      const doctor = state.doctors.find((item) => item.id === doctorId);
+      if (doctor?.departmentId) return doctor.departmentId;
+      if (doctor?.raw?.department_id) return doctor.raw.department_id;
       const byIdOrName = state.departments.find((item) => item.id === value || item.name === value);
       if (byIdOrName?.id) return byIdOrName.id;
-      const doctor = state.doctors.find((item) => item.id === doctorId);
       const byDoctorDepartment = state.departments.find((item) => item.name === doctor?.department);
       return byDoctorDepartment?.id || value;
     },

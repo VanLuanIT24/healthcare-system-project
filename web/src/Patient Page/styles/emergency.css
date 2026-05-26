@@ -628,6 +628,85 @@
   text-transform: uppercase;
 }
 
+.patient-emergency-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 7, 18, 0.56);
+}
+
+.patient-emergency-modal-card {
+  position: relative;
+  width: min(560px, 100%);
+  border-radius: 18px;
+  padding: 24px;
+  background: #fff;
+  box-shadow: 0 24px 72px rgba(3, 7, 18, 0.28);
+}
+
+.patient-emergency-modal-card > button:first-child {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #111827;
+  cursor: pointer;
+}
+
+.patient-emergency-modal-card h2 {
+  margin: 0 44px 14px 0;
+  font-size: 24px;
+}
+
+.patient-emergency-modal-card textarea {
+  width: 100%;
+  min-height: 90px;
+  border: 1px solid rgba(160, 174, 203, 0.36);
+  border-radius: 14px;
+  padding: 12px;
+  resize: vertical;
+  font: inherit;
+}
+
+.patient-emergency-modal-card > div {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.patient-emergency-modal-card > div button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: #ba1a1a;
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.patient-emergency-modal-card > div button:last-child {
+  background: #eef2f7;
+  color: #111827;
+}
+
+.patient-emergency-modal-card > div button:disabled {
+  background: #d7e0ed;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
 @media (max-width: 1320px) {
   .patient-emergency-sos-card,
   .patient-emergency-qr-card,

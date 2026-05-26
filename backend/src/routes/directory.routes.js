@@ -9,6 +9,7 @@ const { createAuthRateLimit } = require('../middleware/auth-rate-limit');
 const router = express.Router();
 
 router.param('doctorId', validateObjectIdParam);
+router.param('locationId', validateObjectIdParam);
 
 const publicDirectoryLimit = createAuthRateLimit({
   scope: 'public-directory',
@@ -26,6 +27,7 @@ router.get('/service-prices', publicDirectoryLimit, directoryController.listServ
 router.get('/clinics', publicDirectoryLimit, directoryController.listClinics);
 router.get('/pharmacies', publicDirectoryLimit, directoryController.listPharmacies);
 router.get('/available-slots', publicDirectoryLimit, directoryController.listAvailableSlots);
+router.get('/locations/:locationId/navigation', publicDirectoryLimit, directoryController.getLocationNavigation);
 
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'], anyPermissions: [PERMISSION.DIRECTORY.MANAGE] }));

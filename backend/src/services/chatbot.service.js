@@ -7,17 +7,33 @@ const {
   ChatbotIntent,
   ChatbotMessage,
   ChatbotSession,
+  Appointment,
   Department,
   DoctorProfile,
   DoctorSchedule,
   FacilityLocation,
+  ImagingReport,
+  Invoice,
   KnowledgeArticle,
+  LabResult,
+  Patient,
+  PaymentIntent,
   ScheduleSlot,
   ServiceCatalog,
   ServicePriceVersion,
   User,
 } = require('../models');
+const appointmentService = require('./appointment.service');
+const patientService = require('./patient.service');
 const scheduleService = require('./schedule.service');
+const supportTicketService = require('./support-ticket.service');
+const {
+  APPOINTMENT_STATUS,
+  SCHEDULE_SLOT_STATUS,
+  SUPPORT_CATEGORY,
+  SUPPORT_TICKET_PRIORITY,
+} = require('../constants/statuses');
+const { PERMISSION } = require('../constants/permissions');
 const {
   buildPagination,
   createError,
@@ -39,6 +55,7 @@ const DEFAULT_INTENTS = [
   ['goodbye', 'Tạm biệt', ['tạm biệt', 'hẹn gặp lại']],
   ['book_appointment', 'Đặt lịch khám', ['tôi muốn đặt lịch', 'đặt khám giúp tôi', 'tôi muốn khám da liễu chiều mai']],
   ['ask_available_slots', 'Hỏi lịch trống', ['mai còn lịch không', 'bác sĩ nào còn lịch hôm nay', 'xem lịch trống']],
+  ['check_appointment_status', 'Kiểm tra lịch hẹn', ['kiểm tra lịch hẹn', 'lịch hẹn của tôi', 'mã lịch hẹn của tôi']],
   ['reschedule_appointment', 'Đổi lịch', ['tôi muốn đổi lịch', 'dời lịch hẹn', 'đổi giờ khám']],
   ['cancel_appointment', 'Hủy lịch', ['tôi muốn hủy lịch', 'hủy lịch hẹn']],
   ['find_department', 'Tìm chuyên khoa', ['tôi nên khám khoa nào', 'có khoa tiêu hóa không']],
@@ -48,10 +65,32 @@ const DEFAULT_INTENTS = [
   ['emergency', 'Cấp cứu', ['đau ngực dữ dội khó thở', 'co giật', 'chảy máu nhiều']],
   ['ask_price', 'Hỏi giá', ['khám da liễu bao nhiêu tiền', 'phí khám tổng quát']],
   ['ask_payment', 'Thanh toán', ['có thanh toán QR không', 'tôi chuyển khoản rồi']],
+  ['ask_qr_payment', 'Thanh toán QR', ['cho tôi mã QR thanh toán', 'thanh toán qr như thế nào']],
+  ['ask_invoice', 'Hóa đơn/biên lai', ['lấy hóa đơn ở đâu', 'xuất hóa đơn giúp tôi']],
+  ['check_payment_status', 'Kiểm tra thanh toán', ['tôi chuyển khoản rồi', 'kiểm tra thanh toán', 'thanh toán của tôi đã được xác nhận chưa']],
   ['ask_insurance', 'Bảo hiểm', ['có nhận BHYT không', 'bảo hiểm tư nhân có dùng được không']],
+  ['insurance_eligibility_check', 'Kiểm tra điều kiện bảo hiểm', ['thẻ BHYT của tôi dùng được không', 'bảo hiểm này có áp dụng không']],
+  ['ask_working_hours', 'Giờ làm việc', ['bệnh viện làm việc mấy giờ', 'chủ nhật có khám không', 'mấy giờ mở cửa']],
+  ['ask_location', 'Địa chỉ/cơ sở', ['địa chỉ ở đâu', 'cơ sở gần nhất', 'có chi nhánh đà nẵng không']],
+  ['branch_recommendation', 'Gợi ý cơ sở', ['cơ sở nào gần tôi', 'nên khám ở chi nhánh nào']],
   ['ask_patient_portal', 'Cổng bệnh nhân', ['quên mật khẩu', 'xem hóa đơn ở đâu', 'xem kết quả xét nghiệm']],
+  ['ask_preparation', 'Hướng dẫn trước khám', ['trước khi khám cần chuẩn bị gì', 'có cần nhịn ăn không']],
+  ['ask_required_documents', 'Giấy tờ cần mang', ['đi khám cần giấy tờ gì', 'cần mang CCCD không']],
+  ['check_result_status', 'Kiểm tra trạng thái kết quả', ['kết quả của tôi có chưa', 'kiểm tra kết quả xét nghiệm', 'kết quả chẩn đoán hình ảnh']],
+  ['upload_document_help', 'Hướng dẫn upload giấy tờ', ['tải CCCD lên', 'upload bảo hiểm', 'gửi giấy chuyển tuyến', 'gửi hồ sơ khám cũ']],
+  ['compare_services', 'So sánh dịch vụ', ['so sánh gói khám', 'gói nào khác nhau']],
+  ['recommend_package', 'Gợi ý gói khám', ['nên chọn gói khám nào', 'tư vấn gói khám tổng quát']],
+  ['doctor_recommendation', 'Gợi ý bác sĩ', ['nên khám bác sĩ nào', 'bác sĩ nào phù hợp']],
   ['human_support', 'Gặp nhân viên', ['cho tôi gặp nhân viên', 'gọi lại cho tôi']],
+  ['callback_request', 'Yêu cầu gọi lại', ['gọi lại cho tôi', 'liên hệ lại giúp tôi', 'tư vấn gọi lại']],
+  ['lead_capture', 'Thu thập lead', ['tôi để lại số điện thoại', 'liên hệ tư vấn giúp tôi']],
+  ['abandoned_booking_recovery', 'Tiếp tục đặt lịch dang dở', ['tiếp tục đặt lịch cũ', 'lần trước tôi đang đặt lịch']],
+  ['returning_patient_support', 'Hỗ trợ bệnh nhân quay lại', ['tôi đã từng khám ở đây', 'tôi muốn tái khám']],
+  ['family_booking', 'Đặt lịch cho người thân', ['đặt lịch cho mẹ tôi', 'đặt lịch cho con tôi']],
+  ['corporate_health_check', 'Khám sức khỏe doanh nghiệp', ['khám sức khỏe công ty', 'đặt lịch cho nhân viên công ty']],
   ['complaint', 'Khiếu nại/góp ý', ['tôi muốn khiếu nại', 'góp ý dịch vụ']],
+  ['feedback', 'Phản hồi dịch vụ', ['tôi muốn góp ý', 'dịch vụ rất tốt', 'nhân viên hỗ trợ tốt']],
+  ['casual_chat', 'Trò chuyện tự nhiên', ['em là ai', 'nói chuyện với tôi chút', 'tôi hơi lo', 'bot vui tính không']],
 ];
 
 const DEFAULT_ENTITIES = [
@@ -60,6 +99,9 @@ const DEFAULT_ENTITIES = [
   ['department', 'Tim mạch', ['tim mạch', 'đau ngực', 'hồi hộp', 'huyết áp', 'khó thở']],
   ['department', 'Nhi khoa', ['nhi', 'trẻ em', 'con tôi', 'bé', 'sốt trẻ em']],
   ['department', 'Sản phụ khoa', ['sản', 'phụ khoa', 'thai', 'mang thai', 'ra máu khi mang thai']],
+  ['department', 'Tai Mũi Họng', ['tai mũi họng', 'nghẹt mũi', 'sổ mũi', 'đau họng', 'viêm họng', 'ù tai']],
+  ['department', 'Cơ xương khớp', ['cơ xương khớp', 'đau lưng', 'đau khớp', 'đau vai gáy', 'thoái hóa']],
+  ['department', 'Thần kinh', ['thần kinh', 'đau đầu', 'chóng mặt', 'tê tay', 'mất ngủ']],
   ['department', 'Nội tổng quát', ['nội tổng quát', 'khám tổng quát', 'mệt mỏi', 'sốt', 'đau đầu']],
   ['service', 'Khám tổng quát', ['khám tổng quát', 'gói khám sức khỏe', 'checkup']],
   ['service', 'Xét nghiệm máu', ['xét nghiệm máu', 'máu', 'công thức máu']],
@@ -94,6 +136,12 @@ const DEFAULT_KNOWLEDGE = [
     content: 'Thông tin cá nhân như lịch hẹn, hóa đơn, tài liệu và kết quả chỉ hiển thị sau khi đăng nhập cổng bệnh nhân. Nếu quên mật khẩu, sử dụng chức năng Quên mật khẩu tại màn hình đăng nhập.',
   },
   {
+    title: 'Hỗ trợ giờ làm việc và địa chỉ',
+    category: 'facility',
+    keywords: ['giờ làm việc', 'mở cửa', 'địa chỉ', 'cơ sở', 'chi nhánh', 'chủ nhật'],
+    content: 'Chatbot ưu tiên lấy giờ làm việc, địa chỉ và số điện thoại từ dữ liệu cơ sở đang active/public trong hệ thống. Nếu cơ sở chưa cấu hình giờ làm việc, chatbot sẽ đề nghị chuyển nhân viên để xác minh.',
+  },
+  {
     title: 'Phạm vi an toàn y tế của chatbot',
     category: 'medical_safety',
     keywords: ['thuốc', 'liều dùng', 'chẩn đoán', 'xét nghiệm', 'điều trị'],
@@ -110,6 +158,10 @@ const RED_FLAG_PATTERNS = [
   ['syncope', ['ngất', 'ngat', 'bất tỉnh', 'bat tinh']],
   ['shock', ['sốc phản vệ', 'soc phan ve', 'phản vệ']],
   ['injury', ['tai nạn nặng', 'tai nan nang', 'bỏng nặng', 'bong nang']],
+  ['severe_headache', ['đau đầu dữ dội đột ngột', 'dau dau du doi dot ngot', 'đau đầu như búa bổ']],
+  ['severe_abdominal_pain', ['đau bụng dữ dội', 'dau bung du doi', 'bụng đau không chịu nổi']],
+  ['child_high_fever', ['trẻ sốt cao co giật', 'be sot cao co giat', 'con tôi sốt cao co giật']],
+  ['newborn_cyanosis', ['trẻ sơ sinh tím tái', 'tre so sinh tim tai', 'em bé tím tái']],
   ['pregnancy', ['thai phụ ra máu', 'mang thai ra máu', 'ra máu khi mang thai']],
   ['self_harm', ['tự tử', 'tu tu', 'tự hại', 'tu hai', 'muốn chết']],
 ];
@@ -117,7 +169,7 @@ const RED_FLAG_PATTERNS = [
 const MEDICAL_BLOCK_PATTERNS = [
   ['prescription', ['kê thuốc', 'ke thuoc', 'uống thuốc gì', 'uong thuoc gi', 'thuốc gì']],
   ['dosage', ['liều', 'lieu', 'bao nhiêu viên', 'mấy viên', 'mg/ngày']],
-  ['stop_medication', ['ngừng thuốc', 'ngung thuoc', 'dừng thuốc', 'dung thuoc']],
+  ['stop_medication', ['ngừng thuốc', 'ngung thuoc', 'dừng thuốc', 'dung thuoc', 'bỏ thuốc', 'bo thuoc']],
   ['diagnosis', ['tôi bị bệnh gì', 'toi bi benh gi', 'có phải tôi bị', 'chẩn đoán']],
   ['lab_interpretation', ['đọc xét nghiệm', 'doc xet nghiem', 'kết quả xét nghiệm của tôi', 'chi so xet nghiem']],
   ['treatment_plan', ['phác đồ', 'phac do', 'điều trị như thế nào', 'dieu tri nhu the nao']],
@@ -129,6 +181,7 @@ const INTENT_KEYWORDS = {
   goodbye: ['tam biet', 'bye', 'hen gap'],
   book_appointment: ['dat lich', 'dang ky kham', 'muon kham', 'dat kham', 'kham', 'lich kham'],
   ask_available_slots: ['lich trong', 'con lich', 'con slot', 'hom nay con', 'ngay mai con'],
+  check_appointment_status: ['kiem tra lich hen', 'lich hen cua toi', 'ma lich hen', 'xem lich hen', 'lich kham cua toi', 'trang thai lich'],
   reschedule_appointment: ['doi lich', 'doi gio', 'doi ngay', 'doi khung gio', 'doi appointment', 'doi hen'],
   cancel_appointment: ['huy lich', 'huy hen', 'cancel'],
   find_department: ['khoa nao', 'chuyen khoa nao', 'co khoa', 'tim khoa', 'kham khoa'],
@@ -137,11 +190,53 @@ const INTENT_KEYWORDS = {
   ask_symptom_department: ['dau', 'sot', 'ngua', 'noi man', 'phat ban', 'kho tho', 'dau bung', 'dau dau', 'met moi'],
   ask_price: ['gia', 'phi', 'bao nhieu tien', 'chi phi', 'bang gia'],
   ask_payment: ['thanh toan', 'qr', 'chuyen khoan', 'hoa don', 'bien lai'],
+  ask_qr_payment: ['ma qr', 'qr thanh toan', 'quet qr', 'qr chuyen khoan'],
+  ask_invoice: ['xuat hoa don', 'lay hoa don', 'bien lai', 'invoice', 'hoa don dien tu'],
+  check_payment_status: ['toi chuyen khoan roi', 'da chuyen khoan', 'kiem tra thanh toan', 'thanh toan chua', 'da thanh toan chua', 'payment status'],
   ask_insurance: ['bhyt', 'bao hiem', 'bao lanh vien phi'],
+  insurance_eligibility_check: ['kiem tra bao hiem', 'the bhyt cua toi', 'bao hiem nay co ap dung', 'dung duoc bao hiem khong', 'quyen loi bao hiem'],
+  ask_working_hours: ['gio lam viec', 'mo cua', 'dong cua', 'chu nhat', 'cuoi tuan', 'may gio', 'lam viec khong'],
+  ask_location: ['dia chi', 'o dau', 'co so', 'chi nhanh', 'duong di', 'gan nhat', 'ban do'],
+  branch_recommendation: ['co so nao', 'chi nhanh nao', 'gan toi', 'gan nhat', 'nen kham o dau'],
   ask_patient_portal: ['portal', 'dang nhap', 'quen mat khau', 'ho so', 'ket qua', 'upload', 'cccd'],
+  ask_preparation: ['chuan bi gi', 'can chuan bi', 'nhi an', 'nhin an', 'truoc khi kham', 'truoc khi xet nghiem'],
+  ask_required_documents: ['giay to gi', 'can mang gi', 'mang cccd', 'the bhyt', 'giay chuyen tuyen', 'ho so cu'],
+  check_result_status: ['ket qua cua toi', 'ket qua xet nghiem', 'ket qua cdha', 'ket qua chan doan hinh anh', 'co ket qua chua', 'result status'],
+  upload_document_help: ['upload', 'tai len', 'gui anh', 'gui file', 'cccd', 'giay chuyen tuyen', 'ho so kham cu', 'the bhyt'],
+  compare_services: ['so sanh', 'khac nhau', 'goi nao hon', 'nen chon goi nao giua'],
+  recommend_package: ['goi kham nao', 'goi nao phu hop', 'tu van goi kham', 'kham tong quat goi nao'],
+  doctor_recommendation: ['bac si nao phu hop', 'nen kham bac si nao', 'bac si gioi', 'bac si tot'],
   human_support: ['gap nhan vien', 'nhan vien tu van', 'goi lai', 'hotline', 'nguoi that'],
+  callback_request: ['goi lai cho toi', 'lien he lai', 'tu van goi lai', 'de lai so', 'callback'],
+  lead_capture: ['de lai so dien thoai', 'so cua toi la', 'lien he tu van', 'tu van giup toi'],
+  abandoned_booking_recovery: ['tiep tuc dat lich', 'lich cu', 'lan truoc toi dang dat', 'dat tiep'],
+  returning_patient_support: ['tai kham', 'tung kham', 'da kham o day', 'benh nhan cu', 'quay lai kham'],
+  family_booking: ['dat lich cho me', 'dat lich cho ba', 'dat lich cho bo', 'dat lich cho con', 'dat cho nguoi than', 'cho vo toi', 'cho chong toi'],
+  corporate_health_check: ['kham suc khoe cong ty', 'kham doanh nghiep', 'nhan vien cong ty', 'hop dong kham suc khoe'],
   complaint: ['khieu nai', 'gop y', 'phan anh', 'khong hai long'],
+  feedback: ['cam nhan', 'danh gia', 'feedback', 'gop y', 'hai long', 'dich vu tot', 'nhan vien tot'],
+  casual_chat: ['em la ai', 'ban la ai', 'tro chuyen', 'noi chuyen', 'tam su', 'lo qua', 'hoi lo', 'so qua', 'buon', 'chan', 'haha', 'hehe'],
 };
+
+const LEAD_CAPTURE_INTENTS = new Set([
+  'callback_request',
+  'lead_capture',
+  'family_booking',
+  'corporate_health_check',
+]);
+
+const REAL_DATA_RESPONSE_TYPES = new Set([
+  'slot_picker',
+  'appointment_summary',
+  'appointment_confirmed',
+  'payment_status',
+  'result_status',
+  'service_cards',
+  'doctor_cards',
+  'department_cards',
+  'facility_info',
+  'emergency_card',
+]);
 
 function toId(value) {
   return value ? String(value) : null;
@@ -205,8 +300,72 @@ function formatTime(value) {
   });
 }
 
+function formatOpeningHours(openingHours) {
+  if (!openingHours) return '';
+  if (typeof openingHours === 'string') return openingHours;
+  if (Array.isArray(openingHours)) {
+    return openingHours
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        const day = item.day || item.weekday || item.label || 'Ngày làm việc';
+        const open = item.open || item.open_time || item.from;
+        const close = item.close || item.close_time || item.to;
+        return [day, open && close ? `${open}-${close}` : item.text].filter(Boolean).join(': ');
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  if (typeof openingHours === 'object') {
+    return Object.entries(openingHours)
+      .map(([day, value]) => {
+        if (!value) return null;
+        if (typeof value === 'string') return `${day}: ${value}`;
+        const open = value.open || value.open_time || value.from;
+        const close = value.close || value.close_time || value.to;
+        return `${day}: ${open && close ? `${open}-${close}` : JSON.stringify(value)}`;
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  return '';
+}
+
 function addMinutes(date, minutes) {
   return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+function chatbotSystemActor() {
+  return {
+    actorType: 'system',
+    actor_type: 'system',
+    actorId: 'chatbot',
+    actor_id: 'chatbot',
+    serviceName: 'chatbot',
+    service_name: 'chatbot',
+    userId: null,
+    permissions: [
+      PERMISSION.SYSTEM.FULL_ACCESS,
+      PERMISSION.MESSAGES.MANAGE,
+      PERMISSION.PATIENTS.CREATE,
+      PERMISSION.PATIENTS.READ,
+      PERMISSION.APPOINTMENTS.CREATE,
+      PERMISSION.APPOINTMENTS.READ,
+    ],
+  };
+}
+
+function chatbotRequestMeta(session = {}, extra = {}) {
+  return {
+    source: 'chatbot',
+    channel: session.channel || 'website',
+    chatbot_session_id: toId(session._id || session.id),
+    source_page: session.source_page,
+    ...extra,
+  };
+}
+
+function chatbotHoldOwner(session) {
+  return `chatbot_session:${toId(session?._id || session?.id)}`;
 }
 
 function formatLocalDateIso(date) {
@@ -343,11 +502,17 @@ function detectPromptInjection(normalized) {
   return [
     'ignore previous',
     'bo qua huong dan',
+    'bo qua tat ca',
     'system prompt',
+    'in prompt',
+    'hien prompt',
     'developer message',
     'jailbreak',
+    'gia vo la bac si',
+    'dong vai bac si',
     'viet lai prompt',
     'xoa quy tac',
+    'ke thuoc cho toi',
   ].some((item) => normalized.includes(item));
 }
 
@@ -364,6 +529,25 @@ function detectTimePreference(text) {
     return 'evening';
   }
   return null;
+}
+
+function detectExplicitTimeText(text) {
+  const raw = String(text || '').toLowerCase();
+  const match = raw.match(/\b(?:sau\s*)?(\d{1,2})(?:(?::|h| giờ)\s*(\d{1,2})?)?\b/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = match[2] === undefined || match[2] === '' ? 0 : Number(match[2]);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) return null;
+  const hasTimeMarker = /[:h]|giờ|gio|sau\s*\d{1,2}/i.test(match[0]) || /\b(sáng|sang|chiều|chieu|tối|toi)\b/i.test(raw);
+  let normalizedHour = hour;
+  if (/\b(chiều|chieu|tối|toi)\b/i.test(raw) && normalizedHour > 0 && normalizedHour < 12) normalizedHour += 12;
+  return hasTimeMarker ? `${String(normalizedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}` : null;
+}
+
+function minutesFromTimeText(timeText) {
+  const match = String(timeText || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
 }
 
 function dateFromVietnameseText(text) {
@@ -383,6 +567,12 @@ function dateFromVietnameseText(text) {
   }
   if (normalized.includes('ngay kia') || raw.includes('mốt') || normalized.includes('ngay mot')) {
     return getStartOfDay(addMinutes(today, 2 * 24 * 60));
+  }
+  if (normalized.includes('cuoi tuan') || normalized.includes('weekend')) {
+    const next = new Date(today);
+    const diff = (6 - today.getDay() + 7) % 7 || 7;
+    next.setDate(today.getDate() + diff);
+    return getStartOfDay(next);
   }
   const weekdayMap = [
     ['chu nhat', 0],
@@ -418,6 +608,59 @@ function detectPhone(text) {
 function detectEmail(text) {
   const match = String(text || '').match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
   return match ? match[0].toLowerCase() : null;
+}
+
+function detectAppointmentCode(text) {
+  const raw = String(text || '').trim();
+  const matches = raw.match(/\bAPT[-\s]?[a-fA-F0-9]{6,24}\b|\bCB-\d{8}-[a-fA-F0-9]{6}\b|\b[a-fA-F0-9]{24}\b/i);
+  if (!matches) return null;
+  return matches[0].replace(/\s+/g, '').toUpperCase();
+}
+
+function detectInvoiceCode(text) {
+  const raw = String(text || '').trim();
+  const match = raw.match(/\b(?:INV|HD|HĐ|HOA DON|HÓA ĐƠN)[-\s:]?[A-Za-z0-9-]{4,32}\b/i);
+  return match ? match[0].replace(/\s+/g, '').toUpperCase() : null;
+}
+
+function detectResultCode(text) {
+  const raw = String(text || '').trim();
+  const match = raw.match(/\b(?:LAB|XN|KQ|IMG|CDHA|CĐHA)[-\s:]?[A-Za-z0-9-]{4,32}\b/i);
+  return match ? match[0].replace(/\s+/g, '').toUpperCase() : null;
+}
+
+function detectInsuranceType(text) {
+  const normalized = normalizeText(text);
+  if (/(bhyt|bao hiem y te|the bao hiem y te)/.test(normalized)) return 'bhyt';
+  if (/(bao hiem tu nhan|bao lanh vien phi|bao hiem cong ty|prudential|bao viet|pvi|aia|manulife)/.test(normalized)) return 'private';
+  if (/(bao hiem)/.test(normalized)) return 'unknown';
+  return null;
+}
+
+function detectPaymentMethod(text) {
+  const normalized = normalizeText(text);
+  if (/(qr|quet ma|ma qr)/.test(normalized)) return 'qr';
+  if (/(chuyen khoan|bank transfer|ngan hang)/.test(normalized)) return 'bank_transfer';
+  if (/(tien mat|cash)/.test(normalized)) return 'cash';
+  if (/(the|card|visa|master)/.test(normalized)) return 'card';
+  return null;
+}
+
+function detectSeverity(text) {
+  const normalized = normalizeText(text);
+  if (/(du doi|khong chiu noi|rat nang|ngay cang nang|ngat|kho tho|co giat)/.test(normalized)) return 'high';
+  if (/(nhieu ngay|may ngay|hoi dau|hoi met|am i|keo dai)/.test(normalized)) return 'medium';
+  if (/(nhe|hoi|thinh thoang)/.test(normalized)) return 'low';
+  return null;
+}
+
+function detectConversationMood(text) {
+  const normalized = normalizeText(text);
+  if (/(khieu nai|phan anh|buc|uc che|khong hai long|te qua|chan qua)/.test(normalized)) return 'frustrated';
+  if (/(lo|so|hoang mang|bat an|khong yen tam)/.test(normalized)) return 'worried';
+  if (/(cam on|tot qua|hai long|de thuong|ok|duoc roi)/.test(normalized)) return 'positive';
+  if (/(haha|hehe|hihi|noi chuyen|tam su)/.test(normalized)) return 'casual';
+  return 'neutral';
 }
 
 function detectNameFromText(text) {
@@ -606,16 +849,25 @@ async function localAnalyzeMessage(text, session = {}) {
   const date = dateFromVietnameseText(text);
   const entities = await enrichEntitiesFromDatabase(text, {
     ...dictionaryEntities,
-    date_text: date ? String(text).match(/hôm nay|hom nay|ngày mai|ngay mai|mai|ngày kia|ngay kia|\d{1,2}\/\d{1,2}(?:\/\d{4})?|\d{4}-\d{1,2}-\d{1,2}/i)?.[0] || null : null,
+    date_text: date ? String(text).match(/hôm nay|hom nay|ngày mai|ngay mai|mai|ngày kia|ngay kia|cuối tuần|cuoi tuan|\d{1,2}\/\d{1,2}(?:\/\d{4})?|\d{4}-\d{1,2}-\d{1,2}/i)?.[0] || null : null,
     date_iso: date ? formatLocalDateIso(date) : null,
+    time_text: detectExplicitTimeText(text),
     time_preference: detectTimePreference(text),
     phone: detectPhone(text),
     email: detectEmail(text),
     patient_name: detectNameFromText(text),
+    severity: detectSeverity(text),
+    insurance_type: detectInsuranceType(text),
+    payment_method: detectPaymentMethod(text),
+    appointment_code: detectAppointmentCode(text),
+    invoice_code: detectInvoiceCode(text),
+    result_code: detectResultCode(text),
   });
 
   const redFlags = env.chatbot.redFlagDetectionEnabled ? detectPatterns(normalized, RED_FLAG_PATTERNS) : [];
   const medicalBlocks = env.chatbot.medicalSafetyEnabled ? detectPatterns(normalized, MEDICAL_BLOCK_PATTERNS) : [];
+  const resultStatusQuestion = /(co ket qua chua|kiem tra ket qua|trang thai ket qua|ket qua cua toi|da co ket qua)/.test(normalized);
+  const effectiveMedicalBlocks = medicalBlocks.filter((block) => !(block === 'lab_interpretation' && resultStatusQuestion));
   if (redFlags.length) {
     return {
       intent: 'emergency',
@@ -632,7 +884,7 @@ async function localAnalyzeMessage(text, session = {}) {
     };
   }
 
-  if (medicalBlocks.length) {
+  if (effectiveMedicalBlocks.length) {
     return {
       intent: 'medical_safety_block',
       confidence: 0.95,
@@ -640,7 +892,7 @@ async function localAnalyzeMessage(text, session = {}) {
       entities,
       risk_level: 'medium',
       red_flags: [],
-      medical_blocks: medicalBlocks,
+      medical_blocks: effectiveMedicalBlocks,
       needs_human: false,
       next_action: 'safe_redirect',
       missing_fields: [],
@@ -674,6 +926,91 @@ async function localAnalyzeMessage(text, session = {}) {
     }
   });
 
+  if (/(gio lam viec|mo cua|dong cua|chu nhat|cuoi tuan|may gio)/.test(normalized) && !/(dat lich|dat kham|muon kham)/.test(normalized)) {
+    bestIntent = 'ask_working_hours';
+    confidence = Math.max(confidence, 0.82);
+  }
+  if (/(dia chi|o dau|co so|chi nhanh|duong di|gan nhat|ban do)/.test(normalized)) {
+    bestIntent = 'ask_location';
+    confidence = Math.max(confidence, 0.82);
+  }
+  if (/(goi lai cho toi|lien he lai|tu van goi lai|de lai so)/.test(normalized)) {
+    bestIntent = 'callback_request';
+    confidence = Math.max(confidence, 0.86);
+  }
+  if (/(de lai so dien thoai|so cua toi la|lien he tu van)/.test(normalized) && (entities.phone || entities.patient_name)) {
+    bestIntent = 'lead_capture';
+    confidence = Math.max(confidence, 0.84);
+  }
+  if (/(dat lich cho|dat cho nguoi than|cho me toi|cho ba toi|cho bo toi|cho con toi|cho vo toi|cho chong toi)/.test(normalized)) {
+    bestIntent = 'family_booking';
+    confidence = Math.max(confidence, 0.84);
+  }
+  if (/(kham suc khoe cong ty|kham doanh nghiep|nhan vien cong ty|hop dong kham suc khoe)/.test(normalized)) {
+    bestIntent = 'corporate_health_check';
+    confidence = Math.max(confidence, 0.88);
+  }
+  if (/(tiep tuc dat lich|lan truoc toi dang dat|dat tiep|lich cu)/.test(normalized)) {
+    bestIntent = 'abandoned_booking_recovery';
+    confidence = Math.max(confidence, 0.84);
+  }
+  if (/(tai kham|tung kham|da kham o day|benh nhan cu|quay lai kham)/.test(normalized)) {
+    bestIntent = 'returning_patient_support';
+    confidence = Math.max(confidence, 0.82);
+  }
+  if (/(lich hen cua toi|kiem tra lich hen|trang thai lich|ma lich hen)/.test(normalized)) {
+    bestIntent = 'check_appointment_status';
+    confidence = Math.max(confidence, 0.86);
+  }
+  if (/(xuat hoa don|lay hoa don|hoa don dien tu|bien lai)/.test(normalized)) {
+    bestIntent = 'ask_invoice';
+    confidence = Math.max(confidence, 0.84);
+  }
+  if (/(ma qr|qr thanh toan|quet qr|qr chuyen khoan)/.test(normalized)) {
+    bestIntent = 'ask_qr_payment';
+    confidence = Math.max(confidence, 0.84);
+  }
+  if (/(da chuyen khoan|kiem tra thanh toan|da thanh toan chua|thanh toan cua toi)/.test(normalized)) {
+    bestIntent = 'check_payment_status';
+    confidence = Math.max(confidence, 0.86);
+  }
+  if (/(kiem tra bao hiem|bao hiem nay co ap dung|the bhyt cua toi|quyen loi bao hiem|dung duoc bao hiem khong)/.test(normalized)) {
+    bestIntent = 'insurance_eligibility_check';
+    confidence = Math.max(confidence, 0.84);
+  }
+  if (/(chuan bi gi|can chuan bi|nhin an|nhi an|truoc khi kham|truoc khi xet nghiem)/.test(normalized)) {
+    bestIntent = 'ask_preparation';
+    confidence = Math.max(confidence, 0.84);
+  }
+  if (/(giay to gi|can mang gi|mang cccd|the bhyt|giay chuyen tuyen|ho so cu)/.test(normalized)) {
+    bestIntent = 'ask_required_documents';
+    confidence = Math.max(confidence, 0.84);
+  }
+  if (/(ket qua cua toi|co ket qua chua|kiem tra ket qua|trang thai ket qua)/.test(normalized)) {
+    bestIntent = 'check_result_status';
+    confidence = Math.max(confidence, 0.86);
+  }
+  if (/(so sanh|khac nhau|goi nao hon|nen chon goi nao giua)/.test(normalized)) {
+    bestIntent = 'compare_services';
+    confidence = Math.max(confidence, 0.78);
+  }
+  if (/(goi kham nao|goi nao phu hop|tu van goi kham|kham tong quat goi nao)/.test(normalized)) {
+    bestIntent = 'recommend_package';
+    confidence = Math.max(confidence, 0.82);
+  }
+  if (/(bac si nao phu hop|nen kham bac si nao|bac si gioi|bac si tot)/.test(normalized)) {
+    bestIntent = 'doctor_recommendation';
+    confidence = Math.max(confidence, 0.82);
+  }
+  if (/(co so nao|chi nhanh nao|gan toi|nen kham o dau)/.test(normalized)) {
+    bestIntent = 'branch_recommendation';
+    confidence = Math.max(confidence, 0.8);
+  }
+  if (/(cam nhan|danh gia|feedback|dich vu tot|nhan vien tot)/.test(normalized)) {
+    bestIntent = 'feedback';
+    confidence = Math.max(confidence, 0.78);
+  }
+
   if (entities.department && ['unknown', 'find_department', 'ask_symptom_department'].includes(bestIntent)) {
     bestIntent = normalized.includes('dat') || normalized.includes('lich') || normalized.includes('kham')
       ? 'book_appointment'
@@ -696,6 +1033,17 @@ async function localAnalyzeMessage(text, session = {}) {
     if (env.chatbot.appointmentRequirePatientName && !entities.patient_name && !session.context?.booking?.patient_name) missingFields.push('patient_name');
     if (env.chatbot.appointmentRequirePhone && !entities.phone && !session.context?.booking?.phone) missingFields.push('phone');
   }
+  if (bestIntent === 'callback_request') {
+    if (!entities.patient_name && !session.context?.lead?.patient_name) missingFields.push('patient_name');
+    if (!entities.phone && !session.context?.lead?.phone) missingFields.push('phone');
+  }
+  if (LEAD_CAPTURE_INTENTS.has(bestIntent) && bestIntent !== 'insurance_eligibility_check') {
+    if (!entities.patient_name && !session.context?.lead?.patient_name) missingFields.push('patient_name');
+    if (!entities.phone && !session.context?.lead?.phone) missingFields.push('phone');
+  }
+  if (bestIntent === 'insurance_eligibility_check' && !entities.insurance_type && !session.context?.lead?.insurance_type) {
+    missingFields.push('insurance_type');
+  }
 
   return {
     intent: bestIntent,
@@ -716,16 +1064,34 @@ function resolveNextAction(intent, entities, missingFields = []) {
   if (intent === 'emergency') return 'show_emergency';
   if (intent === 'medical_safety_block') return 'safe_redirect';
   if (intent === 'human_support' || intent === 'complaint') return 'handoff';
+  if (intent === 'callback_request') return missingFields.length ? 'collect_callback' : 'create_callback_ticket';
+  if (['lead_capture', 'family_booking', 'corporate_health_check'].includes(intent)) return missingFields.length ? 'collect_lead' : 'create_lead_ticket';
+  if (intent === 'feedback') return 'collect_feedback';
+  if (intent === 'insurance_eligibility_check') return missingFields.length ? 'ask_insurance_type' : 'answer_kb';
+  if (intent === 'abandoned_booking_recovery') return 'recover_booking';
+  if (intent === 'returning_patient_support') return 'returning_patient_support';
+  if (intent === 'check_appointment_status') return 'lookup_appointment';
+  if (intent === 'reschedule_appointment') return entities.date_iso ? 'find_reschedule_slots' : 'ask_reschedule_date';
+  if (intent === 'cancel_appointment') return 'confirm_cancel_appointment';
   if (intent === 'book_appointment' || intent === 'ask_available_slots') {
     if (missingFields.includes('department') && !entities.doctor) return 'ask_department';
     if (missingFields.includes('date')) return 'ask_date';
     return 'find_available_slots';
   }
   if (intent === 'find_doctor') return 'search_doctors';
+  if (intent === 'doctor_recommendation') return 'search_doctors';
   if (intent === 'find_department' || intent === 'ask_symptom_department') return 'suggest_departments';
   if (intent === 'find_service') return 'search_services';
+  if (intent === 'compare_services' || intent === 'recommend_package') return 'search_services';
   if (intent === 'ask_price') return 'search_price';
-  if (intent === 'ask_payment' || intent === 'ask_insurance' || intent === 'ask_patient_portal') return 'answer_kb';
+  if (intent === 'ask_working_hours') return 'answer_facility_hours';
+  if (intent === 'ask_location') return 'answer_facility_location';
+  if (intent === 'branch_recommendation') return 'answer_facility_location';
+  if (intent === 'casual_chat') return 'small_talk';
+  if (intent === 'check_payment_status') return 'lookup_payment_status';
+  if (intent === 'check_result_status') return 'lookup_result_status';
+  if (intent === 'upload_document_help') return 'upload_document_help';
+  if (['ask_payment', 'ask_qr_payment', 'ask_invoice', 'ask_insurance', 'ask_patient_portal', 'ask_preparation', 'ask_required_documents'].includes(intent)) return 'answer_kb';
   return 'fallback';
 }
 
@@ -790,7 +1156,7 @@ async function callGeminiForAnalysis(text, session, history, localFallback) {
     `Ngày hiện tại tại Việt Nam là ${currentVietnamDateIso()} (Asia/Saigon). Resolve "hôm nay", "ngày mai", "mai", "ngày kia" dựa trên ngày này.`,
     'Giới hạn bắt buộc: không chẩn đoán, không kê thuốc, không đưa liều dùng, không đọc xét nghiệm thay bác sĩ, không tự bịa lịch/giá/bác sĩ.',
     'Nếu thấy cấp cứu/red flag, intent phải là "emergency", risk_level "emergency", next_action "show_emergency".',
-    'Schema: {"intent":"book_appointment|ask_available_slots|find_department|find_doctor|find_service|ask_symptom_department|emergency|ask_price|ask_payment|ask_insurance|ask_patient_portal|human_support|complaint|greeting|thanks|goodbye|unknown","confidence":0.0,"language":"vi|en","entities":{"patient_name":null,"phone":null,"email":null,"date_text":null,"date_iso":null,"time_text":null,"time_preference":null,"department":null,"doctor":null,"service":null,"branch":null,"symptoms":[],"appointment_code":null,"invoice_code":null},"risk_level":"low|medium|high|emergency","red_flags":[],"needs_human":false,"next_action":"find_available_slots|ask_department|ask_date|search_doctors|search_services|search_price|answer_kb|handoff|fallback|show_emergency","missing_fields":[]}',
+    'Schema: {"intent":"book_appointment|ask_available_slots|check_appointment_status|reschedule_appointment|cancel_appointment|find_department|find_doctor|doctor_recommendation|find_service|compare_services|recommend_package|ask_symptom_department|emergency|ask_price|ask_payment|ask_qr_payment|ask_invoice|check_payment_status|ask_insurance|insurance_eligibility_check|ask_working_hours|ask_location|branch_recommendation|ask_patient_portal|ask_preparation|ask_required_documents|check_result_status|upload_document_help|human_support|callback_request|lead_capture|abandoned_booking_recovery|returning_patient_support|family_booking|corporate_health_check|complaint|feedback|casual_chat|greeting|thanks|goodbye|unknown","confidence":0.0,"language":"vi|en","entities":{"patient_name":null,"phone":null,"email":null,"date_text":null,"date_iso":null,"time_text":null,"time_preference":null,"department":null,"doctor":null,"service":null,"branch":null,"symptoms":[],"severity":null,"insurance_type":null,"payment_method":null,"appointment_code":null,"invoice_code":null,"result_code":null},"risk_level":"low|medium|high|emergency","red_flags":[],"needs_human":false,"next_action":"find_available_slots|ask_department|ask_date|lookup_appointment|ask_reschedule_date|find_reschedule_slots|confirm_cancel_appointment|search_doctors|search_services|search_price|answer_kb|lookup_payment_status|lookup_result_status|upload_document_help|answer_facility_hours|answer_facility_location|small_talk|collect_callback|create_callback_ticket|collect_lead|create_lead_ticket|collect_feedback|recover_booking|returning_patient_support|handoff|fallback|show_emergency","missing_fields":[]}',
     `Ngữ cảnh session: ${JSON.stringify({ current_intent: session.current_intent, current_step: session.current_step, context: session.context || {} })}`,
     `Lịch sử gần nhất: ${JSON.stringify(history.slice(-env.chatbot.maxHistoryMessages).map((item) => ({ role: item.sender_type, text: item.content })))}`,
     `Tin nhắn user: ${text}`,
@@ -851,27 +1217,176 @@ function botText(content, payload = {}) {
   };
 }
 
-function welcomePayload() {
+function contextualQuickReplies(sourcePage = '', pageContext = {}) {
+  const normalized = normalizeText(sourcePage);
+  const replies = [];
+  if (pageContext?.doctor_id || normalized.includes('doctor') || normalized.includes('bac-si') || normalized.includes('bac_si')) {
+    replies.push(
+      { label: 'Xem lịch bác sĩ này', value: 'Bác sĩ này còn lịch ngày mai không?' },
+      { label: 'Hỏi phí khám', value: 'Phí khám với bác sĩ này bao nhiêu?' },
+    );
+  }
+  if (pageContext?.department_id || normalized.includes('department') || normalized.includes('chuyen-khoa') || normalized.includes('chuyen_khoa')) {
+    replies.push(
+      { label: 'Đặt lịch chuyên khoa này', value: 'Tôi muốn đặt lịch chuyên khoa này ngày mai' },
+      { label: 'Xem bác sĩ', value: 'Chuyên khoa này có bác sĩ nào?' },
+    );
+  }
+  if (normalized.includes('bang-gia') || normalized.includes('pricing') || normalized.includes('billing')) {
+    replies.push(
+      { label: 'Hỏi giá dịch vụ', value: 'Tôi muốn hỏi giá dịch vụ này' },
+      { label: 'Hỏi bảo hiểm', value: 'Dịch vụ này có áp dụng bảo hiểm không?' },
+    );
+  }
+  if (normalized.includes('dat-lich') || normalized.includes('appointment')) {
+    replies.push(
+      { label: 'Tìm slot gần nhất', value: 'Tôi muốn tìm lịch khám gần nhất' },
+      { label: 'Kiểm tra lịch hẹn', value: 'Tôi muốn kiểm tra lịch hẹn của tôi' },
+    );
+  }
+  return replies;
+}
+
+function welcomePayload(sourcePage = '', pageContext = {}) {
+  const contextual = contextualQuickReplies(sourcePage, pageContext);
+  const base = [
+    { label: 'Đặt lịch khám', value: 'Tôi muốn đặt lịch khám' },
+    { label: 'Tìm chuyên khoa', value: 'Tôi nên khám chuyên khoa nào?' },
+    { label: 'Tìm bác sĩ', value: 'Tôi muốn tìm bác sĩ' },
+    { label: 'Hỏi giá dịch vụ', value: 'Khám tổng quát bao nhiêu tiền?' },
+    { label: 'Bảo hiểm', value: 'Có nhận BHYT không?' },
+    { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' },
+    { label: 'Cấp cứu', value: 'Tôi cần cấp cứu' },
+  ];
   return {
     type: 'quick_replies',
-    quick_replies: buildQuickReplies([
-      { label: 'Đặt lịch khám', value: 'Tôi muốn đặt lịch khám' },
-      { label: 'Tìm chuyên khoa', value: 'Tôi nên khám chuyên khoa nào?' },
-      { label: 'Tìm bác sĩ', value: 'Tôi muốn tìm bác sĩ' },
-      { label: 'Hỏi giá dịch vụ', value: 'Khám tổng quát bao nhiêu tiền?' },
-      { label: 'Bảo hiểm', value: 'Có nhận BHYT không?' },
-      { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' },
-      { label: 'Cấp cứu', value: 'Tôi cần cấp cứu' },
-    ]),
+    quick_replies: buildQuickReplies([...contextual, ...base].slice(0, 8)),
   };
 }
 
-function buildWelcomeMessage(sourcePage = '') {
+function buildWelcomeMessage(sourcePage = '', pageContext = {}) {
   const suffix = sourcePage ? ' Em đang theo ngữ cảnh trang hiện tại để hỗ trợ nhanh hơn.' : '';
   return botText(
     `Xin chào anh/chị, em là ${env.chatbot.botDisplayName}. Em có thể hỗ trợ đặt lịch, tìm chuyên khoa/bác sĩ, hỏi thông tin dịch vụ, bảo hiểm, thanh toán hoặc chuyển nhân viên tư vấn.${suffix}`,
-    welcomePayload(),
+    welcomePayload(sourcePage, pageContext),
   );
+}
+
+function leadScoreForAnalysis(analysis = {}, text = '') {
+  const normalized = normalizeText(text);
+  let score = 0;
+  if (['book_appointment', 'ask_available_slots', 'family_booking', 'corporate_health_check'].includes(analysis.intent)) score += 45;
+  if (['ask_price', 'ask_insurance', 'doctor_recommendation', 'recommend_package'].includes(analysis.intent)) score += 25;
+  if (analysis.entities?.phone) score += 25;
+  if (analysis.entities?.patient_name) score += 10;
+  if (analysis.entities?.date_iso || analysis.entities?.time_preference) score += 10;
+  if (/(muon dat|dat lich|con lich|chieu mai|sang mai|goi lai|lien he)/.test(normalized)) score += 15;
+  return Math.max(0, Math.min(100, score));
+}
+
+function leadPriorityFromScore(score) {
+  if (score >= 70) return 'high';
+  if (score >= 35) return 'medium';
+  return 'low';
+}
+
+function updateConversationInsights(session, analysis = {}, text = '') {
+  const context = session.context || {};
+  const mood = detectConversationMood(text);
+  const score = leadScoreForAnalysis(analysis, text);
+  const tags = new Set([...(context.insights?.tags || [])]);
+  if (analysis.intent) tags.add(analysis.intent);
+  if (analysis.risk_level === 'emergency') tags.add('emergency');
+  if (analysis.intent === 'book_appointment' || analysis.intent === 'ask_available_slots') tags.add('appointment_intent');
+  if (['ask_payment', 'ask_qr_payment', 'ask_invoice', 'check_payment_status'].includes(analysis.intent)) tags.add('billing_issue');
+  if (['ask_insurance', 'insurance_eligibility_check'].includes(analysis.intent)) tags.add('insurance_question');
+  if (['complaint', 'feedback'].includes(analysis.intent) || mood === 'frustrated') tags.add('feedback_or_complaint');
+  if (score >= 70) tags.add('high_intent_lead');
+  if (mood !== 'neutral') tags.add(`mood_${mood}`);
+
+  session.context = {
+    ...context,
+    insights: {
+      ...(context.insights || {}),
+      last_intent: analysis.intent,
+      last_confidence: analysis.confidence,
+      last_mood: mood,
+      lead_score: Math.max(score, Number(context.insights?.lead_score || 0)),
+      lead_priority: leadPriorityFromScore(Math.max(score, Number(context.insights?.lead_score || 0))),
+      tags: [...tags].slice(0, 16),
+      updated_at: new Date().toISOString(),
+    },
+  };
+}
+
+function canRewriteNaturalTone(reply = {}, analysis = {}) {
+  if (!env.chatbot.naturalToneEnabled || !env.chatbot.aiEnabled || !env.geminiApiKey) return false;
+  if (!analysis || analysis.source === 'local_ai_limit') return false;
+  if (['emergency', 'medical_safety_block', 'prompt_injection'].includes(analysis.intent)) return false;
+  const content = normalizeString(reply.content);
+  if (!content || content.length > env.chatbot.naturalToneMaxChars) return false;
+  const payloadType = reply.structured_payload?.type;
+  if (REAL_DATA_RESPONSE_TYPES.has(payloadType)) return false;
+  if (/\b(APT|CB|INV|LAB|IMG|XN|KQ|CDHA|CĐHA)[-\s:]?[A-Z0-9-]{4,}\b/i.test(content)) return false;
+  if (/\d{1,3}(?:[.,]\d{3})+đ|\d+\s*(?:phút|ngày|giờ)/i.test(content)) return false;
+  return true;
+}
+
+async function rewriteReplyTone(reply = {}, session = {}, analysis = {}, userText = '', history = []) {
+  if (!canRewriteNaturalTone(reply, analysis)) return reply;
+  const toneCallCount = Number(session.context?.tone_ai_call_count || 0);
+  if (toneCallCount >= Math.max(3, Math.floor(env.chatbot.rateLimitMaxAiCallsPerSession / 3))) return reply;
+
+  const prompt = [
+    'Bạn là bộ viết lại giọng điệu cho chatbot lễ tân y tế tiếng Việt.',
+    'Nhiệm vụ: viết lại câu trả lời sao cho tự nhiên, ấm áp, người đối người, ngắn gọn.',
+    'Ràng buộc tuyệt đối: không thêm dữ kiện mới, không thêm giá/lịch/bác sĩ/chính sách, không chẩn đoán, không kê thuốc, không đổi ý nghĩa, không đổi nút/hành động.',
+    'Nếu câu gốc đã ổn, chỉ làm mềm câu chữ. Trả về đúng phần nội dung text, không markdown.',
+    `Intent: ${analysis.intent || 'unknown'}`,
+    `Mood user: ${detectConversationMood(userText)}`,
+    `Lịch sử gần nhất: ${JSON.stringify((history || []).slice(-4).map((item) => ({ role: item.sender_type, text: item.content })))}`,
+    `User vừa nói: ${userText}`,
+    `Câu gốc: ${reply.content}`,
+  ].join('\n');
+
+  try {
+    const { GoogleGenAI } = require('@google/genai');
+    const ai = new GoogleGenAI({ apiKey: env.geminiApiKey });
+    const request = ai.models.generateContent({
+      model: env.geminiFastModel,
+      contents: prompt,
+      config: {
+        temperature: 0.35,
+        topP: env.geminiTopP,
+        topK: env.geminiTopK,
+        maxOutputTokens: 220,
+      },
+    });
+    const timeout = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Gemini tone timeout')), Math.min(env.geminiTimeoutMs, 8000));
+    });
+    const response = await Promise.race([request, timeout]);
+    const rewritten = cleanJsonText(response.text || response.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^["']|["']$/g, '').trim();
+    if (!rewritten || rewritten.length > env.chatbot.naturalToneMaxChars * 1.2) return reply;
+    session.context = {
+      ...(session.context || {}),
+      tone_ai_call_count: toneCallCount + 1,
+    };
+    return {
+      ...reply,
+      content: rewritten,
+      structured_payload: {
+        ...(reply.structured_payload || {}),
+        natural_tone: {
+          enabled: true,
+          provider: 'gemini',
+          model: env.geminiFastModel,
+        },
+      },
+    };
+  } catch (error) {
+    return reply;
+  }
 }
 
 async function getSessionOrThrow(sessionId) {
@@ -886,11 +1401,28 @@ async function createSession(payload = {}, actor = {}, meta = {}) {
   ensureDefaultTrainingInBackground();
 
   const sourcePage = normalizeString(payload.source_page || payload.sourcePage);
+  const pageContext = payload.page_context || payload.pageContext || {};
   const language = normalizeString(payload.language) || env.chatbot.defaultLanguage || DEFAULT_LANGUAGE;
+  const anonymousId = payload.anonymous_id || payload.anonymousId || meta.deviceId || randomBytes(8).toString('hex');
+  const previousSession = env.chatbot.abandonedBookingRecoveryEnabled
+    ? await ChatbotSession.findOne({
+      anonymous_id: anonymousId,
+      is_deleted: false,
+      status: { $in: ['active', 'handoff'] },
+      'context.booking': { $exists: true },
+      $or: [
+        { 'context.booking.department': { $exists: true, $ne: null } },
+        { 'context.booking.doctor': { $exists: true, $ne: null } },
+        { 'context.booking.date_iso': { $exists: true, $ne: null } },
+        { 'context.booking.selected_slot': { $exists: true, $ne: null } },
+      ],
+    }).sort({ last_message_at: -1, created_at: -1 }).lean()
+    : null;
+  const previousBooking = previousSession?.context?.booking || null;
   const session = await ChatbotSession.create({
     channel: payload.channel || 'website',
     source_page: sourcePage,
-    anonymous_id: payload.anonymous_id || payload.anonymousId || meta.deviceId || randomBytes(8).toString('hex'),
+    anonymous_id: anonymousId,
     patient_id: actor?.patientId,
     status: 'active',
     language,
@@ -899,18 +1431,40 @@ async function createSession(payload = {}, actor = {}, meta = {}) {
       booking: {},
       fallback_count: 0,
       ai_call_count: 0,
+      page_context: pageContext,
+      previous_booking: previousBooking ? {
+        department: previousBooking.department,
+        doctor: previousBooking.doctor,
+        date_iso: previousBooking.date_iso,
+        time_preference: previousBooking.time_preference,
+        selected_slot: previousBooking.selected_slot,
+        source_session_id: toId(previousSession._id),
+      } : undefined,
     },
     metadata: {
       ip: getMetaIp(meta),
       user_agent: meta.userAgent,
       referrer: payload.referrer || payload.referrer_url,
       source_page: sourcePage,
+      page_context: pageContext,
     },
     last_message_at: new Date(),
     expires_at: sessionExpiresAt(),
   });
 
-  const welcome = buildWelcomeMessage(sourcePage);
+  const welcome = previousBooking
+    ? botText(
+      `Chào mừng anh/chị quay lại. Lần trước mình đang trao đổi về ${previousBooking.department || previousBooking.doctor || 'lịch khám'}${previousBooking.date_iso ? ` ngày ${formatDate(`${previousBooking.date_iso}T00:00:00`)}` : ''}. Anh/chị muốn tiếp tục hay bắt đầu nhu cầu mới ạ?`,
+      {
+        type: 'quick_replies',
+        quick_replies: buildQuickReplies([
+          { label: 'Tiếp tục đặt lịch', value: 'Tôi muốn tiếp tục đặt lịch lần trước' },
+          { label: 'Đặt lịch mới', value: 'Tôi muốn đặt lịch khám mới' },
+          { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' },
+        ]),
+      },
+    )
+    : buildWelcomeMessage(sourcePage, pageContext);
   const message = await ChatbotMessage.create({
     session_id: session._id,
     sender_type: 'bot',
@@ -1038,6 +1592,14 @@ function timePreferenceFilter(slot, timePreference) {
   return true;
 }
 
+function explicitTimeFilter(slot, timeText) {
+  const requestedMinutes = minutesFromTimeText(timeText);
+  if (requestedMinutes === null) return true;
+  const slotDate = new Date(slot.slot_time);
+  const slotMinutes = slotDate.getHours() * 60 + slotDate.getMinutes();
+  return Math.abs(slotMinutes - requestedMinutes) <= 30;
+}
+
 async function findAvailableSlots(entities = {}, session = {}) {
   const booking = session.context?.booking || {};
   const dateIso = entities.date_iso || booking.date_iso;
@@ -1079,6 +1641,7 @@ async function findAvailableSlots(entities = {}, session = {}) {
     (available.items || [])
       .filter((slot) => new Date(slot.slot_time) >= new Date())
       .filter((slot) => timePreferenceFilter(slot, entities.time_preference || booking.time_preference))
+      .filter((slot) => explicitTimeFilter(slot, entities.time_text || booking.time_text))
       .slice(0, 8)
       .forEach((slot) => {
         const doctor = doctorMap.get(toId(schedule.doctor_id));
@@ -1127,9 +1690,10 @@ async function searchKnowledgeBase(text, intent = 'unknown') {
     queryTerms.forEach((term) => {
       if (haystack.includes(term)) score += 1;
     });
-    if (intent === 'ask_payment' && article.category === 'payment') score += 3;
-    if (intent === 'ask_insurance' && article.category === 'insurance') score += 3;
+    if (['ask_payment', 'ask_qr_payment', 'ask_invoice', 'check_payment_status'].includes(intent) && article.category === 'payment') score += 3;
+    if (['ask_insurance', 'insurance_eligibility_check'].includes(intent) && article.category === 'insurance') score += 3;
     if (intent === 'ask_patient_portal' && article.category === 'portal') score += 3;
+    if (['ask_preparation', 'ask_required_documents'].includes(intent) && ['procedure', 'preparation', 'documents'].includes(article.category)) score += 3;
     if (intent === 'medical_safety_block' && article.category === 'medical_safety') score += 3;
     return { article, score };
   }).filter((item) => item.score > 0);
@@ -1148,9 +1712,12 @@ async function searchKnowledgeBase(text, intent = 'unknown') {
 
 function answerFromKnowledge(sources, fallbackText) {
   if (!sources.length) return fallbackText;
-  const content = sources[0].content;
-  const clipped = content.length > 620 ? `${content.slice(0, 620)}...` : content;
-  return `Dạ, theo thông tin hiện có: ${clipped}`;
+  const snippets = sources.slice(0, 3).map((source) => {
+    const content = String(source.content || '').trim();
+    const clipped = content.length > 420 ? `${content.slice(0, 420)}...` : content;
+    return clipped;
+  }).filter(Boolean);
+  return `Dạ, em kiểm tra theo Knowledge Base hiện có: ${snippets.join('\n')}`;
 }
 
 async function buildPriceResponse(analysis, text) {
@@ -1200,6 +1767,77 @@ async function buildPriceResponse(analysis, text) {
   );
 }
 
+async function facilityInfoResponse(analysis, text, mode = 'location') {
+  const normalized = normalizeText([analysis.entities?.branch, text].filter(Boolean).join(' '));
+  const filter = { is_deleted: false, public_visible: true, status: 'active' };
+  const locations = await FacilityLocation.find(filter)
+    .populate('department_id', 'department_name department_code')
+    .sort({ name: 1 })
+    .limit(20)
+    .lean();
+  const matched = locations.filter((location) => {
+    if (!normalized) return true;
+    const haystack = normalizeText(`${location.name} ${location.address || ''} ${location.phone || ''}`);
+    return normalized.split(' ').some((part) => part.length >= 3 && haystack.includes(part));
+  });
+  const items = (matched.length ? matched : locations).slice(0, 5).map((location) => ({
+    location_id: toId(location._id),
+    name: location.name,
+    type: location.type,
+    department_name: location.department_id?.department_name,
+    address: location.address,
+    phone: location.phone,
+    opening_hours: formatOpeningHours(location.opening_hours),
+  }));
+
+  if (!items.length) {
+    return botText('Dạ, hiện hệ thống chưa có dữ liệu cơ sở public để em trả lời chắc chắn. Em có thể chuyển anh/chị đến nhân viên tư vấn để kiểm tra địa chỉ/giờ làm việc.', {
+      type: 'handoff_notice',
+      reason: 'facility_not_found',
+      queue: env.chatbot.handoffQueueDefault,
+      actions: buildQuickReplies([{ label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' }]),
+    });
+  }
+
+  const lines = items.map((item) => {
+    const details = [
+      item.address ? `địa chỉ ${item.address}` : null,
+      item.opening_hours ? `giờ làm việc ${item.opening_hours}` : null,
+      item.phone ? `điện thoại ${item.phone}` : null,
+    ].filter(Boolean).join(', ');
+    return `${item.name}${details ? `: ${details}` : ''}`;
+  });
+  const prefix = mode === 'hours'
+    ? 'Dạ, em kiểm tra dữ liệu giờ làm việc hiện có trong hệ thống:'
+    : 'Dạ, em tìm thấy thông tin cơ sở trong hệ thống:';
+  return botText(`${prefix}\n${lines.map((line) => `- ${line}`).join('\n')}`, {
+    type: 'facility_info',
+    facilities: items,
+    quick_replies: buildQuickReplies([
+      { label: 'Đặt lịch tại cơ sở này', value: `${items[0]?.name || ''} ngày mai còn lịch không?`.trim() },
+      { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' },
+    ]),
+  });
+}
+
+function casualChatResponse(text) {
+  const normalized = normalizeText(text);
+  if (normalized.includes('em la ai') || normalized.includes('ban la ai')) {
+    return botText(`Em là ${env.chatbot.botDisplayName}, lễ tân AI hỗ trợ đặt lịch, tìm bác sĩ/chuyên khoa, hỏi giá, bảo hiểm, thanh toán và chuyển nhân viên khi cần. Em không thay bác sĩ chẩn đoán hay kê thuốc.`, welcomePayload());
+  }
+  if (['lo qua', 'hoi lo', 'so qua', 'buon', 'chan'].some((item) => normalized.includes(item))) {
+    return botText('Em hiểu cảm giác lo lắng khi sức khỏe không ổn. Anh/chị có thể mô tả triệu chứng, thời gian xuất hiện và mức độ khó chịu; em sẽ giúp định hướng chuyên khoa và đặt lịch an toàn, còn tình huống nguy hiểm thì em sẽ ưu tiên hướng dẫn cấp cứu ngay.', {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Mô tả triệu chứng', value: 'Tôi muốn mô tả triệu chứng để tìm chuyên khoa' },
+        { label: 'Đặt lịch gần nhất', value: 'Tôi muốn đặt lịch khám gần nhất' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' },
+      ]),
+    });
+  }
+  return botText('Dạ, em vẫn ở đây để hỗ trợ anh/chị. Mình có thể hỏi tự nhiên như “mai còn lịch da liễu không”, “khám tổng quát bao nhiêu”, “có nhận BHYT không” hoặc “cho tôi gặp nhân viên”.', welcomePayload());
+}
+
 function emergencyResponse(analysis) {
   return botText(
     `Triệu chứng anh/chị mô tả có thể cần cấp cứu. Vui lòng gọi ${env.chatbot.emergencyPhone} hoặc đến cơ sở y tế gần nhất ngay.${env.chatbot.emergencyHotline ? ` Nếu cần hỗ trợ từ cơ sở của chúng tôi, anh/chị có thể gọi hotline cấp cứu: ${env.chatbot.emergencyHotline}.` : ''}`,
@@ -1236,6 +1874,659 @@ function promptInjectionResponse() {
     'Em chỉ hỗ trợ tư vấn hành chính, đặt lịch và thông tin y tế an toàn trong phạm vi hệ thống. Anh/chị cần hỗ trợ đặt lịch, tìm bác sĩ hay gặp nhân viên ạ?',
     welcomePayload(),
   );
+}
+
+const CHATBOT_ACTIVE_APPOINTMENT_STATUSES = [
+  APPOINTMENT_STATUS.BOOKED,
+  APPOINTMENT_STATUS.CONFIRMED,
+  APPOINTMENT_STATUS.CHECKED_IN,
+  APPOINTMENT_STATUS.IN_CONSULTATION,
+];
+
+function patientIdFromActor(actor = {}) {
+  return actor?.patientId || actor?.patient_id || actor?.patient?.id || actor?.patient?._id || null;
+}
+
+function isPatientAuth(actor = {}) {
+  return actor?.actorType === 'patient' || actor?.actor_type === 'patient';
+}
+
+function sessionOwnedAppointmentId(session = {}) {
+  const id = session.context?.booking?.appointment_id;
+  return id && isValidObjectId(id) ? toId(id) : null;
+}
+
+function normalizeAppointmentLookupCode(value) {
+  const code = normalizeString(value);
+  if (!code) return null;
+  return code.replace(/^APT[-\s]?/i, '').trim().toUpperCase();
+}
+
+function appointmentPublicCode(appointment = {}) {
+  const id = toId(appointment._id || appointment.appointment_id);
+  return id ? `APT-${id.slice(-6).toUpperCase()}` : null;
+}
+
+function appointmentStatusLabel(status) {
+  const labels = {
+    [APPOINTMENT_STATUS.BOOKED]: 'đã đặt, chờ xác nhận',
+    [APPOINTMENT_STATUS.CONFIRMED]: 'đã xác nhận',
+    [APPOINTMENT_STATUS.CHECKED_IN]: 'đã check-in',
+    [APPOINTMENT_STATUS.IN_CONSULTATION]: 'đang khám',
+    [APPOINTMENT_STATUS.COMPLETED]: 'đã hoàn tất',
+    [APPOINTMENT_STATUS.CANCELLED]: 'đã hủy',
+    [APPOINTMENT_STATUS.NO_SHOW]: 'không đến',
+    [APPOINTMENT_STATUS.RESCHEDULED]: 'đã dời lịch',
+  };
+  return labels[status] || status || 'chưa rõ';
+}
+
+function appointmentSummary(appointment = {}) {
+  return {
+    appointment_code: appointmentPublicCode(appointment),
+    patient_code: appointment.patient_id?.patient_code,
+    patient_name: appointment.patient_id?.full_name,
+    phone: appointment.patient_id?.phone ? maskPhone(appointment.patient_id.phone) : undefined,
+    department_name: appointment.department_id?.department_name,
+    doctor_name: appointment.doctor_id?.full_name,
+    date: formatDate(appointment.appointment_time),
+    time: formatTime(appointment.appointment_time),
+    status: appointmentStatusLabel(appointment.status),
+    note: appointment.reason,
+  };
+}
+
+function loginRequiredResponse(scope = 'thông tin cá nhân') {
+  return botText(
+    `Dạ, để xem hoặc thao tác ${scope}, anh/chị vui lòng đăng nhập tài khoản bệnh nhân trước để bảo vệ dữ liệu cá nhân.`,
+    {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Đăng nhập', href: '/login' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' },
+      ]),
+    },
+  );
+}
+
+function appointmentLookupHelpResponse(actionLabel = 'kiểm tra lịch hẹn') {
+  return botText(
+    `Dạ, em chưa xác định được lịch hẹn cần ${actionLabel}. Anh/chị có thể đăng nhập cổng bệnh nhân hoặc gửi mã lịch hẹn dạng APT-xxxxxx để em kiểm tra trong phạm vi được phép.`,
+    {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Đăng nhập', href: '/login' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+      ]),
+    },
+  );
+}
+
+async function loadAppointmentForDisplay(appointmentId) {
+  if (!appointmentId || !isValidObjectId(appointmentId)) return null;
+  return Appointment.findOne({ _id: appointmentId, is_deleted: false })
+    .populate('patient_id', 'full_name phone patient_code')
+    .populate('doctor_id', 'full_name employee_code')
+    .populate('department_id', 'department_name department_code')
+    .lean();
+}
+
+function canAccessAppointment(session, appointment, actor = {}) {
+  if (!appointment) return false;
+  const ownedAppointmentId = sessionOwnedAppointmentId(session);
+  if (ownedAppointmentId && String(ownedAppointmentId) === String(appointment._id)) return true;
+  const patientId = patientIdFromActor(actor);
+  return Boolean(patientId && String(patientId) === String(appointment.patient_id?._id || appointment.patient_id));
+}
+
+async function findAccessibleAppointment(session, entities = {}, actor = {}, options = {}) {
+  const code = normalizeAppointmentLookupCode(entities.appointment_code);
+  const ownedAppointmentId = sessionOwnedAppointmentId(session);
+
+  if (code?.startsWith('CB-')) {
+    const draft = await ChatbotAppointmentDraft.findOne({ draft_code: code, is_deleted: false }).lean();
+    if (draft?.appointment_id) {
+      const appointment = await loadAppointmentForDisplay(draft.appointment_id);
+      if (canAccessAppointment(session, appointment, actor)) return { appointment };
+      return { accessRequired: true };
+    }
+  }
+
+  if (ownedAppointmentId) {
+    const appointment = await loadAppointmentForDisplay(ownedAppointmentId);
+    if (!code || normalizeAppointmentLookupCode(appointmentPublicCode(appointment)) === code || String(appointment?._id).toUpperCase() === code) {
+      return appointment ? { appointment } : { notFound: true };
+    }
+  }
+
+  const patientId = patientIdFromActor(actor);
+  if (env.chatbot.requireLoginForPersonalData && (!isPatientAuth(actor) || !patientId)) {
+    return { accessRequired: true };
+  }
+  if (!patientId) return { notFound: true };
+
+  if (code && isValidObjectId(code)) {
+    const appointment = await loadAppointmentForDisplay(code);
+    if (!appointment) return { notFound: true };
+    return canAccessAppointment(session, appointment, actor) ? { appointment } : { accessRequired: true };
+  }
+
+  const filter = { patient_id: patientId, is_deleted: false };
+  if (!options.includeInactive) filter.status = { $in: CHATBOT_ACTIVE_APPOINTMENT_STATUSES };
+  if (!code) filter.appointment_time = { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) };
+
+  const candidates = await Appointment.find(filter)
+    .populate('patient_id', 'full_name phone patient_code')
+    .populate('doctor_id', 'full_name employee_code')
+    .populate('department_id', 'department_name department_code')
+    .sort(code ? { appointment_time: -1 } : { appointment_time: 1 })
+    .limit(30)
+    .lean();
+  if (!code) return candidates[0] ? { appointment: candidates[0] } : { notFound: true };
+
+  const matched = candidates.find((appointment) => {
+    const publicCode = normalizeAppointmentLookupCode(appointmentPublicCode(appointment));
+    return publicCode === code || String(appointment._id).toUpperCase().endsWith(code);
+  });
+  return matched ? { appointment: matched } : { notFound: true };
+}
+
+async function appointmentStatusResponse(session, analysis, actor = {}) {
+  const lookup = await findAccessibleAppointment(session, analysis.entities, actor, { includeInactive: true });
+  if (lookup.accessRequired) return loginRequiredResponse('lịch hẹn');
+  if (!lookup.appointment) return appointmentLookupHelpResponse('kiểm tra');
+
+  const actions = [];
+  if (env.chatbot.appointmentAllowReschedule && CHATBOT_ACTIVE_APPOINTMENT_STATUSES.includes(lookup.appointment.status)) {
+    actions.push({ label: 'Dời lịch', value: 'Tôi muốn dời lịch hẹn này' });
+  }
+  if (env.chatbot.appointmentAllowCancel && CHATBOT_ACTIVE_APPOINTMENT_STATUSES.includes(lookup.appointment.status)) {
+    actions.push({ label: 'Hủy lịch', value: 'Tôi muốn hủy lịch hẹn này' });
+  }
+  actions.push({ label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' });
+
+  return botText('Dạ, em tìm thấy lịch hẹn trong hệ thống:', {
+    type: 'appointment_summary',
+    summary: appointmentSummary(lookup.appointment),
+    actions: buildQuickReplies(actions),
+  });
+}
+
+async function cancelAppointmentIntentResponse(session, analysis, actor = {}) {
+  if (!env.chatbot.appointmentAllowCancel) return handoffResponse(session, 'appointment');
+  const lookup = await findAccessibleAppointment(session, analysis.entities, actor);
+  if (lookup.accessRequired) return loginRequiredResponse('hủy lịch hẹn');
+  if (!lookup.appointment) return appointmentLookupHelpResponse('hủy');
+  if (!CHATBOT_ACTIVE_APPOINTMENT_STATUSES.includes(lookup.appointment.status)) {
+    return botText(`Dạ, lịch hẹn này hiện ${appointmentStatusLabel(lookup.appointment.status)} nên không thể hủy qua chatbot.`, {
+      type: 'appointment_summary',
+      summary: appointmentSummary(lookup.appointment),
+      actions: buildQuickReplies([{ label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' }]),
+    });
+  }
+
+  return botText('Dạ, em có thể hủy lịch hẹn này trên hệ thống sau khi anh/chị xác nhận.', {
+    type: 'appointment_summary',
+    summary: appointmentSummary(lookup.appointment),
+    actions: buildQuickReplies([
+      {
+        label: 'Xác nhận hủy lịch',
+        value: 'Xác nhận hủy lịch hẹn',
+        action: {
+          type: 'confirm_cancel_appointment',
+          appointment_id: toId(lookup.appointment._id),
+          reason: 'Khách yêu cầu hủy qua chatbot',
+        },
+      },
+      { label: 'Không hủy nữa', value: 'Không hủy lịch nữa' },
+    ]),
+  });
+}
+
+async function confirmCancelAppointmentAction(session, action = {}, actor = {}, meta = {}) {
+  if (!env.chatbot.appointmentAllowCancel) return handoffResponse(session, 'appointment');
+  const appointment = await loadAppointmentForDisplay(action.appointment_id || sessionOwnedAppointmentId(session));
+  if (!appointment) return appointmentLookupHelpResponse('hủy');
+  if (!canAccessAppointment(session, appointment, actor)) return loginRequiredResponse('hủy lịch hẹn');
+
+  const result = await appointmentService.cancelAppointment(
+    appointment._id,
+    { reason: action.reason || 'Khách yêu cầu hủy qua chatbot' },
+    chatbotSystemActor(),
+    chatbotRequestMeta(session, { action: 'chatbot.appointment.cancel', ip: getMetaIp(meta) }),
+  );
+  session.context = {
+    ...(session.context || {}),
+    booking: {
+      ...(session.context?.booking || {}),
+      appointment_status: APPOINTMENT_STATUS.CANCELLED,
+      cancelled_at: new Date().toISOString(),
+    },
+  };
+  session.current_step = 'appointment_cancelled';
+  await session.save();
+  return botText('Dạ, em đã hủy lịch hẹn thật trong hệ thống. Nếu cần đặt lịch mới, em có thể tìm khung giờ phù hợp cho anh/chị.', {
+    type: 'appointment_summary',
+    summary: appointmentSummary(result.appointment || appointment),
+    actions: buildQuickReplies([
+      { label: 'Đặt lịch mới', value: 'Tôi muốn đặt lịch khám' },
+      { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+    ]),
+  });
+}
+
+async function rescheduleAppointmentIntentResponse(session, analysis, text, actor = {}) {
+  if (!env.chatbot.appointmentAllowReschedule) return handoffResponse(session, 'appointment');
+  const lookup = await findAccessibleAppointment(session, analysis.entities, actor);
+  if (lookup.accessRequired) return loginRequiredResponse('dời lịch hẹn');
+  if (!lookup.appointment) return appointmentLookupHelpResponse('dời');
+  if (!CHATBOT_ACTIVE_APPOINTMENT_STATUSES.includes(lookup.appointment.status)) {
+    return botText(`Dạ, lịch hẹn này hiện ${appointmentStatusLabel(lookup.appointment.status)} nên không thể dời qua chatbot.`, {
+      type: 'appointment_summary',
+      summary: appointmentSummary(lookup.appointment),
+      actions: buildQuickReplies([{ label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' }]),
+    });
+  }
+  if (!analysis.entities.date_iso) {
+    return botText('Dạ, anh/chị muốn dời lịch sang ngày nào ạ?', {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Ngày mai', value: 'Tôi muốn dời lịch sang ngày mai' },
+        { label: 'Ngày kia', value: 'Tôi muốn dời lịch sang ngày kia' },
+        { label: 'Cuối tuần', value: 'Tôi muốn dời lịch sang cuối tuần' },
+      ]),
+    });
+  }
+
+  const rescheduleBooking = mergeEntities(session.context?.booking || {}, analysis.entities, {
+    department_id: toId(lookup.appointment.department_id?._id || lookup.appointment.department_id),
+    department: lookup.appointment.department_id?.department_name,
+    doctor_id: toId(lookup.appointment.doctor_id?._id || lookup.appointment.doctor_id),
+    doctor: lookup.appointment.doctor_id?.full_name,
+    reschedule_appointment_id: toId(lookup.appointment._id),
+  });
+  session.context = {
+    ...(session.context || {}),
+    booking: rescheduleBooking,
+  };
+
+  const slots = (await findAvailableSlots(rescheduleBooking, session)).map((slot) => ({
+    ...slot,
+    action_type: 'select_reschedule_slot',
+    appointment_id: toId(lookup.appointment._id),
+  }));
+  if (!slots.length) {
+    return botText('Dạ, em chưa thấy khung giờ mới phù hợp. Anh/chị muốn thử ngày khác hoặc gặp nhân viên hỗ trợ dời lịch không ạ?', {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Ngày khác', value: 'Tôi muốn dời lịch sang ngày khác' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+      ]),
+    });
+  }
+
+  return botText('Dạ, em tìm thấy các khung giờ mới phù hợp. Anh/chị chọn một khung giờ để em dời lịch thật trên hệ thống sau bước xác nhận.', {
+    type: 'slot_picker',
+    slots,
+    quick_replies: slots.slice(0, 3).map((slot) => ({
+      label: `${slot.time} - ${slot.doctor_name}`,
+      value: `Tôi chọn dời lịch sang ${slot.time} ${slot.date}`,
+      action: { type: 'select_reschedule_slot', slot, appointment_id: toId(lookup.appointment._id) },
+    })),
+  });
+}
+
+function rescheduleSummaryResponse(session) {
+  const booking = session.context?.booking || {};
+  const slot = booking.reschedule_slot || {};
+  return botText('Em xin xác nhận khung giờ mới trước khi dời lịch trong hệ thống.', {
+    type: 'appointment_summary',
+    summary: {
+      appointment_code: booking.reschedule_appointment_id ? `APT-${String(booking.reschedule_appointment_id).slice(-6).toUpperCase()}` : undefined,
+      department_name: slot.department_name || booking.department,
+      doctor_name: slot.doctor_name || booking.doctor,
+      date: slot.date,
+      time: slot.time,
+      status: 'chờ xác nhận dời lịch',
+    },
+    actions: buildQuickReplies([
+      { label: 'Xác nhận dời lịch', value: 'Xác nhận dời lịch', action: { type: 'confirm_reschedule_appointment' } },
+      { label: 'Chọn giờ khác', value: `${booking.department || 'Chuyên khoa'} ${booking.date_iso || 'ngày mai'} còn lịch không?` },
+      { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+    ]),
+  });
+}
+
+async function confirmRescheduleAppointmentAction(session, actor = {}, meta = {}) {
+  if (!env.chatbot.appointmentAllowReschedule) return handoffResponse(session, 'appointment');
+  const booking = session.context?.booking || {};
+  const slot = booking.reschedule_slot || {};
+  const appointment = await loadAppointmentForDisplay(booking.reschedule_appointment_id);
+  if (!appointment || !slot.appointment_time) return appointmentLookupHelpResponse('dời');
+  if (!canAccessAppointment(session, appointment, actor)) return loginRequiredResponse('dời lịch hẹn');
+
+  let result;
+  try {
+    result = await appointmentService.rescheduleAppointment(
+      appointment._id,
+      {
+        doctor_id: slot.doctor_id,
+        department_id: slot.department_id,
+        doctor_schedule_id: slot.doctor_schedule_id,
+        schedule_slot_id: slot.schedule_slot_id,
+        appointment_time: slot.appointment_time,
+        reason: 'Khách yêu cầu dời lịch qua chatbot',
+      },
+      chatbotSystemActor(),
+      chatbotRequestMeta(session, { action: 'chatbot.appointment.reschedule', ip: getMetaIp(meta) }),
+    );
+  } catch (error) {
+    if ([409, 422].includes(Number(error.statusCode || error.status))) {
+      return botText(`${error.message || 'Khung giờ mới không còn khả dụng.'} Em có thể tìm khung giờ khác cho anh/chị.`, {
+        type: 'quick_replies',
+        quick_replies: buildQuickReplies([
+          { label: 'Tìm giờ khác', value: `${booking.department || 'Chuyên khoa'} ${booking.date_iso || 'ngày mai'} còn lịch không?` },
+          { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+        ]),
+      });
+    }
+    throw error;
+  }
+
+  session.context = {
+    ...(session.context || {}),
+    booking: {
+      ...booking,
+      appointment_id: result.appointment?.appointment_id || result.appointment?._id,
+      appointment_status: result.appointment?.status,
+      rescheduled_at: new Date().toISOString(),
+    },
+  };
+  session.current_step = 'appointment_rescheduled';
+  await session.save();
+  return botText('Dạ, em đã dời lịch hẹn thật trong hệ thống. Anh/chị vui lòng kiểm tra lại thời gian mới bên dưới.', {
+    type: 'appointment_confirmed',
+    summary: {
+      appointment_code: result.appointment?.appointment_id ? `APT-${String(result.appointment.appointment_id).slice(-6).toUpperCase()}` : undefined,
+      department_name: result.appointment?.department_name || slot.department_name,
+      doctor_name: result.appointment?.doctor_name || slot.doctor_name,
+      date: formatDate(result.appointment?.appointment_time || slot.appointment_time),
+      time: formatTime(result.appointment?.appointment_time || slot.appointment_time),
+      status: appointmentStatusLabel(result.appointment?.status),
+    },
+    actions: buildQuickReplies([
+      { label: 'Xem hướng dẫn đi khám', value: 'Tôi cần mang giấy tờ gì khi đi khám?' },
+      { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+    ]),
+  });
+}
+
+async function paymentStatusResponse(session, analysis, actor = {}) {
+  const patientId = patientIdFromActor(actor);
+  if (env.chatbot.requireLoginForPersonalData && (!isPatientAuth(actor) || !patientId)) {
+    return loginRequiredResponse('hóa đơn và thanh toán');
+  }
+  if (!patientId) return loginRequiredResponse('hóa đơn và thanh toán');
+
+  const invoiceFilter = { patient_id: patientId };
+  if (analysis.entities.invoice_code) {
+    invoiceFilter.invoice_no = { $regex: escapeRegex(analysis.entities.invoice_code), $options: 'i' };
+  }
+  const invoices = await Invoice.find(invoiceFilter).sort({ issued_at: -1, created_at: -1 }).limit(3).lean();
+  const invoiceIds = invoices.map((item) => item._id);
+  const intents = await PaymentIntent.find({
+    patient_id: patientId,
+    ...(invoiceIds.length ? { invoice_id: { $in: invoiceIds } } : {}),
+  }).sort({ created_at: -1 }).limit(3).lean();
+
+  if (!invoices.length && !intents.length) {
+    return botText('Dạ, em chưa thấy hóa đơn hoặc phiên thanh toán gần đây trong tài khoản của anh/chị.', {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Mở hóa đơn', href: '/portal/dashboard?section=billing' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên thanh toán' },
+      ]),
+    });
+  }
+
+  const invoiceLines = invoices.map((invoice) => {
+    const due = formatMoney(invoice.balance_due, invoice.currency);
+    return `- Hóa đơn ${invoice.invoice_no}: trạng thái ${invoice.status}, còn phải thu ${due}`;
+  });
+  const intentLines = intents.map((intent) => {
+    const amount = formatMoney(intent.amount, intent.currency);
+    return `- Thanh toán ${intent.intent_code}: ${intent.status}, số tiền ${amount}${intent.confirmed_at ? `, xác nhận lúc ${formatTime(intent.confirmed_at)} ${formatDate(intent.confirmed_at)}` : ''}`;
+  });
+  return botText(`Dạ, em kiểm tra dữ liệu thanh toán trong hệ thống:\n${[...invoiceLines, ...intentLines].join('\n')}`, {
+    type: 'payment_status',
+    invoices,
+    payment_intents: intents,
+    quick_replies: buildQuickReplies([
+      { label: 'Mở hóa đơn', href: '/portal/dashboard?section=billing' },
+      { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên thanh toán' },
+    ]),
+  });
+}
+
+async function resultStatusResponse(session, analysis, actor = {}) {
+  const patientId = patientIdFromActor(actor);
+  if (env.chatbot.requireLoginForPersonalData && (!isPatientAuth(actor) || !patientId)) {
+    return loginRequiredResponse('trạng thái kết quả');
+  }
+  if (!patientId) return loginRequiredResponse('trạng thái kết quả');
+
+  const resultCode = analysis.entities.result_code;
+  const labFilter = { patient_id: patientId, is_current: true };
+  const imagingFilter = { patient_id: patientId, is_current: true };
+  if (resultCode) {
+    labFilter.result_no = { $regex: escapeRegex(resultCode), $options: 'i' };
+    imagingFilter.report_no = { $regex: escapeRegex(resultCode), $options: 'i' };
+  }
+  const [labResults, imagingReports] = await Promise.all([
+    LabResult.find(labFilter).sort({ reported_at: -1, created_at: -1 }).limit(3).lean(),
+    ImagingReport.find(imagingFilter).sort({ reported_at: -1, created_at: -1 }).limit(3).lean(),
+  ]);
+
+  if (!labResults.length && !imagingReports.length) {
+    return botText('Dạ, em chưa thấy kết quả xét nghiệm/chẩn đoán hình ảnh phù hợp trong tài khoản của anh/chị. Em không thể tự kết luận kết quả; nếu cần kiểm tra chi tiết, em sẽ chuyển nhân viên hỗ trợ.', {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Mở kết quả', href: '/portal/dashboard?section=lab-results' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn kết quả' },
+      ]),
+    });
+  }
+
+  const lines = [
+    ...labResults.map((item) => `- Xét nghiệm ${item.result_no}: ${item.status}, ${item.released_to_patient ? 'đã phát hành cho bệnh nhân' : 'chưa phát hành cho bệnh nhân'}`),
+    ...imagingReports.map((item) => `- CĐHA ${item.report_no}: ${item.status}, ${item.released_to_patient ? 'đã phát hành cho bệnh nhân' : 'chưa phát hành cho bệnh nhân'}`),
+  ];
+  return botText(`Dạ, em chỉ kiểm tra trạng thái phát hành, không diễn giải nội dung kết quả:\n${lines.join('\n')}`, {
+    type: 'result_status',
+    lab_results: labResults,
+    imaging_reports: imagingReports,
+    quick_replies: buildQuickReplies([
+      { label: 'Mở kết quả', href: '/portal/dashboard?section=lab-results' },
+      { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn kết quả' },
+    ]),
+  });
+}
+
+function uploadDocumentResponse() {
+  return botText('Dạ, anh/chị có thể upload CCCD, thẻ BHYT, giấy chuyển tuyến hoặc hồ sơ khám cũ trong cổng bệnh nhân. Nếu gửi ảnh giấy tờ qua chat, nội dung cần nhân viên kiểm tra để đảm bảo chính xác; em không tự kết luận từ ảnh y tế.', {
+    type: 'quick_replies',
+    quick_replies: buildQuickReplies([
+      { label: 'Mở hồ sơ', href: '/portal/dashboard?section=documents' },
+      { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên kiểm tra giấy tờ' },
+    ]),
+  });
+}
+
+async function createCallbackTicket(session, lead = {}, reason = 'callback_request') {
+  const patient = await ensurePatientForIdentity(session, {
+    patient_name: lead.patient_name,
+    phone: lead.phone,
+    email: lead.email,
+  });
+  const description = [
+    reason === 'feedback' ? 'Khách gửi phản hồi từ chatbot.' : 'Khách yêu cầu nhân viên liên hệ từ chatbot.',
+    lead.concern ? `Nhu cầu: ${lead.concern}` : null,
+    lead.insurance_type ? `Loại bảo hiểm: ${lead.insurance_type}` : null,
+    session.source_page ? `Trang nguồn: ${session.source_page}` : null,
+    `Kênh: ${session.channel || 'website'}`,
+  ].filter(Boolean).join('\n');
+  const ticket = await supportTicketService.createTicket({
+    patient_id: patient._id,
+    category: supportCategoryForHandoff(reason),
+    priority: supportPriorityForHandoff(session, reason),
+    subject: supportSubjectForHandoff(reason),
+    description,
+    metadata: {
+      source: 'chatbot',
+      chatbot_session_id: toId(session._id),
+      lead_source: session.source_page,
+      lead_priority: session.context?.insights?.lead_priority || (lead.phone ? 'high' : 'medium'),
+      handoff_reason: reason,
+      lead,
+      conversation_insights: session.context?.insights || {},
+    },
+  }, chatbotSystemActor(), chatbotRequestMeta(session, { action: 'chatbot.callback.create_ticket' }));
+
+  const context = session.context || {};
+  session.context = {
+    ...context,
+    lead: {
+      ...(context.lead || {}),
+      ...lead,
+      patient_id: toId(patient._id),
+      support_ticket_id: toId(ticket._id || ticket.id || ticket.ticket_id),
+      support_ticket_code: ticket.ticket_code,
+      status: 'callback_ticket_created',
+    },
+  };
+  session.current_step = 'callback_ticket_created';
+  await session.save();
+  return ticket;
+}
+
+function leadResponseIntro(reason = 'callback_request') {
+  if (reason === 'family_booking') return 'Dạ, em có thể tạo yêu cầu đặt lịch cho người thân để nhân viên hỗ trợ đúng thông tin.';
+  if (reason === 'corporate_health_check') return 'Dạ, em có thể tạo lead khám sức khỏe doanh nghiệp để bộ phận phụ trách liên hệ lại.';
+  if (reason === 'lead_capture') return 'Dạ, em có thể lưu yêu cầu tư vấn thật trong hệ thống để nhân viên liên hệ lại.';
+  if (reason === 'feedback') return 'Dạ, em có thể ghi nhận phản hồi này thành ticket để bộ phận phụ trách xem lại.';
+  return 'Dạ, em có thể tạo yêu cầu gọi lại thật cho nhân viên.';
+}
+
+async function callbackRequestResponse(session, analysis, text, reason = 'callback_request') {
+  if (!env.chatbot.leadCaptureEnabled) return handoffResponse(session, reason);
+  const context = session.context || {};
+  const lead = {
+    ...(context.lead || {}),
+    patient_name: analysis.entities.patient_name || context.lead?.patient_name,
+    phone: analysis.entities.phone || context.lead?.phone,
+    email: analysis.entities.email || context.lead?.email,
+    insurance_type: analysis.entities.insurance_type || context.lead?.insurance_type,
+    concern: normalizeString(text) || context.lead?.concern,
+  };
+  session.context = { ...context, lead };
+
+  if (!lead.patient_name || !lead.phone) {
+    session.current_step = reason === 'feedback' ? 'collect_feedback' : 'collect_callback';
+    await session.save();
+    return botText(`${leadResponseIntro(reason)} Anh/chị cho em xin họ tên và số điện thoại nhé.`, {
+      type: 'callback_form',
+      submit_action: reason === 'feedback' ? 'submit_feedback_request' : 'submit_lead_request',
+      submit_label: reason === 'feedback' ? 'Gửi phản hồi' : 'Gửi yêu cầu tư vấn',
+      submit_value: reason === 'feedback' ? 'Tôi gửi phản hồi' : 'Tôi gửi yêu cầu tư vấn',
+      button_label: reason === 'feedback' ? 'Gửi phản hồi' : 'Gửi yêu cầu',
+      fields: [
+        { name: 'patient_name', label: 'Họ tên', required: true },
+        { name: 'phone', label: 'Số điện thoại', required: true },
+        { name: 'concern', label: reason === 'feedback' ? 'Nội dung phản hồi' : 'Nhu cầu cần tư vấn', required: false, multiline: true },
+      ],
+    });
+  }
+
+  const ticket = await createCallbackTicket(session, lead, reason);
+  const doneText = reason === 'feedback'
+    ? `Dạ, em đã ghi nhận phản hồi trong hệ thống${ticket.ticket_code ? `, mã ticket ${ticket.ticket_code}` : ''}. Cảm ơn anh/chị đã gửi thông tin để cơ sở cải thiện dịch vụ.`
+    : `Dạ, em đã tạo yêu cầu trong hệ thống${ticket.ticket_code ? `, mã ticket ${ticket.ticket_code}` : ''}. Nhân viên tư vấn sẽ kiểm tra và liên hệ lại theo số ${maskPhone(lead.phone)}.`;
+  return botText(doneText, {
+    type: 'handoff_notice',
+    queue: env.chatbot.handoffQueueDefault,
+    reason,
+    support_ticket: {
+      support_ticket_id: toId(ticket._id || ticket.id || ticket.ticket_id),
+      support_ticket_code: ticket.ticket_code,
+    },
+    quick_replies: buildQuickReplies([
+      { label: 'Đặt lịch ngay', value: 'Tôi muốn đặt lịch khám' },
+      { label: 'Hỏi thêm', value: 'Tôi cần hỏi thêm thông tin' },
+    ]),
+  });
+}
+
+async function abandonedBookingRecoveryResponse(session, text) {
+  const context = session.context || {};
+  const previous = context.previous_booking || {};
+  if (!previous.department && !previous.doctor && !previous.date_iso && !previous.selected_slot) {
+    return botText('Dạ, em chưa tìm thấy phiên đặt lịch dang dở gần đây. Mình có thể bắt đầu đặt lịch mới ngay bây giờ ạ.', {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Đặt lịch mới', value: 'Tôi muốn đặt lịch khám' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+      ]),
+    });
+  }
+
+  session.context = {
+    ...context,
+    booking: {
+      ...(context.booking || {}),
+      ...previous,
+    },
+  };
+  session.current_intent = 'book_appointment';
+  session.current_step = previous.selected_slot ? 'collect_identity' : 'recover_booking';
+  await session.save();
+
+  if (previous.selected_slot) {
+    return bookingFormResponse(previous.selected_slot);
+  }
+  return slotPickerResponse({ entities: previous }, session, text || 'tiếp tục đặt lịch');
+}
+
+function returningPatientResponse(actor = {}) {
+  if (env.chatbot.requireLoginForPersonalData && !isPatientAuth(actor)) {
+    return botText('Dạ, nếu anh/chị đã từng khám tại hệ thống, mình đăng nhập tài khoản bệnh nhân để em kiểm tra lịch hẹn, hóa đơn, kết quả hoặc hỗ trợ tái khám chính xác hơn nhé.', {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'Đăng nhập', href: '/login' },
+        { label: 'Đặt lịch tái khám', value: 'Tôi muốn đặt lịch tái khám' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' },
+      ]),
+    });
+  }
+  return botText('Dạ, em có thể hỗ trợ anh/chị kiểm tra lịch hẹn hiện có, đặt lịch tái khám hoặc xem hướng dẫn hồ sơ sau khi đăng nhập.', {
+    type: 'quick_replies',
+    quick_replies: buildQuickReplies([
+      { label: 'Xem lịch hẹn', value: 'Kiểm tra lịch hẹn của tôi' },
+      { label: 'Đặt lịch tái khám', value: 'Tôi muốn đặt lịch tái khám' },
+      { label: 'Xem kết quả', value: 'Kết quả của tôi có chưa?' },
+    ]),
+  });
+}
+
+function handoffReasonFromText(text = '', session = {}) {
+  const normalized = normalizeText([text, session.current_intent].filter(Boolean).join(' '));
+  if (/(cap cuu|emergency)/.test(normalized)) return 'emergency';
+  if (/(dat lich|lich kham|doi lich|huy lich|appointment)/.test(normalized)) return 'appointment';
+  if (/(thanh toan|hoa don|qr|chuyen khoan|gia|phi|billing|payment)/.test(normalized)) return 'billing';
+  if (/(bao hiem|bhyt|insurance)/.test(normalized)) return 'insurance';
+  if (/(khieu nai|phan anh|khong hai long)/.test(normalized)) return 'complaint';
+  if (/(feedback|gop y|danh gia|hai long)/.test(normalized)) return 'feedback';
+  if (/(cong ty|doanh nghiep|corporate)/.test(normalized)) return 'corporate_health_check';
+  return 'user_request';
 }
 
 async function departmentSuggestionResponse(analysis, text) {
@@ -1346,10 +2637,16 @@ async function slotPickerResponse(analysis, session, text) {
 }
 
 function bookingFormResponse(slot) {
+  const holdNote = slot.hold_expires_at
+    ? ` Em đang giữ tạm slot này trong ${slot.hold_ttl_minutes || env.chatbot.appointmentSlotHoldTtlMinutes} phút để tránh người khác đặt trùng.`
+    : '';
   return botText(
-    `Dạ, em đã chọn khung ${slot.time} ngày ${slot.date} với ${slot.doctor_name}. Anh/chị cho em xin họ tên và số điện thoại để lập phiếu yêu cầu đặt lịch ạ.`,
+    `Dạ, em đã chọn khung ${slot.time} ngày ${slot.date} với ${slot.doctor_name}.${holdNote} Anh/chị cho em xin họ tên và số điện thoại để lập lịch hẹn thật trong hệ thống ạ.`,
     {
       type: 'booking_form',
+      submit_label: 'Gửi thông tin đặt lịch',
+      submit_value: 'Tôi gửi thông tin đặt lịch',
+      button_label: 'Gửi để xác nhận',
       selected_slot: slot,
       fields: [
         { name: 'patient_name', label: 'Họ tên bệnh nhân', required: env.chatbot.appointmentRequirePatientName },
@@ -1386,26 +2683,229 @@ function appointmentSummaryResponse(session) {
   );
 }
 
-async function createAppointmentDraftFromSession(session) {
+async function holdSelectedSlotForSession(session, slot = {}) {
+  if (!env.chatbot.appointmentSlotHoldEnabled) return slot;
+  if (!slot.doctor_schedule_id || !slot.appointment_time) {
+    throw createError('Thiếu thông tin slot để giữ lịch.', 422);
+  }
+
+  const schedule = await DoctorSchedule.findOne({
+    _id: slot.doctor_schedule_id,
+    is_deleted: false,
+    status: { $in: ['published', 'active'] },
+    patient_portal_enabled: true,
+    staff_only: { $ne: true },
+  }).lean();
+  if (!schedule) throw createError('Lịch này không còn mở để đặt khám.', 409);
+
+  const holdOwner = chatbotHoldOwner(session);
+  const now = new Date();
+  const slotTime = new Date(slot.appointment_time);
+  const slotEnd = slot.slot_end ? new Date(slot.slot_end) : addMinutes(slotTime, 15);
+  const existingSlot = await ScheduleSlot.findOne({
+    doctor_schedule_id: schedule._id,
+    start_time: slotTime,
+    is_deleted: false,
+  });
+
+  const ownActiveHold = existingSlot
+    && existingSlot.status === SCHEDULE_SLOT_STATUS.HELD
+    && existingSlot.block_reason === holdOwner
+    && existingSlot.hold_expires_at
+    && new Date(existingSlot.hold_expires_at) > now;
+  const heldByOther = existingSlot
+    && existingSlot.status === SCHEDULE_SLOT_STATUS.HELD
+    && !ownActiveHold
+    && existingSlot.hold_expires_at
+    && new Date(existingSlot.hold_expires_at) > now;
+  const unavailable = existingSlot
+    && (
+      heldByOther
+      || existingSlot.appointment_id
+      || existingSlot.booked_count >= existingSlot.capacity
+      || [SCHEDULE_SLOT_STATUS.BOOKED, SCHEDULE_SLOT_STATUS.BLOCKED, SCHEDULE_SLOT_STATUS.CANCELLED, SCHEDULE_SLOT_STATUS.COMPLETED, SCHEDULE_SLOT_STATUS.NO_SHOW].includes(existingSlot.status)
+    );
+  if (unavailable) {
+    throw createError('Khung giờ này vừa được giữ hoặc đặt bởi người khác. Anh/chị vui lòng chọn khung giờ khác.', 409);
+  }
+
+  if (!ownActiveHold) {
+    const available = await scheduleService.getAvailableSlots(schedule._id, { publicView: true, onlyAvailable: true });
+    const stillAvailable = (available.items || []).some((item) => new Date(item.slot_time).getTime() === slotTime.getTime());
+    if (!stillAvailable) {
+      throw createError('Khung giờ này không còn khả dụng. Anh/chị vui lòng chọn khung giờ khác.', 409);
+    }
+  }
+
+  const holdExpiresAt = addMinutes(now, env.chatbot.appointmentSlotHoldTtlMinutes);
+  const heldSlot = existingSlot || await ScheduleSlot.findOneAndUpdate(
+    {
+      doctor_schedule_id: schedule._id,
+      start_time: slotTime,
+      is_deleted: false,
+    },
+    {
+      $setOnInsert: {
+        doctor_schedule_id: schedule._id,
+        created_by: null,
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  );
+
+  heldSlot.doctor_id = slot.doctor_id || schedule.doctor_id;
+  heldSlot.department_id = slot.department_id || schedule.department_id;
+  heldSlot.start_time = slotTime;
+  heldSlot.end_time = slotEnd;
+  heldSlot.capacity = 1;
+  heldSlot.booked_count = 0;
+  heldSlot.status = SCHEDULE_SLOT_STATUS.HELD;
+  heldSlot.hold_expires_at = holdExpiresAt;
+  heldSlot.block_reason = holdOwner;
+  heldSlot.appointment_id = undefined;
+  heldSlot.patient_id = undefined;
+  await heldSlot.save();
+
+  return {
+    ...slot,
+    schedule_slot_id: toId(heldSlot._id),
+    hold_expires_at: holdExpiresAt.toISOString(),
+    hold_ttl_minutes: env.chatbot.appointmentSlotHoldTtlMinutes,
+  };
+}
+
+async function ensurePatientForBooking(session, booking = {}) {
+  if (session.patient_id && isValidObjectId(session.patient_id)) {
+    const patient = await Patient.findOne({ _id: session.patient_id, is_deleted: false, status: 'active' });
+    if (patient) return patient;
+  }
+
+  const phone = normalizePhone(booking.phone);
+  const patientName = normalizeString(booking.patient_name);
+  if (!patientName || !phone) throw createError('Thiếu họ tên hoặc số điện thoại để tạo hồ sơ bệnh nhân.', 422);
+
+  const existing = await Patient.findOne({
+    is_deleted: false,
+    status: 'active',
+    phone,
+  }).sort({ updated_at: -1, created_at: -1 });
+  if (existing) {
+    if (!session.patient_id) {
+      session.patient_id = existing._id;
+      await session.save();
+    }
+    return existing;
+  }
+
+  const detail = await patientService.createPatient({
+    full_name: patientName,
+    phone,
+    email: normalizeString(booking.email),
+    status: 'active',
+    source: 'chatbot',
+    confirm_duplicate_checked: true,
+  }, chatbotSystemActor(), chatbotRequestMeta(session, { action: 'chatbot.patient.create' }));
+  const patientId = detail.patient_id || detail.patient?.patient_id || detail.patient?._id;
+  const patient = patientId
+    ? await Patient.findById(patientId)
+    : await Patient.findOne({ is_deleted: false, phone }).sort({ created_at: -1 });
+  if (!patient) throw createError('Không thể tạo hồ sơ bệnh nhân từ chatbot.', 409);
+  session.patient_id = patient._id;
+  await session.save();
+  return patient;
+}
+
+async function ensurePatientForIdentity(session, identity = {}) {
+  const phone = normalizePhone(identity.phone);
+  const patientName = normalizeString(identity.patient_name || identity.patientName);
+  if (!patientName || !phone) throw createError('Thiếu họ tên hoặc số điện thoại để tạo hồ sơ bệnh nhân.', 422);
+
+  const existing = await Patient.findOne({
+    is_deleted: false,
+    status: 'active',
+    phone,
+  }).sort({ updated_at: -1, created_at: -1 });
+  if (existing) {
+    session.patient_id = existing._id;
+    await session.save();
+    return existing;
+  }
+
+  const detail = await patientService.createPatient({
+    full_name: patientName,
+    phone,
+    email: normalizeString(identity.email),
+    status: 'active',
+    source: 'chatbot',
+    confirm_duplicate_checked: true,
+  }, chatbotSystemActor(), chatbotRequestMeta(session, { action: 'chatbot.patient.create_from_identity' }));
+  const patientId = detail.patient_id || detail.patient?.patient_id || detail.patient?._id;
+  const patient = patientId
+    ? await Patient.findById(patientId)
+    : await Patient.findOne({ is_deleted: false, phone }).sort({ created_at: -1 });
+  if (!patient) throw createError('Không thể tạo hồ sơ bệnh nhân từ chatbot.', 409);
+  session.patient_id = patient._id;
+  await session.save();
+  return patient;
+}
+
+async function createRealAppointmentFromSession(session) {
   const booking = session.context?.booking || {};
   const slot = booking.selected_slot || {};
   if (!slot.appointment_time || !booking.patient_name || !booking.phone) {
     throw createError('Thiếu thông tin để tạo phiếu đặt lịch.', 422);
   }
+
+  if (booking.appointment_id && isValidObjectId(booking.appointment_id)) {
+    const existingAppointment = await Appointment.findOne({ _id: booking.appointment_id, is_deleted: false }).lean();
+    if (existingAppointment) {
+      const detail = await appointmentService.getAppointmentDetail(existingAppointment._id, chatbotSystemActor());
+      return {
+        draft: booking.appointment_draft_id
+          ? await ChatbotAppointmentDraft.findById(booking.appointment_draft_id)
+          : null,
+        appointment: detail.appointment,
+        reused: true,
+      };
+    }
+  }
+
+  const patient = await ensurePatientForBooking(session, booking);
+  const appointmentResult = await appointmentService.createAppointment({
+    patient_id: patient._id,
+    doctor_id: slot.doctor_id,
+    department_id: slot.department_id,
+    doctor_schedule_id: slot.doctor_schedule_id,
+    schedule_slot_id: slot.schedule_slot_id,
+    appointment_time: slot.appointment_time,
+    appointment_type: 'outpatient',
+    reason: booking.symptoms_note || booking.note || 'Đặt lịch từ chatbot',
+    notes: `Chatbot session ${toId(session._id)}${booking.symptoms_note ? ` - ${booking.symptoms_note}` : ''}`,
+    source: 'chatbot',
+    status: env.chatbot.appointmentConfirmationRequired ? APPOINTMENT_STATUS.BOOKED : APPOINTMENT_STATUS.CONFIRMED,
+    allow_held_slot: Boolean(slot.schedule_slot_id && env.chatbot.appointmentSlotHoldEnabled),
+    held_by: chatbotHoldOwner(session),
+  }, chatbotSystemActor(), chatbotRequestMeta(session, { action: 'chatbot.appointment.create' }));
+  const appointment = appointmentResult.appointment;
   const draftCode = `CB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomBytes(3).toString('hex').toUpperCase()}`;
   const draft = await ChatbotAppointmentDraft.create({
     session_id: session._id,
     draft_code: draftCode,
-    status: 'pending_staff_confirmation',
+    status: 'confirmed',
+    patient_id: patient._id,
     patient_name: booking.patient_name,
     phone: booking.phone,
     department_id: slot.department_id,
     doctor_id: slot.doctor_id,
     doctor_schedule_id: slot.doctor_schedule_id,
+    schedule_slot_id: appointment.schedule_slot_id || slot.schedule_slot_id,
+    appointment_id: appointment.appointment_id,
     appointment_time: slot.appointment_time,
     selected_slot: slot,
     symptoms_note: booking.symptoms_note || booking.note,
     confirmation_snapshot: {
+      appointment_id: appointment.appointment_id,
+      patient_code: appointment.patient_code,
       patient_name: booking.patient_name,
       phone: maskPhone(booking.phone),
       department_name: slot.department_name,
@@ -1413,8 +2913,10 @@ async function createAppointmentDraftFromSession(session) {
       date: slot.date,
       time: slot.time,
       fee_display: slot.fee_display,
+      status: appointment.status,
     },
     expires_at: draftExpiresAt(),
+    confirmed_at: new Date(),
   });
   session.context = {
     ...(session.context || {}),
@@ -1422,27 +2924,208 @@ async function createAppointmentDraftFromSession(session) {
       ...booking,
       appointment_draft_id: toId(draft._id),
       appointment_draft_code: draftCode,
+      appointment_id: appointment.appointment_id,
+      patient_id: toId(patient._id),
+      patient_code: appointment.patient_code,
     },
   };
-  session.current_step = 'booking_pending_staff_confirmation';
+  session.current_step = 'appointment_created';
   await session.save();
-  return draft;
+  return { draft, appointment, reused: false };
 }
 
 async function confirmBookingResponse(session) {
-  const draft = await createAppointmentDraftFromSession(session);
+  let result;
+  try {
+    result = await createRealAppointmentFromSession(session);
+  } catch (error) {
+    if ([409, 422].includes(Number(error.statusCode || error.status))) {
+      session.current_step = 'booking_slot_conflict';
+      await session.save();
+      return botText(`${error.message || 'Khung giờ này không còn khả dụng.'} Em có thể tìm lại lịch trống gần nhất cho anh/chị.`, {
+        type: 'quick_replies',
+        quick_replies: buildQuickReplies([
+          { label: 'Tìm giờ khác', value: `${session.context?.booking?.department || 'Chuyên khoa'} ${session.context?.booking?.date_iso || 'ngày mai'} còn lịch không?` },
+          { label: 'Ngày khác', value: `${session.context?.booking?.department || 'Chuyên khoa'} ngày kia còn lịch không?` },
+          { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+        ]),
+      });
+    }
+    throw error;
+  }
+  const { draft, appointment } = result;
+  const appointmentCode = appointment?.appointment_id
+    ? `APT-${String(appointment.appointment_id).slice(-6).toUpperCase()}`
+    : draft?.draft_code || 'APT';
+  const draftPayload = draft?.toJSON ? draft.toJSON() : draft;
+  const booking = session.context?.booking || {};
+  const statusText = appointment?.status === APPOINTMENT_STATUS.CONFIRMED
+    ? 'đã được xác nhận'
+    : 'đã được tạo và đang chờ xác nhận vận hành';
   return botText(
-    `Em đã ghi nhận yêu cầu đặt lịch của anh/chị. Mã yêu cầu là ${draft.draft_code}. Nhân viên sẽ kiểm tra slot và xác nhận chính thức trong khoảng ${env.chatbot.handoffExpectedWaitMinutes} phút. Khi đi khám, anh/chị vui lòng đến trước 15 phút và mang CCCD/BHYT nếu có.`,
+    `Em đã tạo lịch hẹn thật trong hệ thống. Mã lịch hẹn: ${appointmentCode}. Lịch ${statusText}. Khi đi khám, anh/chị vui lòng đến trước 15 phút và mang CCCD/BHYT nếu có.`,
     {
-      type: 'handoff_notice',
-      draft: draft.toJSON(),
-      queue: env.chatbot.handoffQueueAppointment,
+      type: 'appointment_confirmed',
+      draft: draftPayload,
+      appointment,
+      summary: {
+        appointment_code: appointmentCode,
+        patient_name: appointment?.patient_name || draft?.patient_name || booking.patient_name,
+        patient_code: appointment?.patient_code,
+        phone: maskPhone(draft?.phone || booking.phone),
+        department_name: appointment?.department_name || draft?.confirmation_snapshot?.department_name,
+        doctor_name: appointment?.doctor_name || draft?.confirmation_snapshot?.doctor_name,
+        date: formatDate(appointment?.appointment_time || draft?.appointment_time),
+        time: formatTime(appointment?.appointment_time || draft?.appointment_time),
+        status: appointment?.status,
+      },
       actions: buildQuickReplies([
         { label: 'Xem hướng dẫn đi khám', value: 'Tôi cần mang giấy tờ gì khi đi khám?' },
+        { label: 'Hỏi thanh toán', value: 'Tôi muốn hỏi cách thanh toán QR' },
         { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
       ]),
     },
   );
+}
+
+function buildHandoffSummary(session = {}, reason = 'user_request') {
+  const booking = session.context?.booking || {};
+  const lead = session.context?.lead || {};
+  const insights = session.context?.insights || {};
+  const known = [
+    booking.department ? `Chuyên khoa: ${booking.department}` : null,
+    booking.doctor ? `Bác sĩ: ${booking.doctor}` : null,
+    booking.date_iso ? `Ngày mong muốn: ${booking.date_iso}` : null,
+    booking.time_preference ? `Khung giờ: ${booking.time_preference}` : null,
+    booking.patient_name || lead.patient_name ? `Họ tên: ${booking.patient_name || lead.patient_name}` : null,
+    booking.phone || lead.phone ? `SĐT: ${maskPhone(booking.phone || lead.phone)}` : null,
+    booking.symptoms_note ? `Ghi chú: ${booking.symptoms_note}` : null,
+    lead.concern ? `Nhu cầu lead: ${lead.concern}` : null,
+    lead.insurance_type ? `Bảo hiểm: ${lead.insurance_type}` : null,
+  ].filter(Boolean);
+  const missing = [];
+  if (!booking.patient_name && !lead.patient_name) missing.push('Họ tên');
+  if (!booking.phone && !lead.phone) missing.push('SĐT');
+  if (!booking.department && !booking.doctor) missing.push('Chuyên khoa/bác sĩ');
+  if (!booking.date_iso) missing.push('Ngày khám mong muốn');
+  return {
+    summary: [
+      session.current_intent ? `Intent gần nhất: ${session.current_intent}` : null,
+      `Lý do chuyển: ${reason}`,
+      known.length ? `Đã có: ${known.join('; ')}` : null,
+      missing.length ? `Còn thiếu: ${missing.join(', ')}` : null,
+      `Mức rủi ro: ${session.risk_level || 'low'}`,
+      insights.lead_score !== undefined ? `Lead score: ${insights.lead_score}/100 (${insights.lead_priority || 'unknown'})` : null,
+      insights.last_mood ? `Cảm xúc gần nhất: ${insights.last_mood}` : null,
+      Array.isArray(insights.tags) && insights.tags.length ? `Tags: ${insights.tags.join(', ')}` : null,
+    ].filter(Boolean).join('\n'),
+    known,
+    missing,
+    insights,
+  };
+}
+
+function supportCategoryForHandoff(reason = '') {
+  if (reason === 'appointment' || reason === 'fallback_limit') return SUPPORT_CATEGORY.APPOINTMENT;
+  if (reason === 'billing' || reason === 'price_not_found') return SUPPORT_CATEGORY.BILLING;
+  if (reason === 'insurance') return SUPPORT_CATEGORY.INSURANCE;
+  if (reason === 'complaint') return SUPPORT_CATEGORY.COMPLAINT;
+  if (reason === 'feedback') return SUPPORT_CATEGORY.OTHER;
+  if (reason === 'family_booking' || reason === 'lead_capture' || reason === 'callback_request') return SUPPORT_CATEGORY.APPOINTMENT;
+  if (reason === 'corporate_health_check') return SUPPORT_CATEGORY.OTHER;
+  return SUPPORT_CATEGORY.OTHER;
+}
+
+function supportPriorityForHandoff(session = {}, reason = '') {
+  if (reason === 'emergency' || session.risk_level === 'emergency') return SUPPORT_TICKET_PRIORITY.URGENT;
+  if (reason === 'complaint' || session.risk_level === 'high') return SUPPORT_TICKET_PRIORITY.HIGH;
+  if (reason === 'corporate_health_check') return SUPPORT_TICKET_PRIORITY.HIGH;
+  return SUPPORT_TICKET_PRIORITY.NORMAL;
+}
+
+function supportSubjectForHandoff(reason = '') {
+  if (reason === 'appointment') return 'Chatbot chuyển nhân viên đặt lịch';
+  if (reason === 'billing' || reason === 'price_not_found') return 'Chatbot chuyển nhân viên thanh toán';
+  if (reason === 'insurance') return 'Chatbot chuyển nhân viên bảo hiểm';
+  if (reason === 'complaint') return 'Chatbot chuyển khiếu nại khách hàng';
+  if (reason === 'emergency') return 'Chatbot phát hiện tình huống khẩn cấp';
+  if (reason === 'callback_request') return 'Chatbot yêu cầu gọi lại';
+  if (reason === 'lead_capture') return 'Chatbot tạo lead tư vấn';
+  if (reason === 'family_booking') return 'Chatbot lead đặt lịch cho người thân';
+  if (reason === 'corporate_health_check') return 'Chatbot lead khám sức khỏe doanh nghiệp';
+  if (reason === 'feedback') return 'Chatbot ghi nhận phản hồi khách hàng';
+  return 'Chatbot chuyển nhân viên hỗ trợ';
+}
+
+async function ensureHandoffSupportTicket(session, reason, queue, handoffSummary) {
+  const context = session.context || {};
+  const booking = context.booking || {};
+  const existingHandoff = context.handoff || {};
+  if (existingHandoff.support_ticket_id) return existingHandoff;
+
+  let patientId = session.patient_id || booking.patient_id;
+  if (!patientId && booking.patient_name && booking.phone) {
+    try {
+      const patient = await ensurePatientForBooking(session, booking);
+      patientId = patient?._id;
+    } catch (error) {
+      patientId = null;
+    }
+  }
+
+  if (!patientId || !isValidObjectId(patientId)) {
+    const handoff = {
+      ...existingHandoff,
+      support_ticket_skipped: 'missing_patient_identity',
+      queue,
+      reason,
+    };
+    session.context = { ...context, handoff };
+    return handoff;
+  }
+
+  try {
+    const ticket = await supportTicketService.createTicket({
+      patient_id: patientId,
+      category: supportCategoryForHandoff(reason),
+      priority: supportPriorityForHandoff(session, reason),
+      subject: supportSubjectForHandoff(reason),
+      description: [
+        handoffSummary.summary,
+        session.source_page ? `Trang nguồn: ${session.source_page}` : null,
+        `Kênh: ${session.channel || 'website'}`,
+      ].filter(Boolean).join('\n'),
+      metadata: {
+        source: 'chatbot',
+        chatbot_session_id: toId(session._id),
+        chatbot_queue: queue,
+        handoff_reason: reason,
+        handoff_summary: handoffSummary,
+        booking,
+      },
+    }, chatbotSystemActor(), chatbotRequestMeta(session, { action: 'chatbot.handoff.create_ticket' }));
+    const handoff = {
+      ...existingHandoff,
+      support_ticket_id: toId(ticket._id || ticket.id || ticket.ticket_id),
+      support_ticket_code: ticket.ticket_code,
+      support_conversation_id: toId(ticket.conversation_id?._id || ticket.conversation_id?.id || ticket.conversation_id),
+      queue,
+      reason,
+      created_at: new Date().toISOString(),
+    };
+    session.context = { ...(session.context || {}), handoff };
+    return handoff;
+  } catch (error) {
+    const handoff = {
+      ...existingHandoff,
+      support_ticket_skipped: 'create_failed',
+      support_ticket_error: error.message,
+      queue,
+      reason,
+    };
+    session.context = { ...(session.context || {}), handoff };
+    return handoff;
+  }
 }
 
 async function handoffResponse(session, reason = 'user_request') {
@@ -1457,6 +3140,8 @@ async function handoffResponse(session, reason = 'user_request') {
   session.assigned_queue = queue;
   session.handoff_reason = reason;
   session.current_step = 'handoff';
+  const handoffSummary = buildHandoffSummary(session, reason);
+  const supportTicket = await ensureHandoffSupportTicket(session, reason, queue, handoffSummary);
   await session.save();
   return botText(
     `Dạ, nội dung này cần nhân viên tư vấn kiểm tra thêm. Em sẽ chuyển anh/chị đến bộ phận hỗ trợ. Thời gian phản hồi dự kiến khoảng ${env.chatbot.handoffExpectedWaitMinutes} phút.`,
@@ -1465,6 +3150,8 @@ async function handoffResponse(session, reason = 'user_request') {
       queue,
       reason,
       expected_wait_minutes: env.chatbot.handoffExpectedWaitMinutes,
+      handoff_summary: handoffSummary,
+      support_ticket: supportTicket,
     },
   );
 }
@@ -1482,6 +3169,20 @@ async function kbResponse(analysis, text) {
       { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' },
     ]) : buildQuickReplies([{ label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn' }]),
   });
+}
+
+function insuranceEligibilityResponse(analysis) {
+  if (!analysis.entities?.insurance_type || analysis.entities.insurance_type === 'unknown') {
+    return botText('Dạ, để kiểm tra đúng hướng, anh/chị đang hỏi BHYT hay bảo hiểm tư nhân/bảo lãnh viện phí ạ?', {
+      type: 'quick_replies',
+      quick_replies: buildQuickReplies([
+        { label: 'BHYT', value: 'Tôi muốn hỏi BHYT có áp dụng không?' },
+        { label: 'Bảo hiểm tư nhân', value: 'Tôi muốn hỏi bảo hiểm tư nhân có áp dụng không?' },
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên tư vấn bảo hiểm' },
+      ]),
+    });
+  }
+  return null;
 }
 
 async function fallbackResponse(session, analysis, text, userMessage) {
@@ -1525,8 +3226,10 @@ function mergeBookingContext(session, analysis) {
   return booking;
 }
 
-async function buildBotReply(session, analysis, text, userMessage = null) {
+async function buildBotReply(session, analysis, text, userMessage = null, actor = {}) {
+  const previousStep = session.current_step;
   mergeBookingContext(session, analysis);
+  updateConversationInsights(session, analysis, text);
   session.current_intent = analysis.intent;
   session.risk_level = analysis.risk_level || 'low';
   session.current_step = analysis.next_action || session.current_step;
@@ -1541,22 +3244,42 @@ async function buildBotReply(session, analysis, text, userMessage = null) {
   if (analysis.intent === 'emergency') return emergencyResponse(analysis);
   if (analysis.intent === 'medical_safety_block') return medicalSafetyResponse();
   if (analysis.intent === 'prompt_injection') return promptInjectionResponse();
-  if (analysis.intent === 'greeting') return buildWelcomeMessage(session.source_page);
+  if (analysis.intent === 'casual_chat') return casualChatResponse(text);
+  if (analysis.intent === 'greeting') return buildWelcomeMessage(session.source_page, session.context?.page_context || {});
   if (analysis.intent === 'thanks') return botText('Dạ, em luôn sẵn sàng hỗ trợ anh/chị đặt lịch, tìm bác sĩ hoặc gặp nhân viên tư vấn khi cần.');
   if (analysis.intent === 'goodbye') return botText('Dạ, cảm ơn anh/chị. Chúc anh/chị nhiều sức khỏe.');
-  if (analysis.intent === 'human_support' || analysis.intent === 'complaint') return handoffResponse(session, analysis.intent === 'complaint' ? 'complaint' : 'user_request');
+  if (analysis.intent === 'human_support' || analysis.intent === 'complaint') return handoffResponse(session, analysis.intent === 'complaint' ? 'complaint' : handoffReasonFromText(text, session));
+  if (analysis.intent === 'feedback' || previousStep === 'collect_feedback') return callbackRequestResponse(session, analysis, text, 'feedback');
+  if (LEAD_CAPTURE_INTENTS.has(analysis.intent) || previousStep === 'collect_callback') {
+    if (analysis.intent === 'insurance_eligibility_check' && analysis.entities.insurance_type) return kbResponse(analysis, text);
+    return callbackRequestResponse(session, analysis, text, analysis.intent || 'callback_request');
+  }
+  if (analysis.intent === 'abandoned_booking_recovery') return abandonedBookingRecoveryResponse(session, text);
+  if (analysis.intent === 'returning_patient_support') return returningPatientResponse(actor);
+  if (analysis.intent === 'check_appointment_status') return appointmentStatusResponse(session, analysis, actor);
+  if (analysis.intent === 'cancel_appointment') return cancelAppointmentIntentResponse(session, analysis, actor);
+  if (analysis.intent === 'reschedule_appointment') return rescheduleAppointmentIntentResponse(session, analysis, text, actor);
   if (analysis.intent === 'ask_price') return buildPriceResponse(analysis, text);
-  if (analysis.intent === 'find_doctor') return doctorSearchResponse(analysis, text);
-  if (analysis.intent === 'find_service') return serviceSearchResponse(analysis, text);
+  if (analysis.intent === 'ask_working_hours') return facilityInfoResponse(analysis, text, 'hours');
+  if (analysis.intent === 'ask_location' || analysis.intent === 'branch_recommendation') return facilityInfoResponse(analysis, text, 'location');
+  if (analysis.intent === 'find_doctor' || analysis.intent === 'doctor_recommendation') return doctorSearchResponse(analysis, text);
+  if (['find_service', 'compare_services', 'recommend_package'].includes(analysis.intent)) return serviceSearchResponse(analysis, text);
   if (['find_department', 'ask_symptom_department'].includes(analysis.intent) && analysis.next_action !== 'find_available_slots') {
     return departmentSuggestionResponse(analysis, text);
   }
   if (['book_appointment', 'ask_available_slots', 'ask_symptom_department'].includes(analysis.intent)) {
     return slotPickerResponse(analysis, session, text);
   }
-  if (['ask_payment', 'ask_insurance', 'ask_patient_portal'].includes(analysis.intent)) {
+  if (analysis.intent === 'insurance_eligibility_check') {
+    const clarify = insuranceEligibilityResponse(analysis);
+    if (clarify) return clarify;
+  }
+  if (['ask_payment', 'ask_qr_payment', 'ask_invoice', 'ask_insurance', 'insurance_eligibility_check', 'ask_patient_portal', 'ask_preparation', 'ask_required_documents'].includes(analysis.intent)) {
     return kbResponse(analysis, text);
   }
+  if (analysis.intent === 'check_payment_status') return paymentStatusResponse(session, analysis, actor);
+  if (analysis.intent === 'check_result_status') return resultStatusResponse(session, analysis, actor);
+  if (analysis.intent === 'upload_document_help') return uploadDocumentResponse();
 
   return fallbackResponse(session, analysis, text, userMessage);
 }
@@ -1566,14 +3289,15 @@ function normalizeSlotAction(action = {}) {
   return action.slot;
 }
 
-async function handleAction(session, payload = {}) {
+async function handleAction(session, payload = {}, actor = {}, meta = {}) {
   const action = payload.action || {};
   const context = session.context || {};
   const booking = context.booking || {};
 
   if (action.type === 'select_slot') {
-    const slot = normalizeSlotAction(action);
+    let slot = normalizeSlotAction(action);
     if (!slot) throw createError('slot không hợp lệ.', 422);
+    slot = await holdSelectedSlotForSession(session, slot);
     session.context = {
       ...context,
       booking: {
@@ -1584,12 +3308,35 @@ async function handleAction(session, payload = {}) {
         doctor_id: slot.doctor_id,
         doctor: slot.doctor_name,
         date_iso: new Date(slot.appointment_time).toISOString().slice(0, 10),
+        slot_hold_expires_at: slot.hold_expires_at,
       },
     };
     session.current_intent = 'book_appointment';
     session.current_step = 'collect_identity';
     await session.save();
     return bookingFormResponse(slot);
+  }
+
+  if (action.type === 'select_reschedule_slot') {
+    const slot = normalizeSlotAction({ type: 'select_slot', slot: action.slot });
+    if (!slot) throw createError('slot đổi lịch không hợp lệ.', 422);
+    session.context = {
+      ...context,
+      booking: {
+        ...booking,
+        reschedule_slot: slot,
+        reschedule_appointment_id: action.appointment_id || slot.appointment_id || booking.reschedule_appointment_id,
+        department_id: slot.department_id,
+        department: slot.department_name,
+        doctor_id: slot.doctor_id,
+        doctor: slot.doctor_name,
+        date_iso: new Date(slot.appointment_time).toISOString().slice(0, 10),
+      },
+    };
+    session.current_intent = 'reschedule_appointment';
+    session.current_step = 'confirm_reschedule';
+    await session.save();
+    return rescheduleSummaryResponse(session);
   }
 
   if (action.type === 'submit_booking_identity') {
@@ -1613,8 +3360,32 @@ async function handleAction(session, payload = {}) {
     return appointmentSummaryResponse(session);
   }
 
+  if (['submit_callback_request', 'submit_lead_request', 'submit_feedback_request'].includes(action.type)) {
+    const data = action.data || payload.data || {};
+    const reason = action.type === 'submit_feedback_request'
+      ? 'feedback'
+      : (session.current_intent && LEAD_CAPTURE_INTENTS.has(session.current_intent) ? session.current_intent : 'callback_request');
+    const callbackAnalysis = {
+      entities: {
+        ...emptyEntities(),
+        patient_name: normalizeString(data.patient_name || data.patientName),
+        phone: normalizePhone(data.phone),
+        email: normalizeString(data.email),
+      },
+    };
+    return callbackRequestResponse(session, callbackAnalysis, normalizeString(data.concern || data.note) || 'Yêu cầu tư vấn', reason);
+  }
+
   if (action.type === 'confirm_booking') {
     return confirmBookingResponse(session);
+  }
+
+  if (action.type === 'confirm_cancel_appointment') {
+    return confirmCancelAppointmentAction(session, action, actor, meta);
+  }
+
+  if (action.type === 'confirm_reschedule_appointment') {
+    return confirmRescheduleAppointmentAction(session, actor, meta);
   }
 
   return null;
@@ -1650,10 +3421,12 @@ async function handleMessage(sessionId, payload = {}, actor = {}, meta = {}) {
     .lean();
 
   let analysis = null;
-  let reply = await handleAction(session, payload);
+  let reply = await handleAction(session, payload, actor, meta);
   if (!reply) {
-    analysis = await analyzeMessage(rawText, session, history.reverse());
-    reply = await buildBotReply(session, analysis, rawText, userMessage);
+    const orderedHistory = history.reverse();
+    analysis = await analyzeMessage(rawText, session, orderedHistory);
+    reply = await buildBotReply(session, analysis, rawText, userMessage, actor);
+    reply = await rewriteReplyTone(reply, session, analysis, rawText, orderedHistory);
   }
 
   session.last_message_at = new Date();
@@ -1729,6 +3502,9 @@ async function getDashboard() {
     entityCount,
     articleCount,
     draftCount,
+    appointmentCount,
+    todayFallbackCount,
+    highIntentLeadCount,
     topIntents,
   ] = await Promise.all([
     ChatbotSession.countDocuments({ is_deleted: false }),
@@ -1741,6 +3517,9 @@ async function getDashboard() {
     ChatbotEntityDictionary.countDocuments({ is_deleted: false, enabled: true }),
     KnowledgeArticle.countDocuments({ is_deleted: false, status: 'published' }),
     ChatbotAppointmentDraft.countDocuments({ is_deleted: false, created_at: { $gte: since } }),
+    Appointment.countDocuments({ is_deleted: false, source: 'chatbot', created_at: { $gte: since } }),
+    ChatbotFallback.countDocuments({ is_deleted: false, created_at: { $gte: since } }),
+    ChatbotSession.countDocuments({ is_deleted: false, created_at: { $gte: since }, 'context.insights.tags': 'high_intent_lead' }),
     ChatbotMessage.aggregate([
       { $match: { is_deleted: false, 'ai_trace.intent': { $exists: true, $ne: null }, created_at: { $gte: since } } },
       { $group: { _id: '$ai_trace.intent', count: { $sum: 1 }, avg_confidence: { $avg: '$ai_trace.confidence' } } },
@@ -1761,7 +3540,12 @@ async function getDashboard() {
       active_entities: entityCount,
       published_articles: articleCount,
       appointment_drafts_today: draftCount,
+      appointments_created_today: appointmentCount,
       self_service_rate: todaySessions ? Number((((todaySessions - handoffSessions) / todaySessions) * 100).toFixed(1)) : 100,
+      handoff_rate: todaySessions ? Number(((handoffSessions / todaySessions) * 100).toFixed(1)) : 0,
+      fallback_rate: todaySessions ? Number(((todayFallbackCount / todaySessions) * 100).toFixed(1)) : 0,
+      booking_conversion_rate: todaySessions ? Number(((appointmentCount / todaySessions) * 100).toFixed(1)) : 0,
+      high_intent_leads_today: highIntentLeadCount,
     },
     top_intents: topIntents.map((item) => ({
       intent: item._id,

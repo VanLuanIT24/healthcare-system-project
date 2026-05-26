@@ -18,13 +18,20 @@ router.param('waitlistId', validateObjectIdParam);
 
 router.use(authenticate);
 
-router.get('/my', authorize({ actorTypes: ['patient'] }), appointmentController.getMyAppointments);
-router.post('/portal', authorize({ actorTypes: ['patient'] }), domainValidators.appointment.request.booking, idempotencyRequired({ route: '/api/appointments/portal' }), appointmentController.createAppointmentFromPatientPortal);
+router.get('/my', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.getMyAppointments);
+router.get('/my/summary', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.getMyAppointmentSummary);
+router.post('/portal', authorize({ actorTypes: ['patient', 'patient_relative'] }), domainValidators.appointment.request.booking, idempotencyRequired({ route: '/api/appointments/portal' }), appointmentController.createAppointmentFromPatientPortal);
 router.post('/me/waitlist', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.APPOINTMENTS.SELF_CREATE] }), appointmentWaitlistController.createWaitlist);
 router.get('/me/waitlist', authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.APPOINTMENTS.SELF_READ] }), appointmentWaitlistController.listWaitlist);
-router.get('/my/:appointmentId', authorize({ actorTypes: ['patient'] }), appointmentController.getAppointmentDetail);
+router.get('/my/:appointmentId', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.getAppointmentDetail);
+router.get('/my/:appointmentId/timeline', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.getMyAppointmentTimeline);
+router.get('/my/:appointmentId/actions', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.getMyAppointmentActions);
 router.post('/my/:appointmentId/cancel', authorize({ actorTypes: ['patient'] }), appointmentController.cancelAppointment);
 router.post('/my/:appointmentId/reschedule', authorize({ actorTypes: ['patient'] }), appointmentController.rescheduleAppointment);
+router.post('/my/:appointmentId/check-in', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.checkInAppointment);
+router.post('/my/:appointmentId/queue-ticket', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.createQueueTicketFromAppointment);
+router.post('/me/:appointmentId/check-in', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.checkInAppointment);
+router.post('/me/:appointmentId/queue-ticket', authorize({ actorTypes: ['patient', 'patient_relative'] }), appointmentController.createQueueTicketFromAppointment);
 
 router.use(authorize({ actorTypes: ['staff'] }));
 

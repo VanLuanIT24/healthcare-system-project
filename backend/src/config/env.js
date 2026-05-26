@@ -151,6 +151,10 @@ const env = {
   chatbot: {
     enabled: parseBoolean(process.env.CHATBOT_ENABLED, true),
     aiEnabled: parseBoolean(process.env.CHATBOT_AI_ENABLED, true),
+    naturalToneEnabled: parseBoolean(process.env.CHATBOT_NATURAL_TONE_ENABLED, true),
+    naturalToneMaxChars: parsePositiveNumber(process.env.CHATBOT_NATURAL_TONE_MAX_CHARS, 900),
+    leadCaptureEnabled: parseBoolean(process.env.CHATBOT_LEAD_CAPTURE_ENABLED, true),
+    abandonedBookingRecoveryEnabled: parseBoolean(process.env.CHATBOT_ABANDONED_BOOKING_RECOVERY_ENABLED, true),
     defaultLanguage: process.env.CHATBOT_DEFAULT_LANGUAGE || 'vi',
     supportedLanguages: parseList(process.env.CHATBOT_SUPPORTED_LANGUAGES || 'vi,en'),
     botDisplayName: process.env.CHATBOT_BOT_DISPLAY_NAME || 'Trợ lý tư vấn & đặt lịch',

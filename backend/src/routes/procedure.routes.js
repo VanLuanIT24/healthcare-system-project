@@ -33,14 +33,39 @@ const procedureChargeCreatePermissions = [
 router.use(authenticate);
 
 router.get(
+  '/me/results',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED] }),
+  procedureController.listMyProcedureResults,
+);
+router.get(
+  '/me/results/:resultId',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED] }),
+  procedureController.getMyProcedureResultDetail,
+);
+router.post(
+  '/me/results/:resultId/mark-viewed',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED] }),
+  procedureController.markMyProcedureResultViewed,
+);
+router.get(
   '/me/history',
   authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED] }),
   procedureController.getMyProcedureHistory,
 );
 router.get(
+  '/me/orders',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED] }),
+  procedureController.listMyProcedureOrders,
+);
+router.get(
   '/me/orders/:procedureOrderId',
   authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED] }),
   procedureController.getProcedureOrderDetail,
+);
+router.get(
+  '/me/orders/:procedureOrderId/attachments',
+  authorize({ actorTypes: ['patient'], anyPermissions: [PERMISSION.PROCEDURE_ORDERS.SELF_READ_COMPLETED] }),
+  procedureController.listMyProcedureOrderAttachments,
 );
 
 router.use(authorize({ actorTypes: ['staff'] }));

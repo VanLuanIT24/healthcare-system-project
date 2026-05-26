@@ -1,8 +1,17 @@
 const { model } = require('mongoose');
-const { Schema, baseSchemaOptions, auditFields, softDeleteFields } = require('../common/base-model');
+const { Schema, baseSchemaOptions, auditFields, optionalString, softDeleteFields } = require('../common/base-model');
+const { buildInitialAvatar } = require('../../common/avatar');
 const { DOCTOR_PROFILE_STATUS, DOCTOR_PROFILE_STATUSES } = require('../../constants/statuses');
 
 // Bảng doctor_profiles: Lưu hồ sơ chuyên môn, giấy phép và thông tin hiển thị của bác sĩ.
+
+function buildDoctorProfileAvatar(profile) {
+  return buildInitialAvatar({
+    label: profile.specialty || profile.license_number,
+    seed: profile.user_id || profile._id,
+    fallbackInitials: 'BS',
+  });
+}
 
 const doctorProfileSchema = new Schema(
   {
@@ -16,7 +25,14 @@ const doctorProfileSchema = new Schema(
     years_of_experience: { type: Number, min: 0 },
     consultation_duration_minutes: { type: Number, min: 5, default: 15 },
     consultation_fee: { type: Number, min: 0 },
-    avatar_url: { type: String, trim: true },
+    avatar_url: {
+      type: String,
+      trim: true,
+      set: optionalString,
+      default() {
+        return buildDoctorProfileAvatar(this);
+      },
+    },
     biography: { type: String },
     languages: [{ type: String, trim: true }],
     public_profile_enabled: { type: Boolean, default: true, required: true },
@@ -26,6 +42,14 @@ const doctorProfileSchema = new Schema(
   },
   { ...baseSchemaOptions, collection: 'doctor_profiles' },
 );
+
+doctorProfileSchema.pre('validate', function ensureAvatarUrl(next) {
+  if (!this.avatar_url || !String(this.avatar_url).trim()) {
+    this.avatar_url = buildDoctorProfileAvatar(this);
+  }
+
+  next();
+});
 
 doctorProfileSchema.index({ user_id: 1 }, { unique: true, partialFilterExpression: { is_deleted: false } });
 doctorProfileSchema.index({ license_number: 1 }, { unique: true, partialFilterExpression: { is_deleted: false } });

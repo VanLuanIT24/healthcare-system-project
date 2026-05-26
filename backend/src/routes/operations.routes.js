@@ -40,6 +40,21 @@ const realtimePermissions = [
   PERMISSION.SYSTEM.FULL_ACCESS,
 ].filter(Boolean);
 
+const schedulingReadPermissions = [
+  PERMISSION.SYSTEM.FULL_ACCESS,
+  PERMISSION.SCHEDULES.READ,
+  PERMISSION.SCHEDULES.READ_DEPARTMENT,
+  PERMISSION.SCHEDULES.READ_OWN,
+  PERMISSION.APPOINTMENTS.READ,
+  PERMISSION.APPOINTMENTS.READ_DEPARTMENT,
+  PERMISSION.APPOINTMENTS.READ_OWN,
+  PERMISSION.QUEUE.READ,
+  PERMISSION.QUEUE.READ_DEPARTMENT,
+  PERMISSION.QUEUE.READ_OWN,
+  PERMISSION.REPORTS.APPOINTMENTS_READ,
+  PERMISSION.REPORTS.QUEUE_READ,
+].filter(Boolean);
+
 const fileScanPermissions = [
   PERMISSION.OPERATIONS?.FILE_SCAN_MANAGE,
   PERMISSION.ATTACHMENTS.MANAGE,
@@ -61,6 +76,8 @@ const maintenancePermissions = [
 ].filter(Boolean);
 
 router.get('/dashboard', authorize({ anyPermissions: readPermissions }), operationsController.getDashboard);
+router.get('/dashboard/today', authorize({ anyPermissions: schedulingReadPermissions }), operationsController.getSchedulingDashboardToday);
+router.get('/hourly-flow', authorize({ anyPermissions: schedulingReadPermissions }), operationsController.getSchedulingHourlyFlow);
 router.get('/health', authorize({ anyPermissions: readPermissions }), operationsController.getHealth);
 
 router.get('/jobs', authorize({ anyPermissions: readPermissions }), operationsController.getJobs);

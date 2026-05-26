@@ -6,7 +6,11 @@ export default function PatientNotificationsPage({ feed, onMarkAllAsRead, onMark
   const [activeFilter, setActiveFilter] = useState('all')
 
   const filteredFeed =
-    activeFilter === 'all' ? feed : feed.filter((item) => item.category === activeFilter)
+    activeFilter === 'all'
+      ? feed
+      : activeFilter === 'unread'
+        ? feed.filter((item) => item.unread)
+        : feed.filter((item) => item.category === activeFilter)
 
   return (
     <div className="patient-notifications-page">

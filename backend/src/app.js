@@ -14,6 +14,7 @@ const {
 } = require('./common');
 
 const app = express();
+const publicUploadsPath = path.resolve(__dirname, '../uploads/public');
 
 app.disable('x-powered-by');
 app.use(helmet());
@@ -28,7 +29,12 @@ app.use(cors({
 }));
 app.use(express.json({ limit: env.requestBodyLimit }));
 app.use(express.urlencoded({ extended: true, limit: env.requestBodyLimit }));
-app.use('/uploads', express.static(path.resolve(__dirname, '../uploads/public')));
+app.use('/uploads', express.static(publicUploadsPath, {
+  setHeaders(res) {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', env.nodeEnv === 'production' ? 'public, max-age=86400' : 'no-cache');
+  },
+}));
 app.use(validators.validateRequestShape());
 if (env.nodeEnv !== 'production') {
   app.use(morgan('dev'));

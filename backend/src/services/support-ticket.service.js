@@ -76,6 +76,7 @@ async function resolvePatientId(payload = {}, actor = {}) {
 }
 
 function assertTicketAccess(ticket, actor = {}) {
+  if (actorContext.isSystem(actor)) return true;
   if (isStaff(actor)) return true;
   const patientId = actorContext.getPatientId(actor);
   if (patientId && toId(ticket.patient_id) === toId(patientId)) return true;
@@ -183,6 +184,25 @@ async function listTickets(query = {}, actor = {}) {
     SupportTicket.countDocuments(filter),
   ]);
   return { items, pagination: buildPagination(page, limit, total) };
+}
+
+async function getMySummary(actor = {}) {
+  const patientId = actorContext.getPatientId(actor);
+  if (!patientId || !isValidObjectId(patientId)) throw createError('patient_id không hợp lệ.', 422);
+  const rows = await SupportTicket.aggregate([
+    { $match: { patient_id: toObjectId(patientId, 'patient_id') } },
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+  ]);
+  const byStatus = Object.fromEntries(rows.map((row) => [row._id, row.count]));
+  const waitingPatient = byStatus[SUPPORT_TICKET_STATUS.WAITING_PATIENT] || 0;
+  return {
+    open: byStatus[SUPPORT_TICKET_STATUS.OPEN] || 0,
+    waiting_reply: byStatus[SUPPORT_TICKET_STATUS.WAITING_STAFF] || 0,
+    resolved: byStatus[SUPPORT_TICKET_STATUS.RESOLVED] || 0,
+    closed: byStatus[SUPPORT_TICKET_STATUS.CLOSED] || 0,
+    unread_messages: waitingPatient,
+    by_status: byStatus,
+  };
 }
 
 async function getTicket(ticketId, actor = {}) {
@@ -368,6 +388,7 @@ async function rateTicket(ticketId, payload = {}, actor = {}, requestMeta = {}) 
 module.exports = {
   createTicket,
   listTickets,
+  getMySummary,
   getTicket,
   replyTicket,
   assignTicket,

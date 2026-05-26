@@ -22,6 +22,9 @@ const sosLimit = createActionRateLimit({
 });
 
 router.post('/me/sos', authorize({ actorTypes: ['patient', 'patient_relative'], anyPermissions: [PERMISSION.EMERGENCY.SELF_SOS] }), sosLimit, idempotencyRequired({ route: '/api/emergency/me/sos' }), emergencyController.createSos);
+router.get('/me/cases', authorize({ actorTypes: ['patient', 'patient_relative'], anyPermissions: [PERMISSION.EMERGENCY.SELF_SOS] }), emergencyController.listMyCases);
+router.get('/me/cases/:caseId', authorize({ actorTypes: ['patient', 'patient_relative'], anyPermissions: [PERMISSION.EMERGENCY.SELF_SOS] }), emergencyController.getMyCase);
+router.post('/me/cases/:caseId/cancel', authorize({ actorTypes: ['patient', 'patient_relative'], anyPermissions: [PERMISSION.EMERGENCY.SELF_SOS] }), emergencyController.cancelMyCase);
 router.get('/dashboard/open-summary', authorize({ actorTypes: ['staff'], anyPermissions: [PERMISSION.EMERGENCY.READ] }), emergencyController.getOpenSummary);
 router.get('/triage-queue', authorize({ actorTypes: ['staff'], anyPermissions: [PERMISSION.EMERGENCY.READ, PERMISSION.EMERGENCY.TRIAGE] }), emergencyController.getTriageQueue);
 router.get('/dispatch-board', authorize({ actorTypes: ['staff'], anyPermissions: [PERMISSION.EMERGENCY.READ, PERMISSION.EMERGENCY.TRIAGE, PERMISSION.EMERGENCY.RESOLVE] }), emergencyController.getDispatchBoard);

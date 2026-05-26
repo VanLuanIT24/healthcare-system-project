@@ -3,10 +3,14 @@ import PatientIcon from '../components/PatientIcon'
 
 const imagingTabs = [
   { id: 'all', label: 'Tất cả' },
+  { id: 'new', label: 'Kết quả mới' },
   { id: 'xray', label: 'X-quang' },
   { id: 'ultrasound', label: 'Siêu âm' },
-  { id: 'ct', label: 'CT Scan' },
-  { id: 'other', label: 'Khác' },
+  { id: 'ct', label: 'CT' },
+  { id: 'mri', label: 'MRI' },
+  { id: 'endoscopy', label: 'Nội soi' },
+  { id: 'unviewed', label: 'Chưa xem' },
+  { id: 'history', label: 'Lịch sử' },
 ]
 
 const modalityLabels = {
@@ -33,6 +37,8 @@ function normalizeModality(value) {
   if (raw.includes('xray') || raw.includes('x-ray') || raw.includes('x_quang')) return 'xray'
   if (raw.includes('ultrasound') || raw.includes('sieu') || raw === 'us') return 'ultrasound'
   if (raw.includes('ct')) return 'ct'
+  if (raw.includes('mri')) return 'mri'
+  if (raw.includes('endoscopy') || raw.includes('noi_soi') || raw.includes('nội soi')) return 'endoscopy'
   return raw || 'other'
 }
 
@@ -87,22 +93,31 @@ function mapApiReport(report, index) {
     name: report.report_title || `${getModalityLabel(modality)} - ${bodyPart}`,
     date: formatDate(report.reported_at || report.verified_at || report.released_at || report.created_at),
     type: getModalityLabel(modality),
-    category: ['xray', 'ultrasound', 'ct'].includes(category) ? category : 'other',
+    category: ['xray', 'ultrasound', 'ct', 'mri', 'endoscopy'].includes(category) ? category : 'other',
     status,
     tone,
     thumb: getReportThumb(order, category),
     reportNo: report.report_no,
     summary: getReportSummary(report),
+    doctor: report.radiologist_id?.full_name || report.radiologist_name || 'Chưa cập nhật',
+    conclusion: report.impression || report.conclusion || report.findings || '',
+    pdfUrl: report.pdf_url || report.file_url || report.attachment_url || '',
+    imageUrl: report.pacs_url || report.image_url || report.dicom_viewer_url || '',
+    patientViewedAt: report.patient_viewed_at,
+    released: report.released_to_patient,
   }
 }
 
-export default function PatientImagingPage({ reports = [], loading = false }) {
+export default function PatientImagingPage({ reports = [], loading = false, onMarkViewed }) {
   const [activeTab, setActiveTab] = useState('all')
   const [selectedReportId, setSelectedReportId] = useState('')
   const imagingRecords = useMemo(() => reports.map(mapApiReport), [reports])
-  const visibleRecords =
-    activeTab === 'all' ? imagingRecords : imagingRecords.filter((record) => record.category === activeTab)
-  const selectedReport = imagingRecords.find((record) => record.id === selectedReportId)
+  const visibleRecords = useMemo(() => {
+    if (activeTab === 'all' || activeTab === 'history') return imagingRecords
+    if (activeTab === 'new' || activeTab === 'unviewed') return imagingRecords.filter((record) => !record.patientViewedAt)
+    return imagingRecords.filter((record) => record.category === activeTab)
+  }, [activeTab, imagingRecords])
+  const selectedReport = imagingRecords.find((record) => record.id === selectedReportId) || visibleRecords[0] || null
 
   return (
     <section className="patient-imaging-shell patient-panel">
@@ -184,6 +199,8 @@ export default function PatientImagingPage({ reports = [], loading = false }) {
             <strong>{selectedReport.reportNo || selectedReport.name}</strong>
             <br />
             {selectedReport.summary}
+            <br />
+            Bác sĩ đọc kết quả: {selectedReport.doctor} | Trạng thái phát hành: {selectedReport.released ? 'Đã phát hành' : 'Chưa phát hành'}
           </p>
         ) : (
           <p>
@@ -196,6 +213,27 @@ export default function PatientImagingPage({ reports = [], loading = false }) {
           <PatientIcon name="image" />
         </span>
       </div>
+
+      {selectedReport ? (
+        <div className="patient-imaging-actions">
+          <button type="button">
+            <PatientIcon name="description" aria-hidden="true" />
+            Xem kết quả
+          </button>
+          <button type="button" disabled={!selectedReport.pdfUrl}>
+            <PatientIcon name="download" aria-hidden="true" />
+            Tải PDF
+          </button>
+          <button type="button" disabled={!selectedReport.imageUrl}>
+            <PatientIcon name="image" aria-hidden="true" />
+            Xem ảnh
+          </button>
+          <button type="button" onClick={() => onMarkViewed?.(selectedReport.id)}>
+            <PatientIcon name="visibility" aria-hidden="true" />
+            Đánh dấu đã xem
+          </button>
+        </div>
+      ) : null}
     </section>
   )
 }

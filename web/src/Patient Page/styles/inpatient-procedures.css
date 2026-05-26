@@ -91,6 +91,89 @@
   color: #be123c;
 }
 
+.patient-inpatient-current-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.patient-inpatient-current-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.patient-inpatient-current-head h2 {
+  margin: 4px 0 8px;
+  color: #07152f;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.patient-inpatient-current-head > strong {
+  color: #0d63f3;
+  font-size: 15px;
+}
+
+.patient-inpatient-current-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.patient-inpatient-current-grid div,
+.patient-inpatient-current-notes article,
+.patient-inpatient-tab-detail {
+  padding: 14px;
+  border: 1px solid rgba(180, 197, 224, 0.38);
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.patient-inpatient-current-grid span {
+  display: block;
+  color: #61708e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.patient-inpatient-current-grid strong {
+  display: block;
+  margin-top: 5px;
+  color: #07152f;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.patient-inpatient-current-notes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.patient-inpatient-current-notes h3,
+.patient-inpatient-tab-detail h3 {
+  margin: 0 0 7px;
+  color: #07152f;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.patient-inpatient-current-notes p,
+.patient-inpatient-tab-detail p,
+.patient-inpatient-tab-detail small {
+  margin: 0;
+  color: #52617c;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.patient-inpatient-tab-detail {
+  margin: 8px 0 4px;
+}
+
 .patient-care-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2318,6 +2401,11 @@
 }
 
 @media (max-width: 920px) {
+  .patient-inpatient-current-grid,
+  .patient-inpatient-current-notes {
+    grid-template-columns: 1fr;
+  }
+
   .patient-procedure-hero-photo {
     width: 52%;
     opacity: 0.76;
@@ -2350,6 +2438,10 @@
 }
 
 @media (max-width: 760px) {
+  .patient-inpatient-current-head {
+    flex-direction: column;
+  }
+
   .patient-care-page--procedures .patient-care-header {
     min-height: 0;
     display: grid;

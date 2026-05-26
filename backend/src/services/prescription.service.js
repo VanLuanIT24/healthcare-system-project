@@ -2999,6 +2999,140 @@ async function createRefillRequest(prescriptionId, payload = {}, actor = {}, req
   return getRefillRequestDetail(request._id, actor);
 }
 
+function assertSelfPrescriptionPatient(actor = {}) {
+  if (actorType(actor) !== 'patient') throw createError('Chỉ patient được gọi API này.', 403);
+  if (!hasPermission(actor, PERMISSION.PRESCRIPTIONS.SELF_READ)) throw createError('Bạn không có quyền xem đơn thuốc.', 403);
+  const patientId = actor.patientId || actor.patient_id;
+  if (!patientId) throw createError('Không xác định được patient_id.', 403);
+  return patientId;
+}
+
+async function listMyRefillRequests(actor = {}, query = {}) {
+  assertSelfPrescriptionPatient(actor);
+  return listRefillRequests(query, actor);
+}
+
+async function listMyPrescriptions(actor = {}, query = {}) {
+  const patientId = assertSelfPrescriptionPatient(actor);
+  const result = await listPrescriptions({ ...query, patient_id: patientId }, actor);
+  const prescriptionIds = result.items.map((prescription) => prescription._id);
+  if (!prescriptionIds.length) return result;
+
+  const [items, dispenses] = await Promise.all([
+    PrescriptionItem.find({ prescription_id: { $in: prescriptionIds } })
+      .sort({ created_at: 1 })
+      .populate('medication_id', 'medication_code generic_name brand_name strength unit route_default status sale_price')
+      .lean(),
+    Dispense.find({ prescription_id: { $in: prescriptionIds } })
+      .sort({ created_at: -1 })
+      .lean(),
+  ]);
+
+  const itemsByPrescription = new Map();
+  for (const item of items) {
+    const key = String(item.prescription_id);
+    itemsByPrescription.set(key, [...(itemsByPrescription.get(key) || []), item]);
+  }
+  const dispensesByPrescription = new Map();
+  for (const dispense of dispenses) {
+    const key = String(dispense.prescription_id);
+    dispensesByPrescription.set(key, [...(dispensesByPrescription.get(key) || []), dispense]);
+  }
+
+  return {
+    ...result,
+    items: result.items.map((prescription) => {
+      const key = String(prescription._id);
+      const prescriptionItems = itemsByPrescription.get(key) || [];
+      const prescriptionDispenses = dispensesByPrescription.get(key) || [];
+      const latestDispense = prescriptionDispenses[0] || null;
+      return {
+        ...prescription,
+        items: prescriptionItems,
+        dispenses: prescriptionDispenses,
+        items_count: prescriptionItems.length,
+        dispense_status: latestDispense?.status || null,
+        dispense_workflow_stage: latestDispense?.workflow_stage || null,
+        pharmacist_note: latestDispense?.note || null,
+      };
+    }),
+  };
+}
+
+async function createMyRefillRequest(prescriptionId, payload = {}, actor = {}, requestMeta = {}) {
+  assertSelfPrescriptionPatient(actor);
+  return createRefillRequest(prescriptionId, payload, actor, requestMeta);
+}
+
+async function getMyPrescriptionDispenseStatus(prescriptionId, actor = {}) {
+  assertSelfPrescriptionPatient(actor);
+  const detail = await getPrescriptionDetail(prescriptionId, actor);
+  const dispenseIds = detail.dispenses.map((dispense) => dispense._id);
+  const dispenseItems = dispenseIds.length
+    ? await DispenseItem.find({ dispense_id: { $in: dispenseIds } })
+      .sort({ created_at: 1 })
+      .populate('prescription_item_id', 'dose frequency route quantity dispensed_quantity instructions unit')
+      .populate('medication_id', 'medication_code generic_name brand_name strength unit route_default')
+      .lean()
+    : [];
+  const calculated = await calculatePrescriptionDispenseStatus(prescriptionId);
+  const latestDispense = detail.dispenses[0] || null;
+  const totalQuantity = detail.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const dispensedQuantity = calculated.itemStates.reduce((sum, state) => sum + Number(state.dispensedQuantity || 0), 0);
+
+  return {
+    prescription: detail.prescription,
+    dispenses: detail.dispenses,
+    dispense_items: dispenseItems,
+    items: calculated.itemStates.map((state) => ({
+      ...state.item,
+      dispensed_quantity: state.dispensedQuantity,
+      remaining_quantity: Math.max(Number(state.item.quantity || 0) - Number(state.dispensedQuantity || 0), 0),
+    })),
+    summary: {
+      prescription_status: detail.prescription.status,
+      dispense_status: latestDispense?.status || calculated.status,
+      workflow_stage: latestDispense?.workflow_stage || null,
+      latest_dispense_id: latestDispense?._id || null,
+      latest_dispense_no: latestDispense?.dispense_no || null,
+      total_items: detail.items.length,
+      total_quantity: totalQuantity,
+      dispensed_quantity: dispensedQuantity,
+      remaining_quantity: Math.max(totalQuantity - dispensedQuantity, 0),
+    },
+  };
+}
+
+async function getMyPrescriptionInstructions(prescriptionId, actor = {}) {
+  assertSelfPrescriptionPatient(actor);
+  const detail = await getPrescriptionDetail(prescriptionId, actor);
+  return {
+    prescription: detail.prescription,
+    items: detail.items.map((item) => {
+      const medication = item.medication_id || {};
+      return {
+        prescription_item_id: item._id,
+        medication_id: medication._id || item.medication_id,
+        medication_name: medication.brand_name || medication.generic_name || 'Thuốc chưa định danh',
+        generic_name: medication.generic_name,
+        brand_name: medication.brand_name,
+        strength: medication.strength,
+        form: medication.dosage_form || medication.form,
+        quantity: item.quantity,
+        unit: item.unit || medication.unit,
+        dose: item.dose,
+        frequency: item.frequency,
+        route: item.route || medication.route_default,
+        timing: item.timing || item.time_of_day || null,
+        duration_days: item.duration_days,
+        instructions: item.instructions || 'Dùng thuốc theo đúng hướng dẫn của bác sĩ/dược sĩ.',
+        status: item.status,
+        dispensed_quantity: item.dispensed_quantity,
+      };
+    }),
+  };
+}
+
 async function updateRefillDecision(refillRequestId, payload = {}, actor = {}, requestMeta = {}, decision) {
   assertActorUser(actor);
   assertStaffPermission(actor, [PERMISSION.PRESCRIPTIONS.VERIFY, PERMISSION.PRESCRIPTIONS.CREATE]);
@@ -3193,6 +3327,8 @@ const prescriptionServiceExports = {
   searchPrescriptions,
   // getPrescriptionDetail: Lấy chi tiết đơn thuốc.
   getPrescriptionDetail,
+  // listMyPrescriptions: Liệt kê đơn thuốc self-route kèm thuốc và cấp phát.
+  listMyPrescriptions,
   // updatePrescription: Cập nhật đơn thuốc.
   updatePrescription,
   // activatePrescription: Kích hoạt đơn thuốc.
@@ -3281,6 +3417,14 @@ const prescriptionServiceExports = {
   getRefillRequestDetail,
   // createRefillRequest: Tạo yêu cầu cấp lại thuốc.
   createRefillRequest,
+  // listMyRefillRequests: Liệt kê yêu cầu cấp lại thuốc của patient hiện tại.
+  listMyRefillRequests,
+  // createMyRefillRequest: Tạo yêu cầu cấp lại thuốc theo self-route.
+  createMyRefillRequest,
+  // getMyPrescriptionDispenseStatus: Trạng thái cấp phát của đơn thuốc self-route.
+  getMyPrescriptionDispenseStatus,
+  // getMyPrescriptionInstructions: Hướng dẫn dùng thuốc của đơn thuốc self-route.
+  getMyPrescriptionInstructions,
   // approveRefillRequest: Duyệt yêu cầu cấp lại thuốc.
   approveRefillRequest,
   // rejectRefillRequest: Từ chối yêu cầu cấp lại thuốc.

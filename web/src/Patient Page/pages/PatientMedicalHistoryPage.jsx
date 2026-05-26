@@ -178,6 +178,12 @@ function getEncounterStatusMeta(status) {
     on_hold: { label: 'Tạm dừng', tone: 'pending' },
     completed: { label: 'Đã hoàn thành', tone: 'completed' },
     cancelled: { label: 'Đã hủy', tone: 'cancelled' },
+    booked: { label: 'Đã đặt lịch', tone: 'pending' },
+    confirmed: { label: 'Đã xác nhận', tone: 'pending' },
+    checked_in: { label: 'Đã check-in', tone: 'pending' },
+    in_consultation: { label: 'Đang khám', tone: 'pending' },
+    no_show: { label: 'Vắng mặt', tone: 'cancelled' },
+    rescheduled: { label: 'Đã dời lịch', tone: 'pending' },
   }
 
   return map[status] || { label: status || 'Chưa xác định', tone: 'pending' }
@@ -249,6 +255,7 @@ function buildStableRating(seed) {
 function mapApiEncounter(encounter, index) {
   const id = encounter.encounter_id || encounter._id || `${encounter.start_time}-${index}`
   const status = getEncounterStatusMeta(encounter.status)
+  const typeKey = normalizeTypeKey(encounter.encounter_type)
   const specialty =
     encounter.department_name ||
     (encounter.encounter_type === 'emergency' ? 'Cấp cứu' : 'Khám ngoại trú')
@@ -270,6 +277,8 @@ function mapApiEncounter(encounter, index) {
     rawDate: encounter.start_time || '',
     doctor,
     specialty,
+    typeKey,
+    typeLabel: getVisitTypeLabel(typeKey),
     status: status.label,
     statusTone: status.tone,
     title:
@@ -290,6 +299,20 @@ function mapApiEncounter(encounter, index) {
     tone: visual.tone,
     rating: rating.rating,
     reviews: rating.reviews,
+    hasReleasedRecord: Boolean(encounter.medical_record_id || encounter.released_record_id),
+    hasResults: Boolean(encounter.has_results || encounter.lab_result_id || encounter.imaging_report_id),
+    hasPrescription: Boolean(encounter.has_prescription || encounter.prescription_id),
+    hasInvoice: Boolean(encounter.has_invoice || encounter.invoice_id),
+    relatedCounts: {
+      records: encounter.medical_record_id || encounter.released_record_id ? 1 : 0,
+      results: Number(Boolean(encounter.has_results || encounter.lab_result_id || encounter.imaging_report_id)),
+      prescriptions: Number(Boolean(encounter.has_prescription || encounter.prescription_id)),
+      invoices: Number(Boolean(encounter.has_invoice || encounter.invoice_id)),
+    },
+    relatedRecords: [],
+    relatedResults: [],
+    relatedPrescriptions: [],
+    relatedInvoices: [],
   }
 }
 
@@ -451,28 +474,242 @@ function getRatingLabel(rating) {
   return labels[rating] || 'Chọn đánh giá'
 }
 
+const visitTabs = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'outpatient', label: 'Khám ngoại trú' },
+  { id: 'inpatient', label: 'Nội trú' },
+  { id: 'emergency', label: 'Cấp cứu' },
+  { id: 'procedure', label: 'Thủ thuật' },
+  { id: 'follow_up', label: 'Tái khám' },
+  { id: 'released', label: 'Có hồ sơ đã phát hành' },
+]
+
+function normalizeTypeKey(value = '') {
+  const type = String(value || '').toLowerCase()
+  if (type.includes('inpatient') || type.includes('nội')) return 'inpatient'
+  if (type.includes('emergency') || type.includes('cấp')) return 'emergency'
+  if (type.includes('procedure') || type.includes('thủ')) return 'procedure'
+  if (type.includes('follow') || type.includes('tái')) return 'follow_up'
+  return 'outpatient'
+}
+
+function getVisitTypeLabel(typeKey) {
+  const map = {
+    outpatient: 'Khám ngoại trú',
+    inpatient: 'Nội trú',
+    emergency: 'Cấp cứu',
+    procedure: 'Thủ thuật',
+    follow_up: 'Tái khám',
+  }
+
+  return map[typeKey] || 'Khám ngoại trú'
+}
+
+function getDiagnosisText(diagnosis) {
+  if (!diagnosis) return ''
+
+  if (typeof diagnosis !== 'object') {
+    return String(diagnosis)
+  }
+
+  return (
+    diagnosis.diagnosis_name ||
+    diagnosis.name ||
+    diagnosis.description ||
+    diagnosis.code ||
+    diagnosis.icd_code ||
+    ''
+  )
+}
+
+function mapRelatedResultRows(items = [], typeLabel = 'Kết quả') {
+  return items.map((item, index) => ({
+    id: item.lab_result_id || item.imaging_report_id || item.procedure_result_id || item._id || `${typeLabel}-${index}`,
+    title:
+      item.result_no ||
+      item.report_no ||
+      item.procedure_result_no ||
+      item.test_name ||
+      item.study_name ||
+      item.procedure_name ||
+      typeLabel,
+    value:
+      item.summary ||
+      item.impression ||
+      item.findings ||
+      item.status ||
+      formatVisitDate(item.reported_at || item.released_at || item.created_at),
+  }))
+}
+
+function mapInvoiceRows(invoices = []) {
+  return invoices.map((invoice, index) => ({
+    id: invoice.invoice_id || invoice._id || `${invoice.invoice_no || 'invoice'}-${index}`,
+    title: invoice.invoice_no || invoice.invoice_code || `Hóa đơn ${index + 1}`,
+    value: [
+      invoice.status || 'Đang cập nhật',
+      Number(invoice.balance_due || 0) > 0 ? `Còn ${Number(invoice.balance_due || 0).toLocaleString('vi-VN')}đ` : '',
+    ]
+      .filter(Boolean)
+      .join(' • '),
+  }))
+}
+
+function mapPortalVisit(visit, index) {
+  const encounter = visit.encounter || {}
+  const appointment = visit.appointment || {}
+  const id = visit.visit_id || encounter.encounter_id || encounter._id || `${encounter.start_time}-${index}`
+  const status = getEncounterStatusMeta(encounter.status || appointment.status)
+  const typeKey = normalizeTypeKey(encounter.encounter_type || appointment.appointment_type)
+  const specialty =
+    encounter.department_name ||
+    appointment.department_name ||
+    getVisitTypeLabel(typeKey)
+  const visual = getVisitVisual(specialty)
+  const dateValue = encounter.start_time || appointment.appointment_time || appointment.start_time || visit.visit_date
+  const date = getVisitDateParts(dateValue)
+  const doctor =
+    encounter.doctor_name ||
+    appointment.doctor_name ||
+    encounter.attending_doctor_name ||
+    'Bác sĩ đang cập nhật'
+  const primaryDiagnosis = getDiagnosisText(visit.primary_diagnosis)
+  const counters = visit.counters || {}
+  const rating = buildStableRating(doctor)
+  const labRelated = mapRelatedResultRows(visit.lab_results || [], 'Kết quả xét nghiệm')
+  const imagingRelated = mapRelatedResultRows(visit.imaging_reports || [], 'Kết quả hình ảnh')
+  const procedureRelated = mapRelatedResultRows(visit.procedure_results || [], 'Kết quả thủ thuật')
+  const relatedRecords = mapMedicalRecordRows(visit.released_records || [])
+  const relatedPrescriptions = mapPrescriptionRows(visit.prescriptions || [])
+  const relatedInvoices = mapInvoiceRows(visit.invoices || [])
+
+  return {
+    id,
+    source: visit.visit_source || (encounter._id || encounter.encounter_id ? 'encounter' : 'appointment'),
+    latest: index === 0,
+    day: date.day,
+    month: date.month,
+    year: date.year,
+    time: date.time,
+    date: date.full,
+    rawDate: dateValue || visit.visit_date || '',
+    doctor,
+    specialty,
+    typeKey,
+    typeLabel: getVisitTypeLabel(typeKey),
+    status: status.label,
+    statusTone: status.tone,
+    title:
+      encounter.chief_reason ||
+      appointment.reason ||
+      (typeKey === 'procedure' ? 'Thủ thuật' : `Khám ${specialty.toLowerCase()}`),
+    location: encounter.location || appointment.location || 'Bệnh viện Đa khoa Quốc tế',
+    reason: encounter.chief_reason || appointment.reason || 'Kiểm tra định kỳ',
+    diagnosis:
+      primaryDiagnosis ||
+      (encounter.status === 'completed' ? 'Đã hoàn tất thăm khám' : 'Đang cập nhật chẩn đoán'),
+    notes:
+      encounter.clinical_notes ||
+      encounter.summary ||
+      'Thông tin chi tiết được tổng hợp từ lượt khám và hồ sơ đã phát hành.',
+    recordId: encounter.encounter_code || id,
+    icon: visual.icon,
+    tone: visual.tone,
+    rating: rating.rating,
+    reviews: rating.reviews,
+    hasReleasedRecord: Number(counters.released_records || visit.released_records?.length || 0) > 0,
+    hasResults:
+      Number(counters.lab_results || visit.lab_results?.length || 0) > 0 ||
+      Number(counters.imaging_reports || visit.imaging_reports?.length || 0) > 0 ||
+      Number(counters.procedure_results || visit.procedure_results?.length || 0) > 0,
+    hasPrescription: Number(counters.prescriptions || visit.prescriptions?.length || 0) > 0,
+    hasInvoice: Number(counters.invoices || visit.invoices?.length || 0) > 0,
+    relatedCounts: {
+      records: Number(counters.released_records || visit.released_records?.length || 0),
+      results:
+        Number(counters.lab_results || visit.lab_results?.length || 0) +
+        Number(counters.imaging_reports || visit.imaging_reports?.length || 0) +
+        Number(counters.procedure_results || visit.procedure_results?.length || 0),
+      prescriptions: Number(counters.prescriptions || visit.prescriptions?.length || 0),
+      invoices: Number(counters.invoices || visit.invoices?.length || 0),
+    },
+    relatedRecords,
+    relatedResults: [...labRelated, ...imagingRelated, ...procedureRelated],
+    relatedPrescriptions,
+    relatedInvoices,
+  }
+}
+
+function buildVisitSummaryText(visit) {
+  if (!visit) return ''
+
+  return [
+    'TOM TAT LUOT KHAM',
+    `Ma luot kham: ${visit.recordId || visit.id}`,
+    `Ngay kham: ${visit.date} ${visit.time}`,
+    `Chuyen khoa: ${visit.specialty}`,
+    `Bac si: ${visit.doctor}`,
+    `Trang thai: ${visit.status}`,
+    `Ly do: ${visit.reason}`,
+    `Chan doan: ${visit.diagnosis}`,
+    `Ghi chu: ${visit.notes}`,
+  ].join('\n')
+}
+
+function downloadVisitSummary(visit) {
+  const text = buildVisitSummaryText(visit)
+  if (!text) return
+
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `tom-tat-luot-kham-${visit.recordId || visit.id}.txt`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 export default function PatientMedicalHistoryPage({
   encounters = [],
   labResults = [],
   loading = false,
   medicalRecords = [],
+  onNavigate,
   prescriptions = [],
+  visits: portalVisits = [],
   viewMode = 'history',
 }) {
   const sourceEncounters = encounters
   const sourcePrescriptions = prescriptions
-  const visits = useMemo(() => sourceEncounters.map(mapApiEncounter), [sourceEncounters])
+  const visits = useMemo(
+    () => (portalVisits.length ? portalVisits.map(mapPortalVisit) : sourceEncounters.map(mapApiEncounter)),
+    [portalVisits, sourceEncounters],
+  )
   const prescriptionRows = useMemo(
     () => mapPrescriptionRows(sourcePrescriptions),
     [sourcePrescriptions],
   )
   const labRows = useMemo(() => mapLabResultRows(labResults), [labResults])
   const [activeVisitId, setActiveVisitId] = useState(null)
+  const [activeVisitTab, setActiveVisitTab] = useState('all')
   const [specialtyFilter, setSpecialtyFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [timeFilter, setTimeFilter] = useState('all')
+  const [doctorFilter, setDoctorFilter] = useState('all')
+  const [diagnosisFilter, setDiagnosisFilter] = useState('')
+  const [relatedFilters, setRelatedFilters] = useState({
+    results: false,
+    prescriptions: false,
+    invoices: false,
+  })
   const [searchTerm, setSearchTerm] = useState('')
   const [doctorRating, setDoctorRating] = useState(0)
   const [doctorReview, setDoctorReview] = useState('')
+  const [historyNotice, setHistoryNotice] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 5
 
   const specialties = useMemo(
     () => Array.from(new Set(visits.map((visit) => visit.specialty).filter(Boolean))),
@@ -482,23 +719,61 @@ export default function PatientMedicalHistoryPage({
     () => Array.from(new Set(visits.map((visit) => visit.status).filter(Boolean))),
     [visits],
   )
+  const doctors = useMemo(
+    () => Array.from(new Set(visits.map((visit) => visit.doctor).filter(Boolean))),
+    [visits],
+  )
   const filteredVisits = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase()
+    const diagnosisKeyword = diagnosisFilter.trim().toLowerCase()
+    const maxDays = timeFilter === 'all' ? null : Number(timeFilter)
+    const now = Date.now()
 
     return visits.filter((visit) => {
+      const visitTime = new Date(visit.rawDate).getTime()
+      const matchTab =
+        activeVisitTab === 'all' ||
+        (activeVisitTab === 'released' ? visit.hasReleasedRecord : visit.typeKey === activeVisitTab)
       const matchSpecialty = specialtyFilter === 'all' || visit.specialty === specialtyFilter
       const matchStatus = statusFilter === 'all' || visit.status === statusFilter
+      const matchDoctor = doctorFilter === 'all' || visit.doctor === doctorFilter
+      const matchTime =
+        !maxDays ||
+        (!Number.isNaN(visitTime) && now - visitTime <= maxDays * 24 * 60 * 60 * 1000)
+      const matchDiagnosis =
+        !diagnosisKeyword ||
+        String(visit.diagnosis || '').toLowerCase().includes(diagnosisKeyword)
+      const matchRelated =
+        (!relatedFilters.results || visit.hasResults) &&
+        (!relatedFilters.prescriptions || visit.hasPrescription) &&
+        (!relatedFilters.invoices || visit.hasInvoice)
       const matchKeyword =
         !keyword ||
-        [visit.title, visit.doctor, visit.specialty, visit.location, visit.reason]
+        [visit.title, visit.doctor, visit.specialty, visit.location, visit.reason, visit.diagnosis]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
           .includes(keyword)
 
-      return matchSpecialty && matchStatus && matchKeyword
+      return matchTab && matchSpecialty && matchStatus && matchDoctor && matchTime && matchDiagnosis && matchRelated && matchKeyword
     })
-  }, [searchTerm, specialtyFilter, statusFilter, visits])
+  }, [activeVisitTab, diagnosisFilter, doctorFilter, relatedFilters, searchTerm, specialtyFilter, statusFilter, timeFilter, visits])
+
+  const totalPages = Math.max(1, Math.ceil(filteredVisits.length / pageSize))
+  const pagedVisits = useMemo(() => {
+    const safePage = Math.min(currentPage, totalPages)
+    return filteredVisits.slice((safePage - 1) * pageSize, safePage * pageSize)
+  }, [currentPage, filteredVisits, totalPages])
+
+  const hasActiveFilters =
+    activeVisitTab !== 'all' ||
+    specialtyFilter !== 'all' ||
+    statusFilter !== 'all' ||
+    timeFilter !== 'all' ||
+    doctorFilter !== 'all' ||
+    diagnosisFilter.trim() ||
+    searchTerm.trim() ||
+    Object.values(relatedFilters).some(Boolean)
 
   useEffect(() => {
     if (!filteredVisits.length) {
@@ -511,9 +786,23 @@ export default function PatientMedicalHistoryPage({
     }
   }, [activeVisitId, filteredVisits])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeVisitTab, diagnosisFilter, doctorFilter, relatedFilters, searchTerm, specialtyFilter, statusFilter, timeFilter])
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages)
+  }, [currentPage, totalPages])
+
   const activeVisit = filteredVisits.find((visit) => visit.id === activeVisitId) || filteredVisits[0] || null
-  const visiblePrescriptions = prescriptionRows.slice(0, 3)
-  const visibleLabs = labRows.slice(0, 3)
+  const visiblePrescriptions = activeVisit?.relatedPrescriptions?.length
+    ? activeVisit.relatedPrescriptions.slice(0, 3)
+    : prescriptionRows.slice(0, 3)
+  const visibleLabs = activeVisit?.relatedResults?.length
+    ? activeVisit.relatedResults.slice(0, 3)
+    : labRows.slice(0, 3)
+  const visibleInvoices = activeVisit?.relatedInvoices?.slice(0, 3) || []
+  const visibleRecords = activeVisit?.relatedRecords?.slice(0, 3) || []
   const isRecordsView = viewMode === 'records'
   const recordRows = useMemo(() => mapMedicalRecordRows(medicalRecords, visits), [medicalRecords, visits])
   const pageTitle = isRecordsView ? 'Hồ sơ y tế' : 'Lịch sử khám'
@@ -550,6 +839,49 @@ export default function PatientMedicalHistoryPage({
       icon: 'experiment',
     },
   ]
+  const visitOverviewCards = [
+    { id: 'total', label: 'Lượt khám', value: visits.length, unit: 'lần', icon: 'medical_services' },
+    { id: 'released', label: 'Hồ sơ phát hành', value: visits.filter((visit) => visit.hasReleasedRecord).length, unit: 'lượt', icon: 'folder_shared' },
+    { id: 'results', label: 'Có kết quả', value: visits.filter((visit) => visit.hasResults).length, unit: 'lượt', icon: 'experiment' },
+    { id: 'prescriptions', label: 'Có đơn thuốc', value: visits.filter((visit) => visit.hasPrescription).length, unit: 'lượt', icon: 'medication' },
+  ]
+
+  const clearFilters = () => {
+    setActiveVisitTab('all')
+    setSpecialtyFilter('all')
+    setStatusFilter('all')
+    setTimeFilter('all')
+    setDoctorFilter('all')
+    setDiagnosisFilter('')
+    setSearchTerm('')
+    setRelatedFilters({ results: false, prescriptions: false, invoices: false })
+  }
+
+  const focusVisit = (visit, target = 'detail') => {
+    setActiveVisitId(visit.id)
+    setHistoryNotice(null)
+    if (target === 'records') onNavigate?.('medical-records')
+    if (target === 'results') onNavigate?.('lab-results')
+    if (target === 'prescriptions') onNavigate?.('medications')
+    if (target === 'invoices') onNavigate?.('billing-receipts')
+    if (target === 'review') {
+      setHistoryNotice({ type: 'success', message: 'Đã mở khung đánh giá dịch vụ cho lượt khám này.' })
+    }
+  }
+
+  const handleDownloadSummary = (visit) => {
+    downloadVisitSummary(visit)
+    setHistoryNotice({ type: 'success', message: 'Đã tạo file tóm tắt lượt khám.' })
+  }
+
+  const submitReview = () => {
+    setHistoryNotice({
+      type: doctorRating ? 'success' : 'error',
+      message: doctorRating
+        ? 'Đã ghi nhận đánh giá của bạn trên portal.'
+        : 'Vui lòng chọn số sao trước khi gửi đánh giá.',
+    })
+  }
 
   return (
     <div className="patient-history-page">
@@ -559,6 +891,31 @@ export default function PatientMedicalHistoryPage({
           <p>{pageDescription}</p>
         </div>
       </header>
+
+      {!isRecordsView ? (
+        <section className="patient-history-overview" aria-label="Tổng quan lịch sử khám">
+          {visitOverviewCards.map((card) => (
+            <article className="patient-history-overview-card" key={card.id}>
+              <span aria-hidden="true">
+                <PatientIcon name={card.icon} />
+              </span>
+              <div>
+                <strong>{card.label}</strong>
+                <p>
+                  <b>{card.value}</b>
+                  {card.unit}
+                </p>
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : null}
+
+      {historyNotice ? (
+        <div className={`patient-care-state${historyNotice.type === 'error' ? ' is-error' : ''}`}>
+          {historyNotice.message}
+        </div>
+      ) : null}
 
       {isRecordsView ? (
         <>
@@ -620,10 +977,38 @@ export default function PatientMedicalHistoryPage({
 
       <section className="patient-history-workspace">
         <div className="patient-history-left">
+          <div className="patient-history-tabs" role="tablist" aria-label="Nhóm lượt khám">
+            {visitTabs.map((tab) => {
+              const active = activeVisitTab === tab.id
+
+              return (
+                <button
+                  key={tab.id}
+                  className={active ? 'is-active' : ''}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveVisitTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+
           <div className="patient-history-filterbar">
             <label className="patient-history-filter">
               <PatientIcon name="calendar_today" aria-hidden="true" />
-              <span>01/01/2025 - 25/04/2026</span>
+              <select
+                value={timeFilter}
+                onChange={(event) => setTimeFilter(event.target.value)}
+                aria-label="Lọc theo thời gian"
+              >
+                <option value="all">Tất cả thời gian</option>
+                <option value="30">30 ngày gần đây</option>
+                <option value="90">90 ngày gần đây</option>
+                <option value="365">12 tháng gần đây</option>
+              </select>
               <PatientIcon name="expand_more" aria-hidden="true" />
             </label>
 
@@ -645,14 +1030,14 @@ export default function PatientMedicalHistoryPage({
 
             <label className="patient-history-filter">
               <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                aria-label="Lọc trạng thái"
+                value={doctorFilter}
+                onChange={(event) => setDoctorFilter(event.target.value)}
+                aria-label="Lọc bác sĩ"
               >
-                <option value="all">Tất cả trạng thái</option>
-                {statuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
+                <option value="all">Tất cả bác sĩ</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor} value={doctor}>
+                    {doctor}
                   </option>
                 ))}
               </select>
@@ -668,6 +1053,60 @@ export default function PatientMedicalHistoryPage({
                 placeholder="Tìm bác sĩ, bệnh lý..."
               />
             </label>
+
+            <label className="patient-history-filter">
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                aria-label="Lọc trạng thái hồ sơ"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                {statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+              <PatientIcon name="expand_more" aria-hidden="true" />
+            </label>
+
+            <label className="patient-history-search">
+              <PatientIcon name="clinical_notes" aria-hidden="true" />
+              <input
+                type="search"
+                value={diagnosisFilter}
+                onChange={(event) => setDiagnosisFilter(event.target.value)}
+                placeholder="Lọc chẩn đoán"
+              />
+            </label>
+          </div>
+
+          <div className="patient-history-related-filters" aria-label="Lọc dữ liệu liên quan">
+            {[
+              { id: 'results', label: 'Có kết quả' },
+              { id: 'prescriptions', label: 'Có đơn thuốc' },
+              { id: 'invoices', label: 'Có hóa đơn' },
+            ].map((filter) => (
+              <label key={filter.id}>
+                <input
+                  type="checkbox"
+                  checked={relatedFilters[filter.id]}
+                  onChange={(event) => {
+                    setRelatedFilters((current) => ({
+                      ...current,
+                      [filter.id]: event.target.checked,
+                    }))
+                  }}
+                />
+                <span>{filter.label}</span>
+              </label>
+            ))}
+            {hasActiveFilters ? (
+              <button className="patient-history-clear-filters" type="button" onClick={clearFilters}>
+                <PatientIcon name="close" aria-hidden="true" />
+                Xóa bộ lọc
+              </button>
+            ) : null}
           </div>
 
           <div className="patient-history-visit-list">
@@ -676,12 +1115,37 @@ export default function PatientMedicalHistoryPage({
             ) : null}
 
             {!loading && filteredVisits.length === 0 ? (
-              <div className="patient-empty-state">
-                Chưa có lần khám nào phù hợp với bộ lọc hiện tại.
+              <div className="patient-history-empty-state">
+                <PatientIcon name={hasActiveFilters ? 'filter_list' : 'history_edu'} aria-hidden="true" />
+                <strong>
+                  {hasActiveFilters
+                    ? 'Không có lần khám nào phù hợp với bộ lọc.'
+                    : 'Chưa có lượt khám đã hoàn tất để hiển thị.'}
+                </strong>
+                <p>
+                  {hasActiveFilters
+                    ? 'Bạn có thể xóa bộ lọc hoặc mở nhóm khác để xem toàn bộ dữ liệu.'
+                    : 'Khi có lịch đã khám, hồ sơ phát hành, kết quả hoặc hóa đơn, hệ thống sẽ gom về đây.'}
+                </p>
+                <div>
+                  {hasActiveFilters ? (
+                    <button className="patient-outline-button" type="button" onClick={clearFilters}>
+                      Xóa bộ lọc
+                    </button>
+                  ) : null}
+                  <button className="patient-hero-button" type="button" onClick={() => onNavigate?.('book-appointment')}>
+                    <PatientIcon name="calendar_add_on" aria-hidden="true" />
+                    Đặt lịch khám
+                  </button>
+                  <button className="patient-soft-button" type="button" onClick={() => onNavigate?.('medical-records')}>
+                    <PatientIcon name="folder_shared" aria-hidden="true" />
+                    Mở hồ sơ y tế
+                  </button>
+                </div>
               </div>
             ) : null}
 
-            {filteredVisits.map((visit) => {
+            {pagedVisits.map((visit) => {
               const isActive = visit.id === activeVisit?.id
 
               return (
@@ -705,31 +1169,54 @@ export default function PatientMedicalHistoryPage({
                       <PatientIcon name={visit.icon} aria-hidden="true" />
                     </div>
 
-                    <div className="patient-history-visit-copy">
-                      <h3>{visit.title}</h3>
-                      <p>
-                        {visit.doctor}
-                        <span>•</span>
-                        {visit.specialty}
-                      </p>
-                      <small>
-                        <PatientIcon name="location_on" aria-hidden="true" />
-                        {visit.location}
-                      </small>
+                  <div className="patient-history-visit-copy">
+                    <h3>{visit.title}</h3>
+                    <p>
+                      {visit.doctor}
+                      <span>•</span>
+                      {visit.specialty}
+                      <span>•</span>
+                      {visit.typeLabel}
+                    </p>
+                    <small>
+                      <PatientIcon name="location_on" aria-hidden="true" />
+                      {visit.location}
+                    </small>
+                    <div className="patient-history-related-chips" aria-label="Dữ liệu liên quan">
+                      <span>{visit.relatedCounts.records} hồ sơ</span>
+                      <span>{visit.relatedCounts.results} kết quả</span>
+                      <span>{visit.relatedCounts.prescriptions} đơn thuốc</span>
+                      <span>{visit.relatedCounts.invoices} hóa đơn</span>
                     </div>
+                  </div>
 
                     <span className={`patient-history-status ${visit.statusTone}`}>
                       {visit.status}
                     </span>
                   </button>
 
-                  <div className="patient-history-row-actions">
-                    <button type="button" onClick={() => setActiveVisitId(visit.id)}>
+                  <div className="patient-history-row-actions patient-history-row-actions--dense">
+                    <button type="button" onClick={() => focusVisit(visit)}>
                       Xem chi tiết
                     </button>
-                    <button type="button">
+                    <button type="button" disabled={!visit.hasReleasedRecord} onClick={() => focusVisit(visit, 'records')}>
+                      Xem hồ sơ đã phát hành
+                    </button>
+                    <button type="button" disabled={!visit.hasResults} onClick={() => focusVisit(visit, 'results')}>
+                      Xem kết quả
+                    </button>
+                    <button type="button" disabled={!visit.hasPrescription} onClick={() => focusVisit(visit, 'prescriptions')}>
+                      Xem đơn thuốc
+                    </button>
+                    <button type="button" disabled={!visit.hasInvoice} onClick={() => focusVisit(visit, 'invoices')}>
+                      Xem hóa đơn
+                    </button>
+                    <button type="button" onClick={() => handleDownloadSummary(visit)}>
                       <PatientIcon name="download" aria-hidden="true" />
-                      Tải kết quả
+                      Tải tóm tắt
+                    </button>
+                    <button type="button" onClick={() => focusVisit(visit, 'review')}>
+                      Đánh giá dịch vụ
                     </button>
                   </div>
                 </article>
@@ -739,15 +1226,36 @@ export default function PatientMedicalHistoryPage({
 
           {filteredVisits.length > 0 ? (
             <div className="patient-history-pagination" aria-label="Phân trang lịch sử khám">
-              <button type="button" aria-label="Trang trước">
+              <button
+                type="button"
+                aria-label="Trang trước"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              >
                 <PatientIcon name="chevron_left" aria-hidden="true" />
               </button>
-              <button className="is-active" type="button">1</button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <span>...</span>
-              <button type="button">8</button>
-              <button type="button" aria-label="Trang sau">
+              {Array.from({ length: totalPages }, (_, index) => index + 1).slice(0, 5).map((page) => (
+                <button
+                  key={page}
+                  className={page === currentPage ? 'is-active' : ''}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </button>
+              ))}
+              {totalPages > 5 ? <span>...</span> : null}
+              {totalPages > 5 ? (
+                <button type="button" onClick={() => setCurrentPage(totalPages)}>
+                  {totalPages}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                aria-label="Trang sau"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              >
                 <PatientIcon name="chevron_right" aria-hidden="true" />
               </button>
             </div>
@@ -759,14 +1267,16 @@ export default function PatientMedicalHistoryPage({
             <>
               <div className="patient-history-detail-top">
                 <h2>Chi tiết lần khám</h2>
-                <button type="button">
+                <button type="button" onClick={() => window.print()}>
                   <PatientIcon name="print" aria-hidden="true" />
                   In hồ sơ
                 </button>
               </div>
 
               <div className="patient-history-doctor-card">
-                <img src={getDoctorAvatar(activeVisit.doctor)} alt={activeVisit.doctor} />
+                <span className="patient-history-doctor-avatar" aria-hidden="true">
+                  <PatientIcon name="medical_services" />
+                </span>
                 <div>
                   <h3>{activeVisit.doctor}</h3>
                   <p>{activeVisit.specialty}</p>
@@ -794,7 +1304,49 @@ export default function PatientMedicalHistoryPage({
                   <span>Lý do khám</span>
                   <strong>{activeVisit.reason}</strong>
                 </div>
+                <div>
+                  <PatientIcon name="folder_shared" aria-hidden="true" />
+                  <span>Trạng thái hồ sơ</span>
+                  <strong>{activeVisit.hasReleasedRecord ? 'Đã phát hành' : 'Đang cập nhật'}</strong>
+                </div>
               </div>
+
+              <section className="patient-history-detail-section">
+                <div className="patient-history-section-head">
+                  <div className="patient-history-section-icon diagnosis">
+                    <PatientIcon name="folder_shared" aria-hidden="true" />
+                  </div>
+                  <h3>Dữ liệu liên quan</h3>
+                </div>
+                <ul>
+                  <li>Hồ sơ đã phát hành <small>{activeVisit.relatedCounts.records}</small></li>
+                  <li>Kết quả liên quan <small>{activeVisit.relatedCounts.results}</small></li>
+                  <li>Đơn thuốc liên quan <small>{activeVisit.relatedCounts.prescriptions}</small></li>
+                  <li>Hóa đơn liên quan <small>{activeVisit.relatedCounts.invoices}</small></li>
+                </ul>
+              </section>
+
+              <section className="patient-history-detail-section">
+                <div className="patient-history-section-head">
+                  <div className="patient-history-section-icon diagnosis">
+                    <PatientIcon name="folder_shared" aria-hidden="true" />
+                  </div>
+                  <h3>Hồ sơ đã phát hành</h3>
+                  <button type="button" onClick={() => onNavigate?.('medical-records')}>Mở hồ sơ</button>
+                </div>
+                <ul>
+                  {visibleRecords.length ? (
+                    visibleRecords.map((record) => (
+                      <li key={record.id}>
+                        <span>{record.title}</span>
+                        <small>{record.date}</small>
+                      </li>
+                    ))
+                  ) : (
+                    <li>Chưa có hồ sơ đã phát hành cho lượt này.</li>
+                  )}
+                </ul>
+              </section>
 
               <section className="patient-history-detail-section">
                 <div className="patient-history-section-head">
@@ -814,7 +1366,7 @@ export default function PatientMedicalHistoryPage({
                     <PatientIcon name="medication" aria-hidden="true" />
                   </div>
                   <h3>Đơn thuốc</h3>
-                  <button type="button">Xem tất cả</button>
+                  <button type="button" onClick={() => onNavigate?.('medications')}>Xem tất cả</button>
                 </div>
                 <ul>
                   {visiblePrescriptions.length ? (
@@ -836,7 +1388,7 @@ export default function PatientMedicalHistoryPage({
                     <PatientIcon name="experiment" aria-hidden="true" />
                   </div>
                   <h3>Kết quả xét nghiệm</h3>
-                  <button type="button">Xem tất cả</button>
+                  <button type="button" onClick={() => onNavigate?.('lab-results')}>Xem tất cả</button>
                 </div>
                 <ul>
                   {visibleLabs.length ? (
@@ -848,6 +1400,28 @@ export default function PatientMedicalHistoryPage({
                     ))
                   ) : (
                     <li>Chưa có kết quả xét nghiệm từ backend.</li>
+                  )}
+                </ul>
+              </section>
+
+              <section className="patient-history-detail-section">
+                <div className="patient-history-section-head">
+                  <div className="patient-history-section-icon note">
+                    <PatientIcon name="receipt_long" aria-hidden="true" />
+                  </div>
+                  <h3>Hóa đơn</h3>
+                  <button type="button" onClick={() => onNavigate?.('billing-receipts')}>Xem hóa đơn</button>
+                </div>
+                <ul>
+                  {visibleInvoices.length ? (
+                    visibleInvoices.map((invoice) => (
+                      <li key={invoice.id}>
+                        <span>{invoice.title}</span>
+                        <small>{invoice.value}</small>
+                      </li>
+                    ))
+                  ) : (
+                    <li>Chưa có hóa đơn liên quan cho lượt này.</li>
                   )}
                 </ul>
               </section>
@@ -899,9 +1473,12 @@ export default function PatientMedicalHistoryPage({
                     rows={3}
                   />
                 </label>
+                <button className="patient-history-review-submit" type="button" onClick={submitReview}>
+                  Gửi đánh giá
+                </button>
               </section>
 
-              <button className="patient-history-rebook" type="button">
+              <button className="patient-history-rebook" type="button" onClick={() => onNavigate?.('book-appointment')}>
                 Đặt lịch tái khám
               </button>
             </>

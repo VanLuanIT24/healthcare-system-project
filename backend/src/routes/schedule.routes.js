@@ -31,6 +31,10 @@ router.get('/summary/departments', authorize({ anyPermissions: [PERMISSION.SCHED
 router.get('/summary/date-range', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.REPORTS.APPOINTMENTS_READ] }), scheduleController.getScheduleSummaryByDateRange);
 router.get('/my/today', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ_OWN, PERMISSION.SCHEDULES.READ, PERMISSION.APPOINTMENTS.READ_OWN] }), scheduleController.getMyTodaySchedule);
 router.get('/my/week', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ_OWN, PERMISSION.SCHEDULES.READ, PERMISSION.APPOINTMENTS.READ_OWN] }), scheduleController.getMyWeekSchedule);
+router.get('/operational-list', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.SCHEDULES.READ_OWN] }), scheduleController.getScheduleOperationalList);
+router.get('/calendar', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.SCHEDULES.READ_OWN] }), scheduleController.getScheduleCalendar);
+router.get('/conflicts', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.SCHEDULES.READ_OWN] }), scheduleController.getScheduleConflicts);
+router.post('/conflicts/scan', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.SCHEDULES.READ_OWN] }), scheduleController.scanScheduleConflicts);
 router.get('/doctor/:doctorId', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.SCHEDULES.READ_OWN] }), scheduleController.listSchedulesByDoctor);
 router.get('/department/:departmentId', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT] }), scheduleController.listSchedulesByDepartment);
 router.get('/date-range', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.SCHEDULES.READ_OWN] }), scheduleController.listSchedulesByDateRange);

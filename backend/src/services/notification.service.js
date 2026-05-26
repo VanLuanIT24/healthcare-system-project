@@ -11,6 +11,7 @@ const {
   LabResult,
   MedicalRecord,
   Notification,
+  NotificationPreference,
   Patient,
   PatientAccount,
   PatientAuthorization,
@@ -38,6 +39,7 @@ const {
   AUTHORIZATION_TYPE,
   NOTIFICATION_CHANNEL,
   NOTIFICATION_CHANNELS,
+  NOTIFICATION_PREFERENCE_CHANNELS,
   NOTIFICATION_PRIORITY,
   NOTIFICATION_PRIORITIES,
   NOTIFICATION_RECIPIENT_TYPE,
@@ -260,6 +262,90 @@ function getActorRecipientFilter(actor = {}) {
   }
 
   throw createError('Loại tài khoản không hỗ trợ notification.', 403);
+}
+
+function getNotificationPreferenceIdentity(actor = {}) {
+  const context = actorContext.buildActorContext(actor, { requireActorId: false });
+  const identity = {
+    actor_type: context.actor_type || actorType(actor),
+    actor_id: context.actor_id || actor.actorId || actor.actor_id,
+  };
+
+  if (identity.actor_type === 'patient') {
+    identity.actor_id = actor.patientAccountId || actor.patient_account_id || identity.actor_id;
+  }
+
+  if (identity.actor_type === 'relative') {
+    identity.actor_id = actor.relativeId || actor.relative_id || identity.actor_id;
+  }
+
+  if (identity.actor_type === 'staff') {
+    identity.actor_id = actor.userId || actor.user_id || identity.actor_id;
+  }
+
+  if (!identity.actor_type || !identity.actor_id) throw createError('Không xác định được tài khoản nhận notification.', 401);
+  return identity;
+}
+
+function normalizeNotificationPreferencePayload(payload = {}) {
+  const rawItems = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.items)
+      ? payload.items
+      : Array.isArray(payload.preferences)
+        ? payload.preferences
+        : [payload];
+
+  const items = rawItems.map((item = {}) => {
+    const eventType = normalizeString(item.event_type || item.notification_type || item.type);
+    const channel = normalizeString(item.channel || NOTIFICATION_CHANNEL.IN_APP);
+    if (!eventType) throw createError('event_type là bắt buộc.', 400);
+    if (!NOTIFICATION_TYPES.includes(eventType)) throw createError(`event_type không hợp lệ: ${eventType}.`, 400);
+    if (!NOTIFICATION_PREFERENCE_CHANNELS.includes(channel)) throw createError(`channel không hợp lệ: ${channel}.`, 400);
+
+    return {
+      event_type: eventType,
+      channel,
+      enabled: item.enabled !== undefined ? normalizeBoolean(item.enabled) : true,
+      quiet_hours: item.quiet_hours,
+      language: normalizeString(item.language) || 'vi',
+    };
+  });
+
+  const deduped = new Map();
+  items.forEach((item) => {
+    deduped.set(`${item.event_type}:${item.channel}`, item);
+  });
+  return Array.from(deduped.values());
+}
+
+function buildNotificationPreferenceMatrix(existing = [], identity = {}) {
+  const byKey = new Map(existing.map((item) => [`${item.event_type}:${item.channel}`, item]));
+  const items = [];
+
+  for (const eventType of NOTIFICATION_TYPES) {
+    for (const channel of NOTIFICATION_PREFERENCE_CHANNELS) {
+      const stored = byKey.get(`${eventType}:${channel}`);
+      items.push({
+        actor_type: identity.actor_type,
+        actor_id: identity.actor_id,
+        event_type: eventType,
+        channel,
+        enabled: stored?.enabled !== undefined ? Boolean(stored.enabled) : true,
+        quiet_hours: stored?.quiet_hours || null,
+        language: stored?.language || 'vi',
+        preference_id: stored?._id || null,
+      });
+    }
+  }
+
+  return {
+    actor_type: identity.actor_type,
+    actor_id: identity.actor_id,
+    channels: NOTIFICATION_PREFERENCE_CHANNELS,
+    event_types: NOTIFICATION_TYPES,
+    items,
+  };
 }
 
 function notificationRecipientScope(notification = {}) {
@@ -823,6 +909,40 @@ async function getUnreadCount(actor = {}) {
   };
   const unread_count = await Notification.countDocuments(filter);
   return { unread_count };
+}
+
+async function getMyNotificationPreferences(actor = {}) {
+  const identity = getNotificationPreferenceIdentity(actor);
+  const preferences = await NotificationPreference.find(identity).lean();
+  return buildNotificationPreferenceMatrix(preferences, identity);
+}
+
+async function updateMyNotificationPreferences(payload = {}, actor = {}) {
+  const identity = getNotificationPreferenceIdentity(actor);
+  const items = normalizeNotificationPreferencePayload(payload);
+
+  if (!items.length) return getMyNotificationPreferences(actor);
+
+  await NotificationPreference.bulkWrite(items.map((item) => ({
+    updateOne: {
+      filter: {
+        ...identity,
+        event_type: item.event_type,
+        channel: item.channel,
+      },
+      update: {
+        $set: {
+          enabled: item.enabled,
+          quiet_hours: item.quiet_hours,
+          language: item.language,
+        },
+        $setOnInsert: identity,
+      },
+      upsert: true,
+    },
+  })));
+
+  return getMyNotificationPreferences(actor);
 }
 
 async function markNotificationRead(notificationId, actor = {}, requestMeta = {}) {
@@ -1608,6 +1728,10 @@ module.exports = {
   getNotificationDetail,
   // getUnreadCount: Lấy số thông báo chưa đọc.
   getUnreadCount,
+  // getMyNotificationPreferences: Lấy cấu hình nhận notification của actor hiện tại.
+  getMyNotificationPreferences,
+  // updateMyNotificationPreferences: Cập nhật cấu hình nhận notification của actor hiện tại.
+  updateMyNotificationPreferences,
   // markNotificationRead: Đánh dấu thông báo đọc.
   markNotificationRead,
   // markAllNotificationsRead: Đánh dấu đếnàn bộ thông báo đọc.

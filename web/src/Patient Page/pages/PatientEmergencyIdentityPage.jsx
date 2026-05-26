@@ -1,27 +1,110 @@
+import { useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
-import {
-  emergencyContacts,
-  emergencyIdentity,
-  emergencyProfile,
-} from '../data/patientPageData'
 
-export default function PatientEmergencyIdentityPage() {
+const caseStatusLabels = {
+  created: 'Đã gửi',
+  acknowledged: 'Đã tiếp nhận',
+  triaged: 'Đã phân loại',
+  dispatched: 'Đã điều phối',
+  resolved: 'Đã xử lý',
+  cancelled: 'Đã hủy',
+  false_alarm: 'Báo động nhầm',
+}
+
+function getPatient(patientProfile) {
+  return patientProfile?.patient || patientProfile?.profile || patientProfile || {}
+}
+
+function formatDate(value) {
+  if (!value) return 'Chưa có thời gian'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Chưa có thời gian'
+  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(date)
+}
+
+function firstText(items = [], fieldNames = []) {
+  const item = Array.isArray(items) ? items[0] : null
+  if (!item) return 'Chưa ghi nhận'
+  for (const field of fieldNames) {
+    if (item[field]) return item[field]
+  }
+  return 'Chưa ghi nhận'
+}
+
+export default function PatientEmergencyIdentityPage({
+  cases = [],
+  feedback = null,
+  healthSummary = null,
+  loading = false,
+  onCancelCase,
+  onCreateSos,
+  patientProfile = null,
+}) {
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [reason, setReason] = useState('')
+  const [sending, setSending] = useState(false)
+  const patient = getPatient(patientProfile)
+  const openCases = useMemo(
+    () => cases.filter((item) => !['resolved', 'cancelled', 'false_alarm'].includes(String(item.status || '').toLowerCase())),
+    [cases],
+  )
+
+  const allergies = healthSummary?.allergies || patientProfile?.allergies || []
+  const problems = healthSummary?.problem_list || healthSummary?.problems || patientProfile?.problem_list || []
+  const recentVitals = healthSummary?.recent_vitals || {}
+  const emergencyPhone = patient.emergency_contact_phone || patient.phone || ''
+
+  const sendSos = async (includeLocation = false) => {
+    setSending(true)
+    let location = null
+    if (includeLocation && navigator.geolocation) {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000 })
+        })
+        location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        }
+      } catch (error) {
+        location = null
+      }
+    }
+
+    const saved = await onCreateSos?.({
+      reason: reason.trim() || 'Bệnh nhân yêu cầu hỗ trợ khẩn cấp',
+      contact_phone: emergencyPhone,
+      location,
+    })
+    setSending(false)
+    if (saved !== false) {
+      setShowConfirm(false)
+      setReason('')
+    }
+  }
+
   return (
     <div className="patient-emergency-page">
       <section className="patient-emergency-head">
         <div>
-          <span className="patient-emergency-badge">{emergencyIdentity.badge}</span>
-          <h1>{emergencyIdentity.title}</h1>
-          <p>{emergencyIdentity.body}</p>
+          <span className="patient-emergency-badge">Cấp cứu</span>
+          <h1>Hỗ trợ khẩn cấp</h1>
+          <p>Mở xác nhận trước khi gửi SOS để hạn chế bấm nhầm.</p>
         </div>
 
         <div className="patient-emergency-head-actions">
-          <button className="patient-emergency-print" type="button">
+          <button className="patient-emergency-print" type="button" onClick={() => window.print()}>
             <PatientIcon name="print" aria-hidden="true" />
             <span>In thẻ y tế</span>
           </button>
         </div>
       </section>
+
+      {feedback?.context === 'emergency' ? (
+        <div className={`patient-dashboard-state ${feedback.type === 'error' ? 'patient-dashboard-state-error' : ''}`}>
+          {feedback.message || feedback.text}
+        </div>
+      ) : null}
 
       <div className="patient-emergency-grid">
         <section className="patient-panel patient-emergency-sos-card">
@@ -29,15 +112,15 @@ export default function PatientEmergencyIdentityPage() {
             <div className="patient-emergency-sos-head">
               <div>
                 <PatientIcon name="emergency_share" aria-hidden="true" />
-                <h2>{emergencyIdentity.sosTitle}</h2>
+                <h2>Bạn cần hỗ trợ khẩn cấp?</h2>
               </div>
-              <span>Tự động định vị: Đang bật</span>
+              <span>{openCases.length ? `${openCases.length} ca đang mở` : 'Chưa có ca đang mở'}</span>
             </div>
-            <p>{emergencyIdentity.sosBody}</p>
+            <p>Chọn một hành động trong modal xác nhận. SOS sẽ tạo ca cấp cứu gắn với bệnh nhân hiện tại.</p>
           </div>
 
           <div className="patient-emergency-sos-layout">
-            <button className="patient-emergency-sos-trigger" type="button">
+            <button className="patient-emergency-sos-trigger" type="button" onClick={() => setShowConfirm(true)}>
               <PatientIcon name="emergency" aria-hidden="true" />
               <strong>SOS khẩn cấp</strong>
             </button>
@@ -45,11 +128,11 @@ export default function PatientEmergencyIdentityPage() {
             <div className="patient-emergency-sos-meta">
               <article>
                 <span className="patient-emergency-meta-icon is-location">
-                  <PatientIcon name="location_on" aria-hidden="true" />
+                  <PatientIcon name="person" aria-hidden="true" />
                 </span>
                 <div>
-                  <small>{emergencyIdentity.locationLabel}</small>
-                  <strong>{emergencyIdentity.locationValue}</strong>
+                  <small>Bệnh nhân</small>
+                  <strong>{patient.full_name || 'Chưa cập nhật'}</strong>
                 </div>
               </article>
 
@@ -58,38 +141,11 @@ export default function PatientEmergencyIdentityPage() {
                   <PatientIcon name="phone_forwarded" aria-hidden="true" />
                 </span>
                 <div>
-                  <small>{emergencyIdentity.dispatchLabel}</small>
-                  <strong>{emergencyIdentity.dispatchValue}</strong>
+                  <small>Điện thoại liên hệ</small>
+                  <strong>{emergencyPhone || 'Chưa cập nhật'}</strong>
                 </div>
               </article>
             </div>
-          </div>
-        </section>
-
-        <section className="patient-emergency-qr-card">
-          <h2>{emergencyIdentity.responderTitle}</h2>
-          <p>{emergencyIdentity.responderBody}</p>
-
-          <div className="patient-emergency-qr-frame" aria-hidden="true">
-            <div className="patient-emergency-qr-code">
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-
-            <div className="patient-emergency-qr-verified">
-              <PatientIcon name="verified_user" aria-hidden="true" />
-            </div>
-          </div>
-
-          <div className="patient-emergency-verified-pill">
-            <span />
-            <strong>{emergencyIdentity.verifiedLabel}</strong>
           </div>
         </section>
 
@@ -97,25 +153,25 @@ export default function PatientEmergencyIdentityPage() {
           <article className="patient-panel patient-emergency-profile-card">
             <small>Nhóm máu</small>
             <div className="patient-emergency-blood">
-              <strong>{emergencyProfile.bloodType}</strong>
-              <span>{emergencyProfile.bloodTypeNote}</span>
+              <strong>{patient.blood_type || healthSummary?.blood_type || '--'}</strong>
+              <span>{recentVitals?.recorded_at ? `Sinh hiệu gần nhất ${formatDate(recentVitals.recorded_at)}` : 'Chưa có sinh hiệu gần nhất'}</span>
             </div>
           </article>
 
           <article className="patient-panel patient-emergency-profile-card is-alert">
             <PatientIcon name="warning" aria-hidden="true" />
             <small>Dị ứng</small>
-            <strong className="patient-emergency-allergy">{emergencyProfile.allergyName}</strong>
-            <span>{emergencyProfile.allergySeverity}</span>
+            <strong className="patient-emergency-allergy">{firstText(allergies, ['allergen', 'allergen_name', 'name'])}</strong>
+            <span>{firstText(allergies, ['severity', 'reaction'])}</span>
           </article>
 
           <article className="patient-panel patient-emergency-profile-card">
             <small>Bệnh lý nền</small>
             <div className="patient-emergency-condition-list">
-              {emergencyProfile.conditions.map((condition, index) => (
-                <div key={condition}>
+              {(Array.isArray(problems) && problems.length ? problems.slice(0, 3) : [{ problem_name: 'Chưa ghi nhận' }]).map((condition, index) => (
+                <div key={condition._id || condition.problem_name || index}>
                   <span className={index === 0 ? 'is-primary' : ''} />
-                  <strong>{condition}</strong>
+                  <strong>{condition.problem_name || condition.name || condition.diagnosis_name || 'Chưa ghi nhận'}</strong>
                 </div>
               ))}
             </div>
@@ -123,71 +179,94 @@ export default function PatientEmergencyIdentityPage() {
         </section>
 
         <section className="patient-panel patient-emergency-contacts-card">
-          <h2>Liên hệ khẩn cấp</h2>
-
+          <h2>Ca cấp cứu của tôi</h2>
           <div className="patient-emergency-contact-list">
-            {emergencyContacts.map((contact) => (
-              <article key={contact.id} className="patient-emergency-contact-row">
+            {loading ? <div className="patient-emergency-contact-row">Đang tải ca cấp cứu...</div> : null}
+            {!loading && !cases.length ? <div className="patient-emergency-contact-row">Chưa có ca cấp cứu.</div> : null}
+            {cases.map((item) => (
+              <article key={item._id || item.case_code} className="patient-emergency-contact-row">
                 <div className="patient-emergency-contact-copy">
-                  <span className={`patient-emergency-contact-avatar ${contact.tone}`}>
-                    {contact.initials}
+                  <span className="patient-emergency-contact-avatar red">
+                    <PatientIcon name="emergency" aria-hidden="true" />
                   </span>
                   <div>
-                    <strong>{contact.name}</strong>
-                    <small>{contact.role}</small>
+                    <strong>{item.case_code}</strong>
+                    <small>{caseStatusLabels[item.status] || item.status} | {formatDate(item.created_at)}</small>
                   </div>
                 </div>
 
-                <button type="button" aria-label={`Gọi ${contact.name}`}>
-                  <PatientIcon name="call" aria-hidden="true" />
-                </button>
+                {!['resolved', 'cancelled', 'false_alarm'].includes(String(item.status || '').toLowerCase()) ? (
+                  <button type="button" aria-label="Hủy SOS" onClick={() => onCancelCase?.(item._id, { reason: 'Bệnh nhân hủy từ portal.' })}>
+                    <PatientIcon name="close" aria-hidden="true" />
+                  </button>
+                ) : null}
               </article>
             ))}
           </div>
-
-          <button className="patient-emergency-add-contact" type="button">
-            + Thêm liên hệ mới
-          </button>
         </section>
 
         <section className="patient-panel patient-emergency-map-card">
           <div className="patient-emergency-map-head">
             <div>
-              <h2>Dịch vụ cấp cứu lân cận</h2>
-              <p>
-                Tìm thấy {emergencyProfile.nearbyCount} cơ sở y tế trong bán kính{' '}
-                {emergencyProfile.nearbyRadius} dặm tính từ vị trí hiện tại của bạn.
-              </p>
+              <h2>Hành động nhanh</h2>
+              <p>Gọi cấp cứu, gửi SOS cho phòng khám, chia sẻ vị trí hoặc liên hệ người thân khẩn cấp.</p>
             </div>
-
-            <button type="button">Mở bản đồ</button>
           </div>
 
           <div className="patient-emergency-map-stage">
             <div className="patient-emergency-map-surface" aria-hidden="true" />
-
             <div className="patient-emergency-map-highlight">
               <span>
                 <PatientIcon name="local_hospital" aria-hidden="true" />
               </span>
               <div>
-                <strong>{emergencyProfile.mapFacility}</strong>
-                <small>{emergencyProfile.mapFacilityMeta}</small>
+                <strong>Trung tâm điều phối cấp cứu</strong>
+                <small>Luôn xác nhận trước khi tạo ca SOS</small>
               </div>
             </div>
           </div>
         </section>
       </div>
 
-      <footer className="patient-emergency-footer">
-        <div>
-          <p>© 2024 Ethos Health Clinical Curator</p>
-          <button type="button">Chính sách bảo mật</button>
-          <button type="button">Quy trình khẩn cấp</button>
+      {showConfirm ? (
+        <div className="patient-emergency-modal" role="dialog" aria-modal="true" aria-labelledby="patient-emergency-modal-title">
+          <div className="patient-emergency-modal-card">
+            <button type="button" aria-label="Đóng" onClick={() => setShowConfirm(false)}>
+              <PatientIcon name="close" aria-hidden="true" />
+            </button>
+            <h2 id="patient-emergency-modal-title">Bạn cần hỗ trợ khẩn cấp?</h2>
+            <textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Lý do: khó thở, đau ngực, té ngã..."
+              rows="3"
+            />
+            <div>
+              <button type="button" onClick={() => { window.location.href = 'tel:115' }}>
+                <PatientIcon name="call" aria-hidden="true" />
+                Gọi cấp cứu
+              </button>
+              <button type="button" disabled={sending} onClick={() => sendSos(false)}>
+                <PatientIcon name="emergency_share" aria-hidden="true" />
+                Gửi SOS cho phòng khám
+              </button>
+              <button type="button" disabled={sending} onClick={() => sendSos(true)}>
+                <PatientIcon name="location_on" aria-hidden="true" />
+                Gửi vị trí hiện tại
+              </button>
+              <button type="button" disabled={!emergencyPhone} onClick={() => { if (emergencyPhone) window.location.href = `tel:${emergencyPhone}` }}>
+                <PatientIcon name="contacts" aria-hidden="true" />
+                Gọi người thân khẩn cấp
+              </button>
+              <button type="button">
+                <PatientIcon name="health_and_safety" aria-hidden="true" />
+                Xem hướng dẫn sơ cứu
+              </button>
+              <button type="button" onClick={() => setShowConfirm(false)}>Hủy</button>
+            </div>
+          </div>
         </div>
-
-        <span>Trạng thái hệ thống: Ổn định</span>
-      </footer>
+      ) : null}
     </div>
   )
 }

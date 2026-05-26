@@ -91,6 +91,37 @@ async function listAvailableSlots(query = {}) {
   return { items, pagination: buildPagination(page, limit, total) };
 }
 
+async function getLocationNavigation(locationId) {
+  const location = await FacilityLocation.findOne({
+    _id: locationId,
+    is_deleted: false,
+    status: 'active',
+  }).populate('department_id', 'department_name department_code').lean();
+  if (!location) throw createError('Không tìm thấy địa điểm.', 404);
+
+  const metadata = location.metadata || {};
+  const instructions = Array.isArray(metadata.navigation_instructions)
+    ? metadata.navigation_instructions
+    : Array.isArray(metadata.instructions)
+      ? metadata.instructions
+      : [];
+
+  return {
+    location_id: String(location._id),
+    name: location.name,
+    type: location.type,
+    address: location.address,
+    phone: location.phone,
+    department: location.department_id || null,
+    building: metadata.building || metadata.block || '',
+    floor: metadata.floor || '',
+    room: metadata.room || metadata.room_no || '',
+    landmark: metadata.landmark || '',
+    instructions,
+    map_url: metadata.map_url || '',
+  };
+}
+
 module.exports = {
   listDepartments,
   listDoctors,
@@ -99,4 +130,5 @@ module.exports = {
   listServicePrices: listServices,
   listLocations,
   listAvailableSlots,
+  getLocationNavigation,
 };
