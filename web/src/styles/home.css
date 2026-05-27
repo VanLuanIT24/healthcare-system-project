@@ -8261,3 +8261,15 @@
   }
 }
 
+/* Keep Home marketing chrome consistent with the other public pages. */
+.home-shell:not(.site-page-shell) .home-topbar {
+  position: relative !important;
+  z-index: 120 !important;
+}
+
+.home-shell:not(.site-page-shell) .home-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 140 !important;
+}
+
