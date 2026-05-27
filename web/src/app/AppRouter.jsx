@@ -151,7 +151,7 @@ export function AppRouter() {
     <BrowserRouter>
       <Suspense fallback={<RouteLoading />}>
         <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/bank-qr-test" element={<BankQrTestPage />} />
         <Route path="/staff/login" element={<StaffLoginPage />} />
