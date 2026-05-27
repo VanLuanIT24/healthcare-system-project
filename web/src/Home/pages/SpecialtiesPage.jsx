@@ -148,7 +148,7 @@ export function SpecialtiesPage() {
                   </div>
                   <div className="specialties-card__actions">
                     <Link to="/contact">Đặt lịch</Link>
-                    <Link to="/home#doctors">Tìm bác sĩ</Link>
+                    <Link to="/doctors">Tìm bác sĩ</Link>
                   </div>
                 </div>
               </article>

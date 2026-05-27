@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   Calendar,
@@ -379,6 +379,7 @@ function BackgroundArtwork() {
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState('account');
   const [formState, setFormState] = useState(INITIAL_FORM_STATE);
   const [showAccountErrors, setShowAccountErrors] = useState(false);
@@ -407,6 +408,11 @@ export function RegisterPage() {
     [formState, passwordChecks],
   );
   const profileValidation = useMemo(() => validateProfile(formState), [formState]);
+  const redirectTarget = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return searchParams.get('redirect');
+  }, [location.search]);
+  const loginPath = redirectTarget ? `/login?redirect=${encodeURIComponent(redirectTarget)}` : '/login';
 
   const visibleAccountErrors = showAccountErrors ? accountValidation.fieldErrors : {};
   const visibleProfileErrors = showProfileErrors ? profileValidation.fieldErrors : {};
@@ -864,7 +870,7 @@ export function RegisterPage() {
           </form>
 
           <p className="patient-register-login-link">
-            Đã có tài khoản? <Link to="/login">Đăng nhập</Link>
+            Đã có tài khoản? <Link to={loginPath}>Đăng nhập</Link>
           </p>
         </section>
       ) : null}
@@ -1099,7 +1105,7 @@ export function RegisterPage() {
           </FormNotice>
 
           <div className="patient-success-actions">
-            <button type="button" className="register-primary-button" onClick={() => navigate('/login', { replace: true })}>
+            <button type="button" className="register-primary-button" onClick={() => navigate(loginPath, { replace: true })}>
               <LogIn size={21} />
               Đăng nhập ngay
             </button>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { InfoTopbar } from '../components/InfoTopbar';
 export function SupportPage() {
   const supportGroups = [
@@ -137,8 +137,17 @@ export function SupportPage() {
     },
   ];
 
+  const [searchParams] = useSearchParams();
+  const requestedSupportId = searchParams.get('topic');
+  const hasRequestedSupport = supportGroups.some((item) => item.id === requestedSupportId);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSupportId, setSelectedSupportId] = useState(supportGroups[0].id);
+  const [selectedSupportId, setSelectedSupportId] = useState(hasRequestedSupport ? requestedSupportId : supportGroups[0].id);
+
+  useEffect(() => {
+    if (hasRequestedSupport) {
+      setSelectedSupportId(requestedSupportId);
+    }
+  }, [hasRequestedSupport, requestedSupportId]);
 
   const selectedSupport = supportGroups.find((item) => item.id === selectedSupportId) || supportGroups[0];
 

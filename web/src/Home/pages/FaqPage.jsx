@@ -17,6 +17,7 @@ import {
   Stethoscope,
   WalletCards,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { MarketingPageShell } from './MarketingPageShell';
 
 const FAQ_HERO_STATS = [
@@ -165,18 +166,21 @@ const FAQ_SUPPORT_CHANNELS = [
     value: '1900 1234',
     icon: PhoneCall,
     className: 'is-call',
+    href: 'tel:19001234',
   },
   {
     label: 'Chat trực tuyến',
     value: 'Điều phối viên',
     icon: MessageCircle,
     className: 'is-chat',
+    to: '/contact',
   },
   {
     label: 'Yêu cầu hồ sơ',
     value: 'Kết quả & toa thuốc',
     icon: FileText,
     className: 'is-records',
+    to: '/contact',
   },
 ];
 
@@ -227,7 +231,7 @@ export function FaqPage() {
           </div>
 
           <div className="faq-search-hero__desk">
-            <div className="faq-search-box" role="search">
+            <form className="faq-search-box" role="search" onSubmit={(event) => event.preventDefault()}>
               <span className="faq-search-box__icon" aria-hidden="true">
                 <Search size={20} />
               </span>
@@ -238,11 +242,11 @@ export function FaqPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
-              <button type="button">
+              <button type="submit">
                 <span>Tìm kiếm</span>
                 <ArrowRight size={18} aria-hidden="true" />
               </button>
-            </div>
+            </form>
 
             <div className="faq-search-hero__quick-card">
               <div className="faq-quick-card__top">
@@ -373,10 +377,10 @@ export function FaqPage() {
                 </span>
                 <h3>{item.title}</h3>
                 <p>{item.description}</p>
-                <button type="button">
+                <Link className="faq-priority-card__action" to="/contact">
                   <span>{item.action}</span>
                   <ArrowRight size={17} aria-hidden="true" />
-                </button>
+                </Link>
                 {item.tone === 'dark' ? <span className="faq-priority-card__pulse" aria-hidden="true" /> : null}
               </article>
             );
@@ -399,14 +403,23 @@ export function FaqPage() {
           <div className="faq-support-cta__actions">
             {FAQ_SUPPORT_CHANNELS.map((item) => {
               const Icon = item.icon;
-              return (
-                <button key={item.label} type="button" className={`faq-support-cta__channel ${item.className}`}>
+              const content = (
+                <>
                   <span aria-hidden="true">
                     <Icon size={20} />
                   </span>
                   <strong>{item.label}</strong>
                   <small>{item.value}</small>
-                </button>
+                </>
+              );
+              return item.href ? (
+                <a key={item.label} href={item.href} className={`faq-support-cta__channel ${item.className}`}>
+                  {content}
+                </a>
+              ) : (
+                <Link key={item.label} to={item.to} className={`faq-support-cta__channel ${item.className}`}>
+                  {content}
+                </Link>
               );
             })}
           </div>

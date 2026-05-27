@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { openHealthcareChatbot } from '../../components/HealthcareChatbot';
+import { readStoredAuth } from '../../lib/storage';
 import { MarketingPageShell } from './MarketingPageShell';
 
 const doctorList = [
@@ -87,7 +88,69 @@ const strengths = [
   'Theo dõi sau khám và tái khám',
 ];
 
+function hasPatientSession(auth) {
+  return (
+    ['patient', 'patient_relative'].includes(auth?.actorType) &&
+    Boolean(auth?.tokens?.access_token)
+  );
+}
+
+function getBookingPath(isPatientLoggedIn, doctor) {
+  const params = new URLSearchParams({ section: 'book-appointment' });
+
+  if (doctor?.name) {
+    params.set('doctor', doctor.name);
+  }
+
+  const target = `/portal?${params.toString()}`;
+  return isPatientLoggedIn ? target : `/login?redirect=${encodeURIComponent(target)}`;
+}
+
+function getDoctorProfileId(name) {
+  return `doctor-${name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')}`;
+}
+
 export function DoctorsPage() {
+  const auth = readStoredAuth();
+  const isPatientLoggedIn = hasPatientSession(auth);
+  const heroBookingPath = getBookingPath(isPatientLoggedIn);
+  const [activeFilter, setActiveFilter] = useState(filters[0]);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const visibleDoctors = useMemo(() => {
+    if (activeFilter === filters[0]) {
+      return doctorList;
+    }
+
+    const keyword = activeFilter.toLowerCase();
+    return doctorList.filter((doctor) =>
+      `${doctor.role} ${doctor.specialty}`.toLowerCase().includes(keyword)
+    );
+  }, [activeFilter]);
+  const selectedDoctorBookingPath = selectedDoctor
+    ? getBookingPath(isPatientLoggedIn, selectedDoctor)
+    : heroBookingPath;
+
+  useEffect(() => {
+    if (!selectedDoctor) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setSelectedDoctor(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedDoctor]);
+
   return (
     <MarketingPageShell activeKey="doctors">
       <div className="doctors-page">
@@ -100,7 +163,7 @@ export function DoctorsPage() {
               sẽ hỗ trợ bạn chuẩn bị hồ sơ trước khám và theo dõi sau buổi hẹn.
             </p>
             <div className="doctors-hero__actions">
-              <Link to="/contact">Đặt lịch khám</Link>
+              <Link to={heroBookingPath}>Đặt lịch khám</Link>
               <Link to="/specialties">Tìm theo chuyên khoa</Link>
             </div>
           </div>
@@ -136,44 +199,133 @@ export function DoctorsPage() {
             <Link to="/contact">Cần tư vấn chọn bác sĩ?</Link>
           </div>
           <div className="doctors-filter" aria-label="Lọc chuyên khoa">
-            {filters.map((filter, index) => (
-              <button key={filter} className={index === 0 ? 'is-active' : ''} type="button">
+            {filters.map((filter) => (
+              <button
+                key={filter}
+                className={filter === activeFilter ? 'is-active' : ''}
+                type="button"
+                onClick={() => setActiveFilter(filter)}
+                aria-pressed={filter === activeFilter}
+              >
                 {filter}
               </button>
             ))}
           </div>
           <div className="doctors-grid">
-            {doctorList.map((doctor) => (
-              <article className="doctor-profile-card" key={doctor.name}>
+            {visibleDoctors.map((doctor) => {
+              const doctorProfileId = getDoctorProfileId(doctor.name);
+              const bookingPath = getBookingPath(isPatientLoggedIn, doctor);
+
+              return (
+                <article className="doctor-profile-card" id={doctorProfileId} key={doctor.name}>
+                  <div
+                    className="doctor-profile-card__photo"
+                    style={{
+                      backgroundImage: `url(${doctor.image})`,
+                      backgroundPosition: doctor.position,
+                    }}
+                  >
+                    <span>{doctor.tag}</span>
+                  </div>
+                  <div className="doctor-profile-card__body">
+                    <small>{doctor.role}</small>
+                    <h3>{doctor.name}</h3>
+                    <p>{doctor.specialty}</p>
+                    <div className="doctor-profile-card__meta">
+                      <span>{doctor.experience}</span>
+                      <span>{doctor.rating} ★</span>
+                    </div>
+                    <div className="doctor-profile-card__schedule">{doctor.schedule}</div>
+                    <div className="doctor-profile-card__actions">
+                      <Link to={bookingPath}>Đặt lịch</Link>
+                      <button
+                        className="doctor-profile-card__profile"
+                        type="button"
+                        onClick={() => setSelectedDoctor(doctor)}
+                      >
+                        Xem hồ sơ
+                      </button>
+                      <button
+                        className="doctor-profile-card__chat"
+                        type="button"
+                        onClick={() =>
+                          openHealthcareChatbot({
+                            context: 'doctor',
+                            doctorName: doctor.name,
+                            specialty: doctor.specialty,
+                          })
+                        }
+                      >
+                        Hỏi lễ tân ảo
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          {selectedDoctor ? (
+            <div
+              className="doctor-profile-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="doctor-profile-modal-title"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) {
+                  setSelectedDoctor(null);
+                }
+              }}
+            >
+              <article className="doctor-profile-modal__card">
+                <button
+                  className="doctor-profile-modal__close"
+                  type="button"
+                  aria-label="Đóng hồ sơ bác sĩ"
+                  onClick={() => setSelectedDoctor(null)}
+                >
+                  ×
+                </button>
                 <div
-                  className="doctor-profile-card__photo"
+                  className="doctor-profile-modal__photo"
                   style={{
-                    backgroundImage: `url(${doctor.image})`,
-                    backgroundPosition: doctor.position,
+                    backgroundImage: `url(${selectedDoctor.image})`,
+                    backgroundPosition: selectedDoctor.position,
                   }}
                 >
-                  <span>{doctor.tag}</span>
+                  <span>{selectedDoctor.tag}</span>
                 </div>
-                <div className="doctor-profile-card__body">
-                  <small>{doctor.role}</small>
-                  <h3>{doctor.name}</h3>
-                  <p>{doctor.specialty}</p>
-                  <div className="doctor-profile-card__meta">
-                    <span>{doctor.experience}</span>
-                    <span>{doctor.rating} ★</span>
+                <div className="doctor-profile-modal__content">
+                  <small>{selectedDoctor.role}</small>
+                  <h3 id="doctor-profile-modal-title">{selectedDoctor.name}</h3>
+                  <p>{selectedDoctor.specialty}</p>
+                  <dl className="doctor-profile-modal__facts">
+                    <div>
+                      <dt>Kinh nghiệm</dt>
+                      <dd>{selectedDoctor.experience}</dd>
+                    </div>
+                    <div>
+                      <dt>Đánh giá</dt>
+                      <dd>{selectedDoctor.rating} ★</dd>
+                    </div>
+                    <div>
+                      <dt>Lịch khám</dt>
+                      <dd>{selectedDoctor.schedule}</dd>
+                    </div>
+                  </dl>
+                  <div className="doctor-profile-modal__note">
+                    Hồ sơ này giúp bạn kiểm tra chuyên khoa, lịch gần nhất và chọn đúng bác sĩ trước khi đặt hẹn.
                   </div>
-                  <div className="doctor-profile-card__schedule">{doctor.schedule}</div>
-                  <div className="doctor-profile-card__actions">
-                    <Link to="/contact">Đặt lịch</Link>
-                    <Link to="/about">Xem hồ sơ</Link>
+                  <div className="doctor-profile-modal__actions">
+                    <Link to={selectedDoctorBookingPath} onClick={() => setSelectedDoctor(null)}>
+                      Đặt lịch với bác sĩ
+                    </Link>
                     <button
-                      className="doctor-profile-card__chat"
                       type="button"
                       onClick={() =>
                         openHealthcareChatbot({
                           context: 'doctor',
-                          doctorName: doctor.name,
-                          specialty: doctor.specialty,
+                          doctorName: selectedDoctor.name,
+                          specialty: selectedDoctor.specialty,
                         })
                       }
                     >
@@ -182,8 +334,8 @@ export function DoctorsPage() {
                   </div>
                 </div>
               </article>
-            ))}
-          </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="home-section doctors-care-flow">

@@ -19,14 +19,32 @@ import {
   Stethoscope,
   UsersRound,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { clearStoredAuth, readStoredAuth } from '../lib/storage';
 import { MarketingFooter, MarketingHeader, useSiteLanguage } from './marketingChrome';
+
+function buildPatientBookingPath(values = {}) {
+  const params = new URLSearchParams({ section: 'book-appointment' });
+
+  Object.entries(values).forEach(([key, value]) => {
+    if (value) {
+      params.set(key, value);
+    }
+  });
+
+  return `/portal?${params.toString()}`;
+}
+
+function buildBookingEntryPath(isLoggedIn, values = {}) {
+  const target = buildPatientBookingPath(values);
+  return isLoggedIn ? target : `/login?redirect=${encodeURIComponent(target)}`;
+}
 
 export function HomePage() {
   const navigate = useNavigate();
   const storedAuth = readStoredAuth();
   const profile = storedAuth?.patient;
+  const isPatientLoggedIn = Boolean(profile && storedAuth?.tokens?.access_token);
   const [language, setLanguage] = useSiteLanguage('vi');
   const [openAppointmentPicker, setOpenAppointmentPicker] = useState('');
   const [appointmentForm, setAppointmentForm] = useState({
@@ -53,6 +71,8 @@ export function HomePage() {
       nav: ['Home', 'About', 'Specialties', 'Doctors', 'News', 'FAQ', 'Contact'],
       support: 'Support',
       book: 'Book Appointment',
+      login: 'Login',
+      register: 'Register',
       logout: 'Logout',
       hello: 'Hello',
       heroKicker: 'Sanctuary Health Institute',
@@ -238,6 +258,8 @@ export function HomePage() {
       nav: ['Trang chủ', 'Giới thiệu', 'Chuyên khoa', 'Bác sĩ', 'Tin tức', 'FAQ', 'Liên hệ'],
       support: 'Hỗ trợ',
       book: 'Đặt lịch hẹn',
+      login: 'Đăng nhập',
+      register: 'Đăng ký',
       logout: 'Đăng xuất',
       hello: 'Xin chào',
       heroKicker: 'Hệ thống y tế Bộ Y tế',
@@ -357,6 +379,8 @@ export function HomePage() {
       nav: ['홈', '소개', '진료과', '의료진', '뉴스', 'FAQ', '문의'],
       support: '지원',
       book: '진료 예약',
+      login: '로그인',
+      register: '회원가입',
       logout: '로그아웃',
       hello: '안녕하세요',
       heroKicker: 'Sanctuary Health Institute',
@@ -503,6 +527,7 @@ export function HomePage() {
     icon: portalFeatureIcons[index],
     ...portalFeatureMeta[language][index],
   }));
+  const patientPortalPath = isPatientLoggedIn ? '/portal' : `/login?redirect=${encodeURIComponent('/portal')}`;
   const doctorSectionCopy = {
     en: {
       lead: 'Meet the multidisciplinary doctors guiding each patient through diagnosis, treatment planning, and long-term recovery.',
@@ -953,6 +978,15 @@ export function HomePage() {
     setOpenAppointmentPicker('');
   }
 
+  function handleQuickAppointment() {
+    navigate(buildBookingEntryPath(isPatientLoggedIn, {
+      department: appointmentForm.service,
+      doctor: appointmentForm.doctor,
+      date: appointmentForm.date,
+      time: appointmentForm.time,
+    }));
+  }
+
 function formatAppointmentDate(value) {
   const [year, month, day] = value.split('-');
   return `${day}/${month}/${year}`;
@@ -1001,7 +1035,7 @@ function PartnerIcon({ type }) {
   }
 
   return (
-    <main className="home-shell home-shell--full" id="top">
+    <main className="home-shell" id="top">
       <MarketingHeader
         labels={t}
         language={language}
@@ -1044,7 +1078,7 @@ function PartnerIcon({ type }) {
               <span>{careDesk.response}</span>
             </article>
           </div>
-          <a href="#visit">
+          <a href="tel:+8419008888">
             <PhoneCall size={19} strokeWidth={2.8} />
             <span>{careDesk.hotline}</span>
           </a>
@@ -1065,18 +1099,18 @@ function PartnerIcon({ type }) {
           </div>
 
           <div className="home-hero__buttons">
-            <a className="home-btn home-btn--primary" href="#departments">
+            <Link className="home-btn home-btn--primary" to={buildBookingEntryPath(isPatientLoggedIn)}>
               <span className="home-btn__icon home-btn__icon--calendar" aria-hidden="true">
                 <CalendarDays size={16} />
               </span>
               {t.heroPrimary}
-            </a>
-            <a className="home-btn home-btn--secondary" href="#services">
+            </Link>
+            <Link className="home-btn home-btn--secondary" to="/about">
               <span className="home-btn__icon home-btn__icon--play" aria-hidden="true">
                 <Play size={13} fill="currentColor" />
               </span>
               {t.heroSecondary}
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -1176,23 +1210,29 @@ function PartnerIcon({ type }) {
                 </div>
               </label>
             </div>
-            <button type="button" className="home-appointment__submit">{t.appointmentButton}</button>
+            <button type="button" className="home-appointment__submit" onClick={handleQuickAppointment}>{t.appointmentButton}</button>
           </form>
         </aside>
       </section>
 
       <section className="home-trust-band" aria-label="Chứng nhận và tín hiệu tin cậy của Bộ Y tế">
-        {trustBand.map((item, index) => {
-          const TrustIcon = trustBandIcons[index % trustBandIcons.length];
-          return (
-          <article key={item}>
-            <span aria-hidden="true">
-              <TrustIcon size={18} />
-            </span>
-            <strong>{item}</strong>
-          </article>
-        );
-        })}
+        <div className="home-trust-band__track">
+          {[0, 1].map((loopIndex) => (
+            <div className="home-trust-band__group" key={loopIndex} aria-hidden={loopIndex === 1 ? 'true' : undefined}>
+              {trustBand.map((item, index) => {
+                const TrustIcon = trustBandIcons[index % trustBandIcons.length];
+                return (
+                  <article key={`${loopIndex}-${item}`}>
+                    <span aria-hidden="true">
+                      <TrustIcon size={18} />
+                    </span>
+                    <strong>{item}</strong>
+                  </article>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="home-care-journey" aria-label="Connected patient care journey">
@@ -1266,10 +1306,10 @@ function PartnerIcon({ type }) {
               </div>
               <div className="specialty-card__footer">
                 <span className="specialty-card__metric">{item.metric}</span>
-                <a href="#services">
+                <Link to="/specialties">
                   {t.learnMore}
                   <ArrowUpRight size={14} aria-hidden="true" />
-                </a>
+                </Link>
               </div>
             </article>
             ))}
@@ -1334,9 +1374,9 @@ function PartnerIcon({ type }) {
             <p className="home-kicker">{t.portalKicker}</p>
             <h2>{t.portalTitle}</h2>
             <p>{t.portalLead}</p>
-            <a className="home-btn home-btn--light" href="#visit">
+            <Link className="home-btn home-btn--light" to={patientPortalPath}>
               {t.portalButton}
-            </a>
+            </Link>
           </div>
 
           <div className="home-portal__features">
@@ -1408,7 +1448,7 @@ function PartnerIcon({ type }) {
                 </div>
                 <div className="doctor-card__footer">
                   <span>{doctor.tag}</span>
-                  <a href="#visit">{doctorSection.action}</a>
+                  <Link to="/doctors">{doctorSection.action}</Link>
                 </div>
               </div>
             </article>
@@ -1422,10 +1462,10 @@ function PartnerIcon({ type }) {
           <h2>{t.philosophyTitle}</h2>
           <p>{t.philosophyP1}</p>
           <p>{t.philosophyP2}</p>
-          <a className="home-philosophy__link" href="#visit">
+          <Link className="home-philosophy__link" to="/about">
             {t.philosophyLink}
             <ArrowUpRight size={15} aria-hidden="true" />
-          </a>
+          </Link>
         </div>
 
         <div className="home-philosophy__gallery">
@@ -1454,9 +1494,9 @@ function PartnerIcon({ type }) {
             <p className="home-kicker">{t.insightsKicker}</p>
             <h2>{t.insightsTitle}</h2>
           </div>
-          <a className="home-insights__link" href="#insights">
+          <Link className="home-insights__link" to="/news">
             {t.insightsLink}
-          </a>
+          </Link>
         </div>
 
         <div className="insight-grid">
@@ -1554,12 +1594,12 @@ function PartnerIcon({ type }) {
             </div>
           </div>
           <div className="home-cta__actions">
-            <a className="home-btn home-btn--secondary" href="#visit">
+            <Link className="home-btn home-btn--secondary" to={buildBookingEntryPath(isPatientLoggedIn)}>
               {t.ctaPrimary}
-            </a>
-            <a className="home-btn home-btn--ghost" href="#doctors">
+            </Link>
+            <Link className="home-btn home-btn--ghost" to="/doctors">
               {t.ctaSecondary}
-            </a>
+            </Link>
           </div>
         </div>
       </section>
@@ -1619,7 +1659,7 @@ function PartnerIcon({ type }) {
         </div>
       </section>
 
-      <a className="home-floating-hotline" href="#visit" aria-label="Emergency hotline">
+      <a className="home-floating-hotline" href="tel:+8419008888" aria-label="Emergency hotline">
         <span aria-hidden="true">
           <PhoneCall size={21} />
         </span>

@@ -152,6 +152,7 @@ export function LoginPage() {
     const searchParams = new URLSearchParams(location.search);
     return searchParams.get('redirect');
   }, [location.search]);
+  const registerPath = redirectTarget ? `/register?redirect=${encodeURIComponent(redirectTarget)}` : '/register';
 
   useEffect(() => {
     const auth = readStoredAuth();
@@ -382,7 +383,7 @@ export function LoginPage() {
           </button>
 
           <p className="patient-login-register">
-            Chưa có tài khoản? <Link to="/register">Đăng ký</Link>
+            Chưa có tài khoản? <Link to={registerPath}>Đăng ký</Link>
           </p>
         </form>
       </section>

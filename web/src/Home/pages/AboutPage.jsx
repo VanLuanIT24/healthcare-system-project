@@ -220,7 +220,9 @@ export function AboutPage() {
               </span>
               VỀ BỘ Y TẾ
             </span>
-            <h1>Chăm sóc sức khỏe chuẩn quốc tế, gần gũi hơn</h1>
+            <h1>
+              Chăm sóc sức khỏe chuẩn quốc tế, <span className="hero-title-emphasis">gần gũi hơn</span>
+            </h1>
             <p>
               Bộ Y tế kết hợp bác sĩ chuyên môn cao, điều phối lịch khám rõ ràng và
               hồ sơ số để mỗi lần thăm khám đều nhanh, chính xác và an tâm.
@@ -259,22 +261,22 @@ export function AboutPage() {
               />
             </div>
             <div className="about-hero__metric-stack" aria-hidden="true">
-              <article className="metric-card">
+              <article className="metric-card float-card">
                 <span className="metric-icon is-blue">
                   <CalendarCheck size={22} strokeWidth={2.4} />
                 </span>
                 <div className="metric-content">
-                  <strong>15'</strong>
-                  <span>Điều phối lịch hẹn<br />trung bình</span>
+                  <strong className="stat-number">15'</strong>
+                  <span className="stat-text">Điều phối lịch hẹn<br />trung bình</span>
                 </div>
               </article>
-              <article className="metric-card">
+              <article className="metric-card float-card float-card-delay">
                 <span className="metric-icon is-green">
                   <Sparkles size={22} strokeWidth={2.4} />
                 </span>
                 <div className="metric-content">
-                  <strong>4.9</strong>
-                  <span>Đánh giá trải nghiệm<br />sau khám</span>
+                  <strong className="stat-number stat-number--gold">4.9</strong>
+                  <span className="stat-text">Đánh giá trải nghiệm<br />sau khám</span>
                 </div>
               </article>
             </div>

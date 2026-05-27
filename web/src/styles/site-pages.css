@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Playfair+Display:ital,wght@0,700;1,500&display=swap');
+
 .site-page-shell {
   padding-bottom: 2rem;
 }
@@ -5436,8 +5438,218 @@
   margin-top: 0.25rem;
 }
 
-.site-page-shell .doctor-profile-card__actions a {
+.site-page-shell .doctor-profile-card__actions a,
+.site-page-shell .doctor-profile-card__profile,
+.site-page-shell .doctor-profile-card__chat {
   min-height: 44px;
+}
+
+.site-page-shell .doctor-profile-card__profile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.15rem;
+  border: 1px solid rgba(21, 91, 176, 0.16);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #0b4da2;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.site-page-shell .doctor-profile-card__profile:hover {
+  border-color: rgba(21, 91, 176, 0.3);
+  background: #f4f9ff;
+}
+
+.site-page-shell .doctor-profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.85rem, 3vw, 2rem);
+  background: rgba(8, 29, 55, 0.44);
+  backdrop-filter: blur(14px);
+}
+
+.site-page-shell .doctor-profile-modal__card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.1fr);
+  width: min(920px, 100%);
+  max-height: min(720px, calc(100vh - 2rem));
+  overflow: hidden;
+  border: 1px solid rgba(191, 222, 249, 0.88);
+  border-radius: 26px;
+  background: linear-gradient(180deg, #ffffff, #f5fbff);
+  box-shadow: 0 34px 90px rgba(5, 32, 72, 0.28);
+}
+
+.site-page-shell .doctor-profile-modal__close {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  z-index: 2;
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(21, 91, 176, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #143a65;
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 14px 28px rgba(21, 91, 176, 0.14);
+}
+
+.site-page-shell .doctor-profile-modal__photo {
+  position: relative;
+  min-height: 100%;
+  background-color: #eaf2fa;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.site-page-shell .doctor-profile-modal__photo::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(180deg, rgba(5, 32, 72, 0), rgba(5, 32, 72, 0.26));
+}
+
+.site-page-shell .doctor-profile-modal__photo span {
+  position: absolute;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 1;
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  background: rgba(232, 248, 237, 0.94);
+  color: #168541;
+  font-size: 0.78rem;
+  font-weight: 950;
+  backdrop-filter: blur(10px);
+}
+
+.site-page-shell .doctor-profile-modal__content {
+  display: grid;
+  gap: 0.8rem;
+  align-content: center;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+}
+
+.site-page-shell .doctor-profile-modal__content small {
+  color: #0d62c7;
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.site-page-shell .doctor-profile-modal__content h3 {
+  margin: 0;
+  color: #102a4d;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  line-height: 1.08;
+}
+
+.site-page-shell .doctor-profile-modal__content p {
+  margin: 0;
+  color: rgba(31, 70, 110, 0.76);
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.site-page-shell .doctor-profile-modal__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.site-page-shell .doctor-profile-modal__facts div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid rgba(184, 218, 247, 0.68);
+  border-radius: 16px;
+  background: rgba(244, 249, 255, 0.82);
+}
+
+.site-page-shell .doctor-profile-modal__facts dt {
+  color: rgba(31, 70, 110, 0.62);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.site-page-shell .doctor-profile-modal__facts dd {
+  margin: 0;
+  color: #0f3768;
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.site-page-shell .doctor-profile-modal__facts div:nth-child(2) dd {
+  color: #d18a00;
+}
+
+.site-page-shell .doctor-profile-modal__note {
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 16px;
+  background: #effcf8;
+  color: #0f766e;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.site-page-shell .doctor-profile-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.site-page-shell .doctor-profile-modal__actions a,
+.site-page-shell .doctor-profile-modal__actions button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.15rem;
+  border-radius: 15px;
+  font: inherit;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.site-page-shell .doctor-profile-modal__actions a {
+  border: 0;
+  background: linear-gradient(135deg, #1d7df2, #0b438d);
+  color: #fff;
+  box-shadow: 0 18px 38px rgba(12, 76, 165, 0.18);
+}
+
+.site-page-shell .doctor-profile-modal__actions button {
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  background: #effcf8;
+  color: #0f766e;
 }
 
 .site-page-shell .doctors-care-flow {
@@ -5570,6 +5782,75 @@
 
   .site-page-shell .doctor-profile-card__photo {
     min-height: 230px;
+  }
+
+  .site-page-shell .doctor-profile-card__actions {
+    gap: 0.55rem;
+  }
+
+  .site-page-shell .doctor-profile-card__actions a,
+  .site-page-shell .doctor-profile-card__profile,
+  .site-page-shell .doctor-profile-card__chat {
+    flex: 1 1 128px;
+    min-width: 0;
+    padding: 0 0.8rem;
+    white-space: nowrap;
+  }
+
+  .site-page-shell .doctor-profile-modal {
+    align-items: end;
+    padding: 0.75rem;
+  }
+
+  .site-page-shell .doctor-profile-modal__card {
+    grid-template-columns: 1fr;
+    max-height: calc(100vh - 1.5rem);
+    overflow-y: auto;
+    border-radius: 22px;
+  }
+
+  .site-page-shell .doctor-profile-modal__photo {
+    min-height: 180px;
+    margin: 0.65rem 0.65rem 0;
+    border-radius: 18px;
+  }
+
+  .site-page-shell .doctor-profile-modal__content {
+    gap: 0.6rem;
+    padding: 0.85rem 1rem 1rem;
+  }
+
+  .site-page-shell .doctor-profile-modal__content h3 {
+    font-size: clamp(1.45rem, 8vw, 1.8rem);
+  }
+
+  .site-page-shell .doctor-profile-modal__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .site-page-shell .doctor-profile-modal__facts div {
+    padding: 0.65rem;
+    border-radius: 14px;
+  }
+
+  .site-page-shell .doctor-profile-modal__facts div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .site-page-shell .doctor-profile-modal__note {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.9rem;
+  }
+
+  .site-page-shell .doctor-profile-modal__actions {
+    gap: 0.55rem;
+  }
+
+  .site-page-shell .doctor-profile-modal__actions a,
+  .site-page-shell .doctor-profile-modal__actions button {
+    min-height: 46px;
+    width: 100%;
   }
 }
 
@@ -5844,6 +6125,115 @@
   color: #0f75d7;
 }
 */
+
+.site-page-shell .home-topbar,
+.site-page-shell .home-header,
+.site-page-shell .home-footer,
+.site-page-shell .home-section,
+.site-page-shell .site-page-hero,
+.site-page-shell .site-page-section,
+.site-page-shell .specialties-hero,
+.site-page-shell .doctors-hero,
+.site-page-shell .faq-search-hero,
+.site-page-shell .contact-hero-banner,
+.site-page-shell .contact-hero-banner--premium {
+  width: min(1320px, calc(100% - 48px)) !important;
+  max-width: 1320px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete,
+.site-page-shell .about-page--premium .about-care-system,
+.site-page-shell .about-page--premium .about-story,
+.site-page-shell .about-page--premium .about-capabilities,
+.site-page-shell .about-page--premium .about-facilities,
+.site-page-shell .contact-main-grid--premium,
+.site-page-shell .contact-map-showcase--premium,
+.site-page-shell .contact-faq-section--premium {
+  width: min(1320px, calc(100% - 48px)) !important;
+  max-width: 1320px !important;
+  justify-self: center;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete,
+.site-page-shell .specialties-hero,
+.site-page-shell .doctors-hero,
+.site-page-shell .faq-search-hero,
+.site-page-shell .contact-hero-banner,
+.site-page-shell .contact-hero-banner--premium {
+  border-left: 1px solid rgba(183, 212, 244, 0.72) !important;
+  border-right: 1px solid rgba(183, 212, 244, 0.72) !important;
+  border-radius: 26px !important;
+  box-shadow: 0 24px 64px rgba(25, 83, 142, 0.12);
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  .site-page-shell .home-topbar,
+  .site-page-shell .home-header,
+  .site-page-shell .home-footer,
+  .site-page-shell .home-section,
+  .site-page-shell .site-page-hero,
+  .site-page-shell .site-page-section,
+  .site-page-shell .specialties-hero,
+  .site-page-shell .doctors-hero,
+  .site-page-shell .faq-search-hero,
+  .site-page-shell .contact-hero-banner,
+  .site-page-shell .contact-hero-banner--premium,
+  .site-page-shell .about-page--premium .about-hero--complete,
+  .site-page-shell .about-page--premium .about-care-system,
+  .site-page-shell .about-page--premium .about-story,
+  .site-page-shell .about-page--premium .about-capabilities,
+  .site-page-shell .about-page--premium .about-facilities,
+  .site-page-shell .contact-main-grid--premium,
+  .site-page-shell .contact-map-showcase--premium,
+  .site-page-shell .contact-faq-section--premium {
+    width: min(calc(100% - 0.75rem), 1320px) !important;
+  }
+}
+
+.site-page-shell .home-topbar,
+.site-page-shell .home-header,
+.site-page-shell .home-footer,
+.site-page-shell .home-section,
+.site-page-shell .site-page-hero,
+.site-page-shell .site-page-section {
+  width: min(1320px, calc(100% - 48px));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.site-page-shell .about-page--premium .about-care-system,
+.site-page-shell .about-page--premium .about-story,
+.site-page-shell .about-page--premium .about-capabilities,
+.site-page-shell .about-page--premium .about-facilities,
+.site-page-shell .contact-hero-banner--premium,
+.site-page-shell .contact-main-grid--premium,
+.site-page-shell .contact-map-showcase--premium,
+.site-page-shell .contact-faq-section--premium {
+  width: min(1320px, calc(100% - 48px));
+  justify-self: center;
+}
+
+@media (max-width: 760px) {
+  .site-page-shell .home-topbar,
+  .site-page-shell .home-header,
+  .site-page-shell .home-footer,
+  .site-page-shell .home-section,
+  .site-page-shell .site-page-hero,
+  .site-page-shell .site-page-section,
+  .site-page-shell .about-page--premium .about-care-system,
+  .site-page-shell .about-page--premium .about-story,
+  .site-page-shell .about-page--premium .about-capabilities,
+  .site-page-shell .about-page--premium .about-facilities,
+  .site-page-shell .contact-hero-banner--premium,
+  .site-page-shell .contact-main-grid--premium,
+  .site-page-shell .contact-map-showcase--premium,
+  .site-page-shell .contact-faq-section--premium {
+    width: min(calc(100% - 0.75rem), 1320px);
+  }
+}
 
 .site-page-shell .about-metric-row {
   gap: 0.85rem;
@@ -9114,6 +9504,66 @@
   z-index: 40;
 }
 
+.site-page-shell .home-topbar,
+.site-page-shell .home-header {
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.site-page-shell .home-topbar {
+  margin-top: 0;
+  border-radius: 0;
+  padding-left: clamp(1rem, 2.2vw, 2.4rem);
+  padding-right: clamp(1rem, 2.2vw, 2.4rem);
+}
+
+.site-page-shell .home-header {
+  top: 0 !important;
+  margin-top: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(198, 216, 235, 0.72);
+  border-radius: 0 !important;
+  box-shadow:
+    0 -42px 0 42px rgba(255, 255, 255, 0.96),
+    0 10px 28px rgba(18, 61, 112, 0.08);
+  padding-left: clamp(1rem, 2.2vw, 2.4rem);
+  padding-right: clamp(1rem, 2.2vw, 2.4rem);
+}
+
+.site-page-shell .home-header,
+.site-page-shell .home-header__actions,
+.site-page-shell .home-header__profile-menu {
+  overflow: visible;
+}
+
+.site-page-shell .home-header__profile-menu {
+  z-index: 80;
+}
+
+.site-page-shell .home-header__profile-dropdown {
+  z-index: 9999;
+}
+
+.site-page-shell :where(
+  .specialties-hero,
+  .doctors-hero,
+  .site-page-hero:has(.news-hero-visual),
+  .faq-search-hero,
+  .contact-hero-banner,
+  .contact-hero-banner--premium
+) {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none;
+}
+
 /* Obsolete visual refresh block commented out to prevent overriding correct design layout:
 .site-page-shell .about-page--premium .about-hero--complete {
   min-height: 720px;
@@ -9418,4 +9868,1314 @@
     width: 100%;
   }
 }
+
+.site-page-shell .home-topbar,
+.site-page-shell .home-header,
+.site-page-shell .home-footer,
+.site-page-shell .about-page--premium .home-section,
+.site-page-shell .about-page--premium .about-care-system,
+.site-page-shell .about-page--premium .about-story,
+.site-page-shell .about-page--premium .about-capabilities,
+.site-page-shell .about-page--premium .about-facilities {
+  width: min(1320px, calc(100% - 48px));
+  justify-self: center;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete {
+  width: min(1320px, calc(100% - 48px));
+  max-width: 1320px;
+}
+
+@media (max-width: 760px) {
+  .site-page-shell .home-topbar,
+  .site-page-shell .home-header,
+  .site-page-shell .home-footer,
+  .site-page-shell .about-page--premium .home-section,
+  .site-page-shell .about-page--premium .about-care-system,
+  .site-page-shell .about-page--premium .about-story,
+  .site-page-shell .about-page--premium .about-capabilities,
+  .site-page-shell .about-page--premium .about-facilities,
+  .site-page-shell .about-page--premium .about-hero--complete {
+    width: min(calc(100% - 0.75rem), 1320px);
+  }
+}
 */
+
+.site-page-shell .home-topbar,
+.site-page-shell .home-header,
+.site-page-shell .home-footer,
+.site-page-shell .home-section,
+.site-page-shell .site-page-hero,
+.site-page-shell .site-page-section,
+.site-page-shell .specialties-hero,
+.site-page-shell .doctors-hero,
+.site-page-shell .faq-search-hero,
+.site-page-shell .contact-hero-banner,
+.site-page-shell .contact-hero-banner--premium {
+  width: min(1320px, calc(100% - 48px)) !important;
+  max-width: 1320px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete {
+  display: grid !important;
+  grid-template-columns: minmax(0, 0.78fr) minmax(360px, 0.92fr) !important;
+  align-items: center;
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  width: min(1320px, calc(100% - 48px)) !important;
+  max-width: 1320px !important;
+  min-height: 560px;
+  margin: 0 auto !important;
+  padding: clamp(2rem, 3.4vw, 3.6rem);
+  border: 1px solid rgba(183, 212, 244, 0.72) !important;
+  border-radius: 26px !important;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 250, 255, 0.86) 46%, rgba(235, 247, 255, 0.9) 100%),
+    linear-gradient(180deg, #f8fcff, #e8f5ff);
+  box-shadow: 0 24px 64px rgba(25, 83, 142, 0.12);
+}
+
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__backdrop {
+  display: none !important;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__content {
+  position: relative;
+  z-index: 2;
+  max-width: 620px;
+  grid-column: 1;
+  justify-self: start;
+}
+
+.site-page-shell .about-page--premium .about-hero__visual--complete {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 1;
+  grid-column: 2;
+  display: block !important;
+  min-height: 430px !important;
+  height: 100%;
+  pointer-events: auto !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__visual--complete .about-hero__image {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  height: 100% !important;
+  min-height: 430px !important;
+  opacity: 1 !important;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(198, 218, 238, 0.82);
+  background: #eef7ff;
+  box-shadow: 0 22px 54px rgba(31, 75, 132, 0.16);
+}
+
+.site-page-shell .about-page--premium .about-hero__visual--complete .about-hero__image img {
+  display: block !important;
+  width: 100%;
+  height: 100% !important;
+  max-height: none !important;
+  object-fit: cover !important;
+  object-position: center;
+  opacity: 1 !important;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__metric-stack {
+  left: 1rem !important;
+  right: auto !important;
+  top: 1rem !important;
+  width: min(250px, calc(100% - 2rem));
+  z-index: 3;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__glass-note {
+  right: 1rem !important;
+  bottom: 1rem !important;
+  width: min(390px, calc(100% - 2rem));
+  z-index: 3;
+}
+
+.site-page-shell .about-page--premium .about-care-system,
+.site-page-shell .about-page--premium .about-story,
+.site-page-shell .about-page--premium .about-capabilities,
+.site-page-shell .about-page--premium .about-facilities,
+.site-page-shell .contact-main-grid--premium,
+.site-page-shell .contact-map-showcase--premium,
+.site-page-shell .contact-faq-section--premium {
+  width: min(1320px, calc(100% - 48px)) !important;
+  max-width: 1320px !important;
+  justify-self: center;
+}
+
+@media (max-width: 900px) {
+  .site-page-shell .about-page--premium .about-hero--complete {
+    grid-template-columns: 1fr !important;
+    min-height: auto;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__visual--complete {
+    min-height: 340px !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__visual--complete .about-hero__image {
+    position: relative !important;
+    min-height: 340px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-page-shell .home-topbar,
+  .site-page-shell .home-header,
+  .site-page-shell .home-footer,
+  .site-page-shell .home-section,
+  .site-page-shell .site-page-hero,
+  .site-page-shell .site-page-section,
+  .site-page-shell .specialties-hero,
+  .site-page-shell .doctors-hero,
+  .site-page-shell .faq-search-hero,
+  .site-page-shell .contact-hero-banner,
+  .site-page-shell .contact-hero-banner--premium,
+  .site-page-shell .about-page--premium .about-hero--complete,
+  .site-page-shell .about-page--premium .about-care-system,
+  .site-page-shell .about-page--premium .about-story,
+  .site-page-shell .about-page--premium .about-capabilities,
+  .site-page-shell .about-page--premium .about-facilities,
+  .site-page-shell .contact-main-grid--premium,
+  .site-page-shell .contact-map-showcase--premium,
+  .site-page-shell .contact-faq-section--premium {
+    width: min(calc(100% - 0.75rem), 1320px) !important;
+  }
+}
+
+/* Final public-page header lock: same geometry as the Home header. */
+.site-page-shell .home-topbar,
+.site-page-shell .home-header {
+  width: min(1880px, calc(100% - 32px)) !important;
+  max-width: 1880px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+}
+
+.site-page-shell .home-topbar {
+  margin-top: 0 !important;
+  border-radius: 0 !important;
+}
+
+.site-page-shell .home-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 140 !important;
+  margin-top: 0 !important;
+  border: 1px solid rgba(198, 216, 235, 0.74) !important;
+  border-top: 0 !important;
+  border-radius: 0 0 18px 18px !important;
+  box-shadow: 0 16px 38px rgba(29, 72, 126, 0.12) !important;
+}
+
+@media (max-width: 760px) {
+  .site-page-shell .home-topbar,
+  .site-page-shell .home-header {
+    width: min(calc(100% - 0.75rem), 1880px) !important;
+  }
+}
+
+/* Public pages use the same wide canvas as the Home page. */
+.site-page-shell .home-footer,
+.site-page-shell .home-section,
+.site-page-shell .site-page-hero,
+.site-page-shell .site-page-section,
+.site-page-shell .specialties-hero,
+.site-page-shell .doctors-hero,
+.site-page-shell .faq-search-hero,
+.site-page-shell .contact-hero-banner,
+.site-page-shell .contact-hero-banner--premium,
+.site-page-shell .about-page--premium .home-section,
+.site-page-shell .about-page--premium .about-hero--complete,
+.site-page-shell .about-page--premium .about-care-system,
+.site-page-shell .about-page--premium .about-story,
+.site-page-shell .about-page--premium .about-capabilities,
+.site-page-shell .about-page--premium .about-facilities,
+.site-page-shell .contact-main-grid--premium,
+.site-page-shell .contact-map-showcase--premium,
+.site-page-shell .contact-faq-section--premium {
+  width: min(1880px, calc(100% - 32px)) !important;
+  max-width: 1880px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 760px) {
+  .site-page-shell .home-footer,
+  .site-page-shell .home-section,
+  .site-page-shell .site-page-hero,
+  .site-page-shell .site-page-section,
+  .site-page-shell .specialties-hero,
+  .site-page-shell .doctors-hero,
+  .site-page-shell .faq-search-hero,
+  .site-page-shell .contact-hero-banner,
+  .site-page-shell .contact-hero-banner--premium,
+  .site-page-shell .about-page--premium .home-section,
+  .site-page-shell .about-page--premium .about-hero--complete,
+  .site-page-shell .about-page--premium .about-care-system,
+  .site-page-shell .about-page--premium .about-story,
+  .site-page-shell .about-page--premium .about-capabilities,
+  .site-page-shell .about-page--premium .about-facilities,
+  .site-page-shell .contact-main-grid--premium,
+  .site-page-shell .contact-map-showcase--premium,
+  .site-page-shell .contact-faq-section--premium {
+    width: min(calc(100% - 0.75rem), 1880px) !important;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.float-card {
+  animation: float 4s ease-in-out infinite;
+}
+
+.float-card-delay {
+  animation: float 5s ease-in-out infinite 0.5s;
+}
+
+.site-page-shell .about-page--premium .about-hero__visual--complete {
+  overflow: visible !important;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__metric-stack {
+  position: absolute !important;
+  left: -1.5rem !important;
+  right: auto !important;
+  top: clamp(2rem, 8vw, 4.5rem) !important;
+  z-index: 5 !important;
+  display: grid !important;
+  width: 220px !important;
+  gap: 0.75rem !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__metric-stack .metric-card {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 220px !important;
+  min-height: auto !important;
+  gap: 0.75rem !important;
+  padding: 14px 18px !important;
+  border: 1px solid rgba(202, 222, 244, 0.66) !important;
+  border-left: 1px solid rgba(202, 222, 244, 0.66) !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.48)) !important;
+  box-shadow: 0 12px 28px rgba(18, 67, 123, 0.12) !important;
+  backdrop-filter: blur(16px) saturate(1.18) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.18) !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__metric-stack .metric-card::before {
+  content: none !important;
+  display: none !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__metric-stack .metric-icon {
+  display: inline-grid !important;
+  flex: 0 0 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+  place-items: center !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__metric-stack .metric-icon svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__metric-stack .metric-content {
+  display: grid !important;
+  min-width: 0 !important;
+  gap: 0.2rem !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__metric-stack strong,
+.site-page-shell .about-page--premium .about-hero__metric-stack .stat-number {
+  font-family: 'Manrope', sans-serif !important;
+  font-weight: 700 !important;
+  color: #0a4798 !important;
+  font-size: 28px !important;
+  line-height: 0.95 !important;
+  letter-spacing: 0 !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__metric-stack .stat-number--gold {
+  color: #E6A800 !important;
+}
+
+.site-page-shell .about-page--premium .about-hero__metric-stack span,
+.site-page-shell .about-page--premium .about-hero__metric-stack .stat-text {
+  font-family: 'Be Vietnam Pro', sans-serif !important;
+  font-weight: 500 !important;
+  color: rgba(38, 70, 106, 0.82) !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
+@media (max-width: 1180px) {
+  .site-page-shell .about-page--premium .about-hero--complete .about-hero__metric-stack {
+    left: 1rem !important;
+    top: 1rem !important;
+    width: 220px !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .site-page-shell .about-page--premium .about-hero--complete .about-hero__metric-stack {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
+    margin-top: 0.85rem !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__metric-stack .metric-card {
+    width: auto !important;
+    min-height: 92px !important;
+    padding: 0.85rem !important;
+    border-radius: 18px !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__metric-stack .metric-icon {
+    flex-basis: 22px !important;
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__metric-stack strong {
+    font-size: 24px !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__metric-stack span {
+    font-size: 10px !important;
+  }
+}
+
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__content h1 {
+  max-width: 13.5ch !important;
+  color: #0B3A75 !important;
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif !important;
+  font-size: 64px !important;
+  font-weight: 700 !important;
+  line-height: 1.06 !important;
+  letter-spacing: -0.032em !important;
+  text-shadow: 0 10px 24px rgba(11, 58, 117, 0.12) !important;
+}
+
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__content h1 .hero-title-emphasis {
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif !important;
+  font-style: italic !important;
+  font-weight: 500 !important;
+  color: #E6A800 !important;
+}
+
+@media (max-width: 900px) {
+  .site-page-shell .about-page--premium .about-hero--complete .about-hero__content h1 {
+    font-size: clamp(2.8rem, 8.5vw, 4rem) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .site-page-shell .about-page--premium .about-hero--complete .about-hero__content h1 {
+    font-size: clamp(2.25rem, 11vw, 3rem) !important;
+    line-height: 1 !important;
+  }
+}
+
+/* Public marketing typography sync */
+.home-shell {
+  --marketing-ui-font: 'Be Vietnam Pro', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --marketing-number-font: 'Manrope', 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+  --marketing-display-font: 'Playfair Display', Georgia, 'Times New Roman', serif;
+}
+
+.home-shell .home-hero h1,
+.site-page-shell .site-page-hero__copy h1,
+.site-page-shell .specialties-page .specialties-hero h1,
+.site-page-shell .doctors-hero__content h1,
+.site-page-shell .faq-search-hero__content h2,
+.site-page-shell .contact-hero-banner__copy h1,
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__content h1 {
+  color: #0B3A75 !important;
+  font-family: var(--marketing-display-font) !important;
+  font-size: clamp(3rem, 4.8vw, 64px) !important;
+  font-weight: 700 !important;
+  line-height: 1.06 !important;
+  letter-spacing: -0.032em !important;
+  text-shadow: 0 10px 24px rgba(11, 58, 117, 0.12) !important;
+}
+
+.site-page-shell .faq-search-hero__content h2 {
+  max-width: none !important;
+  font-size: clamp(2.75rem, 3.45vw, 52px) !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.022em !important;
+  white-space: nowrap !important;
+}
+
+.site-page-shell .site-page-hero__copy h1 em,
+.site-page-shell .site-page-hero__copy h1 span,
+.site-page-shell .about-page--premium .about-hero--complete .about-hero__content h1 .hero-title-emphasis {
+  font-family: var(--marketing-display-font) !important;
+  font-style: italic !important;
+  font-weight: 500 !important;
+  color: #E6A800 !important;
+}
+
+.home-shell .home-hero__proofs strong,
+.home-shell .home-hero__care-grid strong,
+.site-page-shell .site-stat-card strong,
+.site-page-shell .about-metric-row strong,
+.site-page-shell .about-stats-band strong,
+.site-page-shell .about-hero__metric-stack strong,
+.site-page-shell .about-hero__metric-stack .stat-number,
+.site-page-shell .specialties-hero__card strong,
+.site-page-shell .specialties-trust strong,
+.site-page-shell .doctors-hero__panel strong,
+.site-page-shell .faq-hero-stats strong,
+.site-page-shell .faq-category-card__metric,
+.site-page-shell .contact-hero-stats strong,
+.site-page-shell .news-feature-metrics strong {
+  font-family: var(--marketing-number-font) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+
+.home-shell .home-kicker,
+.home-shell .home-btn,
+.home-shell .home-hero__proofs span,
+.home-shell .home-hero__care-grid span,
+.site-page-shell .home-kicker,
+.site-page-shell .about-hero__badge,
+.site-page-shell .about-hero__cta,
+.site-page-shell .about-hero__ghost,
+.site-page-shell .about-metric-row span,
+.site-page-shell .about-stats-band span,
+.site-page-shell .about-hero__metric-stack span,
+.site-page-shell .about-hero__metric-stack .stat-text,
+.site-page-shell .specialties-hero__copy > span,
+.site-page-shell .specialties-hero__actions a,
+.site-page-shell .specialties-hero__card span,
+.site-page-shell .specialties-card__stats small,
+.site-page-shell .doctors-hero__content > span,
+.site-page-shell .doctors-hero__actions a,
+.site-page-shell .doctors-hero__panel span,
+.site-page-shell .faq-search-hero__badge,
+.site-page-shell .faq-hero-stats small,
+.site-page-shell .faq-category-card__metric,
+.site-page-shell .contact-hero-banner__badge,
+.site-page-shell .contact-hero-banner__actions :is(a, button),
+.site-page-shell .contact-hero-stats span,
+.site-page-shell .news-feature-metrics article > span:not(.news-feature-metrics__icon),
+.site-page-shell .news-hero-visual__status span {
+  font-family: var(--marketing-ui-font) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 900px) {
+  .home-shell .home-hero h1,
+  .site-page-shell .site-page-hero__copy h1,
+  .site-page-shell .specialties-page .specialties-hero h1,
+  .site-page-shell .doctors-hero__content h1,
+  .site-page-shell .faq-search-hero__content h2,
+  .site-page-shell .contact-hero-banner__copy h1,
+  .site-page-shell .about-page--premium .about-hero--complete .about-hero__content h1 {
+    font-size: clamp(2.65rem, 8vw, 4rem) !important;
+  }
+
+  .site-page-shell .faq-search-hero__content h2 {
+    max-width: 18ch !important;
+    white-space: normal !important;
+    text-wrap: balance;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-shell .home-hero h1,
+  .site-page-shell .site-page-hero__copy h1,
+  .site-page-shell .specialties-page .specialties-hero h1,
+  .site-page-shell .doctors-hero__content h1,
+  .site-page-shell .faq-search-hero__content h2,
+  .site-page-shell .contact-hero-banner__copy h1,
+  .site-page-shell .about-page--premium .about-hero--complete .about-hero__content h1 {
+    font-size: clamp(2.25rem, 10.5vw, 3rem) !important;
+    line-height: 1.08 !important;
+  }
+
+  .site-page-shell .faq-search-hero__content h2 {
+    max-width: none !important;
+    white-space: normal !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .site-page-shell .home-header__actions:has(.home-header__profile-menu) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center !important;
+    gap: 0.55rem;
+    width: 100%;
+  }
+
+  .site-page-shell .home-header__actions:has(.home-header__profile-menu) .home-header__welcome {
+    grid-column: 1 / -1;
+    font-size: 0.88rem;
+    line-height: 1.3;
+  }
+
+  .site-page-shell .home-header__profile-menu {
+    min-width: 0;
+  }
+
+  .site-page-shell .home-header__profile-trigger {
+    width: 100%;
+    min-width: 0;
+    min-height: 50px;
+    gap: 0.6rem;
+    padding: 0.38rem 0.68rem 0.38rem 0.45rem;
+    border-radius: 16px;
+  }
+
+  .site-page-shell .home-header__profile-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 0.8rem;
+  }
+
+  .site-page-shell .home-header__profile-copy strong {
+    max-width: 108px;
+    font-size: 0.9rem;
+  }
+
+  .site-page-shell .home-header__profile-copy small {
+    margin-top: 0.18rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+  }
+
+  .site-page-shell .home-header__actions:has(.home-header__profile-menu) .home-header__button {
+    width: auto;
+    min-width: 128px;
+    min-height: 50px;
+    height: 50px;
+    padding: 0 0.82rem;
+    border-radius: 16px;
+    font-size: 0.9rem;
+    box-shadow:
+      0 12px 24px rgba(19, 95, 204, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .site-page-shell .home-header__profile-dropdown {
+    left: 0;
+    right: auto;
+    width: min(260px, calc(100vw - 2rem));
+  }
+}
+
+@media (max-width: 360px) {
+  .site-page-shell .home-header__actions:has(.home-header__profile-menu) {
+    gap: 0.45rem;
+  }
+
+  .site-page-shell .home-header__profile-trigger {
+    min-height: 46px;
+  }
+
+  .site-page-shell .home-header__profile-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .site-page-shell .home-header__profile-copy strong {
+    max-width: 92px;
+  }
+
+  .site-page-shell .home-header__actions:has(.home-header__profile-menu) .home-header__button {
+    min-width: 116px;
+    min-height: 46px;
+    height: 46px;
+    padding: 0 0.65rem;
+    font-size: 0.82rem;
+  }
+}
+
+/* Specialties hero: keep the photo as a soft background and a compact focal image between the stat cards. */
+.site-page-shell .specialties-page .specialties-hero {
+  position: relative !important;
+  isolation: isolate;
+  grid-template-columns: minmax(0, 720px) minmax(300px, 0.72fr) !important;
+  min-height: clamp(520px, 58vh, 640px) !important;
+  padding: clamp(2.4rem, 4.5vw, 4rem) !important;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.97) 0%, rgba(255, 255, 255, 0.9) 42%, rgba(255, 255, 255, 0.54) 70%, rgba(255, 255, 255, 0.24) 100%),
+    radial-gradient(circle at 14% 18%, rgba(29, 125, 242, 0.12), transparent 22rem),
+    radial-gradient(circle at 88% 16%, rgba(24, 185, 213, 0.16), transparent 24rem),
+    url('/images/specialties/specialties-hero-background.jpg') center 42% / cover no-repeat,
+    linear-gradient(120deg, #ffffff 0%, #f2f8ff 54%, #e8f9ff 100%) !important;
+}
+
+.site-page-shell .specialties-page .specialties-hero::before {
+  z-index: 0 !important;
+  background:
+    repeating-linear-gradient(90deg, rgba(18, 92, 175, 0.05) 0 1px, transparent 1px 104px),
+    repeating-linear-gradient(0deg, rgba(18, 92, 175, 0.035) 0 1px, transparent 1px 96px) !important;
+  opacity: 0.24;
+  pointer-events: none;
+}
+
+.site-page-shell .specialties-page .specialties-hero__copy {
+  position: relative;
+  z-index: 2;
+  max-width: 720px !important;
+}
+
+.site-page-shell .specialties-page .specialties-hero__visual {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 2;
+  display: grid !important;
+  min-height: 0 !important;
+  align-content: center;
+  justify-items: center;
+  gap: 0.85rem;
+  pointer-events: auto;
+}
+
+.site-page-shell .specialties-page .specialties-hero__image {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 1;
+  order: 2;
+  display: block !important;
+  width: min(320px, 100%) !important;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(10, 65, 130, 0.08)),
+    url('/images/specialties/specialties-hero-background.jpg') center / cover no-repeat !important;
+  box-shadow: 0 22px 54px rgba(20, 74, 135, 0.16);
+}
+
+.site-page-shell .specialties-page .specialties-hero__card {
+  position: relative !important;
+  inset: auto !important;
+  width: min(340px, 100%) !important;
+  border-color: rgba(255, 255, 255, 0.78) !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  box-shadow: 0 22px 54px rgba(20, 74, 135, 0.18) !important;
+  backdrop-filter: blur(18px) saturate(1.14);
+  -webkit-backdrop-filter: blur(18px) saturate(1.14);
+}
+
+.site-page-shell .specialties-page .specialties-hero__card span {
+  font-style: italic !important;
+}
+
+.site-page-shell .specialties-page .specialties-hero__card--top {
+  order: 1;
+}
+
+.site-page-shell .specialties-page .specialties-hero__card--bottom {
+  order: 3;
+}
+
+@media (max-width: 1100px) {
+  .site-page-shell .specialties-page .specialties-hero {
+    grid-template-columns: 1fr !important;
+    min-height: auto !important;
+  }
+
+  .site-page-shell .specialties-page .specialties-hero__visual {
+    position: relative !important;
+    inset: auto !important;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-top: 1.4rem;
+    pointer-events: auto;
+  }
+
+  .site-page-shell .specialties-page .specialties-hero__card {
+    position: static !important;
+    width: auto !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-page-shell .specialties-page .specialties-hero {
+    padding: 1.65rem 1rem !important;
+  }
+
+  .site-page-shell .specialties-page .specialties-hero__visual {
+    grid-template-columns: 1fr;
+  }
+
+  .site-page-shell .specialties-page .specialties-hero__image,
+  .site-page-shell .specialties-page .specialties-hero__card {
+    width: 100% !important;
+  }
+}
+
+/* Public page section typography: keep lower content calm, readable, and less bulky than hero copy. */
+.site-page-shell :is(
+  .site-page-section h2,
+  .specialties-section-heading h2,
+  .specialties-pathway h2,
+  .specialties-cta h2,
+  .doctors-directory__header h2,
+  .doctors-care-flow h2,
+  .doctors-cta h2,
+  .contact-message-card h2,
+  .contact-info-card h2,
+  .contact-map-showcase__heading h2,
+  .contact-faq-section__heading h2
+),
+.site-page-shell .about-page--premium :is(
+  .about-care-system__heading h2,
+  .about-story__content h2,
+  .about-capabilities .about-section-heading h2,
+  .about-facilities__content h2,
+  .about-section-heading h2,
+  .about-team__header h2,
+  .about-cta__panel h2
+) {
+  color: #0d2748 !important;
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(1.55rem, 2vw, 2.15rem) !important;
+  font-weight: 800 !important;
+  line-height: 1.22 !important;
+  letter-spacing: 0 !important;
+  text-wrap: balance;
+}
+
+.site-page-shell .about-page--premium .about-care-system__heading h2 {
+  max-width: 30ch !important;
+}
+
+.site-page-shell .about-page--premium :is(
+  .about-insight-card h2,
+  .about-care-system__board h3,
+  .about-capability-card h3,
+  .about-value-card h3,
+  .about-doctor-card h3,
+  .about-timeline__content h3
+),
+.site-page-shell :is(
+  .specialties-card h3,
+  .doctors-card h3,
+  .site-feature-card h3,
+  .news-card h3
+) {
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(1.02rem, 1.1vw, 1.22rem) !important;
+  font-weight: 800 !important;
+  line-height: 1.32 !important;
+  letter-spacing: 0 !important;
+}
+
+.site-page-shell .about-page--premium :is(
+  .about-care-system__heading p,
+  .about-care-system__board p,
+  .about-story__content p,
+  .about-facilities__content p,
+  .about-section-heading p,
+  .about-team__header p,
+  .about-capability-card p,
+  .about-value-card p,
+  .about-timeline__content p
+) {
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(0.92rem, 0.95vw, 1rem) !important;
+  font-weight: 500 !important;
+  line-height: 1.72 !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 700px) {
+  .site-page-shell :is(
+    .site-page-section h2,
+    .specialties-section-heading h2,
+    .specialties-pathway h2,
+    .specialties-cta h2,
+    .doctors-directory__header h2,
+    .doctors-care-flow h2,
+    .doctors-cta h2,
+    .contact-message-card h2,
+    .contact-info-card h2,
+    .contact-map-showcase__heading h2,
+    .contact-faq-section__heading h2
+  ),
+  .site-page-shell .about-page--premium :is(
+    .about-care-system__heading h2,
+    .about-story__content h2,
+    .about-capabilities .about-section-heading h2,
+    .about-facilities__content h2,
+    .about-section-heading h2,
+    .about-team__header h2,
+    .about-cta__panel h2
+  ) {
+    font-size: clamp(1.42rem, 7vw, 1.9rem) !important;
+    line-height: 1.24 !important;
+  }
+}
+
+.site-page-shell .specialties-page .specialties-pathway h2,
+.site-page-shell .specialties-page .specialties-cta h2 {
+  max-width: 100% !important;
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(1.34rem, 1.55vw, 1.76rem) !important;
+  line-height: 1.28 !important;
+  letter-spacing: 0 !important;
+  text-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.site-page-shell .specialties-page .specialties-pathway > div:first-child,
+.site-page-shell .specialties-page .specialties-cta > div:first-child {
+  max-width: 980px !important;
+}
+
+.site-page-shell .specialties-page .specialties-pathway p,
+.site-page-shell .specialties-page .specialties-cta p {
+  max-width: 76ch !important;
+  font-size: clamp(0.94rem, 1.05vw, 1.04rem) !important;
+  line-height: 1.72 !important;
+}
+
+.site-page-shell .specialties-page .specialties-cta h2,
+.site-page-shell .specialties-page .specialties-cta span,
+.site-page-shell .specialties-page .specialties-cta p {
+  color: #ffffff !important;
+}
+
+.site-page-shell .specialties-page .specialties-cta span {
+  opacity: 0.9;
+}
+
+.site-page-shell .specialties-page .specialties-cta h2 {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 900px) {
+  .site-page-shell .specialties-page .specialties-pathway,
+  .site-page-shell .specialties-page .specialties-cta {
+    padding: clamp(1.35rem, 4vw, 2rem) !important;
+  }
+
+  .site-page-shell .specialties-page .specialties-pathway h2,
+  .site-page-shell .specialties-page .specialties-cta h2 {
+    max-width: 100% !important;
+    font-size: clamp(1.22rem, 3.7vw, 1.56rem) !important;
+    line-height: 1.3 !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .site-page-shell .specialties-page .specialties-pathway h2,
+  .site-page-shell .specialties-page .specialties-cta h2 {
+    text-wrap: balance;
+    white-space: normal;
+  }
+}
+
+.site-page-shell .doctors-page .doctors-care-flow {
+  grid-template-columns: 1fr !important;
+  gap: 1.05rem !important;
+}
+
+.site-page-shell .doctors-page .doctors-care-flow > div:first-child,
+.site-page-shell .doctors-page .doctors-cta > div:first-child {
+  max-width: 980px !important;
+}
+
+.site-page-shell .doctors-page .doctors-directory__header h2,
+.site-page-shell .doctors-page .doctors-care-flow h2,
+.site-page-shell .doctors-page .doctors-cta h2 {
+  max-width: 100% !important;
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(1.3rem, 1.5vw, 1.72rem) !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0 !important;
+  text-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.site-page-shell .doctors-page .doctors-cta h2,
+.site-page-shell .doctors-page .doctors-cta span {
+  color: #ffffff !important;
+}
+
+.site-page-shell .doctors-page .doctors-cta h2 {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+
+.site-page-shell .doctors-page .doctors-care-flow__steps {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 900px) {
+  .site-page-shell .doctors-page .doctors-care-flow,
+  .site-page-shell .doctors-page .doctors-cta {
+    padding: clamp(1.35rem, 4vw, 2rem) !important;
+  }
+
+  .site-page-shell .doctors-page .doctors-directory__header h2,
+  .site-page-shell .doctors-page .doctors-care-flow h2,
+  .site-page-shell .doctors-page .doctors-cta h2 {
+    font-size: clamp(1.18rem, 3.6vw, 1.52rem) !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .site-page-shell .doctors-page .doctors-directory__header h2,
+  .site-page-shell .doctors-page .doctors-care-flow h2,
+  .site-page-shell .doctors-page .doctors-cta h2 {
+    text-wrap: balance;
+    white-space: normal;
+  }
+
+  .site-page-shell .doctors-page .doctors-care-flow__steps {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* News page typography polish: keep editorial sections compact and easier to scan. */
+.site-page-shell .news-page-section .news-editorial-strip {
+  grid-template-columns: 1fr !important;
+  gap: 0.9rem !important;
+  padding: clamp(1rem, 1.8vw, 1.35rem) !important;
+}
+
+.site-page-shell .news-page-section .news-editorial-strip__lead {
+  max-width: 100% !important;
+  align-content: start !important;
+  gap: 0.45rem !important;
+}
+
+.site-page-shell .news-page-section .news-editorial-strip__lead > span,
+.site-page-shell .news-page-section .news-topics-card__kicker,
+.site-page-shell .news-page-section .news-archive__meta,
+.site-page-shell .news-page-section .news-article-card__meta,
+.site-page-shell .news-page-section .news-article-card__actions > span {
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  letter-spacing: 0 !important;
+}
+
+.site-page-shell .news-page-section .news-editorial-strip__lead > span,
+.site-page-shell .news-page-section .news-topics-card__kicker {
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+}
+
+.site-page-shell .news-page-section .news-editorial-strip__lead h2,
+.site-page-shell .news-page-section .news-page__heading h2 {
+  max-width: 100% !important;
+  color: #102a4d !important;
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(1.28rem, 1.5vw, 1.68rem) !important;
+  font-weight: 800 !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0 !important;
+  text-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.site-page-shell .news-page-section .news-editorial-strip__items {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.8rem !important;
+}
+
+.site-page-shell .news-page-section .news-editorial-strip__items a {
+  min-height: 128px !important;
+  align-content: start !important;
+  gap: 0.38rem !important;
+  padding: 0.95rem !important;
+}
+
+.site-page-shell .news-page-section .news-editorial-strip__items small {
+  font-size: 1.12rem !important;
+  font-weight: 850 !important;
+}
+
+.site-page-shell .news-page-section .news-editorial-strip__items strong,
+.site-page-shell .news-page-section .news-article-card h3,
+.site-page-shell .news-page-section .news-brief-list strong,
+.site-page-shell .news-page-section .news-signup-card h3,
+.site-page-shell .news-page-section .news-topic-tags strong {
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(0.96rem, 0.98vw, 1.08rem) !important;
+  font-weight: 800 !important;
+  line-height: 1.36 !important;
+  letter-spacing: 0 !important;
+}
+
+.site-page-shell .news-page-section .news-page__subhead,
+.site-page-shell .news-page-section .news-editorial-strip__items span,
+.site-page-shell .news-page-section .news-article-card p,
+.site-page-shell .news-page-section .news-brief-list p,
+.site-page-shell .news-page-section .news-signup-card p,
+.site-page-shell .news-page-section .news-topic-tags small {
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(0.84rem, 0.9vw, 0.96rem) !important;
+  font-weight: 500 !important;
+  line-height: 1.65 !important;
+  letter-spacing: 0 !important;
+}
+
+.site-page-shell .news-page-section .news-article-card__meta,
+.site-page-shell .news-page-section .news-article-card__actions > span {
+  font-size: 0.76rem !important;
+  font-weight: 650 !important;
+}
+
+@media (max-width: 900px) {
+  .site-page-shell .news-page-section .news-editorial-strip__items {
+    grid-template-columns: 1fr !important;
+  }
+
+  .site-page-shell .news-page-section .news-editorial-strip__lead h2,
+  .site-page-shell .news-page-section .news-page__heading h2 {
+    font-size: clamp(1.18rem, 3.5vw, 1.48rem) !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .site-page-shell .news-page-section .news-editorial-strip__lead h2,
+  .site-page-shell .news-page-section .news-page__heading h2 {
+    text-wrap: balance;
+    white-space: normal;
+  }
+}
+
+/* FAQ priority cards: avoid forced title wrapping from the old 10ch limit. */
+.site-page-shell .faq-page .faq-priority-card {
+  min-height: 240px !important;
+  gap: 0.82rem !important;
+  padding: clamp(1.18rem, 2vw, 1.55rem) !important;
+}
+
+.site-page-shell .faq-page .faq-priority-card h3 {
+  max-width: 100% !important;
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(1.38rem, 1.9vw, 1.78rem) !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+  text-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.site-page-shell .faq-page .faq-priority-card p {
+  max-width: 58ch !important;
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  font-size: clamp(0.94rem, 0.95vw, 1rem) !important;
+  font-weight: 500 !important;
+  line-height: 1.72 !important;
+  letter-spacing: 0 !important;
+}
+
+.site-page-shell .faq-page .faq-priority-card__badge,
+.site-page-shell .faq-page .faq-priority-card button,
+.site-page-shell .faq-page .faq-priority-card__action {
+  font-family: var(--marketing-ui-font, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif) !important;
+  letter-spacing: 0 !important;
+}
+
+.site-page-shell .faq-page .faq-priority-card__action {
+  display: inline-flex !important;
+  width: fit-content;
+  min-height: 40px;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.site-page-shell .faq-page .faq-priority-card--dark .faq-priority-card__action {
+  color: #81f0df;
+}
+
+.site-page-shell .faq-page .faq-priority-card--light .faq-priority-card__action {
+  color: #0d63bd;
+}
+
+.site-page-shell .faq-page .faq-support-cta__channel {
+  text-decoration: none;
+}
+
+.site-page-shell .contact-hero-banner__actions a.contact-hero-banner__call {
+  border: 0;
+  background: #fff;
+  color: #0d5aa8;
+  box-shadow: 0 18px 30px rgba(11, 73, 136, 0.22);
+}
+
+.site-page-shell .contact-emergency-card__call {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 50px;
+  align-items: center;
+  gap: 0.44rem;
+  padding: 0 1rem;
+  border-radius: 16px;
+  background: #fff;
+  color: #0d5aa8;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-page-shell .contact-pathway-grid button.is-active {
+  border-color: rgba(13, 99, 189, 0.45);
+  background: linear-gradient(180deg, #ffffff, #eef7ff);
+  box-shadow: 0 16px 30px rgba(24, 96, 168, 0.14);
+}
+
+@media (max-width: 520px) {
+  .site-page-shell .faq-page .faq-priority-card h3 {
+    font-size: clamp(1.22rem, 6vw, 1.42rem) !important;
+  }
+}
+
+/* Mobile page polish: avoid clipped hero titles and keep dense modules tidy on phones. */
+.site-page-shell .contact-hero-banner--premium .contact-hero-banner__copy h1 {
+  color: #ffffff !important;
+}
+
+.site-page-shell .contact-hero-banner--premium .contact-hero-banner__copy p {
+  color: rgba(236, 247, 255, 0.9) !important;
+}
+
+@media (max-width: 640px) {
+  .site-page-shell {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .site-page-shell :is(
+    .site-page-hero__copy,
+    .specialties-hero__copy,
+    .doctors-hero__content,
+    .faq-search-hero__content,
+    .contact-hero-banner__copy,
+    .about-page--premium .about-hero--complete .about-hero__content
+  ) {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .site-page-shell :is(
+    .site-page-hero__copy h1,
+    .specialties-page .specialties-hero h1,
+    .doctors-hero__content h1,
+    .faq-search-hero__content h2,
+    .contact-hero-banner__copy h1,
+    .about-page--premium .about-hero--complete .about-hero__content h1
+  ) {
+    max-width: 100% !important;
+    font-size: clamp(2rem, 9vw, 2.52rem) !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: normal !important;
+    text-wrap: balance;
+    white-space: normal !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero--complete {
+    gap: 1rem !important;
+    padding: 1.55rem 1rem !important;
+    overflow: hidden !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__visual--complete {
+    display: none !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__trust-line {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.55rem !important;
+    width: 100% !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__trust-line .trust-card {
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding: 0.72rem 0.42rem !important;
+    text-align: center;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__trust-line .trust-icon {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .site-page-shell .about-page--premium .about-hero__trust-line span:not(.trust-icon) {
+    font-size: 0.68rem !important;
+    line-height: 1.22 !important;
+  }
+
+  .site-page-shell .contact-hero-stats {
+    grid-template-columns: 1fr !important;
+    grid-auto-flow: row !important;
+    grid-auto-columns: auto !important;
+    overflow: visible !important;
+  }
+
+  .site-page-shell :is(.doctors-filter, .news-page__filters, .faq-topic-sidebar__list) {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .site-page-shell :is(.doctors-filter, .news-page__filters, .faq-topic-sidebar__list)::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 390px) {
+  .site-page-shell :is(
+    .site-page-hero__copy h1,
+    .specialties-page .specialties-hero h1,
+    .doctors-hero__content h1,
+    .faq-search-hero__content h2,
+    .contact-hero-banner__copy h1,
+    .about-page--premium .about-hero--complete .about-hero__content h1
+  ) {
+    font-size: clamp(1.86rem, 8.7vw, 2.28rem) !important;
+  }
+}

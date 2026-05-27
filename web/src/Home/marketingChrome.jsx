@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarPlus, Globe2, HeartPulse, LayoutDashboard, Mail, MapPin, PhoneCall } from 'lucide-react';
+import { CalendarPlus, Globe2, HeartPulse, LayoutDashboard, LogIn, Mail, MapPin, PhoneCall, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo';
 import { readStoredSiteLanguage, writeStoredSiteLanguage } from '../lib/storage';
@@ -53,6 +53,11 @@ function getInitials(name) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || '')
     .join('') || 'BN'
+}
+
+function getBookingEntryPath(profile) {
+  const target = '/portal?section=book-appointment';
+  return profile ? target : `/login?redirect=${encodeURIComponent(target)}`;
 }
 
 function MarketingTopbar({ labels, language, setLanguage }) {
@@ -128,6 +133,9 @@ export function MarketingHeader({
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
   const navItems = getMarketingNavItems(labels);
+  const bookingPath = getBookingEntryPath(profile);
+  const loginLabel = labels.login || (language === 'en' ? 'Login' : language === 'ko' ? '로그인' : 'Đăng nhập');
+  const registerLabel = labels.register || (language === 'en' ? 'Register' : language === 'ko' ? '회원가입' : 'Đăng ký');
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -207,10 +215,22 @@ export function MarketingHeader({
               ) : null}
             </div>
           ) : null}
-          <Link className="home-header__button" to="/support">
+          <Link className="home-header__button" to={bookingPath}>
             <CalendarPlus size={17} aria-hidden="true" />
             {labels.book}
           </Link>
+          {!profile ? (
+            <>
+              <Link className="home-header__auth-link home-header__auth-link--login" to="/login">
+                <LogIn size={17} aria-hidden="true" />
+                <span>{loginLabel}</span>
+              </Link>
+              <Link className="home-header__auth-link home-header__auth-link--register" to="/register">
+                <UserPlus size={17} aria-hidden="true" />
+                <span>{registerLabel}</span>
+              </Link>
+            </>
+          ) : null}
           {profile && onLogout && profileMenuVariant !== 'compact' ? (
             <button type="button" className="home-header__ghost" onClick={onLogout}>
               {labels.logout}
@@ -238,10 +258,10 @@ export function MarketingFooter({ labels, footerLead, visitDetails, directionsLa
           <span className="home-footer__note">{labels.footerNote}</span>
           {/* Social Links */}
           <div className="home-footer__social">
-            <a href="#facebook" title="Facebook" aria-label="Follow us on Facebook">f</a>
-            <a href="#twitter" title="Twitter" aria-label="Follow us on Twitter">𝕏</a>
-            <a href="#instagram" title="Instagram" aria-label="Follow us on Instagram">📷</a>
-            <a href="#linkedin" title="LinkedIn" aria-label="Connect on LinkedIn">in</a>
+            <Link to="/news" title="Tin tức" aria-label="Xem tin tức">N</Link>
+            <Link to="/faq" title="FAQ" aria-label="Xem câu hỏi thường gặp">?</Link>
+            <Link to="/contact" title="Liên hệ" aria-label="Liên hệ hỗ trợ">@</Link>
+            <a href="tel:+8419008888" title="Hotline" aria-label="Gọi hotline">H</a>
           </div>
         </div>
 

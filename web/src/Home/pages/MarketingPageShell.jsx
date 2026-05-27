@@ -1,38 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarPlus, ChevronDown, Globe2, HeartPulse, LayoutDashboard, PhoneCall } from 'lucide-react';
+import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppLogo, APP_BRAND_NAME } from '../../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
-
-const SITE_LANGUAGE_STORAGE_KEY = 'healthcare.siteLanguage';
-
-function readStoredSiteLanguage() {
-  try {
-    return localStorage.getItem(SITE_LANGUAGE_STORAGE_KEY) || 'vi';
-  } catch (error) {
-    return 'vi';
-  }
-}
-
-function writeStoredSiteLanguage(language) {
-  localStorage.setItem(SITE_LANGUAGE_STORAGE_KEY, language);
-}
-
-function getLanguageLabel(language) {
-  if (language === 'en') return 'English';
-  if (language === 'ko') return '한국어';
-  return 'Tiếng Việt';
-}
-
-function getInitials(name) {
-  return String(name || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() || '')
-    .join('') || 'BN';
-}
+import { MarketingHeader, useSiteLanguage } from '../marketingChrome';
 
 const pageCopy = {
   vi: {
@@ -43,6 +13,8 @@ const pageCopy = {
     hello: 'Xin chào',
     logout: 'Đăng xuất',
     book: 'Đặt lịch hẹn',
+    login: 'Đăng nhập',
+    register: 'Đăng ký',
     nav: [
       { key: 'home', label: 'Trang chủ', to: '/home' },
       { key: 'about', label: 'Giới thiệu', to: '/about' },
@@ -75,6 +47,8 @@ const pageCopy = {
     hello: 'Hello',
     logout: 'Logout',
     book: 'Book Appointment',
+    login: 'Login',
+    register: 'Register',
     nav: [
       { key: 'home', label: 'Home', to: '/home' },
       { key: 'about', label: 'About', to: '/about' },
@@ -107,6 +81,8 @@ const pageCopy = {
     hello: '안녕하세요',
     logout: '로그아웃',
     book: '예약하기',
+    login: '로그인',
+    register: '회원가입',
     nav: [
       { key: 'home', label: '홈', to: '/home' },
       { key: 'about', label: '병원 소개', to: '/about' },
@@ -137,36 +113,8 @@ export function MarketingPageShell({ activeKey, hero, children }) {
   const navigate = useNavigate();
   const auth = readStoredAuth();
   const profile = auth?.patient;
-  const [language, setLanguageState] = useState(() => readStoredSiteLanguage());
-  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const menuRef = useRef(null);
-  const profileMenuRef = useRef(null);
+  const [language, setLanguage] = useSiteLanguage('vi');
   const t = useMemo(() => pageCopy[language] || pageCopy.vi, [language]);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsLanguageMenuOpen(false);
-      }
-
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
-        setIsProfileMenuOpen(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    setIsProfileMenuOpen(false);
-  }, [profile]);
-
-  function setLanguage(nextLanguage) {
-    setLanguageState(nextLanguage);
-    writeStoredSiteLanguage(nextLanguage);
-  }
 
   function handleLogout() {
     clearStoredAuth();
@@ -175,110 +123,15 @@ export function MarketingPageShell({ activeKey, hero, children }) {
 
   return (
     <main className="home-shell site-page-shell">
-      <div className="home-topbar">
-        <div className="home-topbar__left">
-          <span className="home-topbar__item">
-            <PhoneCall size={15} strokeWidth={2.4} aria-hidden="true" />
-            {t.hotline}
-          </span>
-          <span className="home-topbar__item">
-            <HeartPulse size={15} strokeWidth={2.4} aria-hidden="true" />
-            {t.care}
-          </span>
-        </div>
-        <div className="home-topbar__right">
-          <div className="home-language" ref={menuRef}>
-            <button
-              type="button"
-              className="home-language__trigger"
-              onClick={() => setIsLanguageMenuOpen((current) => !current)}
-              aria-expanded={isLanguageMenuOpen}
-            >
-              <Globe2 className="home-language__icon" size={16} strokeWidth={2.4} aria-hidden="true" />
-              <span>{getLanguageLabel(language)}</span>
-              <ChevronDown className="home-language__caret" size={16} strokeWidth={2.6} aria-hidden="true" />
-            </button>
-            {isLanguageMenuOpen ? (
-              <div className="home-language__menu">
-                <button type="button" className={language === 'en' ? 'is-active' : ''} onClick={() => { setLanguage('en'); setIsLanguageMenuOpen(false); }}>English</button>
-                <button type="button" className={language === 'vi' ? 'is-active' : ''} onClick={() => { setLanguage('vi'); setIsLanguageMenuOpen(false); }}>Tiếng Việt</button>
-                <button type="button" className={language === 'ko' ? 'is-active' : ''} onClick={() => { setLanguage('ko'); setIsLanguageMenuOpen(false); }}>한국어</button>
-              </div>
-            ) : null}
-          </div>
-          <span className="home-topbar__item home-topbar__portal">
-            <HeartPulse size={15} strokeWidth={2.4} aria-hidden="true" />
-            {t.portal}
-          </span>
-        </div>
-      </div>
-
-      <header className="home-header">
-        <div className="home-header__brand">
-          <Link className="home-header__brandmark home-header__brandmark--link" to="/home">
-            <AppLogo variant="horizontal" />
-          </Link>
-          <span className="home-header__status">{t.status}</span>
-        </div>
-
-        <nav className="home-header__nav">
-          {t.nav.map((item, index) => {
-            const keys = ['home', 'about', 'specialties', 'doctors', 'news', 'faq', 'contact'];
-            const key = keys[index];
-            return (
-              <Link key={key} className={activeKey === key ? 'is-active' : ''} to={t.nav[index] === item ? pageCopy[language].nav[index].to : '/home'}>
-                {item.label || item}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="home-header__actions">
-          {profile ? (
-            <div className="home-header__profile-menu" ref={profileMenuRef}>
-              <button
-                type="button"
-                className="home-header__profile-trigger"
-                onClick={() => setIsProfileMenuOpen((current) => !current)}
-                aria-expanded={isProfileMenuOpen}
-                aria-haspopup="menu"
-              >
-                <span className="home-header__profile-avatar" aria-hidden="true">
-                  {getInitials(profile.full_name)}
-                </span>
-                <span className="home-header__profile-copy">
-                  <strong>{profile.full_name}</strong>
-                  <small>Bệnh nhân</small>
-                </span>
-                <span className="home-header__profile-caret" aria-hidden="true">
-                  {isProfileMenuOpen ? '⌃' : '⌄'}
-                </span>
-              </button>
-
-              {isProfileMenuOpen ? (
-                <div className="home-header__profile-dropdown" role="menu" aria-label="Menu hồ sơ bệnh nhân">
-                  <Link to="/portal/dashboard" role="menuitem" onClick={() => setIsProfileMenuOpen(false)}>
-                    <LayoutDashboard size={16} aria-hidden="true" />
-                    Dashboard bệnh nhân
-                  </Link>
-                  <Link to="/portal?section=settings" role="menuitem" onClick={() => setIsProfileMenuOpen(false)}>
-                    <span className="home-header__profile-menu-icon" aria-hidden="true">⚙</span>
-                    Hồ sơ và cài đặt
-                  </Link>
-                  <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); handleLogout(); }}>
-                    <span className="home-header__profile-menu-icon" aria-hidden="true">↪</span>
-                    {t.logout}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <Link className="home-header__button" to="/support">
-            <CalendarPlus size={19} strokeWidth={2.5} aria-hidden="true" />
-            <span>{t.book}</span>
-          </Link>
-        </div>
-      </header>
+      <MarketingHeader
+        labels={t}
+        language={language}
+        setLanguage={setLanguage}
+        profile={profile}
+        onLogout={handleLogout}
+        activeKey={activeKey}
+        profileMenuVariant="compact"
+      />
 
       {hero ? (
         <section className="home-section site-page-hero">

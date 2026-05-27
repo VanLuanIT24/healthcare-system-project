@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
@@ -90,6 +90,8 @@ const CONTACT_FAQ = [
 ];
 
 export function ContactPage() {
+  const [selectedPathway, setSelectedPathway] = useState(CONTACT_PATHWAYS[0].label);
+
   return (
     <MarketingPageShell activeKey="contact">
       <section className="home-section site-page-section contact-page contact-page--premium">
@@ -106,10 +108,10 @@ export function ContactPage() {
             </p>
 
             <div className="contact-hero-banner__actions">
-              <button type="button">
+              <a className="contact-hero-banner__call" href="tel:+8418001234">
                 <PhoneCall size={18} aria-hidden="true" />
                 Gọi hotline
-              </button>
+              </a>
               <a
                 href="https://www.google.com/maps/search/?api=1&query=124+Hai+Phong,+Thach+Thang,+Hai+Chau,+Da+Nang,+Vietnam"
                 target="_blank"
@@ -173,7 +175,7 @@ export function ContactPage() {
         </section>
 
         <section className="contact-main-grid contact-main-grid--premium">
-          <form className="contact-message-card contact-message-card--premium">
+          <form className="contact-message-card contact-message-card--premium" onSubmit={(event) => event.preventDefault()}>
             <div className="contact-message-card__heading">
               <span>
                 <BadgeCheck size={16} aria-hidden="true" />
@@ -187,7 +189,13 @@ export function ContactPage() {
               {CONTACT_PATHWAYS.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <button key={item.label} type="button">
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={item.label === selectedPathway ? 'is-active' : ''}
+                    onClick={() => setSelectedPathway(item.label)}
+                    aria-pressed={item.label === selectedPathway}
+                  >
                     <Icon size={18} aria-hidden="true" />
                     <strong>{item.label}</strong>
                     <small>{item.value}</small>
@@ -227,7 +235,7 @@ export function ContactPage() {
             </label>
 
             <div className="contact-message-card__footer">
-              <button type="button">
+              <button type="submit">
                 <span>Gửi yêu cầu ngay</span>
                 <ArrowRight size={18} aria-hidden="true" />
               </button>
@@ -279,10 +287,10 @@ export function ContactPage() {
                 Nếu bạn đang gặp triệu chứng nghiêm trọng, hãy gọi đường dây nóng để được hướng dẫn
                 đến đúng điểm tiếp nhận.
               </p>
-              <button type="button">
+              <a className="contact-emergency-card__call" href="tel:+8418001234">
                 <PhoneCall size={18} aria-hidden="true" />
                 Gọi ngay: +84 1800 1234
-              </button>
+              </a>
             </article>
           </div>
         </section>

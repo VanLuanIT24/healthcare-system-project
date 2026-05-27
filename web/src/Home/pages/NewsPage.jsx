@@ -344,18 +344,18 @@ export function NewsPage() {
               </div>
             </article>
 
-            <article className="news-signup-card news-signup-card--editorial">
+            <form className="news-signup-card news-signup-card--editorial" onSubmit={(event) => event.preventDefault()}>
               <span className="news-signup-card__icon">
                 <Mail size={23} strokeWidth={2.35} aria-hidden="true" />
               </span>
               <h3>Nhận thông tin y khoa tinh tuyển.</h3>
               <p>Cập nhật nghiên cứu, xu hướng chăm sóc và những bài viết đáng đọc mỗi tuần.</p>
               <input type="email" placeholder="Địa chỉ email của bạn" />
-              <button type="button">
+              <button type="submit">
                 <span>Đăng ký ngay</span>
                 <ArrowRight size={17} strokeWidth={2.5} aria-hidden="true" />
               </button>
-            </article>
+            </form>
 
             <article className="news-topics-card news-topics-card--editorial">
               <span className="news-topics-card__kicker">
