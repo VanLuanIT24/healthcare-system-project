@@ -8231,3 +8231,33 @@
   }
 }
 
+/* Keep the hero utility badge and care card out of the title flow. */
+.home-shell .home-hero__content {
+  transform: translateY(-2.75rem) !important;
+}
+
+.home-shell .home-hero__badge {
+  left: auto !important;
+  right: clamp(1.5rem, 3.4vw, 3.2rem) !important;
+  top: clamp(1.1rem, 2.2vw, 1.8rem) !important;
+  z-index: 8;
+}
+
+.home-shell .home-hero__care-panel {
+  right: clamp(1.25rem, 4vw, 4.4rem) !important;
+  max-width: min(316px, calc(100vw - 2.5rem));
+}
+
+@media (max-width: 1180px) {
+  .home-shell .home-hero__content {
+    transform: none !important;
+  }
+
+  .home-shell .home-hero__badge {
+    position: relative !important;
+    inset: auto !important;
+    width: fit-content;
+    margin: 0 0 1rem;
+  }
+}
+
