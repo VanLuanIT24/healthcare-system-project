@@ -948,6 +948,9 @@
   border-radius: inherit;
   object-fit: cover;
   background: #ffffff;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .hc-ai-agent-mark__status {

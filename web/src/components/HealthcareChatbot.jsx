@@ -65,7 +65,18 @@ function AiAgentMark({ compact = false, still = false }) {
       {still ? (
         <img src={botMessageAvatar} alt="" loading="eager" decoding="async" />
       ) : (
-        <video src={botAvatarVideo} autoPlay muted loop playsInline preload="metadata" />
+        <video
+          src={botAvatarVideo}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          disablePictureInPicture
+          disableRemotePlayback
+          controlsList="nodownload nofullscreen noremoteplayback"
+          tabIndex={-1}
+        />
       )}
       <span className="hc-ai-agent-mark__status" />
     </span>
