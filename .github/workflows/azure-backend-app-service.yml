@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
   AZURE_WEBAPP_NAME: ${{ vars.AZURE_BACKEND_APP_NAME }}
 
 jobs:
@@ -76,6 +76,11 @@ jobs:
         working-directory: backend
         run: npm prune --omit=dev
 
+      - name: Package backend
+        run: |
+          cd backend
+          zip -r ../backend-deploy.zip src package.json package-lock.json node_modules
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -85,4 +90,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: backend
+          package: backend-deploy.zip
