@@ -1,0 +1,12 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*",
+      "/brand/*",
+      "/images/*",
+      "/favicon.svg",
+      "/anh-about.png"
+    ]
+  }
+}
