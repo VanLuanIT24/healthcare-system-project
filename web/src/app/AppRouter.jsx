@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { PatientRoute, SuperAdminRoute, StaffRoute } from './RouteGuards';
 import { createLoginRedirectPath, isPatientSession, isSuperAdminSession } from '../lib/authSession';
 import { readStoredAuth } from '../lib/storage';
-import { buildRecoveryPath, resolveRecoveryActorFromPath } from '../auth/recovery/recoveryUtils';
+import { buildRecoveryPath, resolveRecoveryActorFromPath } from '../Auth/recovery/recoveryUtils';
 import { HealthcareChatbotLayer } from '../components/HealthcareChatbot';
 
 function lazyNamed(loader, exportName) {

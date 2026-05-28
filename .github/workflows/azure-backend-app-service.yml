@@ -38,15 +38,15 @@ jobs:
 
       - name: Validate deployment settings
         env:
-          AZURE_BACKEND_PUBLISH_PROFILE: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
         run: |
           if [ -z "$AZURE_WEBAPP_NAME" ]; then
             echo "::error::Missing repository variable AZURE_BACKEND_APP_NAME."
             exit 1
           fi
 
-          if [ -z "$AZURE_BACKEND_PUBLISH_PROFILE" ]; then
-            echo "::error::Missing repository secret AZURE_BACKEND_PUBLISH_PROFILE."
+          if [ -z "$AZURE_CREDENTIALS" ]; then
+            echo "::error::Missing repository secret AZURE_CREDENTIALS."
             exit 1
           fi
 
@@ -76,9 +76,13 @@ jobs:
         working-directory: backend
         run: npm prune --omit=dev
 
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
           package: backend
