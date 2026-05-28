@@ -24,7 +24,8 @@ import {
 } from 'lucide-react'
 import botAvatarVideo from '../assets/chatbot/bot-avatar.mp4'
 import botMessageAvatar from '../assets/chatbot/bot-message-avatar.jpg'
-import { API_BASE_URL } from '../lib/api'
+import messengerLogoAsset from '../assets/chatbot/logo-messenger.jpg'
+import zaloLogoAsset from '../assets/chatbot/logo-zalo.png'
 import { chatbotAPI, getApiErrorMessage, unwrapData } from '../utils/api'
 
 export const HEALTHCARE_CHATBOT_EVENT = 'healthcare-chatbot:open'
@@ -33,28 +34,6 @@ const hotlineNumber = '0337832953'
 const zaloNumber = '0337832953'
 const emergencyNumber = '115'
 const messengerUrl = 'https://www.facebook.com/profile.php?id=61551884413560&locale=vi_VN'
-
-function publicUploadUrl(fileName) {
-  const encodedFileName = fileName.split('/').map(encodeURIComponent).join('/')
-
-  if (import.meta.env.DEV) {
-    return `/uploads/${encodedFileName}`
-  }
-
-  try {
-    const apiUrl = new URL(API_BASE_URL, window.location.origin)
-    if (apiUrl.origin === window.location.origin) {
-      return `/uploads/${encodedFileName}`
-    }
-
-    return `${apiUrl.origin}/uploads/${encodedFileName}`
-  } catch {
-    return `/uploads/${encodedFileName}`
-  }
-}
-
-const zaloLogoAsset = publicUploadUrl('logo zalo.png')
-const messengerLogoAsset = publicUploadUrl('logo messenger.jpg')
 
 function AiAgentMark({ compact = false, still = false }) {
   const useStillAvatar = compact || still
