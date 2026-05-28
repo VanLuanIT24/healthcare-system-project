@@ -1,0 +1,82 @@
+name: Deploy frontend to Azure Static Web Apps
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "web/**"
+      - ".github/workflows/azure-frontend-static-web-app.yml"
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+    branches:
+      - main
+    paths:
+      - "web/**"
+      - ".github/workflows/azure-frontend-static-web-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: azure-frontend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy frontend
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Validate deployment settings
+        env:
+          AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          if [ -z "$AZURE_STATIC_WEB_APPS_API_TOKEN" ]; then
+            echo "::error::Missing repository secret AZURE_STATIC_WEB_APPS_API_TOKEN."
+            exit 1
+          fi
+
+          if [ -z "$VITE_API_URL" ]; then
+            echo "::error::Missing repository variable VITE_API_URL."
+            exit 1
+          fi
+
+      - name: Build and deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: web
+          api_location: ""
+          output_location: dist
+          app_build_command: npm run build
+
+  close-preview:
+    name: Close frontend preview
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Close Azure Static Web Apps preview
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: close
+          app_location: web

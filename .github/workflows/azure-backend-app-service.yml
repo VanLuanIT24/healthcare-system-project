@@ -1,0 +1,84 @@
+name: Deploy backend to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/azure-backend-app-service.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  AZURE_WEBAPP_NAME: ${{ vars.AZURE_BACKEND_APP_NAME }}
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate deployment settings
+        env:
+          AZURE_BACKEND_PUBLISH_PROFILE: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+        run: |
+          if [ -z "$AZURE_WEBAPP_NAME" ]; then
+            echo "::error::Missing repository variable AZURE_BACKEND_APP_NAME."
+            exit 1
+          fi
+
+          if [ -z "$AZURE_BACKEND_PUBLISH_PROFILE" ]; then
+            echo "::error::Missing repository secret AZURE_BACKEND_PUBLISH_PROFILE."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run backend checks
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          MONGODB_URI: mongodb://localhost:27017/healthcare_ci
+          MONGODB_DB_NAME: healthcare_ci
+          JWT_ACCESS_SECRET: ci_access_secret_change_not_used
+          JWT_REFRESH_SECRET: ci_refresh_secret_change_not_used
+          JWT_ISSUER: medcare-api
+          JWT_AUDIENCE: medcare-users
+          SUPER_ADMIN_PASSWORD: ci_super_admin_password_change_not_used
+          SUPER_ADMIN_EMAIL: admin@example.com
+          CORS_ORIGINS: http://localhost:5173
+          GOOGLE_AUTH_ENABLED: "false"
+          SMTP_ENABLED: "false"
+          MOMO_PERSONAL_QR_ENABLED: "false"
+        run: npm test
+
+      - name: Prune development dependencies
+        working-directory: backend
+        run: npm prune --omit=dev
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+          package: backend
