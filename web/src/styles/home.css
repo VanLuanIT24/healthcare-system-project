@@ -8264,12 +8264,16 @@
 /* Keep Home marketing chrome consistent with the other public pages. */
 .home-shell:not(.site-page-shell) .home-topbar {
   position: relative !important;
-  z-index: 120 !important;
+  z-index: 220 !important;
 }
 
 .home-shell:not(.site-page-shell) .home-header {
   position: sticky !important;
   top: 0 !important;
   z-index: 140 !important;
+}
+
+.home-shell:not(.site-page-shell) .home-language__menu {
+  z-index: 230 !important;
 }
 
