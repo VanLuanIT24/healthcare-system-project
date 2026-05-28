@@ -18,22 +18,22 @@ function RouteLoading() {
   );
 }
 
-const LoginPage = lazyNamed(() => import('../auth/pages/LoginPage'), 'LoginPage');
-const RegisterPage = lazyNamed(() => import('../auth/pages/RegisterPage'), 'RegisterPage');
-const ForgotPasswordPage = lazyNamed(() => import('../auth/pages/ForgotPasswordPage'), 'ForgotPasswordPage');
-const ResetPasswordPage = lazyNamed(() => import('../auth/pages/ResetPasswordPage'), 'ResetPasswordPage');
-const StaffLoginPage = lazyNamed(() => import('../auth/pages/StaffLoginPage'), 'StaffLoginPage');
+const LoginPage = lazyNamed(() => import('../Auth/pages/LoginPage'), 'LoginPage');
+const RegisterPage = lazyNamed(() => import('../Auth/pages/RegisterPage'), 'RegisterPage');
+const ForgotPasswordPage = lazyNamed(() => import('../Auth/pages/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ResetPasswordPage = lazyNamed(() => import('../Auth/pages/ResetPasswordPage'), 'ResetPasswordPage');
+const StaffLoginPage = lazyNamed(() => import('../Auth/pages/StaffLoginPage'), 'StaffLoginPage');
 const BankQrTestPage = lazyNamed(() => import('../dev/BankQrTestPage'), 'BankQrTestPage');
-const HomePage = lazyNamed(() => import('../home/HomePage'), 'HomePage');
+const HomePage = lazyNamed(() => import('../Home/HomePage'), 'HomePage');
 const SupportPage = lazyNamed(() => import('../info/pages/SupportPage'), 'SupportPage');
 const TermsPage = lazyNamed(() => import('../info/pages/TermsPage'), 'TermsPage');
-const AboutPage = lazyNamed(() => import('../home/pages/AboutPage'), 'AboutPage');
-const SpecialtiesPage = lazyNamed(() => import('../home/pages/SpecialtiesPage'), 'SpecialtiesPage');
-const DoctorsPage = lazyNamed(() => import('../home/pages/DoctorsPage'), 'DoctorsPage');
-const FaqPage = lazyNamed(() => import('../home/pages/FaqPage'), 'FaqPage');
-const NewsPage = lazyNamed(() => import('../home/pages/NewsPage'), 'NewsPage');
-const NewsArticlePage = lazyNamed(() => import('../home/pages/NewsPage'), 'NewsArticlePage');
-const ContactPage = lazyNamed(() => import('../home/pages/ContactPage'), 'ContactPage');
+const AboutPage = lazyNamed(() => import('../Home/pages/AboutPage'), 'AboutPage');
+const SpecialtiesPage = lazyNamed(() => import('../Home/pages/SpecialtiesPage'), 'SpecialtiesPage');
+const DoctorsPage = lazyNamed(() => import('../Home/pages/DoctorsPage'), 'DoctorsPage');
+const FaqPage = lazyNamed(() => import('../Home/pages/FaqPage'), 'FaqPage');
+const NewsPage = lazyNamed(() => import('../Home/pages/NewsPage'), 'NewsPage');
+const NewsArticlePage = lazyNamed(() => import('../Home/pages/NewsPage'), 'NewsArticlePage');
+const ContactPage = lazyNamed(() => import('../Home/pages/ContactPage'), 'ContactPage');
 const StaffAccessPage = lazyNamed(() => import('../receptionist/pages/StaffAccessPage'), 'StaffAccessPage');
 const DevPlaceholderPage = lazyNamed(() => import('../receptionist/pages/DevPlaceholderPage'), 'DevPlaceholderPage');
 const ReceptionDashboardPage = lazyNamed(() => import('../receptionist/pages/ReceptionDashboardPage'), 'ReceptionDashboardPage');
