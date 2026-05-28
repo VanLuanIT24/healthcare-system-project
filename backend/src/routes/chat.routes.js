@@ -19,6 +19,7 @@ router.get('/sessions/:sessionId', chatController.getSession);
 router.get('/sessions/:sessionId/messages', chatController.listMessages);
 router.post('/sessions/:sessionId/messages', chatController.sendMessage);
 router.post('/sessions/:sessionId/escalate', chatController.escalateSession);
+router.post('/sessions/:sessionId/handoff/accept', authenticate, chatController.acceptHandoff);
 router.patch('/sessions/:sessionId/close', chatController.closeSession);
 
 module.exports = router;

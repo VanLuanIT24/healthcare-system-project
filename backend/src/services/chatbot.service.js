@@ -8,6 +8,8 @@ const {
   ChatbotMessage,
   ChatbotSession,
   Appointment,
+  Conversation,
+  ConversationParticipant,
   Department,
   DoctorProfile,
   DoctorSchedule,
@@ -16,24 +18,41 @@ const {
   Invoice,
   KnowledgeArticle,
   LabResult,
+  Notification,
   Patient,
   PaymentIntent,
+  Role,
   ScheduleSlot,
   ServiceCatalog,
   ServicePriceVersion,
+  SupportTicket,
   User,
+  UserRole,
+  Message,
 } = require('../models');
 const appointmentService = require('./appointment.service');
+const notificationService = require('./notification.service');
 const patientService = require('./patient.service');
 const scheduleService = require('./schedule.service');
 const supportTicketService = require('./support-ticket.service');
 const {
+  ACTOR_TYPE,
   APPOINTMENT_STATUS,
+  CONVERSATION_STATUS,
+  CONVERSATION_PARTICIPANT_ROLE,
+  MESSAGE_TYPE,
+  NOTIFICATION_CHANNEL,
+  NOTIFICATION_PRIORITY,
+  NOTIFICATION_RECIPIENT_TYPE,
+  NOTIFICATION_STATUS,
+  ROLE_STATUS,
   SCHEDULE_SLOT_STATUS,
+  SUPPORT_TICKET_STATUS,
   SUPPORT_CATEGORY,
   SUPPORT_TICKET_PRIORITY,
+  USER_STATUS,
 } = require('../constants/statuses');
-const { PERMISSION } = require('../constants/permissions');
+const { PERMISSION, ROLE_CODE } = require('../constants/permissions');
 const {
   buildPagination,
   createError,
@@ -48,6 +67,9 @@ const rateLimitStore = new Map();
 const DEFAULT_LANGUAGE = 'vi';
 const LOW_CONFIDENCE_THRESHOLD = 0.52;
 const HIGH_CONFIDENCE_THRESHOLD = 0.78;
+const CHATBOT_HANDOFF_NOTIFICATION_TYPE = 'chatbot.handoff.requested';
+const DEFAULT_HANDOFF_PRIMARY_ROLES = [ROLE_CODE.RECEPTIONIST, ROLE_CODE.SCHEDULER];
+const DEFAULT_HANDOFF_FALLBACK_ROLES = [ROLE_CODE.MANAGER, ROLE_CODE.ADMIN, ROLE_CODE.SUPER_ADMIN];
 
 const DEFAULT_INTENTS = [
   ['greeting', 'Chào hỏi', ['xin chào', 'alo', 'có ai không', 'hello']],
@@ -261,6 +283,14 @@ function normalizeString(value) {
 
 function normalizePhone(value) {
   return String(value || '').replace(/[^\d+]/g, '');
+}
+
+function normalizeList(value, fallback = []) {
+  if (Array.isArray(value)) return value.map(normalizeString).filter(Boolean);
+  if (typeof value === 'string') {
+    return value.split(',').map(normalizeString).filter(Boolean);
+  }
+  return fallback;
 }
 
 function escapeRegExp(value) {
@@ -1656,11 +1686,14 @@ async function findAvailableSlots(entities = {}, session = {}) {
           slot_end: new Date(slot.slot_end).toISOString(),
           date: formatDate(slot.slot_time),
           time: formatTime(slot.slot_time),
+          schedule_window: `${formatTime(schedule.shift_start)} - ${formatTime(schedule.shift_end)}`,
           doctor_name: doctor?.full_name || 'Bác sĩ',
           department_name: department?.department_name || entities.department || 'Chuyên khoa',
           specialty: profile?.specialty,
           fee_display: formatMoney(profile?.consultation_fee),
           remaining: 1,
+          remaining_label: 'Còn trống',
+          source: 'doctor_schedule',
         });
       });
   }
@@ -1962,6 +1995,50 @@ function appointmentLookupHelpResponse(actionLabel = 'kiểm tra lịch hẹn') 
   );
 }
 
+function appointmentLookupIdentityFormResponse(actionLabel = 'kiểm tra') {
+  return botText(
+    `Dạ, để ${actionLabel} lịch hẹn từ database mà vẫn bảo vệ thông tin cá nhân, anh/chị vui lòng nhập họ tên và số điện thoại đã dùng khi đặt lịch. Nếu có mã lịch hẹn APT-xxxxxx thì nhập thêm để lọc chính xác hơn.`,
+    {
+      type: 'booking_form',
+      submit_action: 'submit_appointment_lookup_identity',
+      submit_label: 'Gửi thông tin kiểm tra lịch hẹn',
+      submit_value: 'Tôi gửi thông tin kiểm tra lịch hẹn',
+      button_label: 'Kiểm tra lịch hẹn',
+      fields: [
+        { name: 'patient_name', label: 'Họ tên bệnh nhân', required: true },
+        { name: 'phone', label: 'Số điện thoại đã đặt lịch', required: true },
+        { name: 'appointment_code', label: 'Mã lịch hẹn (nếu có)', required: false },
+      ],
+    },
+  );
+}
+
+function appointmentListResponse(appointments = [], actionLabel = 'kiểm tra') {
+  const summaries = appointments.slice(0, 6).map(appointmentSummary);
+  if (summaries.length === 1) {
+    return botText('Dạ, em tìm thấy lịch hẹn trong hệ thống:', {
+      type: 'appointment_summary',
+      summary: summaries[0],
+      actions: buildQuickReplies([
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+        { label: 'Đặt lịch mới', value: 'Tôi muốn đặt lịch khám' },
+      ]),
+    });
+  }
+  return botText(
+    `Dạ, em tìm thấy ${summaries.length} lịch hẹn gần nhất trong hệ thống. Anh/chị kiểm tra danh sách bên dưới nhé.`,
+    {
+      type: 'appointment_list',
+      appointments: summaries,
+      actions: buildQuickReplies([
+        { label: 'Gặp nhân viên', value: 'Cho tôi gặp nhân viên đặt lịch' },
+        { label: 'Đặt lịch mới', value: 'Tôi muốn đặt lịch khám' },
+      ]),
+      action_label: actionLabel,
+    },
+  );
+}
+
 async function loadAppointmentForDisplay(appointmentId) {
   if (!appointmentId || !isValidObjectId(appointmentId)) return null;
   return Appointment.findOne({ _id: appointmentId, is_deleted: false })
@@ -1977,6 +2054,79 @@ function canAccessAppointment(session, appointment, actor = {}) {
   if (ownedAppointmentId && String(ownedAppointmentId) === String(appointment._id)) return true;
   const patientId = patientIdFromActor(actor);
   return Boolean(patientId && String(patientId) === String(appointment.patient_id?._id || appointment.patient_id));
+}
+
+function appointmentIdentityComplete(identity = {}) {
+  const phone = normalizePhone(identity.phone);
+  const patientName = normalizeString(identity.patient_name || identity.patientName);
+  const code = normalizeAppointmentLookupCode(identity.appointment_code || identity.appointmentCode);
+  if (!env.chatbot.requirePhoneVerificationForAppointmentLookup) return Boolean(phone || patientName || code);
+  return Boolean(phone && (patientName || code));
+}
+
+async function findAppointmentsByVerifiedIdentity(identity = {}, options = {}) {
+  const phone = normalizePhone(identity.phone);
+  const patientName = normalizeString(identity.patient_name || identity.patientName);
+  const normalizedName = normalizeText(patientName);
+  const code = normalizeAppointmentLookupCode(identity.appointment_code || identity.appointmentCode);
+  if (!appointmentIdentityComplete({ phone, patient_name: patientName, appointment_code: code })) {
+    return { identityRequired: true };
+  }
+
+  const patientFilter = { is_deleted: false };
+  if (phone) {
+    const phoneTail = phone.replace(/\D/g, '').slice(-9);
+    patientFilter.$or = [
+      { phone },
+      ...(phoneTail.length >= 8 ? [{ phone: { $regex: `${escapeRegExp(phoneTail)}$` } }] : []),
+    ];
+  }
+  const patients = await Patient.find(patientFilter).select('full_name phone patient_code').limit(10).lean();
+  const matchedPatients = patients.filter((patient) => {
+    if (!normalizedName) return true;
+    const candidate = normalizeText(patient.full_name);
+    if (!candidate) return false;
+    return candidate === normalizedName
+      || candidate.includes(normalizedName)
+      || normalizedName.split(' ').filter((part) => part.length >= 2).every((part) => candidate.includes(part));
+  });
+  if (!matchedPatients.length) return { appointments: [] };
+
+  const filter = {
+    patient_id: { $in: matchedPatients.map((patient) => patient._id) },
+    is_deleted: false,
+  };
+  if (!options.includeInactive) filter.status = { $in: CHATBOT_ACTIVE_APPOINTMENT_STATUSES };
+  if (!code) filter.appointment_time = { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) };
+
+  const candidates = await Appointment.find(filter)
+    .populate('patient_id', 'full_name phone patient_code')
+    .populate('doctor_id', 'full_name employee_code')
+    .populate('department_id', 'department_name department_code')
+    .sort({ appointment_time: 1 })
+    .limit(30)
+    .lean();
+
+  const appointments = code
+    ? candidates.filter((appointment) => {
+      const publicCode = normalizeAppointmentLookupCode(appointmentPublicCode(appointment));
+      return publicCode === code || String(appointment._id).toUpperCase().endsWith(code);
+    })
+    : candidates;
+
+  const now = Date.now();
+  return {
+    appointments: appointments
+      .sort((first, second) => {
+        const firstTime = new Date(first.appointment_time).getTime();
+        const secondTime = new Date(second.appointment_time).getTime();
+        const firstFuture = firstTime >= now ? 0 : 1;
+        const secondFuture = secondTime >= now ? 0 : 1;
+        if (firstFuture !== secondFuture) return firstFuture - secondFuture;
+        return firstFuture === 0 ? firstTime - secondTime : secondTime - firstTime;
+      })
+      .slice(0, 6),
+  };
 }
 
 async function findAccessibleAppointment(session, entities = {}, actor = {}, options = {}) {
@@ -2033,8 +2183,28 @@ async function findAccessibleAppointment(session, entities = {}, actor = {}, opt
 
 async function appointmentStatusResponse(session, analysis, actor = {}) {
   const lookup = await findAccessibleAppointment(session, analysis.entities, actor, { includeInactive: true });
-  if (lookup.accessRequired) return loginRequiredResponse('lịch hẹn');
-  if (!lookup.appointment) return appointmentLookupHelpResponse('kiểm tra');
+  if (lookup.accessRequired) {
+    const lookupIdentity = {
+      ...(session.context?.lookup_identity || {}),
+      appointment_code: analysis.entities?.appointment_code || session.context?.lookup_identity?.appointment_code,
+    };
+    if (!appointmentIdentityComplete(lookupIdentity)) return appointmentLookupIdentityFormResponse('kiểm tra');
+    const verified = await findAppointmentsByVerifiedIdentity(lookupIdentity, { includeInactive: true });
+    if (verified.identityRequired) return appointmentLookupIdentityFormResponse('kiểm tra');
+    if (!verified.appointments?.length) return appointmentLookupHelpResponse('kiểm tra');
+    return appointmentListResponse(verified.appointments, 'kiểm tra');
+  }
+  if (!lookup.appointment) {
+    const lookupIdentity = {
+      ...(session.context?.lookup_identity || {}),
+      appointment_code: analysis.entities?.appointment_code || session.context?.lookup_identity?.appointment_code,
+    };
+    if (appointmentIdentityComplete(lookupIdentity)) {
+      const verified = await findAppointmentsByVerifiedIdentity(lookupIdentity, { includeInactive: true });
+      if (verified.appointments?.length) return appointmentListResponse(verified.appointments, 'kiểm tra');
+    }
+    return appointmentLookupIdentityFormResponse('kiểm tra');
+  }
 
   const actions = [];
   if (env.chatbot.appointmentAllowReschedule && CHATBOT_ACTIVE_APPOINTMENT_STATUSES.includes(lookup.appointment.status)) {
@@ -2597,7 +2767,15 @@ async function serviceSearchResponse(analysis, text) {
 
 async function slotPickerResponse(analysis, session, text) {
   const mergedBooking = mergeEntities(session.context?.booking || {}, analysis.entities);
-  if (!mergedBooking.department_id && !mergedBooking.department && !mergedBooking.doctor_id && !mergedBooking.doctor) {
+  const hasRequestedDateOrTime = Boolean(
+    mergedBooking.date_iso
+    || mergedBooking.time_text
+    || mergedBooking.time_preference
+    || analysis.entities?.date_iso
+    || analysis.entities?.time_text
+    || analysis.entities?.time_preference,
+  );
+  if (!hasRequestedDateOrTime && !mergedBooking.department_id && !mergedBooking.department && !mergedBooking.doctor_id && !mergedBooking.doctor) {
     return departmentSuggestionResponse(analysis, text);
   }
   if (!mergedBooking.date_iso) {
@@ -2623,7 +2801,7 @@ async function slotPickerResponse(analysis, session, text) {
   }
 
   return botText(
-    `Dạ, ${mergedBooking.date_iso ? `ngày ${formatDate(`${mergedBooking.date_iso}T00:00:00`)}` : 'thời gian anh/chị chọn'} còn các khung giờ sau. Anh/chị chọn một khung giờ để em giữ thông tin đặt lịch nhé.`,
+    `Dạ, ${mergedBooking.date_iso ? `ngày ${formatDate(`${mergedBooking.date_iso}T00:00:00`)}` : 'thời gian anh/chị chọn'} còn các khung giờ trống sau từ lịch làm việc bác sĩ trong database. Anh/chị có thể thấy bác sĩ, chuyên khoa và chọn trực tiếp để đặt lịch.`,
     {
       type: 'slot_picker',
       slots,
@@ -3057,11 +3235,327 @@ function supportSubjectForHandoff(reason = '') {
   return 'Chatbot chuyển nhân viên hỗ trợ';
 }
 
+function handoffIdentityFormResponse(reason = 'user_request') {
+  return botText(
+    'Dạ, để chuyển đúng nhân viên hỗ trợ và mở hộp tin nhắn cho lễ tân, anh/chị cho em xin họ tên, số điện thoại và nội dung cần hỗ trợ.',
+    {
+      type: 'booking_form',
+      submit_action: 'submit_handoff_identity',
+      submit_label: 'Gửi yêu cầu gặp nhân viên',
+      submit_value: 'Tôi gửi yêu cầu gặp nhân viên',
+      button_label: 'Chuyển nhân viên',
+      reason,
+      fields: [
+        { name: 'patient_name', label: 'Họ tên', required: true },
+        { name: 'phone', label: 'Số điện thoại', required: true },
+        { name: 'note', label: 'Nội dung cần hỗ trợ', required: false, multiline: true },
+      ],
+    },
+  );
+}
+
+function sessionHasHandoffIdentity(session = {}) {
+  const booking = session.context?.booking || {};
+  const lead = session.context?.lead || {};
+  return Boolean(
+    (session.patient_id || booking.patient_id || lead.patient_id)
+    || ((booking.patient_name || lead.patient_name) && (booking.phone || lead.phone)),
+  );
+}
+
+function requestedHandoffTime(session = {}) {
+  const booking = session.context?.booking || {};
+  const slot = booking.selected_slot || booking.reschedule_slot || {};
+  const explicit = slot.appointment_time || booking.appointment_time;
+  if (explicit) {
+    const date = new Date(explicit);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  if (booking.date_iso) {
+    const minutes = minutesFromTimeText(booking.time_text);
+    const date = new Date(`${booking.date_iso}T00:00:00`);
+    if (!Number.isNaN(date.getTime())) {
+      if (minutes !== null) date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+      return date;
+    }
+  }
+  return new Date();
+}
+
+function handoffConversationUrl(conversationId) {
+  const id = toId(conversationId);
+  return id
+    ? `/reception/dashboard?menu=support-patient-messages&conversation_id=${encodeURIComponent(id)}`
+    : '/reception/dashboard?menu=support-patient-messages';
+}
+
+function notificationPriorityForHandoff(session = {}, reason = '') {
+  if (reason === 'emergency' || session.risk_level === 'emergency') return NOTIFICATION_PRIORITY.URGENT;
+  if (reason === 'complaint' || session.risk_level === 'high') return NOTIFICATION_PRIORITY.HIGH;
+  return NOTIFICATION_PRIORITY.NORMAL;
+}
+
+function staffActorId(actor = {}) {
+  return actor.userId || actor.user_id || actor.actorId || actor.actor_id || actor.user?._id || actor.user?.id || null;
+}
+
+function isStaffActor(actor = {}) {
+  return actor?.actorType === ACTOR_TYPE.STAFF || actor?.actor_type === ACTOR_TYPE.STAFF || Boolean(staffActorId(actor));
+}
+
+async function findHandoffStaffCandidates(session = {}, queue = '') {
+  const booking = session.context?.booking || {};
+  const requestedAt = requestedHandoffTime(session);
+  const departmentId = toId(booking.department_id || booking.selected_slot?.department_id || booking.reschedule_slot?.department_id);
+  const primaryRoles = normalizeList(env.chatbot.handoffPrimaryRoleCodes, DEFAULT_HANDOFF_PRIMARY_ROLES);
+  const fallbackRoles = normalizeList(env.chatbot.handoffFallbackRoleCodes, DEFAULT_HANDOFF_FALLBACK_ROLES);
+  const roleCodes = [...new Set([...primaryRoles, ...fallbackRoles])];
+  const roles = await Role.find({
+    role_code: { $in: roleCodes },
+    status: ROLE_STATUS.ACTIVE,
+    is_deleted: false,
+  }).select('_id role_code priority_level').lean();
+  if (!roles.length) return [];
+
+  const roleCodeById = new Map(roles.map((role) => [toId(role._id), role.role_code]));
+  const roleRank = new Map(roleCodes.map((roleCode, index) => [roleCode, roleCodes.length - index]));
+  const assignments = await UserRole.find({
+    role_id: { $in: roles.map((role) => role._id) },
+    is_active: true,
+  }).select('user_id role_id').lean();
+  const userRoles = new Map();
+  assignments.forEach((assignment) => {
+    const userId = toId(assignment.user_id);
+    const roleCode = roleCodeById.get(toId(assignment.role_id));
+    if (!userId || !roleCode) return;
+    userRoles.set(userId, [...(userRoles.get(userId) || []), roleCode]);
+  });
+  const userIds = [...userRoles.keys()];
+  if (!userIds.length) return [];
+
+  const users = await User.find({
+    _id: { $in: userIds },
+    status: USER_STATUS.ACTIVE,
+    is_deleted: false,
+  }).select('full_name employee_code department_id last_login_at').lean();
+  if (!users.length) return [];
+
+  const openStatuses = [
+    SUPPORT_TICKET_STATUS.OPEN,
+    SUPPORT_TICKET_STATUS.WAITING_STAFF,
+    SUPPORT_TICKET_STATUS.WAITING_PATIENT,
+  ];
+  const ticketLoads = await SupportTicket.aggregate([
+    { $match: { assigned_user_id: { $in: users.map((user) => user._id) }, status: { $in: openStatuses } } },
+    { $group: { _id: '$assigned_user_id', count: { $sum: 1 } } },
+  ]);
+  const loadMap = new Map(ticketLoads.map((item) => [toId(item._id), Number(item.count || 0)]));
+  const dayStart = getStartOfDay(new Date());
+  const requestedDayStart = getStartOfDay(requestedAt);
+  const requestedDayEnd = getEndOfDay(requestedAt);
+  const hasDepartmentCoverage = departmentId
+    ? Boolean(await DoctorSchedule.exists({
+      department_id: departmentId,
+      is_deleted: false,
+      status: { $in: ['published', 'active'] },
+      shift_start: { $lte: requestedDayEnd },
+      shift_end: { $gte: requestedDayStart },
+    }))
+    : true;
+
+  return users
+    .map((user) => {
+      const id = toId(user._id);
+      const rolesForUser = userRoles.get(id) || [];
+      const sameDepartment = Boolean(departmentId && toId(user.department_id) === departmentId);
+      const loggedInToday = user.last_login_at && new Date(user.last_login_at) >= dayStart;
+      const openTicketCount = loadMap.get(id) || 0;
+      const bestRoleScore = Math.max(...rolesForUser.map((roleCode) => roleRank.get(roleCode) || 0), 0);
+      const coverageMatch = !departmentId || sameDepartment || hasDepartmentCoverage;
+      const score = (sameDepartment ? 80 : 0)
+        + (loggedInToday ? 40 : 0)
+        + (coverageMatch ? 20 : 0)
+        + bestRoleScore
+        - openTicketCount;
+      return {
+        user_id: id,
+        full_name: user.full_name,
+        employee_code: user.employee_code,
+        department_id: toId(user.department_id),
+        role_codes: rolesForUser,
+        same_department: sameDepartment,
+        on_duty_today: Boolean(loggedInToday),
+        matched_requested_time: coverageMatch,
+        open_ticket_count: openTicketCount,
+        queue,
+        score,
+      };
+    })
+    .sort((first, second) => second.score - first.score)
+    .slice(0, Math.max(1, Number(env.chatbot.handoffMaxEscalationStaff || 2)));
+}
+
+async function assignTicketToHandoffStaff(handoff = {}, candidate = {}, reason = '') {
+  const ticketId = handoff.support_ticket_id;
+  const conversationId = handoff.support_conversation_id;
+  if (!ticketId || !candidate.user_id) return;
+  const now = new Date();
+  const ticket = await SupportTicket.findById(ticketId);
+  if (ticket) {
+    ticket.assigned_user_id = candidate.user_id;
+    if (!ticket.assigned_department_id && candidate.department_id) ticket.assigned_department_id = candidate.department_id;
+    ticket.status = SUPPORT_TICKET_STATUS.WAITING_STAFF;
+    ticket.metadata = {
+      ...(ticket.metadata || {}),
+      chatbot_handoff: {
+        ...(ticket.metadata?.chatbot_handoff || {}),
+        primary_staff_id: candidate.user_id,
+        reason,
+        assigned_at: now.toISOString(),
+      },
+    };
+    await ticket.save();
+  }
+  if (conversationId && isValidObjectId(conversationId)) {
+    await Conversation.updateOne(
+      { _id: conversationId, is_deleted: false },
+      {
+        $set: {
+          assigned_user_id: candidate.user_id,
+          ...(candidate.department_id ? { assigned_department_id: candidate.department_id } : {}),
+          last_message_at: now,
+        },
+      },
+    );
+    await ConversationParticipant.updateOne(
+      {
+        conversation_id: conversationId,
+        actor_type: ACTOR_TYPE.STAFF,
+        actor_id: candidate.user_id,
+      },
+      {
+        $set: {
+          actor_role_code: candidate.role_codes?.[0] || ROLE_CODE.RECEPTIONIST,
+          role_in_conversation: CONVERSATION_PARTICIPANT_ROLE.ASSIGNEE,
+          left_at: null,
+          archived: false,
+        },
+        $setOnInsert: {
+          joined_at: now,
+        },
+      },
+      { upsert: true },
+    );
+  }
+}
+
+async function createHandoffCandidateNotification(session, handoff, candidate, rank, reason, handoffSummary) {
+  const booking = session.context?.booking || {};
+  const requestedAt = requestedHandoffTime(session);
+  const scheduledAt = rank === 1
+    ? null
+    : addMinutes(new Date(), env.chatbot.handoffFirstResponseTimeoutMinutes || 2);
+  const conversationId = handoff.support_conversation_id;
+  const actionUrl = handoffConversationUrl(conversationId);
+  const ticketCode = handoff.support_ticket_code || handoff.ticket_code || '';
+  const patientName = booking.patient_name || session.context?.lead?.patient_name || 'Khách chatbot';
+  const phone = booking.phone || session.context?.lead?.phone;
+  const notification = await notificationService.createNotification({
+    recipient_type: NOTIFICATION_RECIPIENT_TYPE.STAFF,
+    recipient_id: candidate.user_id,
+    recipient_user_id: candidate.user_id,
+    channel: NOTIFICATION_CHANNEL.IN_APP,
+    notification_type: CHATBOT_HANDOFF_NOTIFICATION_TYPE,
+    priority: notificationPriorityForHandoff(session, reason),
+    title: rank === 1 ? 'Chatbot cần lễ tân tiếp nhận khách' : 'Chatbot chuyển tiếp yêu cầu chưa được nhận',
+    message: [
+      `${patientName} cần nhân viên hỗ trợ qua chatbot.`,
+      ticketCode ? `Ticket: ${ticketCode}.` : null,
+      `Thời điểm khách yêu cầu: ${formatTime(requestedAt)} ${formatDate(requestedAt)}.`,
+      phone ? `SĐT: ${maskPhone(phone)}.` : null,
+    ].filter(Boolean).join(' '),
+    payload: {
+      action: 'accept_chatbot_handoff',
+      chatbot_session_id: toId(session._id),
+      support_ticket_id: handoff.support_ticket_id,
+      support_ticket_code: ticketCode,
+      conversation_id: conversationId,
+      queue: handoff.queue,
+      reason,
+      rank,
+      patient_name: patientName,
+      phone: phone ? maskPhone(phone) : undefined,
+      requested_at: requestedAt.toISOString(),
+      on_duty_today: candidate.on_duty_today,
+      matched_requested_time: candidate.matched_requested_time,
+      handoff_summary: handoffSummary,
+    },
+    action_url: actionUrl,
+    scheduled_at: scheduledAt ? scheduledAt.toISOString() : undefined,
+    send_immediately: rank === 1,
+    dedupe_key: `chatbot-handoff:${toId(session._id)}:${candidate.user_id}:${rank}`,
+    created_by_module: 'chatbot',
+  }, chatbotSystemActor(), chatbotRequestMeta(session, { action: 'chatbot.handoff.notify_staff' }), { skipAudit: false });
+  return {
+    notification_id: toId(notification._id),
+    user_id: candidate.user_id,
+    rank,
+    scheduled_at: scheduledAt ? scheduledAt.toISOString() : null,
+    action_url: actionUrl,
+  };
+}
+
+async function notifyHandoffStaff(session, handoff = {}, reason = '', queue = '', handoffSummary = {}) {
+  if (!handoff.support_ticket_id || handoff.notified_at) return handoff;
+  const candidates = await findHandoffStaffCandidates(session, queue);
+  if (!candidates.length) {
+    return {
+      ...handoff,
+      notification_status: 'no_staff_candidate',
+      candidate_staff: [],
+    };
+  }
+
+  await assignTicketToHandoffStaff(handoff, candidates[0], reason);
+  const notifications = [];
+  for (let index = 0; index < candidates.length; index += 1) {
+    notifications.push(await createHandoffCandidateNotification(
+      session,
+      handoff,
+      candidates[index],
+      index + 1,
+      reason,
+      handoffSummary,
+    ));
+  }
+  return {
+    ...handoff,
+    candidate_staff: candidates.map((candidate, index) => ({
+      user_id: candidate.user_id,
+      full_name: candidate.full_name,
+      role_codes: candidate.role_codes,
+      rank: index + 1,
+      on_duty_today: candidate.on_duty_today,
+      matched_requested_time: candidate.matched_requested_time,
+      open_ticket_count: candidate.open_ticket_count,
+    })),
+    primary_staff_id: candidates[0].user_id,
+    notification_ids: notifications.map((item) => item.notification_id).filter(Boolean),
+    notifications,
+    conversation_url: handoffConversationUrl(handoff.support_conversation_id),
+    notified_at: new Date().toISOString(),
+  };
+}
+
 async function ensureHandoffSupportTicket(session, reason, queue, handoffSummary) {
   const context = session.context || {};
   const booking = context.booking || {};
   const existingHandoff = context.handoff || {};
-  if (existingHandoff.support_ticket_id) return existingHandoff;
+  if (existingHandoff.support_ticket_id) {
+    const routedHandoff = await notifyHandoffStaff(session, existingHandoff, reason, queue, handoffSummary);
+    session.context = { ...context, handoff: routedHandoff };
+    return routedHandoff;
+  }
 
   let patientId = session.patient_id || booking.patient_id;
   if (!patientId && booking.patient_name && booking.phone) {
@@ -3113,8 +3607,9 @@ async function ensureHandoffSupportTicket(session, reason, queue, handoffSummary
       reason,
       created_at: new Date().toISOString(),
     };
-    session.context = { ...(session.context || {}), handoff };
-    return handoff;
+    const routedHandoff = await notifyHandoffStaff(session, handoff, reason, queue, handoffSummary);
+    session.context = { ...(session.context || {}), handoff: routedHandoff };
+    return routedHandoff;
   } catch (error) {
     const handoff = {
       ...existingHandoff,
@@ -3129,6 +3624,11 @@ async function ensureHandoffSupportTicket(session, reason, queue, handoffSummary
 }
 
 async function handoffResponse(session, reason = 'user_request') {
+  if (reason !== 'emergency' && !sessionHasHandoffIdentity(session)) {
+    session.current_step = 'collect_handoff_identity';
+    await session.save();
+    return handoffIdentityFormResponse(reason);
+  }
   const queue = reason === 'emergency'
     ? env.chatbot.handoffQueueEmergency
     : reason === 'billing'
@@ -3144,7 +3644,7 @@ async function handoffResponse(session, reason = 'user_request') {
   const supportTicket = await ensureHandoffSupportTicket(session, reason, queue, handoffSummary);
   await session.save();
   return botText(
-    `Dạ, nội dung này cần nhân viên tư vấn kiểm tra thêm. Em sẽ chuyển anh/chị đến bộ phận hỗ trợ. Thời gian phản hồi dự kiến khoảng ${env.chatbot.handoffExpectedWaitMinutes} phút.`,
+    `Dạ, em đã tạo yêu cầu hỗ trợ trong hệ thống và gửi thông báo cho nhân viên phù hợp đang trực/đang phụ trách hàng đợi. Nếu nhân viên đầu tiên chưa nhận trong ${env.chatbot.handoffFirstResponseTimeoutMinutes || 2} phút, hệ thống sẽ chuyển tiếp cho nhân viên kế tiếp. Thời gian phản hồi dự kiến khoảng ${env.chatbot.handoffExpectedWaitMinutes} phút.`,
     {
       type: 'handoff_notice',
       queue,
@@ -3360,6 +3860,56 @@ async function handleAction(session, payload = {}, actor = {}, meta = {}) {
     return appointmentSummaryResponse(session);
   }
 
+  if (action.type === 'submit_appointment_lookup_identity') {
+    const data = action.data || payload.data || {};
+    const lookupIdentity = {
+      patient_name: normalizeString(data.patient_name || data.patientName),
+      phone: normalizePhone(data.phone),
+      appointment_code: normalizeAppointmentLookupCode(data.appointment_code || data.appointmentCode),
+    };
+    if (!appointmentIdentityComplete(lookupIdentity)) {
+      throw createError('Vui lòng nhập số điện thoại và họ tên hoặc mã lịch hẹn để kiểm tra.', 422);
+    }
+    session.context = {
+      ...context,
+      lookup_identity: lookupIdentity,
+    };
+    session.current_intent = 'check_appointment_status';
+    session.current_step = 'lookup_appointment';
+    await session.save();
+    const verified = await findAppointmentsByVerifiedIdentity(lookupIdentity, { includeInactive: true });
+    if (!verified.appointments?.length) return appointmentLookupHelpResponse('kiểm tra');
+    return appointmentListResponse(verified.appointments, 'kiểm tra');
+  }
+
+  if (action.type === 'submit_handoff_identity') {
+    const data = action.data || payload.data || {};
+    const patientName = normalizeString(data.patient_name || data.patientName);
+    const phone = normalizePhone(data.phone);
+    if (!patientName) throw createError('Vui lòng nhập họ tên để chuyển nhân viên.', 422);
+    if (!phone) throw createError('Vui lòng nhập số điện thoại để chuyển nhân viên.', 422);
+    const note = normalizeString(data.note || data.concern);
+    session.context = {
+      ...context,
+      booking: {
+        ...booking,
+        patient_name: patientName,
+        phone,
+        note: note || booking.note,
+        symptoms_note: note || booking.symptoms_note,
+      },
+      lead: {
+        ...(context.lead || {}),
+        patient_name: patientName,
+        phone,
+        concern: note || context.lead?.concern,
+      },
+    };
+    session.current_step = 'handoff';
+    await session.save();
+    return handoffResponse(session, action.reason || 'user_request');
+  }
+
   if (['submit_callback_request', 'submit_lead_request', 'submit_feedback_request'].includes(action.type)) {
     const data = action.data || payload.data || {};
     const reason = action.type === 'submit_feedback_request'
@@ -3478,6 +4028,115 @@ async function escalateSession(sessionId, payload = {}, actor = {}, meta = {}) {
   session.last_message_at = new Date();
   await session.save();
   return { session: session.toJSON(), bot_message: botMessage.toJSON() };
+}
+
+async function acceptHandoff(sessionId, payload = {}, actor = {}, meta = {}) {
+  const userId = staffActorId(actor);
+  if (!isStaffActor(actor) || !userId) throw createError('Chỉ nhân viên đã đăng nhập mới có thể nhận yêu cầu chatbot.', 403);
+  const session = await getSessionOrThrow(sessionId);
+  const handoff = session.context?.handoff || {};
+  const ticketId = payload.support_ticket_id || handoff.support_ticket_id;
+  const conversationId = payload.conversation_id || handoff.support_conversation_id;
+  if (!ticketId || !conversationId) throw createError('Phiên chatbot chưa có ticket/hội thoại hỗ trợ để tiếp nhận.', 404);
+
+  const candidate = {
+    user_id: toId(userId),
+    department_id: actor.departmentId || actor.department_id || actor.user?.department_id,
+    role_codes: actor.roles || actor.role_codes || [ROLE_CODE.RECEPTIONIST],
+  };
+  await assignTicketToHandoffStaff({
+    ...handoff,
+    support_ticket_id: ticketId,
+    support_conversation_id: conversationId,
+  }, candidate, handoff.reason || session.handoff_reason || 'user_request');
+
+  await Promise.all([
+    SupportTicket.updateOne(
+      { _id: ticketId },
+      {
+        $set: {
+          assigned_user_id: userId,
+          status: SUPPORT_TICKET_STATUS.OPEN,
+          'metadata.chatbot_handoff.accepted_by_staff_id': userId,
+          'metadata.chatbot_handoff.accepted_at': new Date(),
+        },
+      },
+    ),
+    Conversation.updateOne(
+      { _id: conversationId, is_deleted: false },
+      {
+        $set: {
+          assigned_user_id: userId,
+          status: CONVERSATION_STATUS.OPEN,
+          last_message_at: new Date(),
+        },
+      },
+    ),
+  ]);
+
+  const notificationIds = (handoff.notification_ids || []).filter(isValidObjectId);
+  if (notificationIds.length) {
+    await Notification.updateMany(
+      {
+        _id: { $in: notificationIds },
+        recipient_user_id: { $ne: userId },
+        status: NOTIFICATION_STATUS.QUEUED,
+        scheduled_at: { $gt: new Date() },
+      },
+      {
+        $set: {
+          status: NOTIFICATION_STATUS.CANCELLED,
+          updated_by: userId,
+          failure_reason: 'chatbot_handoff_accepted_by_primary_or_other_staff',
+        },
+      },
+    );
+  }
+  if (payload.notification_id && isValidObjectId(payload.notification_id)) {
+    try {
+      await notificationService.markNotificationRead(payload.notification_id, actor, chatbotRequestMeta(session, {
+        ...meta,
+        action: 'chatbot.handoff.notification_read',
+      }));
+    } catch (error) {
+      await Notification.updateOne(
+        { _id: payload.notification_id, recipient_user_id: userId },
+        { $set: { status: NOTIFICATION_STATUS.READ, read_at: new Date(), updated_by: userId } },
+      );
+    }
+  }
+
+  const staffName = actor.fullName || actor.full_name || actor.user?.full_name || 'Nhân viên hỗ trợ';
+  await Message.create({
+    conversation_id: conversationId,
+    sender_actor_type: ACTOR_TYPE.SYSTEM,
+    sender_actor_id: 'chatbot',
+    message_type: MESSAGE_TYPE.SYSTEM,
+    body: `${staffName} đã nhận yêu cầu từ chatbot và sẽ tiếp tục trao đổi với khách hàng.`,
+    status: 'sent',
+  });
+
+  session.assigned_staff_id = userId;
+  session.context = {
+    ...(session.context || {}),
+    handoff: {
+      ...handoff,
+      support_ticket_id: toId(ticketId),
+      support_conversation_id: toId(conversationId),
+      accepted_by_staff_id: toId(userId),
+      accepted_by_staff_name: staffName,
+      accepted_at: new Date().toISOString(),
+      conversation_url: handoffConversationUrl(conversationId),
+    },
+  };
+  await session.save();
+
+  return {
+    session: session.toJSON(),
+    support_ticket_id: toId(ticketId),
+    conversation_id: toId(conversationId),
+    action_url: handoffConversationUrl(conversationId),
+  };
 }
 
 async function closeSession(sessionId) {
@@ -3816,6 +4475,7 @@ module.exports = {
   listMessages,
   handleMessage,
   escalateSession,
+  acceptHandoff,
   closeSession,
   getDashboard,
   listConversations,

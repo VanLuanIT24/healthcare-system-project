@@ -170,6 +170,12 @@ function buildFallbackDedupeKey(payload = {}, recipient = {}) {
   return [notificationType, recipientType, recipientId, entityType, entityId, channel].filter(Boolean).join(':') || undefined;
 }
 
+function appendAndFilter(filter, condition) {
+  filter.$and = filter.$and || [];
+  filter.$and.push(condition);
+  return filter;
+}
+
 async function hasActiveRelativeAuthorization(relativeId, patientId, authorizationType = AUTHORIZATION_TYPE.RECEIVE_NOTIFICATIONS, session = null) {
   if (!relativeId || !patientId) return false;
   const now = new Date();
@@ -866,6 +872,15 @@ function applyNotificationQueryFilters(filter, query = {}) {
     if (from) filter.created_at.$gte = from;
     if (to) filter.created_at.$lte = to;
   }
+  if (!normalizeBoolean(query.include_scheduled)) {
+    appendAndFilter(filter, {
+      $or: [
+        { scheduled_at: null },
+        { scheduled_at: { $exists: false } },
+        { scheduled_at: { $lte: new Date() } },
+      ],
+    });
+  }
   return filter;
 }
 
@@ -906,6 +921,15 @@ async function getUnreadCount(actor = {}) {
     ...getActorRecipientFilter(actor),
     status: { $in: UNREAD_STATUSES },
     read_at: null,
+    $and: [
+      {
+        $or: [
+          { scheduled_at: null },
+          { scheduled_at: { $exists: false } },
+          { scheduled_at: { $lte: new Date() } },
+        ],
+      },
+    ],
   };
   const unread_count = await Notification.countDocuments(filter);
   return { unread_count };

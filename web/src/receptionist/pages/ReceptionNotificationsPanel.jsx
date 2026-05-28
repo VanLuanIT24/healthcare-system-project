@@ -16,6 +16,9 @@ import {
   X,
 } from 'lucide-react';
 import { receptionDataApi } from '../api/receptionDataApi';
+import { chatbotAPI, unwrapData } from '../../utils/api';
+
+const CHATBOT_HANDOFF_NOTIFICATION_TYPE = 'chatbot.handoff.requested';
 
 const MODE_CONFIG = {
   'notifications-all': {
@@ -83,13 +86,23 @@ function normalizeNotification(item) {
   const details = [];
   if (item.payload?.entity_type) details.push(`Liên quan: ${item.payload.entity_type}`);
   if (item.payload?.entity_id) details.push(`Mã liên quan: ${item.payload.entity_id}`);
+  if (item.payload?.support_ticket_code) details.push(`Ticket: ${item.payload.support_ticket_code}`);
+  if (item.payload?.conversation_id) details.push(`Hội thoại: ${item.payload.conversation_id}`);
+  if (item.payload?.requested_at) details.push(`Khách yêu cầu lúc: ${formatNotificationTime(item.payload.requested_at)}`);
   if (item.channel) details.push(`Kênh: ${item.channel}`);
+  const isChatbotHandoff = item.notification_type === CHATBOT_HANDOFF_NOTIFICATION_TYPE
+    || item.payload?.action === 'accept_chatbot_handoff';
 
   return {
+    raw: item,
     rawId: item._id || item.id || item.notification_id || '',
     id: item.notification_no || item.code || item._id || item.id || '--',
     title: item.title || item.subject || 'Thông báo',
-    category,
+    category: isChatbotHandoff ? 'system' : category,
+    notificationType: item.notification_type || '',
+    payload: item.payload || {},
+    actionUrl: item.action_url || item.payload?.action_url || '',
+    isChatbotHandoff,
     description: item.message || item.description || item.content || 'Không có nội dung mô tả.',
     createdAt: item.created_at || item.sent_at || null,
     time: formatNotificationTime(item.created_at || item.sent_at),
@@ -97,7 +110,7 @@ function normalizeNotification(item) {
     priority: item.priority || 'normal',
     patient: item.payload?.patient_name || item.patient_name || '',
     related: item.payload?.entity_id || item.related || item.payload?.route || '--',
-    actionLabel: category === 'appointment' ? 'Xem lịch hẹn' : category === 'payment' ? 'Xem chi tiết hóa đơn' : 'Xem tài liệu',
+    actionLabel: isChatbotHandoff ? 'Nhận & mở tin nhắn' : category === 'appointment' ? 'Xem lịch hẹn' : category === 'payment' ? 'Xem chi tiết hóa đơn' : 'Xem tài liệu',
     group: item.payload?.group || item.notification_type || 'Hệ thống',
     details: details.length ? details : [item.message || item.description || 'Không có nội dung bổ sung.'],
   };
@@ -377,7 +390,7 @@ function NotificationTable({ mode, rows, selectedId, onSelect, onMarkRead }) {
   );
 }
 
-function NotificationDetail({ item, mode, onClose, onMarkRead }) {
+function NotificationDetail({ item, mode, onClose, onMarkRead, onAction, actionBusy }) {
   if (!item) {
     return (
       <aside className="reception-notification-detail">
@@ -419,9 +432,9 @@ function NotificationDetail({ item, mode, onClose, onMarkRead }) {
           <Mail size={16} />
           <span>Đánh dấu đã đọc</span>
         </button>
-        <button type="button" className="reception-btn reception-btn--ghost">
+        <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onAction?.(item)} disabled={actionBusy}>
           <FileText size={16} />
-          <span>{item.actionLabel}</span>
+          <span>{actionBusy && item.isChatbotHandoff ? 'Đang nhận...' : item.actionLabel}</span>
         </button>
       </footer>
     </aside>
@@ -500,6 +513,7 @@ function filterNotifications(items, mode, filters) {
 export function ReceptionNotificationsPanel({ mode = 'notifications-all' }) {
   const [items, setItems] = useState([]);
   const [loadState, setLoadState] = useState({ loading: false, error: '' });
+  const [actionBusy, setActionBusy] = useState(false);
   const [filters, setFilters] = useState(baseFilters);
   const visibleItems = useMemo(() => filterNotifications(items, mode, filters), [filters, items, mode]);
   const [selectedId, setSelectedId] = useState(visibleItems[0]?.id || '');
@@ -552,6 +566,37 @@ export function ReceptionNotificationsPanel({ mode = 'notifications-all' }) {
     }
   }
 
+  async function handleNotificationAction(item) {
+    if (!item) return;
+    if (!item.isChatbotHandoff) {
+      if (item.actionUrl) window.location.assign(item.actionUrl);
+      return;
+    }
+    const sessionId = item.payload?.chatbot_session_id;
+    if (!sessionId) {
+      setLoadState({ loading: false, error: 'Thông báo chatbot thiếu session_id để tiếp nhận.' });
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const response = await chatbotAPI.acceptHandoff(sessionId, {
+        notification_id: item.rawId,
+        support_ticket_id: item.payload?.support_ticket_id,
+        conversation_id: item.payload?.conversation_id,
+      });
+      const data = unwrapData(response);
+      setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read: true } : entry));
+      window.location.assign(data?.action_url || item.actionUrl || '/reception/dashboard?menu=support-patient-messages');
+    } catch (error) {
+      setLoadState({
+        loading: false,
+        error: error?.payload?.message || error?.message || 'Không thể nhận yêu cầu chatbot.',
+      });
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   return (
     <div className="reception-notification-page">
       {loadState.error ? (
@@ -584,6 +629,8 @@ export function ReceptionNotificationsPanel({ mode = 'notifications-all' }) {
           mode={mode}
           onClose={() => setSelectedId('')}
           onMarkRead={markRead}
+          onAction={handleNotificationAction}
+          actionBusy={actionBusy}
         />
       </div>
     </div>

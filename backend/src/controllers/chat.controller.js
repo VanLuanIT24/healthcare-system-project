@@ -15,5 +15,6 @@ module.exports = {
   listMessages: wrap((req) => chatbotService.listMessages(req.params.sessionId, req.query), 'Lấy tin nhắn chatbot thành công.'),
   sendMessage: wrap((req) => chatbotService.handleMessage(req.params.sessionId, req.body, req.auth, chatMeta(req)), 'Gửi tin nhắn chatbot thành công.', 201),
   escalateSession: wrap((req) => chatbotService.escalateSession(req.params.sessionId, req.body, req.auth, chatMeta(req)), 'Chuyển nhân viên thành công.'),
+  acceptHandoff: wrap((req) => chatbotService.acceptHandoff(req.params.sessionId, req.body, req.auth, chatMeta(req)), 'Nhận yêu cầu chatbot thành công.'),
   closeSession: wrap((req) => chatbotService.closeSession(req.params.sessionId), 'Đóng phiên chatbot thành công.'),
 };

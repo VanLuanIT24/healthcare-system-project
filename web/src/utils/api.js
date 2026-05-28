@@ -480,6 +480,8 @@ export const chatbotAPI = {
     request(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, chatbotRequest({ method: 'POST', body })),
   escalate: (sessionId, body = {}) =>
     request(`/chat/sessions/${encodeURIComponent(sessionId)}/escalate`, chatbotRequest({ method: 'POST', body })),
+  acceptHandoff: (sessionId, body = {}) =>
+    request(`/chat/sessions/${encodeURIComponent(sessionId)}/handoff/accept`, { method: 'POST', body }),
   close: (sessionId) =>
     request(`/chat/sessions/${encodeURIComponent(sessionId)}/close`, chatbotRequest({ method: 'PATCH', body: {} })),
 }

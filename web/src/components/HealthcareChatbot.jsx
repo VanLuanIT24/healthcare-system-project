@@ -444,6 +444,8 @@ function SlotPicker({ slots = [], onPick, disabled }) {
             <span>{slot.time}</span>
             <strong>{slot.doctor_name}</strong>
             <small>{slot.department_name} · {slot.date}</small>
+            {slot.schedule_window ? <small>Ca làm: {slot.schedule_window}</small> : null}
+            {slot.remaining_label || slot.remaining ? <small>{slot.remaining_label || `Còn ${slot.remaining} slot`}</small> : null}
             {slot.fee_display ? <em>{slot.fee_display}</em> : null}
           </button>
         )
@@ -594,6 +596,22 @@ function AppointmentSummary({ summary = {}, actions = [], onPick, disabled }) {
   )
 }
 
+function AppointmentList({ appointments = [], actions = [], onPick, disabled }) {
+  if (!Array.isArray(appointments) || appointments.length === 0) return null
+  return (
+    <div className="hc-chatbot-card-grid">
+      {appointments.map((appointment) => (
+        <article key={appointment.appointment_code || `${appointment.date}-${appointment.time}`} className="hc-chatbot-info-card">
+          <strong>{appointment.appointment_code || appointment.status}</strong>
+          <p>{[appointment.department_name, appointment.doctor_name].filter(Boolean).join(' · ')}</p>
+          <span>{[appointment.date, appointment.time, appointment.status].filter(Boolean).join(' · ')}</span>
+        </article>
+      ))}
+      <QuickReplies replies={actions} onPick={onPick} disabled={disabled} />
+    </div>
+  )
+}
+
 function EmergencyCard({ payload = {} }) {
   const actions = Array.isArray(payload.actions) ? payload.actions : []
   return (
@@ -623,6 +641,9 @@ function MessagePayload({ message, onPick, disabled }) {
       {type === 'service_cards' ? <ServiceCards services={payload.services} onPick={onPick} disabled={disabled} /> : null}
       {type === 'booking_form' ? <BookingForm payload={payload} onSubmit={onPick} disabled={disabled} /> : null}
       {type === 'callback_form' ? <BookingForm payload={payload} onSubmit={onPick} disabled={disabled} /> : null}
+      {type === 'appointment_list' ? (
+        <AppointmentList appointments={payload.appointments} actions={payload.actions} onPick={onPick} disabled={disabled} />
+      ) : null}
       {type === 'appointment_summary' || type === 'appointment_confirmed' ? (
         <AppointmentSummary summary={payload.summary} actions={payload.actions} onPick={onPick} disabled={disabled} />
       ) : null}
@@ -637,7 +658,7 @@ function MessagePayload({ message, onPick, disabled }) {
           {payload.expected_wait_minutes ? <strong>{payload.expected_wait_minutes} phút</strong> : null}
         </div>
       ) : null}
-      {type !== 'slot_picker' && type !== 'booking_form' && type !== 'appointment_summary' && type !== 'appointment_confirmed' ? (
+      {type !== 'slot_picker' && type !== 'booking_form' && type !== 'appointment_list' && type !== 'appointment_summary' && type !== 'appointment_confirmed' ? (
         <QuickReplies replies={payload.quick_replies || payload.actions} onPick={onPick} disabled={disabled} />
       ) : null}
     </>

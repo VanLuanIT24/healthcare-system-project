@@ -26,7 +26,7 @@ import {
   UserSquare2,
   X,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AppLogo, APP_BRAND_NAME } from '../../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
 import { getStaffActorName } from '../workspaceAccess';
@@ -40,6 +40,7 @@ import { ReceptionPatientsPanel } from './ReceptionPatientsPanel';
 import { ReceptionPaymentsPanel } from './ReceptionPaymentsPanel';
 import { ReceptionReportsPanel } from './ReceptionReportsPanel';
 import { ReceptionSettingsPanel } from './ReceptionSettingsPanel';
+import { SupportCommunicationPage } from '../../admin/support-communication/SupportCommunicationPage';
 import {
   PatientQuickDrawer,
   ReceptionGlobalSearch,
@@ -257,7 +258,6 @@ const PAYMENT_MENU_MODE_ALIASES = {
 
 const NOTIFICATION_MENU_MODE_ALIASES = {
   'support-tickets': 'notifications-system',
-  'support-patient-messages': 'notifications-all',
   'support-send-notification': 'notifications-all',
   'support-portal-guide': 'notifications-system',
   'support-booking-guide': 'notifications-appointments',
@@ -1001,12 +1001,14 @@ function StatusBadge({ status, category }) {
 
 export function ReceptionDashboardPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const menuFromQuery = new URLSearchParams(location.search).get('menu') || '';
   const auth = readStoredAuth();
   const actorName = getStaffActorName(auth);
   const actorDepartmentId = getActorDepartmentId(auth);
   const [collapsedSidebar, setCollapsedSidebar] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [activeMenu, setActiveMenu] = useState('overview-dashboard');
+  const [activeMenu, setActiveMenu] = useState(menuFromQuery || 'overview-dashboard');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quickPatient, setQuickPatient] = useState(null);
   const [authContext, setAuthContext] = useState({
@@ -1037,6 +1039,16 @@ export function ReceptionDashboardPage() {
     error: '',
     data: null,
   });
+
+  useEffect(() => {
+    if (menuFromQuery) {
+      setActiveMenu(menuFromQuery);
+      const parentKey = MENU_PARENT_BY_CHILD[menuFromQuery] || MENU_PARENT_ALIASES[menuFromQuery];
+      if (parentKey) {
+        setOpenMenus((current) => ({ ...current, [parentKey]: true }));
+      }
+    }
+  }, [menuFromQuery]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1415,7 +1427,8 @@ export function ReceptionDashboardPage() {
   )
     ? PAYMENT_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const notificationMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && (
+  const supportConversationMode = activeMenu === 'support-patient-messages';
+  const notificationMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !supportConversationMode && (
     NOTIFICATION_MENU_MODE_ALIASES[activeMenu]
     || (activeMenu.startsWith('notifications-') ? activeMenu : '')
   )
@@ -1433,7 +1446,7 @@ export function ReceptionDashboardPage() {
   )
     ? SETTING_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const hasSpecializedPanel = Boolean(appointmentMode || workflowMode || patientMode || doctorMode || paymentMode || notificationMode || reportMode || settingMode);
+  const hasSpecializedPanel = Boolean(appointmentMode || workflowMode || patientMode || doctorMode || paymentMode || supportConversationMode || notificationMode || reportMode || settingMode);
   const workspacePageMode = !hasSpecializedPanel && RECEPTION_WORKSPACE_PAGE_KEYS.has(activeMenu) ? activeMenu : null;
   const isSidebarCollapsed = collapsedSidebar && !mobileSidebarOpen;
 
@@ -1679,6 +1692,8 @@ export function ReceptionDashboardPage() {
           <ReceptionDoctorsPanel mode={doctorMode} />
         ) : paymentMode ? (
           <ReceptionPaymentsPanel mode={paymentMode} />
+        ) : supportConversationMode ? (
+          <SupportCommunicationPage view="conversations" />
         ) : notificationMode ? (
           <ReceptionNotificationsPanel mode={notificationMode} />
         ) : reportMode ? (

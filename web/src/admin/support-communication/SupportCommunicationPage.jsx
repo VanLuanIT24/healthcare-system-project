@@ -26,7 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { AdminActionConfirmDialog } from '../components/AdminActionConfirmDialog';
 import {
   supportCommDelete,
@@ -531,6 +531,7 @@ function DetailDrawer({ view, detail, row, onClose, onAction }) {
 }
 
 export function SupportCommunicationPage({ view = 'tickets' }) {
+  const location = useLocation();
   const config = VIEW_CONFIG[view] || VIEW_CONFIG.tickets;
   const Icon = config.icon;
   const [overview, setOverview] = useState(null);
@@ -554,6 +555,7 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
     category: appliedFilters.category,
     limit: 30,
   }), [appliedFilters]);
+  const targetConversationId = useMemo(() => new URLSearchParams(location.search).get('conversation_id') || '', [location.search]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -603,6 +605,12 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
       setDetail({ error: err.message, row });
     }
   };
+
+  useEffect(() => {
+    if (view !== 'conversations' || !targetConversationId || selectedRow) return;
+    const row = rows.find((item) => String(getRowId(item)) === targetConversationId || String(item._id || item.id || '') === targetConversationId);
+    if (row) openDetail(row);
+  }, [rows, selectedRow, targetConversationId, view]);
 
   const actionCopy = (action, row = selectedRow) => {
     const target = row?.ticket_code || row?.campaign_code || row?.template_code || row?.title || row?.name || getRowId(row) || config.title;
