@@ -57,12 +57,14 @@ const zaloLogoAsset = publicUploadUrl('logo zalo.png')
 const messengerLogoAsset = publicUploadUrl('logo messenger.jpg')
 
 function AiAgentMark({ compact = false, still = false }) {
+  const useStillAvatar = compact || still
+
   return (
     <span
       className={`hc-ai-agent-mark${compact ? ' is-compact' : ''}${still ? ' is-still' : ''}`}
       aria-hidden="true"
     >
-      {still ? (
+      {useStillAvatar ? (
         <img src={botMessageAvatar} alt="" loading="eager" decoding="async" />
       ) : (
         <video
