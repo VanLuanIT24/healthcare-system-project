@@ -17,6 +17,7 @@ const clinicalDocumentFilesService = require('../clinical-document-files.service
 const queueService = require('../queue.service');
 const scheduleService = require('../schedule.service');
 const workerHealthService = require('../worker-health.service');
+const { startOfDay, endOfDay } = require('../../common/helpers/date-time.helper');
 const {
   EVENT_OUTBOX_STATUS,
   EVENT_OUTBOX_STATUSES,
@@ -29,14 +30,43 @@ const {
 const {
   Attachment,
   AuditLog,
+  Appointment,
+  Charge,
+  ClinicalNote,
+  ClinicalAlert,
   DiagnosticRun,
+  Diagnosis,
+  Dispense,
+  Encounter,
   EventOutbox,
+  DoctorProfile,
+  DoctorSchedule,
+  FacilityLocation,
   IdempotencyRecord,
+  ImagingRoom,
+  ImagingOrder,
+  ImagingReport,
+  Invoice,
   JobRunLog,
+  LabOrder,
+  LabResult,
+  MedicalRecord,
   MaintenanceWindow,
   Notification,
   NotificationDelivery,
+  Order,
+  Patient,
+  Payment,
+  Prescription,
+  ProcedureOrder,
+  ProcedureResult,
   QrToken,
+  QueueTicket,
+  Receipt,
+  Room,
+  ScheduleSlot,
+  User,
+  Department,
 } = require('../../models');
 
 const DEFAULT_LIMIT = 40;
@@ -341,6 +371,1571 @@ async function getSchedulingHourlyFlow(query = {}, actor = {}) {
       .filter((item) => item.error)
       .map((item) => ({ source: item.label, message: item.error })),
   };
+}
+
+const PATIENT_FLOW_STEP_DEFINITIONS = [
+  { key: 'portal_identity', label: 'Portal / hồ sơ BN' },
+  { key: 'appointment_created', label: 'Đặt lịch' },
+  { key: 'schedule_published', label: 'Lịch bác sĩ / slot' },
+  { key: 'appointment_confirmed', label: 'Booked / confirmed' },
+  { key: 'patient_arrived', label: 'Đến viện' },
+  { key: 'frontdesk_checkin', label: 'Lễ tân check-in' },
+  { key: 'queue_ticket', label: 'Queue ticket' },
+  { key: 'nursing_triage', label: 'Điều dưỡng / sinh hiệu' },
+  { key: 'ready_for_doctor', label: 'Ready for doctor' },
+  { key: 'doctor_called', label: 'Bác sĩ gọi BN' },
+  { key: 'encounter_started', label: 'Bắt đầu encounter' },
+  { key: 'clinical_documented', label: 'Note / chẩn đoán' },
+  { key: 'orders_prescription', label: 'Chỉ định / kê đơn' },
+  { key: 'worklists_received', label: 'CLS / nhà thuốc nhận' },
+  { key: 'charges_created', label: 'Charge dịch vụ / thuốc' },
+  { key: 'invoice_created', label: 'Billing tạo invoice' },
+  { key: 'payment_confirmed', label: 'Payment / receipt' },
+  { key: 'results_completed', label: 'Kết quả hoàn tất' },
+  { key: 'doctor_review_complete', label: 'Bác sĩ hoàn tất' },
+  { key: 'record_released', label: 'Hồ sơ finalize / release' },
+];
+
+function uniqueIds(values = []) {
+  return [...new Set(values.filter(Boolean).map(toId).filter(Boolean))];
+}
+
+function byId(items = []) {
+  return new Map(items.map((item) => [toId(item._id || item.id), item]));
+}
+
+function idsFrom(items = [], fields = []) {
+  return uniqueIds(items.flatMap((item) => fields.map((field) => item?.[field])));
+}
+
+function patientFlowDateRange(query = {}) {
+  const date = operationDate(query);
+  return {
+    date,
+    start: startOfDay(query.date || date),
+    end: endOfDay(query.date || date),
+  };
+}
+
+function scopedFlowFilter(query = {}) {
+  const filter = {};
+  if (query.department_id) filter.department_id = query.department_id;
+  if (query.doctor_id) filter.doctor_id = query.doctor_id;
+  return filter;
+}
+
+function patientLabel(patient = {}) {
+  return patient?.full_name || patient?.patient_name || 'Chưa rõ bệnh nhân';
+}
+
+function doctorLabel(doctor = {}) {
+  return doctor?.full_name || doctor?.name || doctor?.username || 'Chưa phân bác sĩ';
+}
+
+function departmentLabel(department = {}) {
+  return department?.department_name || department?.name || department?.department_code || 'Chưa rõ khoa';
+}
+
+function moneySum(items = [], field = 'total_amount') {
+  return items.reduce((sum, item) => sum + safeNumber(item?.[field]), 0);
+}
+
+function statusCounts(items = []) {
+  return items.reduce((result, item) => {
+    const key = item?.status || 'unknown';
+    result[key] = safeNumber(result[key]) + 1;
+    return result;
+  }, {});
+}
+
+function allTerminal(items = [], terminal = []) {
+  if (!items.length) return false;
+  return items.every((item) => terminal.includes(item?.status));
+}
+
+function stepStatus(done, current = false, attention = false) {
+  if (attention) return 'attention';
+  if (done) return 'done';
+  if (current) return 'current';
+  return 'pending';
+}
+
+function queueWaitMinutesFlow(ticket = {}) {
+  const start = new Date(ticket.checkin_time || ticket.created_at).getTime();
+  const end = ticket.service_start_time ? new Date(ticket.service_start_time).getTime() : Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+  return Math.round((end - start) / 60000);
+}
+
+function serviceMinutesFlow(ticket = {}, encounter = {}) {
+  const start = new Date(ticket.service_start_time || encounter.started_at || encounter.start_time).getTime();
+  const end = ticket.completed_time || encounter.end_time || Date.now();
+  const endMs = new Date(end).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(endMs) || endMs < start) return 0;
+  return Math.round((endMs - start) / 60000);
+}
+
+function diagnosticCounts({ labOrders = [], labResults = [], imagingOrders = [], imagingReports = [], procedureOrders = [], procedureResults = [] } = {}) {
+  const labFinal = labResults.filter((item) => ['final', 'amended'].includes(item.status));
+  const imagingFinal = imagingReports.filter((item) => ['final', 'amended'].includes(item.status));
+  const procedureFinal = procedureResults.filter((item) => ['final', 'amended'].includes(item.status));
+  const totalOrders = labOrders.length + imagingOrders.length + procedureOrders.length;
+  const completedOrders = [
+    ...labOrders.filter((item) => item.status === 'completed'),
+    ...imagingOrders.filter((item) => item.status === 'completed'),
+    ...procedureOrders.filter((item) => item.status === 'completed'),
+  ].length;
+
+  return {
+    total_orders: totalOrders,
+    completed_orders: completedOrders,
+    pending_orders: totalOrders - completedOrders,
+    final_results: labFinal.length + imagingFinal.length + procedureFinal.length,
+    critical_results: [
+      ...labResults.filter((item) => item.is_critical),
+      ...imagingReports.filter((item) => item.is_critical),
+      ...procedureResults.filter((item) => item.is_critical),
+    ].length,
+    lab: { total: labOrders.length, completed: labOrders.filter((item) => item.status === 'completed').length, final: labFinal.length },
+    imaging: { total: imagingOrders.length, completed: imagingOrders.filter((item) => item.status === 'completed').length, final: imagingFinal.length },
+    procedure: { total: procedureOrders.length, completed: procedureOrders.filter((item) => item.status === 'completed').length, final: procedureFinal.length },
+  };
+}
+
+function summarizeOrderState(orders = []) {
+  return {
+    total: orders.length,
+    by_type: orders.reduce((result, item) => {
+      const key = item.order_type || 'other';
+      result[key] = safeNumber(result[key]) + 1;
+      return result;
+    }, {}),
+    by_status: statusCounts(orders),
+    open: orders.filter((item) => !['completed', 'cancelled', 'entered_in_error'].includes(item.status)).length,
+    completed: orders.filter((item) => item.status === 'completed').length,
+  };
+}
+
+function summarizePharmacyState({ prescriptions = [], dispenses = [] } = {}) {
+  return {
+    prescriptions_total: prescriptions.length,
+    prescriptions_active: prescriptions.filter((item) => ['verified', 'active', 'partially_dispensed'].includes(item.status)).length,
+    dispenses_total: dispenses.length,
+    dispenses_pending: dispenses.filter((item) => !['completed', 'cancelled'].includes(item.status)).length,
+    dispenses_completed: dispenses.filter((item) => item.status === 'completed').length,
+  };
+}
+
+function summarizeBillingState({ charges = [], invoices = [], payments = [], receipts = [] } = {}) {
+  return {
+    charges_total: charges.length,
+    charges_amount: moneySum(charges),
+    charges_open: charges.filter((item) => ['pending', 'draft', 'posted'].includes(item.status)).length,
+    invoices_total: invoices.length,
+    invoices_open: invoices.filter((item) => !['paid', 'voided', 'cancelled', 'refunded'].includes(item.status)).length,
+    invoices_paid: invoices.filter((item) => item.status === 'paid').length,
+    balance_due: moneySum(invoices, 'balance_due'),
+    payments_total: payments.length,
+    payments_confirmed: payments.filter((item) => ['confirmed', 'completed'].includes(item.status)).length,
+    receipts_generated: receipts.length,
+  };
+}
+
+function summarizeRecordState(records = []) {
+  const current = records.find((item) => item.released_to_patient) || records.find((item) => ['finalized', 'sealed'].includes(item.status)) || records[0] || null;
+  return {
+    total: records.length,
+    record_id: toId(current?._id),
+    record_no: current?.record_no || '',
+    status: current?.status || '',
+    finalized: Boolean(current?.finalized_at || ['finalized', 'sealed', 'archived'].includes(current?.status)),
+    released_to_patient: Boolean(current?.released_to_patient),
+    released_at: current?.released_at || null,
+  };
+}
+
+function inferFlowStage(parts = {}) {
+  const {
+    appointment,
+    queueTicket,
+    encounter,
+    orders = [],
+    diagnostics = {},
+    pharmacy = {},
+    billing = {},
+    record = {},
+  } = parts;
+  const appointmentStatus = appointment?.status;
+  const queueStatus = queueTicket?.status;
+  const nursingStage = queueTicket?.nursing_stage || encounter?.nursing_status;
+  const hasOrders = orders.length > 0 || pharmacy.prescriptions_total > 0;
+  const diagnosticsPending = diagnostics.total_orders > 0 && diagnostics.final_results < diagnostics.total_orders;
+  const billingPending = billing.invoices_open > 0 || billing.charges_open > 0 || billing.balance_due > 0;
+
+  if (['cancelled', 'no_show', 'rescheduled'].includes(appointmentStatus) || ['cancelled', 'no_show', 'skipped'].includes(queueStatus)) return 'exceptions';
+  if (record.released_to_patient || record.finalized) return 'finalized';
+  if (encounter?.status === 'completed' && !billingPending && !diagnosticsPending) return 'completed';
+  if (billingPending) return 'payment_pending';
+  if (diagnosticsPending) return 'results_pending';
+  if (hasOrders && !allTerminal(orders, ['completed', 'cancelled', 'entered_in_error'])) return 'orders_active';
+  if (encounter?.status === 'in_progress' || encounter?.status === 'on_hold' || queueStatus === 'in_service') return 'in_consultation';
+  if (queueStatus === 'called' || queueStatus === 'recalled') return 'called';
+  if (nursingStage === 'ready_for_doctor' || queueTicket?.ready_for_doctor_at || encounter?.ready_for_doctor_at) return 'ready_for_doctor';
+  if (nursingStage && nursingStage !== 'not_started' && queueTicket) return 'waiting_nurse';
+  if (queueTicket || appointmentStatus === 'checked_in') return 'checked_in';
+  if (appointmentStatus === 'confirmed') return 'confirmed';
+  return 'scheduled';
+}
+
+function buildWorkflowSteps(parts = {}, currentStage = 'scheduled') {
+  const {
+    patient,
+    appointment,
+    queueTicket,
+    encounter,
+    notes = [],
+    diagnoses = [],
+    orders = [],
+    diagnostics = {},
+    pharmacy = {},
+    billing = {},
+    record = {},
+  } = parts;
+  const appointmentConfirmed = ['confirmed', 'checked_in', 'in_consultation', 'completed'].includes(appointment?.status);
+  const nursingStage = queueTicket?.nursing_stage || encounter?.nursing_status;
+  const hasDoctorDocumentation = notes.length > 0 || diagnoses.length > 0;
+  const hasClinicalWorklist = diagnostics.total_orders > 0 || pharmacy.prescriptions_total > 0;
+  const paymentDone = billing.payments_confirmed > 0 || (billing.invoices_total > 0 && billing.balance_due === 0);
+  const resultsDone = diagnostics.total_orders === 0 ? false : diagnostics.final_results >= diagnostics.total_orders;
+
+  const doneByKey = {
+    portal_identity: Boolean(patient),
+    appointment_created: Boolean(appointment),
+    schedule_published: Boolean(appointment?.doctor_schedule_id || appointment?.schedule_slot_id),
+    appointment_confirmed: appointmentConfirmed,
+    patient_arrived: Boolean(queueTicket || appointment?.checked_in_at),
+    frontdesk_checkin: Boolean(appointment?.checked_in_at || queueTicket?.checkin_time),
+    queue_ticket: Boolean(queueTicket),
+    nursing_triage: ['triage_done', 'vital_done', 'ready_for_doctor', 'completed'].includes(nursingStage) || Boolean(queueTicket?.vital_recorded_at || encounter?.vital_recorded_at),
+    ready_for_doctor: nursingStage === 'ready_for_doctor' || Boolean(queueTicket?.ready_for_doctor_at || encounter?.ready_for_doctor_at),
+    doctor_called: ['called', 'recalled', 'in_service', 'completed'].includes(queueTicket?.status),
+    encounter_started: Boolean(encounter?.started_at || encounter?.status === 'in_progress' || encounter?.status === 'completed'),
+    clinical_documented: hasDoctorDocumentation,
+    orders_prescription: orders.length > 0 || pharmacy.prescriptions_total > 0,
+    worklists_received: hasClinicalWorklist,
+    charges_created: billing.charges_total > 0,
+    invoice_created: billing.invoices_total > 0,
+    payment_confirmed: paymentDone,
+    results_completed: resultsDone,
+    doctor_review_complete: encounter?.status === 'completed',
+    record_released: record.released_to_patient || record.finalized,
+  };
+
+  return PATIENT_FLOW_STEP_DEFINITIONS.map((step) => ({
+    ...step,
+    status: stepStatus(doneByKey[step.key], false, currentStage === 'exceptions' && !doneByKey[step.key]),
+  }));
+}
+
+function buildFlowAlerts(items = []) {
+  return items.flatMap((item) => {
+    const alerts = [];
+    if (item.current_stage === 'exceptions') {
+      alerts.push({
+        id: `flow-exception-${item.flow_id}`,
+        severity: 'high',
+        title: 'Luồng bệnh nhân cần điều phối',
+        message: `${item.patient_name} đang ở trạng thái ngoại lệ (${item.appointment_status || item.queue_status || item.current_stage}).`,
+        patientName: item.patient_name,
+        departmentName: item.department_name,
+        queueId: item.queue_ticket_id,
+        appointmentId: item.appointment_id,
+        type: 'patient_flow_exception',
+        flow_id: item.flow_id,
+      });
+    }
+    if (item.waiting_minutes >= 30 && !['completed', 'finalized'].includes(item.current_stage)) {
+      alerts.push({
+        id: `flow-wait-${item.flow_id}`,
+        severity: item.waiting_minutes >= 60 ? 'critical' : 'medium',
+        title: 'Bệnh nhân chờ lâu',
+        message: `${item.patient_name} đã chờ ${item.waiting_minutes} phút trong luồng ${item.department_name}.`,
+        patientName: item.patient_name,
+        departmentName: item.department_name,
+        queueId: item.queue_ticket_id,
+        appointmentId: item.appointment_id,
+        type: 'wait_sla',
+        flow_id: item.flow_id,
+      });
+    }
+    if (item.billing_summary?.balance_due > 0) {
+      alerts.push({
+        id: `flow-billing-${item.flow_id}`,
+        severity: 'medium',
+        title: 'Còn công nợ trong lượt khám',
+        message: `${item.patient_name} còn ${item.billing_summary.balance_due.toLocaleString('vi-VN')}đ chưa thanh toán.`,
+        patientName: item.patient_name,
+        departmentName: item.department_name,
+        type: 'billing_pending',
+        flow_id: item.flow_id,
+      });
+    }
+    if (item.diagnostic_summary?.critical_results > 0) {
+      alerts.push({
+        id: `flow-critical-result-${item.flow_id}`,
+        severity: 'critical',
+        title: 'Có kết quả critical',
+        message: `${item.patient_name} có kết quả critical cần bác sĩ xác nhận.`,
+        patientName: item.patient_name,
+        departmentName: item.department_name,
+        type: 'critical_result',
+        flow_id: item.flow_id,
+      });
+    }
+    return alerts;
+  }).slice(0, 80);
+}
+
+function groupFlowColumns(items = []) {
+  const keys = ['scheduled', 'confirmed', 'checked_in', 'waiting_nurse', 'ready_for_doctor', 'called', 'in_consultation', 'orders_active', 'payment_pending', 'results_pending', 'completed', 'finalized', 'exceptions'];
+  return Object.fromEntries(keys.map((key) => [key, items.filter((item) => item.current_stage === key)]));
+}
+
+function summarizePatientFlow(items = []) {
+  const count = (stage) => items.filter((item) => item.current_stage === stage).length;
+  return {
+    total: items.length,
+    scheduled: count('scheduled') + count('confirmed'),
+    checked_in: count('checked_in') + count('waiting_nurse') + count('ready_for_doctor') + count('called'),
+    waiting: count('checked_in') + count('waiting_nurse') + count('ready_for_doctor'),
+    ready_for_doctor: count('ready_for_doctor'),
+    in_consultation: count('in_consultation'),
+    orders_active: count('orders_active'),
+    payment_pending: count('payment_pending'),
+    results_pending: count('results_pending'),
+    completed: count('completed'),
+    finalized: count('finalized'),
+    no_show: items.filter((item) => item.appointment_status === 'no_show' || item.queue_status === 'no_show').length,
+    needs_action: items.filter((item) => item.current_stage === 'exceptions' || item.sla_status === 'breached').length,
+  };
+}
+
+async function loadPatientFlowBundle(query = {}) {
+  const { date, start, end } = patientFlowDateRange(query);
+  const appointmentFilter = {
+    ...scopedFlowFilter(query),
+    is_deleted: false,
+    appointment_time: { $gte: start, $lte: end },
+  };
+  const queueFilter = {
+    ...scopedFlowFilter(query),
+    queue_date: { $gte: start, $lte: end },
+  };
+
+  const [appointments, queueTickets] = await Promise.all([
+    Appointment.find(appointmentFilter).sort({ appointment_time: 1 }).limit(700).lean(),
+    QueueTicket.find(queueFilter).sort({ checkin_time: 1, queue_number: 1 }).limit(700).lean(),
+  ]);
+
+  const appointmentIds = uniqueIds([
+    ...appointments.map((item) => item._id),
+    ...queueTickets.map((item) => item.appointment_id),
+  ]);
+  const queueEncounterIds = uniqueIds(queueTickets.map((item) => item.encounter_id));
+  const encounterFilter = {
+    $or: [
+      { start_time: { $gte: start, $lte: end } },
+      ...(appointmentIds.length ? [{ appointment_id: { $in: appointmentIds } }] : []),
+      ...(queueEncounterIds.length ? [{ _id: { $in: queueEncounterIds } }] : []),
+    ],
+  };
+  if (query.department_id) encounterFilter.department_id = query.department_id;
+  if (query.doctor_id) encounterFilter.attending_doctor_id = query.doctor_id;
+  const encounters = await Encounter.find(encounterFilter).sort({ start_time: 1 }).limit(700).lean();
+  const encounterIds = uniqueIds([
+    ...encounters.map((item) => item._id),
+    ...queueEncounterIds,
+  ]);
+
+  const [
+    orders,
+    notes,
+    diagnoses,
+    labOrders,
+    baseLabResults,
+    imagingOrders,
+    baseImagingReports,
+    procedureOrders,
+    procedureResults,
+    prescriptions,
+    dispenses,
+    charges,
+    invoices,
+    basePayments,
+    baseReceipts,
+    records,
+  ] = await Promise.all([
+    encounterIds.length ? Order.find({ encounter_id: { $in: encounterIds } }).sort({ ordered_at: 1 }).limit(1000).lean() : [],
+    encounterIds.length ? ClinicalNote.find({ encounter_id: { $in: encounterIds }, status: { $ne: 'cancelled' } }).select('encounter_id status signed_at').limit(1000).lean() : [],
+    encounterIds.length ? Diagnosis.find({ encounter_id: { $in: encounterIds }, status: { $ne: 'entered_in_error' } }).select('encounter_id status is_primary diagnosis_name').limit(1000).lean() : [],
+    encounterIds.length ? LabOrder.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+    [],
+    encounterIds.length ? ImagingOrder.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+    [],
+    encounterIds.length ? ProcedureOrder.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+    encounterIds.length ? ProcedureResult.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+    encounterIds.length ? Prescription.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+    encounterIds.length ? Dispense.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+    encounterIds.length ? Charge.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+    encounterIds.length ? Invoice.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+    [],
+    [],
+    encounterIds.length ? MedicalRecord.find({ encounter_id: { $in: encounterIds } }).limit(1000).lean() : [],
+  ]);
+
+  const labOrderIds = uniqueIds(labOrders.map((item) => item._id));
+  const imagingOrderIds = uniqueIds(imagingOrders.map((item) => item._id));
+  const invoiceIds = uniqueIds(invoices.map((item) => item._id));
+  const [resolvedLabResults, resolvedImagingReports, resolvedPayments, resolvedReceipts] = await Promise.all([
+    labOrderIds.length ? LabResult.find({ lab_order_id: { $in: labOrderIds }, is_current: { $ne: false } }).limit(1000).lean() : baseLabResults,
+    imagingOrderIds.length ? ImagingReport.find({ imaging_order_id: { $in: imagingOrderIds }, is_current: { $ne: false } }).limit(1000).lean() : baseImagingReports,
+    invoiceIds.length ? Payment.find({ invoice_id: { $in: invoiceIds } }).limit(1000).lean() : basePayments,
+    invoiceIds.length ? Receipt.find({ invoice_id: { $in: invoiceIds } }).limit(1000).lean() : baseReceipts,
+  ]);
+
+  const patientIds = uniqueIds([
+    ...idsFrom(appointments, ['patient_id']),
+    ...idsFrom(queueTickets, ['patient_id']),
+    ...idsFrom(encounters, ['patient_id']),
+  ]);
+  const doctorIds = uniqueIds([
+    ...idsFrom(appointments, ['doctor_id']),
+    ...idsFrom(queueTickets, ['doctor_id']),
+    ...idsFrom(encounters, ['attending_doctor_id']),
+  ]);
+  const departmentIds = uniqueIds([
+    ...idsFrom(appointments, ['department_id']),
+    ...idsFrom(queueTickets, ['department_id']),
+    ...idsFrom(encounters, ['department_id']),
+  ]);
+  const [patients, doctors, departments] = await Promise.all([
+    patientIds.length ? Patient.find({ _id: { $in: patientIds } }).select('patient_code full_name date_of_birth gender phone status').lean() : [],
+    doctorIds.length ? User.find({ _id: { $in: doctorIds } }).select('full_name employee_code username department_id').lean() : [],
+    departmentIds.length ? Department.find({ _id: { $in: departmentIds } }).select('department_name department_code department_type').lean() : [],
+  ]);
+
+  return {
+    date,
+    appointments,
+    queueTickets,
+    encounters,
+    orders,
+    notes,
+    diagnoses,
+    labOrders,
+    labResults: resolvedLabResults,
+    imagingOrders,
+    imagingReports: resolvedImagingReports,
+    procedureOrders,
+    procedureResults,
+    prescriptions,
+    dispenses,
+    charges,
+    invoices,
+    payments: resolvedPayments,
+    receipts: resolvedReceipts,
+    records,
+    maps: {
+      patients: byId(patients),
+      doctors: byId(doctors),
+      departments: byId(departments),
+    },
+  };
+}
+
+function buildPatientFlowItems(bundle) {
+  const appointmentsById = byId(bundle.appointments);
+  const queuesByAppointmentId = new Map(bundle.queueTickets.filter((item) => item.appointment_id).map((item) => [toId(item.appointment_id), item]));
+  const encountersByAppointmentId = new Map(bundle.encounters.filter((item) => item.appointment_id).map((item) => [toId(item.appointment_id), item]));
+  const encountersById = byId(bundle.encounters);
+  const flowKeys = new Map();
+
+  bundle.appointments.forEach((appointment) => {
+    flowKeys.set(`appointment:${toId(appointment._id)}`, { appointment });
+  });
+  bundle.queueTickets.forEach((queueTicket) => {
+    const key = queueTicket.appointment_id ? `appointment:${toId(queueTicket.appointment_id)}` : `queue:${toId(queueTicket._id)}`;
+    flowKeys.set(key, { ...(flowKeys.get(key) || {}), queueTicket, appointment: appointmentsById.get(toId(queueTicket.appointment_id)) || flowKeys.get(key)?.appointment });
+  });
+  bundle.encounters.forEach((encounter) => {
+    const key = encounter.appointment_id ? `appointment:${toId(encounter.appointment_id)}` : `encounter:${toId(encounter._id)}`;
+    flowKeys.set(key, { ...(flowKeys.get(key) || {}), encounter, appointment: appointmentsById.get(toId(encounter.appointment_id)) || flowKeys.get(key)?.appointment });
+  });
+
+  return [...flowKeys.values()].map(({ appointment, queueTicket, encounter }) => {
+    const resolvedEncounter = encounter || encountersByAppointmentId.get(toId(appointment?._id)) || encountersById.get(toId(queueTicket?.encounter_id));
+    const resolvedQueue = queueTicket || queuesByAppointmentId.get(toId(appointment?._id));
+    const patientId = toId(appointment?.patient_id || resolvedQueue?.patient_id || resolvedEncounter?.patient_id);
+    const doctorId = toId(appointment?.doctor_id || resolvedQueue?.doctor_id || resolvedEncounter?.attending_doctor_id);
+    const departmentId = toId(appointment?.department_id || resolvedQueue?.department_id || resolvedEncounter?.department_id);
+    const patient = bundle.maps.patients.get(patientId);
+    const doctor = bundle.maps.doctors.get(doctorId);
+    const department = bundle.maps.departments.get(departmentId);
+    const encounterId = toId(resolvedEncounter?._id);
+    const invoiceIdsForEncounter = new Set(bundle.invoices.filter((item) => toId(item.encounter_id) === encounterId).map((item) => toId(item._id)));
+    const prescriptions = bundle.prescriptions.filter((item) => toId(item.encounter_id) === encounterId);
+    const prescriptionIds = new Set(prescriptions.map((item) => toId(item._id)));
+    const parts = {
+      patient,
+      appointment,
+      queueTicket: resolvedQueue,
+      encounter: resolvedEncounter,
+      notes: bundle.notes.filter((item) => toId(item.encounter_id) === encounterId),
+      diagnoses: bundle.diagnoses.filter((item) => toId(item.encounter_id) === encounterId),
+      orders: bundle.orders.filter((item) => toId(item.encounter_id) === encounterId),
+      labOrders: bundle.labOrders.filter((item) => toId(item.encounter_id) === encounterId),
+      labResults: bundle.labResults.filter((item) => bundle.labOrders.some((order) => toId(order.encounter_id) === encounterId && toId(order._id) === toId(item.lab_order_id))),
+      imagingOrders: bundle.imagingOrders.filter((item) => toId(item.encounter_id) === encounterId),
+      imagingReports: bundle.imagingReports.filter((item) => bundle.imagingOrders.some((order) => toId(order.encounter_id) === encounterId && toId(order._id) === toId(item.imaging_order_id))),
+      procedureOrders: bundle.procedureOrders.filter((item) => toId(item.encounter_id) === encounterId),
+      procedureResults: bundle.procedureResults.filter((item) => toId(item.encounter_id) === encounterId),
+      prescriptions,
+      dispenses: bundle.dispenses.filter((item) => toId(item.encounter_id) === encounterId || prescriptionIds.has(toId(item.prescription_id))),
+      charges: bundle.charges.filter((item) => toId(item.encounter_id) === encounterId),
+      invoices: bundle.invoices.filter((item) => toId(item.encounter_id) === encounterId),
+      payments: bundle.payments.filter((item) => invoiceIdsForEncounter.has(toId(item.invoice_id))),
+      receipts: bundle.receipts.filter((item) => invoiceIdsForEncounter.has(toId(item.invoice_id))),
+      records: bundle.records.filter((item) => toId(item.encounter_id) === encounterId),
+    };
+    const diagnostics = diagnosticCounts(parts);
+    const ordersSummary = summarizeOrderState(parts.orders);
+    const pharmacy = summarizePharmacyState(parts);
+    const billing = summarizeBillingState(parts);
+    const record = summarizeRecordState(parts.records);
+    const currentStage = inferFlowStage({ ...parts, diagnostics, pharmacy, billing, record });
+    const waitingMinutes = resolvedQueue ? queueWaitMinutesFlow(resolvedQueue) : 0;
+    const riskTags = [
+      resolvedQueue?.sla_breached_at ? 'Quá SLA' : '',
+      waitingMinutes >= 30 ? 'Chờ lâu' : '',
+      diagnostics.critical_results > 0 ? 'Critical result' : '',
+      billing.balance_due > 0 ? 'Chưa thanh toán' : '',
+      currentStage === 'exceptions' ? 'Ngoại lệ' : '',
+    ].filter(Boolean);
+
+    return {
+      flow_id: toId(appointment?._id || resolvedQueue?._id || resolvedEncounter?._id),
+      date: bundle.date,
+      patient_id: patientId,
+      patient_name: patientLabel(patient),
+      patient_code: patient?.patient_code || '—',
+      patient_meta: [patient?.gender, patient?.status].filter(Boolean).join(' · '),
+      appointment_id: toId(appointment?._id),
+      appointment_time: appointment?.appointment_time || resolvedEncounter?.start_time || resolvedQueue?.checkin_time,
+      appointment_status: appointment?.status,
+      appointment_source: appointment?.source || '',
+      queue_ticket_id: toId(resolvedQueue?._id),
+      queue_number: resolvedQueue?.display_number || resolvedQueue?.queue_number || '',
+      queue_status: resolvedQueue?.status,
+      nursing_stage: resolvedQueue?.nursing_stage || resolvedEncounter?.nursing_status || 'not_started',
+      encounter_id: encounterId,
+      encounter_code: resolvedEncounter?.encounter_code || '',
+      encounter_status: resolvedEncounter?.status || '',
+      doctor_id: doctorId,
+      doctor_name: doctorLabel(doctor),
+      department_id: departmentId,
+      department_name: departmentLabel(department),
+      current_stage: currentStage,
+      waiting_minutes: waitingMinutes,
+      service_minutes: serviceMinutesFlow(resolvedQueue, resolvedEncounter),
+      sla_status: resolvedQueue?.sla_breached_at || waitingMinutes >= 60 ? 'breached' : waitingMinutes >= 30 ? 'warning' : 'normal',
+      risk_tags: riskTags,
+      orders_summary: ordersSummary,
+      diagnostic_summary: diagnostics,
+      pharmacy_summary: pharmacy,
+      billing_summary: billing,
+      record_summary: record,
+      workflow_steps: buildWorkflowSteps({ ...parts, diagnostics, pharmacy, billing, record }, currentStage),
+      related: {
+        lab_order_ids: parts.labOrders.map((item) => toId(item._id)),
+        imaging_order_ids: parts.imagingOrders.map((item) => toId(item._id)),
+        procedure_order_ids: parts.procedureOrders.map((item) => toId(item._id)),
+        prescription_ids: parts.prescriptions.map((item) => toId(item._id)),
+        invoice_ids: parts.invoices.map((item) => toId(item._id)),
+        payment_ids: parts.payments.map((item) => toId(item._id)),
+        receipt_ids: parts.receipts.map((item) => toId(item._id)),
+      },
+    };
+  }).sort((left, right) => {
+    const leftRisk = left.current_stage === 'exceptions' ? 2 : left.sla_status === 'breached' ? 1 : 0;
+    const rightRisk = right.current_stage === 'exceptions' ? 2 : right.sla_status === 'breached' ? 1 : 0;
+    if (rightRisk !== leftRisk) return rightRisk - leftRisk;
+    return new Date(left.appointment_time || 0) - new Date(right.appointment_time || 0);
+  });
+}
+
+async function getPatientFlowData(query = {}) {
+  const bundle = await loadPatientFlowBundle(query);
+  const items = buildPatientFlowItems(bundle);
+  const alerts = buildFlowAlerts(items);
+  return {
+    date: bundle.date,
+    items,
+    columns: groupFlowColumns(items),
+    summary: summarizePatientFlow(items),
+    alerts,
+    workflow_steps: PATIENT_FLOW_STEP_DEFINITIONS,
+    data_source: 'database',
+  };
+}
+
+async function getPatientFlowToday(query = {}) {
+  return getPatientFlowData(query);
+}
+
+async function getPatientFlowCheckInMonitor(query = {}) {
+  const data = await getPatientFlowData(query);
+  return {
+    ...data,
+    items: data.items.filter((item) => ['scheduled', 'confirmed', 'checked_in', 'exceptions'].includes(item.current_stage)),
+  };
+}
+
+async function getPatientFlowWaiting(query = {}) {
+  const data = await getPatientFlowData(query);
+  return {
+    ...data,
+    items: data.items.filter((item) => ['checked_in', 'waiting_nurse', 'ready_for_doctor', 'called', 'exceptions'].includes(item.current_stage)),
+  };
+}
+
+async function getPatientFlowInConsultation(query = {}) {
+  const data = await getPatientFlowData(query);
+  return {
+    ...data,
+    items: data.items.filter((item) => ['in_consultation', 'orders_active', 'payment_pending', 'results_pending'].includes(item.current_stage)),
+  };
+}
+
+async function getPatientFlowNeedsAction(query = {}) {
+  const data = await getPatientFlowData(query);
+  return {
+    date: data.date,
+    items: data.alerts,
+    alerts: data.alerts,
+    summary: {
+      total: data.alerts.length,
+      critical: data.alerts.filter((item) => item.severity === 'critical').length,
+      high: data.alerts.filter((item) => item.severity === 'high').length,
+      medium: data.alerts.filter((item) => item.severity === 'medium').length,
+    },
+    data_source: 'database',
+  };
+}
+
+async function getPatientFlowCompleted(query = {}) {
+  const data = await getPatientFlowData(query);
+  return {
+    ...data,
+    items: data.items.filter((item) => ['completed', 'finalized', 'exceptions'].includes(item.current_stage)),
+  };
+}
+
+async function getPatientFlowContext(flowId, query = {}) {
+  const data = await getPatientFlowData(query);
+  const item = data.items.find((row) => row.flow_id === flowId || row.appointment_id === flowId || row.queue_ticket_id === flowId || row.encounter_id === flowId);
+  if (!item) throw ApiError.notFound('Không tìm thấy patient flow context.');
+  return { flow: item };
+}
+
+async function acknowledgePatientFlowAlert(alertId, payload = {}, auth = {}, requestMeta = {}) {
+  await recordOpsAudit(auth, 'operations.patient_flow.alert_acknowledge', 'patient_flow_alert', alertId, {
+    alert_id: alertId,
+    note: payload.note,
+  }, requestMeta);
+  return {
+    alert_id: alertId,
+    status: 'acknowledged',
+    acknowledged_at: now().toISOString(),
+  };
+}
+
+function operationRange(query = {}) {
+  const date = operationDate(query);
+  return {
+    date,
+    start: startOfDay(query.date || date),
+    end: endOfDay(query.date || date),
+  };
+}
+
+function activeQueueStatus(status) {
+  return ['waiting', 'called', 'recalled', 'skipped', 'in_service'].includes(String(status || ''));
+}
+
+function normalizeOperationQueueTicket(item = {}) {
+  const ticket = item.queue_ticket || item;
+  const waitingMinutes = safeNumber(ticket.waiting_minutes || queueWaitMinutes(ticket));
+  return {
+    ...ticket,
+    id: toId(ticket.queue_ticket_id || ticket._id || ticket.id),
+    queue_ticket_id: toId(ticket.queue_ticket_id || ticket._id || ticket.id),
+    display_number: ticket.display_number || ticket.queue_number,
+    waiting_minutes: waitingMinutes,
+    wait_minutes: waitingMinutes,
+    service_minutes: ticket.service_start_time ? queueWaitMinutes({ checkin_time: ticket.service_start_time }) : 0,
+    sla_status: ticket.sla_breached_at || waitingMinutes >= 60 ? 'breached' : waitingMinutes >= 30 ? 'warning' : 'normal',
+    risk_tags: [
+      ticket.queue_type === 'vip' ? 'VIP' : '',
+      ticket.queue_type === 'priority' ? 'Ưu tiên' : '',
+      waitingMinutes >= 30 ? 'Chờ lâu' : '',
+      ticket.status === 'skipped' ? 'Missed call' : '',
+      ticket.status === 'no_show' ? 'No-show' : '',
+    ].filter(Boolean),
+  };
+}
+
+function queueBoardSummary(items = []) {
+  const waitingItems = items.filter((item) => item.status === 'waiting');
+  return {
+    total: items.length,
+    waiting: waitingItems.length,
+    called: items.filter((item) => ['called', 'recalled'].includes(item.status)).length,
+    skipped: items.filter((item) => item.status === 'skipped').length,
+    in_service: items.filter((item) => item.status === 'in_service').length,
+    completed: items.filter((item) => item.status === 'completed').length,
+    cancelled: items.filter((item) => item.status === 'cancelled').length,
+    no_show: items.filter((item) => item.status === 'no_show').length,
+    sla_breached: items.filter((item) => item.sla_status === 'breached').length,
+    avg_waiting_minutes: waitingItems.length
+      ? Math.round(waitingItems.reduce((sum, item) => sum + safeNumber(item.waiting_minutes), 0) / waitingItems.length)
+      : 0,
+    max_waiting_minutes: waitingItems.reduce((max, item) => Math.max(max, safeNumber(item.waiting_minutes)), 0),
+  };
+}
+
+function queueBoardLanes(items = []) {
+  return {
+    waiting: items.filter((item) => item.status === 'waiting'),
+    called: items.filter((item) => ['called', 'recalled'].includes(item.status)),
+    skipped: items.filter((item) => item.status === 'skipped'),
+    in_service: items.filter((item) => item.status === 'in_service'),
+    completed: items.filter((item) => item.status === 'completed'),
+    no_show: items.filter((item) => ['no_show', 'cancelled'].includes(item.status)),
+  };
+}
+
+async function getOperationQueueItems(query = {}, actor = {}) {
+  const { date } = operationRange(query);
+  const result = await queueService.listQueueTickets({
+    date,
+    limit: query.limit || 500,
+    page: query.page || 1,
+    status: query.status,
+    department_id: query.department_id,
+    doctor_id: query.doctor_id,
+  }, actor);
+  return {
+    date,
+    items: (result.items || []).map(normalizeOperationQueueTicket),
+    pagination: result.pagination,
+  };
+}
+
+async function getOperationsQueueBoard(query = {}, actor = {}) {
+  const data = await getOperationQueueItems(query, actor);
+  return {
+    date: data.date,
+    items: data.items,
+    lanes: queueBoardLanes(data.items),
+    summary: queueBoardSummary(data.items),
+    pagination: data.pagination,
+    data_source: 'database',
+  };
+}
+
+async function getOperationsQueueCurrent(query = {}, actor = {}) {
+  const board = await getOperationsQueueBoard(query, actor);
+  const items = board.items.filter((item) => activeQueueStatus(item.status));
+  return {
+    ...board,
+    items,
+    lanes: queueBoardLanes(items),
+    summary: queueBoardSummary(items),
+  };
+}
+
+async function getOperationsQueueToday(query = {}, actor = {}) {
+  return getOperationsQueueBoard(query, actor);
+}
+
+async function getOperationsQueueCallConsole(query = {}, actor = {}) {
+  const board = await getOperationsQueueCurrent(query, actor);
+  const waiting = board.items
+    .filter((item) => item.status === 'waiting')
+    .sort((left, right) => {
+      const priority = { vip: 0, priority: 1, normal: 2 };
+      return (priority[left.queue_type] ?? 2) - (priority[right.queue_type] ?? 2)
+        || safeNumber(right.waiting_minutes) - safeNumber(left.waiting_minutes);
+    });
+  return {
+    ...board,
+    current_called: board.items.find((item) => ['called', 'recalled'].includes(item.status)) || null,
+    current_in_service: board.items.find((item) => item.status === 'in_service') || null,
+    next_candidates: waiting.slice(0, 20),
+    missed: board.items.filter((item) => item.status === 'skipped'),
+  };
+}
+
+async function getOperationsQueueTransferCandidates(query = {}, actor = {}) {
+  const board = await getOperationsQueueCurrent(query, actor);
+  const [departments, doctors] = await Promise.all([
+    Department.find({ is_deleted: false, status: { $ne: 'inactive' } }).sort({ department_name: 1 }).limit(300).lean(),
+    User.find({ is_deleted: false, status: 'active' }).sort({ full_name: 1 }).limit(500).lean(),
+  ]);
+  return {
+    date: board.date,
+    items: board.items.filter((item) => ['waiting', 'called', 'recalled', 'skipped'].includes(item.status)),
+    departments: departments.map((item) => serialize(item)),
+    doctors: doctors.map((item) => serialize(item)),
+    data_source: 'database',
+  };
+}
+
+async function getOperationsQueueMissedNoShow(query = {}, actor = {}) {
+  const board = await getOperationsQueueBoard(query, actor);
+  const items = board.items.filter((item) => (
+    ['skipped', 'no_show', 'cancelled'].includes(item.status)
+    || (['called', 'recalled'].includes(item.status) && safeNumber(item.waiting_minutes) >= 10)
+  ));
+  return {
+    date: board.date,
+    items,
+    summary: queueBoardSummary(items),
+    data_source: 'database',
+  };
+}
+
+async function getOperationsQueueTicketContext(ticketId, query = {}, actor = {}) {
+  const [detail, timeline] = await Promise.all([
+    queueService.getQueueTicketDetail(ticketId, actor),
+    queueService.getQueueTimeline(ticketId, { limit: query.limit || 100 }, actor).catch(() => ({ items: [] })),
+  ]);
+  return {
+    ticket: normalizeOperationQueueTicket(detail.queue_ticket || detail),
+    timeline: timeline.items || [],
+    data_source: 'database',
+  };
+}
+
+async function getOperationsQueueAvailableActions(ticketId, query = {}, actor = {}) {
+  const context = await getOperationsQueueTicketContext(ticketId, query, actor);
+  const status = context.ticket.status;
+  const actions = [
+    ['call', ['waiting', 'skipped'].includes(status)],
+    ['recall', ['called', 'recalled', 'skipped'].includes(status)],
+    ['skip', ['called', 'recalled'].includes(status)],
+    ['start_service', ['called', 'recalled'].includes(status)],
+    ['complete', status === 'in_service'],
+    ['mark_no_show', ['waiting', 'called', 'recalled', 'skipped'].includes(status)],
+    ['transfer', ['waiting', 'called', 'recalled', 'skipped'].includes(status)],
+  ].map(([action, enabled]) => ({ action, enabled }));
+  return {
+    ticket_id: ticketId,
+    status,
+    actions,
+    data_source: 'database',
+  };
+}
+
+function sumSlotStats(schedules = []) {
+  return schedules.reduce((result, item) => {
+    const stats = item.slots_summary || {};
+    result.total += safeNumber(stats.total_slots);
+    result.booked += safeNumber(stats.booked_slots);
+    result.available += safeNumber(stats.available_slots);
+    result.blocked += safeNumber(stats.blocked_slots);
+    return result;
+  }, { total: 0, booked: 0, available: 0, blocked: 0 });
+}
+
+function loadScoreFrom({ utilization = 0, queueWaiting = 0, queueLong = 0 }) {
+  return Math.min(100, Math.max(safeNumber(utilization), safeNumber(queueWaiting) * 4, safeNumber(queueLong) * 12));
+}
+
+function loadLevelFrom(score) {
+  if (score >= 90) return 'critical';
+  if (score >= 75) return 'high';
+  if (score <= 40) return 'low';
+  return 'normal';
+}
+
+function formatOperationSlot(slot = {}, maps = {}) {
+  const doctor = maps.doctors?.get(toId(slot.doctor_id)) || {};
+  const department = maps.departments?.get(toId(slot.department_id)) || {};
+  const schedule = maps.schedules?.get(toId(slot.doctor_schedule_id)) || {};
+  const patient = maps.patients?.get(toId(slot.patient_id)) || {};
+  return {
+    slot_id: toId(slot._id),
+    schedule_slot_id: toId(slot._id),
+    schedule_id: toId(slot.doctor_schedule_id),
+    doctor_schedule_id: toId(slot.doctor_schedule_id),
+    doctor_id: toId(slot.doctor_id),
+    doctor_name: doctor.full_name || doctor.name || doctor.username || schedule.doctor_name || null,
+    department_id: toId(slot.department_id),
+    department_name: department.department_name || department.name || schedule.department_name || null,
+    start_time: slot.start_time,
+    end_time: slot.end_time,
+    slot_number: slot.slot_number,
+    status: slot.status,
+    capacity: safeNumber(slot.capacity || 1),
+    booked_count: safeNumber(slot.booked_count),
+    appointment_id: toId(slot.appointment_id),
+    patient_id: toId(slot.patient_id),
+    patient_name: patient.full_name || null,
+    patient_code: patient.patient_code || null,
+    hold_expires_at: slot.hold_expires_at,
+    block_reason: slot.block_reason,
+    schedule_type: schedule.schedule_type || null,
+    work_date: schedule.work_date || null,
+    data_source: 'database',
+  };
+}
+
+async function loadResourceBundle(query = {}, actor = {}) {
+  const { date, start, end } = operationRange(query);
+  const summary = await scheduleService.getSchedulingSystemSummary({
+    date_from: date,
+    date_to: date,
+    department_id: query.department_id,
+    doctor_id: query.doctor_id,
+  }, actor);
+  const scheduleItems = summary.items || [];
+  const scheduleIds = uniqueIds(scheduleItems.map((item) => item.doctor_schedule_id));
+  const appointmentRead = appointmentService.listAppointments({
+    date,
+    limit: query.limit || 1000,
+    department_id: query.department_id,
+    doctor_id: query.doctor_id,
+  }, actor);
+  const queueRead = queueService.listQueueTickets({
+    date,
+    limit: query.limit || 1000,
+    department_id: query.department_id,
+    doctor_id: query.doctor_id,
+  }, actor);
+  const slotFilter = {
+    is_deleted: false,
+    start_time: { $gte: start, $lte: end },
+  };
+  if (query.department_id) slotFilter.department_id = query.department_id;
+  if (query.doctor_id) slotFilter.doctor_id = query.doctor_id;
+  if (scheduleIds.length) slotFilter.doctor_schedule_id = { $in: scheduleIds };
+
+  const [appointmentsResult, queueResult, slots] = await Promise.all([
+    appointmentRead,
+    queueRead,
+    ScheduleSlot.find(slotFilter).sort({ start_time: 1, slot_number: 1 }).limit(1500).lean(),
+  ]);
+  const appointments = appointmentsResult.items || [];
+  const queueTickets = (queueResult.items || []).map(normalizeOperationQueueTicket);
+  const departmentIds = uniqueIds([
+    ...scheduleItems.map((item) => item.department_id),
+    ...appointments.map((item) => item.department_id),
+    ...queueTickets.map((item) => item.department_id),
+    ...slots.map((item) => item.department_id),
+  ]);
+  const doctorIds = uniqueIds([
+    ...scheduleItems.map((item) => item.doctor_id),
+    ...appointments.map((item) => item.doctor_id),
+    ...queueTickets.map((item) => item.doctor_id),
+    ...slots.map((item) => item.doctor_id),
+  ]);
+  const patientIds = uniqueIds(slots.map((item) => item.patient_id));
+
+  const [departments, doctors, profiles, rooms, locations, imagingRooms, patients] = await Promise.all([
+    Department.find({
+      is_deleted: false,
+      ...(departmentIds.length ? { _id: { $in: departmentIds } } : { status: { $ne: 'inactive' } }),
+    }).sort({ department_name: 1 }).limit(300).lean(),
+    User.find({
+      is_deleted: false,
+      ...(doctorIds.length ? { _id: { $in: doctorIds } } : { status: 'active' }),
+    }).select('full_name username employee_code department_id status avatar_url').sort({ full_name: 1 }).limit(500).lean(),
+    DoctorProfile.find({
+      is_deleted: false,
+      ...(doctorIds.length ? { user_id: { $in: doctorIds } } : {}),
+    }).limit(500).lean(),
+    Room.find({
+      is_deleted: false,
+      ...(departmentIds.length ? { department_id: { $in: departmentIds } } : {}),
+    }).limit(500).lean(),
+    FacilityLocation.find({
+      is_deleted: false,
+      ...(departmentIds.length ? { department_id: { $in: departmentIds } } : {}),
+    }).limit(500).lean(),
+    ImagingRoom.find({}).limit(300).lean(),
+    patientIds.length ? Patient.find({ _id: { $in: patientIds }, is_deleted: false }).select('patient_code full_name').lean() : [],
+  ]);
+
+  return {
+    date,
+    start,
+    end,
+    summary,
+    schedules: scheduleItems,
+    appointments,
+    queueTickets,
+    slots,
+    rooms,
+    locations,
+    imagingRooms,
+    profiles,
+    maps: {
+      departments: byId(departments),
+      doctors: byId(doctors),
+      profilesByUser: new Map(profiles.map((item) => [toId(item.user_id), item])),
+      schedules: new Map(scheduleItems.map((item) => [toId(item.doctor_schedule_id), item])),
+      patients: byId(patients),
+    },
+    departments,
+    doctors,
+  };
+}
+
+function resourceDepartmentRows(bundle) {
+  const rows = bundle.departments.map((department) => {
+    const id = toId(department._id);
+    const schedules = bundle.schedules.filter((item) => toId(item.department_id) === id);
+    const slots = sumSlotStats(schedules);
+    const appointments = bundle.appointments.filter((item) => toId(item.department_id) === id);
+    const queues = bundle.queueTickets.filter((item) => toId(item.department_id) === id);
+    const queueWaiting = queues.filter((item) => item.status === 'waiting').length;
+    const queueLong = queues.filter((item) => safeNumber(item.waiting_minutes) >= 30).length;
+    const utilization = slots.total ? Math.round((slots.booked / slots.total) * 100) : 0;
+    const score = loadScoreFrom({ utilization, queueWaiting, queueLong });
+    const alerts = [
+      schedules.some((item) => !['active', 'published'].includes(item.status)) ? { type: 'unpublished_schedule', title: 'Có lịch chưa publish' } : null,
+      utilization >= 90 ? { type: 'slot_full', title: 'Slot gần kín' } : null,
+      queueLong > 0 ? { type: 'queue_wait_long', title: `${queueLong} queue chờ lâu` } : null,
+    ].filter(Boolean);
+    return {
+      department_id: id,
+      id,
+      department_name: department.department_name,
+      department_code: department.department_code,
+      department_type: department.department_type,
+      status: department.status,
+      today: {
+        schedules_count: schedules.length,
+        published_schedules: schedules.filter((item) => ['active', 'published'].includes(item.status)).length,
+        unpublished_schedules: schedules.filter((item) => !['active', 'published'].includes(item.status)).length,
+        appointments_count: appointments.length,
+        queue_waiting: queueWaiting,
+        queue_in_service: queues.filter((item) => item.status === 'in_service').length,
+        queue_completed: queues.filter((item) => item.status === 'completed').length,
+      },
+      slots: {
+        total: slots.total,
+        booked: slots.booked,
+        available: slots.available,
+        blocked: slots.blocked,
+        utilization_rate: utilization,
+      },
+      staff: {
+        doctors_count: uniqueIds(schedules.map((item) => item.doctor_id)).length
+          || bundle.profiles.filter((item) => toId(item.department_id) === id).length,
+      },
+      rooms_active: bundle.rooms.filter((item) => toId(item.department_id) === id && item.status !== 'inactive').length
+        + bundle.locations.filter((item) => toId(item.department_id) === id && item.status !== 'inactive').length,
+      queue_long: queueLong,
+      load: { score, level: loadLevelFrom(score) },
+      alerts,
+      data_source: 'database',
+    };
+  });
+  return rows;
+}
+
+function resourceDoctorRows(bundle) {
+  const ids = uniqueIds([
+    ...bundle.profiles.map((item) => item.user_id),
+    ...bundle.schedules.map((item) => item.doctor_id),
+    ...bundle.appointments.map((item) => item.doctor_id),
+    ...bundle.queueTickets.map((item) => item.doctor_id),
+  ]);
+  return ids.map((id) => {
+    const doctor = bundle.maps.doctors.get(id) || {};
+    const profile = bundle.maps.profilesByUser.get(id) || {};
+    const department = bundle.maps.departments.get(toId(profile.department_id || doctor.department_id)) || {};
+    const schedules = bundle.schedules.filter((item) => toId(item.doctor_id) === id);
+    const slots = sumSlotStats(schedules);
+    const appointments = bundle.appointments.filter((item) => toId(item.doctor_id) === id);
+    const queues = bundle.queueTickets.filter((item) => toId(item.doctor_id) === id);
+    const queueWaiting = queues.filter((item) => item.status === 'waiting').length;
+    const queueLong = queues.filter((item) => safeNumber(item.waiting_minutes) >= 30).length;
+    const utilization = slots.total ? Math.round((slots.booked / slots.total) * 100) : 0;
+    const score = loadScoreFrom({ utilization, queueWaiting, queueLong });
+    const hourlyLoad = {};
+    bundle.slots
+      .filter((slot) => toId(slot.doctor_id) === id)
+      .forEach((slot) => {
+        const hour = new Date(slot.start_time).getHours();
+        const key = `${String(hour).padStart(2, '0')}:00`;
+        const current = hourlyLoad[key] || { booked: 0, total: 0 };
+        current.booked += safeNumber(slot.booked_count);
+        current.total += safeNumber(slot.capacity || 1);
+        hourlyLoad[key] = current;
+      });
+    Object.keys(hourlyLoad).forEach((key) => {
+      hourlyLoad[key] = hourlyLoad[key].total ? Math.round((hourlyLoad[key].booked / hourlyLoad[key].total) * 100) : 0;
+    });
+    const alerts = [
+      utilization >= 90 ? { type: 'doctor_full', title: 'Kín slot' } : null,
+      queueLong > 0 ? { type: 'queue_wait_long', title: 'Queue chờ lâu' } : null,
+    ].filter(Boolean);
+    return {
+      doctor_id: id,
+      id,
+      full_name: doctor.full_name || doctor.username || 'Chưa rõ bác sĩ',
+      employee_code: doctor.employee_code,
+      department_id: toId(profile.department_id || doctor.department_id),
+      department_name: department.department_name,
+      specialty: profile.specialty,
+      qualification: profile.qualification,
+      avatar_url: profile.avatar_url || doctor.avatar_url,
+      status: profile.status || doctor.status,
+      today: {
+        schedules_count: schedules.length,
+        appointments_count: appointments.length,
+        queue_waiting: queueWaiting,
+        queue_in_service: queues.filter((item) => item.status === 'in_service').length,
+        no_show_count: appointments.filter((item) => item.status === 'no_show').length + queues.filter((item) => item.status === 'no_show').length,
+      },
+      slots: {
+        total: slots.total,
+        booked: slots.booked,
+        available: slots.available,
+        blocked: slots.blocked,
+        utilization_rate: utilization,
+      },
+      queue: {
+        max_wait_minutes: queues.reduce((max, item) => Math.max(max, safeNumber(item.waiting_minutes)), 0),
+      },
+      hourly_load: hourlyLoad,
+      load: { score, level: loadLevelFrom(score) },
+      alerts,
+      data_source: 'database',
+    };
+  });
+}
+
+function resourceRoomRows(bundle) {
+  const roomRows = bundle.rooms.map((room) => {
+    const department = bundle.maps.departments.get(toId(room.department_id)) || {};
+    const queues = bundle.queueTickets.filter((item) => toId(item.department_id) === toId(room.department_id));
+    return {
+      room_id: toId(room._id),
+      id: toId(room._id),
+      resource_type: room.room_type || 'clinic_room',
+      room_name: room.room_name,
+      room_code: room.room_code,
+      department_id: toId(room.department_id),
+      department_name: department.department_name,
+      building: room.building,
+      floor: room.floor,
+      capacity: room.capacity || 1,
+      status: room.status === 'active' ? (queues.some((item) => item.status === 'in_service') ? 'in_use' : 'available') : room.status,
+      queue_waiting: queues.filter((item) => item.status === 'waiting').length,
+      appointments_left: bundle.appointments.filter((item) => toId(item.department_id) === toId(room.department_id) && ['booked', 'confirmed', 'checked_in'].includes(item.status)).length,
+      next_free_at: queues.some((item) => item.status === 'in_service') ? null : 'Sẵn sàng',
+      alerts: room.status !== 'active' ? [{ type: 'room_status', title: room.status }] : [],
+      data_source: 'database',
+    };
+  });
+  const locationRows = bundle.locations.map((location) => {
+    const department = bundle.maps.departments.get(toId(location.department_id)) || {};
+    return {
+      room_id: toId(location._id),
+      id: toId(location._id),
+      resource_type: location.type || 'location',
+      room_name: location.name,
+      room_code: location.metadata?.code || location.type || 'LOC',
+      department_id: toId(location.department_id),
+      department_name: department.department_name,
+      building: location.address,
+      floor: location.metadata?.floor,
+      capacity: safeNumber(location.metadata?.capacity || 1),
+      status: location.status === 'active' ? 'available' : location.status,
+      queue_waiting: 0,
+      appointments_left: 0,
+      next_free_at: 'Sẵn sàng',
+      alerts: [],
+      data_source: 'database',
+    };
+  });
+  const imagingRows = bundle.imagingRooms.map((room) => ({
+    room_id: toId(room._id),
+    id: toId(room._id),
+    resource_type: room.modality || 'imaging_room',
+    room_name: room.name,
+    room_code: room.code,
+    department_name: 'Chẩn đoán hình ảnh',
+    building: '',
+    floor: room.metadata?.floor,
+    capacity: 1,
+    status: room.active === false ? 'inactive' : room.maintenance_status === 'maintenance' ? 'maintenance' : 'available',
+    queue_waiting: 0,
+    appointments_left: 0,
+    next_free_at: room.maintenance_status === 'maintenance' ? null : 'Sẵn sàng',
+    alerts: room.maintenance_status === 'maintenance' ? [{ type: 'maintenance', title: 'Bảo trì' }] : [],
+    data_source: 'database',
+  }));
+  return [...roomRows, ...locationRows, ...imagingRows];
+}
+
+function operationsAttentionFromResources({ departments, doctors, rooms }) {
+  return [
+    ...departments
+      .filter((item) => ['high', 'critical'].includes(item.load.level) || item.alerts.length)
+      .map((item) => ({
+        id: `department-${item.department_id}`,
+        type: 'department',
+        resource_type: 'department',
+        severity: item.load.level === 'critical' ? 'critical' : 'high',
+        title: `${item.department_name} cần chú ý`,
+        message: `Utilization ${item.slots.utilization_rate}% · Queue chờ ${item.today.queue_waiting}.`,
+        department_id: item.department_id,
+        department_name: item.department_name,
+        affected_count: item.today.queue_waiting || item.today.appointments_count,
+        suggested_actions: [{ label: 'Điều phối tải' }],
+        data_source: 'database',
+      })),
+    ...doctors
+      .filter((item) => ['high', 'critical'].includes(item.load.level) || item.today.queue_waiting >= 8)
+      .map((item) => ({
+        id: `doctor-${item.doctor_id}`,
+        type: 'doctor',
+        resource_type: 'doctor',
+        severity: item.load.level === 'critical' ? 'critical' : 'high',
+        title: `${item.full_name} quá tải`,
+        message: `Slot ${item.slots.utilization_rate}% · Queue chờ ${item.today.queue_waiting}.`,
+        doctor_id: item.doctor_id,
+        doctor_name: item.full_name,
+        department_id: item.department_id,
+        department_name: item.department_name,
+        affected_count: item.today.queue_waiting || item.today.appointments_count,
+        suggested_actions: [{ label: 'Cân bằng tải' }],
+        data_source: 'database',
+      })),
+    ...rooms
+      .filter((item) => ['maintenance', 'inactive'].includes(item.status) || item.queue_waiting >= 8 || item.alerts.length)
+      .map((item) => ({
+        id: `room-${item.room_id}`,
+        type: 'room',
+        resource_type: 'room',
+        severity: item.status === 'maintenance' ? 'high' : 'warning',
+        title: `${item.room_name} cần kiểm tra`,
+        message: `${item.status} · Queue chờ ${item.queue_waiting}.`,
+        department_id: item.department_id,
+        department_name: item.department_name,
+        affected_count: item.queue_waiting || 1,
+        suggested_actions: [{ label: 'Kiểm tra phòng' }],
+        data_source: 'database',
+      })),
+  ];
+}
+
+async function getOperationsResourcesLoad(query = {}, actor = {}) {
+  const bundle = await loadResourceBundle(query, actor);
+  const departments = resourceDepartmentRows(bundle);
+  const doctors = resourceDoctorRows(bundle);
+  const rooms = resourceRoomRows(bundle);
+  return {
+    date: bundle.date,
+    departments,
+    doctors,
+    rooms,
+    attention: operationsAttentionFromResources({ departments, doctors, rooms }),
+    data_source: 'database',
+  };
+}
+
+async function getOperationsResourceDepartments(query = {}, actor = {}) {
+  const resources = await getOperationsResourcesLoad(query, actor);
+  return { date: resources.date, items: resources.departments, data_source: 'database' };
+}
+
+async function getOperationsResourceDoctors(query = {}, actor = {}) {
+  const resources = await getOperationsResourcesLoad(query, actor);
+  return { date: resources.date, items: resources.doctors, data_source: 'database' };
+}
+
+async function getOperationsResourceRooms(query = {}, actor = {}) {
+  const resources = await getOperationsResourcesLoad(query, actor);
+  return { date: resources.date, items: resources.rooms, data_source: 'database' };
+}
+
+async function getOperationsDoctorLoad(query = {}, actor = {}) {
+  return getOperationsResourceDoctors(query, actor);
+}
+
+async function getOperationsRoomStatus(query = {}, actor = {}) {
+  return getOperationsResourceRooms(query, actor);
+}
+
+async function getOperationsResourceAttention(query = {}, actor = {}) {
+  const resources = await getOperationsResourcesLoad(query, actor);
+  return { date: resources.date, items: resources.attention, data_source: 'database' };
+}
+
+async function getOperationsSlotsCapacity(query = {}, actor = {}) {
+  const bundle = await loadResourceBundle(query, actor);
+  const items = bundle.slots.map((slot) => formatOperationSlot(slot, bundle.maps));
+  const summary = {
+    total_slots: items.length,
+    total_capacity: items.reduce((sum, item) => sum + safeNumber(item.capacity), 0),
+    booked_slots: items.reduce((sum, item) => sum + safeNumber(item.booked_count), 0),
+    available_slots: items.filter((item) => item.status === 'available').length,
+    blocked_slots: items.filter((item) => item.status === 'blocked').length,
+    held_slots: items.filter((item) => item.status === 'held').length,
+  };
+  summary.utilization_rate = summary.total_capacity ? Math.round((summary.booked_slots / summary.total_capacity) * 100) : 0;
+  return {
+    date: bundle.date,
+    items,
+    summary,
+    data_source: 'database',
+  };
+}
+
+async function buildOperationsAlerts(query = {}, actor = {}) {
+  const bundle = await loadResourceBundle(query, actor);
+  const resources = {
+    departments: resourceDepartmentRows(bundle),
+    doctors: resourceDoctorRows(bundle),
+    rooms: resourceRoomRows(bundle),
+  };
+  const alerts = [];
+
+  bundle.schedules.forEach((schedule) => {
+    const stats = schedule.slots_summary || {};
+    if (!['active', 'published'].includes(schedule.status)) {
+      alerts.push({
+        id: `schedule-unpublished-${schedule.doctor_schedule_id}`,
+        category: 'schedule',
+        type: 'unpublished_schedule',
+        severity: 'high',
+        status: 'open',
+        title: 'Lịch bác sĩ chưa publish',
+        message: `${schedule.doctor_name || 'Bác sĩ'} ngày ${localDateKey(schedule.work_date)} chưa mở cho đặt lịch.`,
+        doctor_id: schedule.doctor_id,
+        doctor_name: schedule.doctor_name,
+        department_id: schedule.department_id,
+        department_name: schedule.department_name,
+        affected_count: safeNumber(stats.total_slots || 1),
+        detected_at: schedule.updated_at || schedule.created_at || now(),
+        suggested_actions: [{ label: 'Publish lịch' }, { label: 'Generate slot' }],
+        data_source: 'database',
+      });
+    }
+    if (safeNumber(stats.total_slots) > 0 && safeNumber(stats.available_slots) === 0) {
+      alerts.push({
+        id: `schedule-full-${schedule.doctor_schedule_id}`,
+        category: 'schedule',
+        type: 'slot_full',
+        severity: 'warning',
+        status: 'open',
+        title: 'Lịch đã kín slot',
+        message: `${schedule.doctor_name || 'Bác sĩ'} không còn slot trống trong ca.`,
+        doctor_id: schedule.doctor_id,
+        doctor_name: schedule.doctor_name,
+        department_id: schedule.department_id,
+        department_name: schedule.department_name,
+        affected_count: safeNumber(stats.booked_slots),
+        detected_at: now(),
+        suggested_actions: [{ label: 'Mở thêm ca' }, { label: 'Đưa vào waitlist' }],
+        data_source: 'database',
+      });
+    }
+  });
+
+  bundle.queueTickets.forEach((ticket) => {
+    if (ticket.status === 'waiting' && safeNumber(ticket.waiting_minutes) >= 30) {
+      alerts.push({
+        id: `queue-wait-${ticket.queue_ticket_id}`,
+        category: 'queue',
+        type: 'queue_wait_long',
+        severity: safeNumber(ticket.waiting_minutes) >= 60 ? 'critical' : 'high',
+        status: 'open',
+        title: 'Queue chờ quá SLA',
+        message: `${ticket.patient_name || ticket.display_number || ticket.queue_number} đã chờ ${ticket.waiting_minutes} phút.`,
+        doctor_id: ticket.doctor_id,
+        doctor_name: ticket.doctor_name,
+        department_id: ticket.department_id,
+        department_name: ticket.department_name,
+        patient_id: ticket.patient_id,
+        patient_name: ticket.patient_name,
+        affected_count: 1,
+        detected_at: ticket.checkin_time,
+        sla_breached_at: safeNumber(ticket.waiting_minutes) >= 60 ? now() : null,
+        suggested_actions: [{ label: 'Gọi bệnh nhân' }, { label: 'Chuyển queue' }],
+        data_source: 'database',
+      });
+    }
+    if (['skipped', 'no_show'].includes(ticket.status)) {
+      alerts.push({
+        id: `queue-missed-${ticket.queue_ticket_id}`,
+        category: ticket.status === 'no_show' ? 'no_show' : 'queue',
+        type: ticket.status === 'no_show' ? 'queue_no_show' : 'missed_call',
+        severity: 'warning',
+        status: 'open',
+        title: ticket.status === 'no_show' ? 'Queue no-show' : 'Missed call',
+        message: `${ticket.patient_name || ticket.display_number || ticket.queue_number} cần follow-up.`,
+        doctor_id: ticket.doctor_id,
+        doctor_name: ticket.doctor_name,
+        department_id: ticket.department_id,
+        department_name: ticket.department_name,
+        patient_id: ticket.patient_id,
+        patient_name: ticket.patient_name,
+        affected_count: 1,
+        detected_at: ticket.updated_at || ticket.checkin_time,
+        suggested_actions: [{ label: 'Gọi lại' }, { label: 'Mark no-show' }],
+        data_source: 'database',
+      });
+    }
+  });
+
+  bundle.appointments
+    .filter((appointment) => appointment.status === 'no_show')
+    .forEach((appointment) => {
+      alerts.push({
+        id: `appointment-no-show-${appointment.appointment_id}`,
+        category: 'no_show',
+        type: 'appointment_no_show',
+        severity: 'warning',
+        status: 'open',
+        title: 'Appointment no-show',
+        message: `${appointment.patient_name || 'Bệnh nhân'} không đến lịch hẹn.`,
+        doctor_id: appointment.doctor_id,
+        doctor_name: appointment.doctor_name,
+        department_id: appointment.department_id,
+        department_name: appointment.department_name,
+        patient_id: appointment.patient_id,
+        patient_name: appointment.patient_name,
+        affected_count: 1,
+        detected_at: appointment.no_show_at || appointment.appointment_time,
+        suggested_actions: [{ label: 'Gọi follow-up' }, { label: 'Đưa waitlist' }],
+        data_source: 'database',
+      });
+    });
+
+  operationsAttentionFromResources(resources).forEach((item) => {
+    alerts.push({
+      ...item,
+      id: `resource-${item.id}`,
+      category: item.type === 'doctor' || item.type === 'department' ? 'doctor_department' : 'resource',
+      type: `${item.type}_load_attention`,
+      status: 'open',
+      detected_at: now(),
+    });
+  });
+
+  const clinicalAlerts = await ClinicalAlert.find({
+    status: { $nin: ['resolved', 'dismissed'] },
+    created_at: { $gte: bundle.start, $lte: bundle.end },
+  }).limit(100).lean().catch(() => []);
+  clinicalAlerts.forEach((alert) => {
+    alerts.push({
+      id: `clinical-${toId(alert._id)}`,
+      category: 'clinical',
+      type: alert.alert_type || alert.source_type || 'clinical_alert',
+      severity: alert.severity || 'warning',
+      status: alert.status || 'open',
+      title: alert.title || alert.message || 'Cảnh báo lâm sàng',
+      message: alert.message || 'Cần xử lý cảnh báo lâm sàng.',
+      department_id: toId(alert.department_id),
+      patient_id: toId(alert.patient_id),
+      affected_count: 1,
+      detected_at: alert.created_at,
+      data_source: 'database',
+    });
+  });
+
+  return {
+    date: bundle.date,
+    items: alerts.sort((left, right) => {
+      const rank = { critical: 0, high: 1, warning: 2, info: 3 };
+      return (rank[left.severity] ?? 3) - (rank[right.severity] ?? 3)
+        || new Date(right.detected_at || 0) - new Date(left.detected_at || 0);
+    }),
+    data_source: 'database',
+  };
+}
+
+function summarizeOperationsAlerts(items = []) {
+  return {
+    total: items.length,
+    critical: items.filter((item) => item.severity === 'critical').length,
+    high: items.filter((item) => item.severity === 'high').length,
+    warning: items.filter((item) => item.severity === 'warning').length,
+    open: items.filter((item) => !['resolved', 'dismissed'].includes(item.status)).length,
+    breached: items.filter((item) => item.sla_breached_at || item.breached_at).length,
+  };
+}
+
+async function getOperationsAlerts(query = {}, actor = {}) {
+  const data = await buildOperationsAlerts(query, actor);
+  return { ...data, summary: summarizeOperationsAlerts(data.items) };
+}
+
+async function getOperationsAlertsSummary(query = {}, actor = {}) {
+  const data = await getOperationsAlerts(query, actor);
+  return data.summary;
+}
+
+async function getOperationsAlertsByCategory(category, query = {}, actor = {}) {
+  const data = await getOperationsAlerts(query, actor);
+  const items = data.items.filter((item) => (
+    category === 'action'
+      ? ['critical', 'high'].includes(item.severity)
+      : item.category === category || (category === 'doctor_department' && ['doctor', 'department'].includes(item.type))
+  ));
+  return { ...data, items, summary: summarizeOperationsAlerts(items) };
+}
+
+async function getOperationsAlertDetail(alertId, query = {}, actor = {}) {
+  const data = await getOperationsAlerts(query, actor);
+  const alert = data.items.find((item) => item.id === alertId || toId(item._id) === alertId);
+  if (!alert) throw ApiError.notFound('Không tìm thấy cảnh báo vận hành.');
+  return { alert, data_source: 'database' };
+}
+
+async function operationAlertAction(alertId, action, payload = {}, auth = {}, requestMeta = {}) {
+  await recordOpsAudit(auth, `operations.alert.${action}`, 'operation_alert', alertId, {
+    alert_id: alertId,
+    action,
+    note: payload.note || payload.reason,
+    assignee_id: payload.assignee_id,
+  }, requestMeta);
+  return {
+    alert_id: alertId,
+    status: action === 'resolve' ? 'resolved' : action === 'dismiss' ? 'dismissed' : action === 'assign' ? 'assigned' : 'acknowledged',
+    action,
+    updated_at: now().toISOString(),
+    data_source: 'database',
+  };
+}
+
+async function acknowledgeResourceAttention(attentionId, payload = {}, auth = {}, requestMeta = {}) {
+  return operationAlertAction(attentionId, 'acknowledge_resource', payload, auth, requestMeta);
+}
+
+async function assignResourceAttention(attentionId, payload = {}, auth = {}, requestMeta = {}) {
+  return operationAlertAction(attentionId, 'assign_resource', payload, auth, requestMeta);
+}
+
+async function resolveResourceAttention(attentionId, payload = {}, auth = {}, requestMeta = {}) {
+  return operationAlertAction(attentionId, 'resolve_resource', payload, auth, requestMeta);
 }
 
 async function getHealth() {
@@ -1615,10 +3210,235 @@ function affectedMaintenanceRoutes(scope) {
   return map[scope] || [];
 }
 
+const SCHEDULING_ACTIVITY_MODULES = ['scheduling', 'schedule', 'schedules', 'schedule_slots', 'appointments', 'appointment', 'queue', 'settings', 'operations'];
+const SCHEDULING_ACTIVITY_TARGETS = ['doctor_schedule', 'schedule_slot', 'appointment', 'queue_ticket', 'system_setting'];
+const SCHEDULING_ACTIVITY_ACTION_REGEX = '^(schedule|schedules|schedule_slots|appointment|appointments|queue|scheduling_config|settings)\\.';
+
+function dateRangeFilter(query = {}) {
+  const range = {};
+  if (query.date_from || query.from) {
+    const from = new Date(query.date_from || query.from);
+    if (Number.isNaN(from.getTime())) throw ApiError.badRequest('date_from không hợp lệ.');
+    range.$gte = startOfDay(from);
+  }
+  if (query.date_to || query.to) {
+    const to = new Date(query.date_to || query.to);
+    if (Number.isNaN(to.getTime())) throw ApiError.badRequest('date_to không hợp lệ.');
+    range.$lte = endOfDay(to);
+  }
+  return Object.keys(range).length ? { created_at: range } : {};
+}
+
+function activitySearchFilter(query = {}) {
+  const keyword = String(query.keyword || query.search || query.q || '').trim();
+  if (!keyword) return {};
+  const pattern = escapeRegex(keyword);
+  return {
+    $or: [
+      { action: { $regex: pattern, $options: 'i' } },
+      { module_key: { $regex: pattern, $options: 'i' } },
+      { target_type: { $regex: pattern, $options: 'i' } },
+      { message: { $regex: pattern, $options: 'i' } },
+      { request_id: { $regex: pattern, $options: 'i' } },
+      { ip_address: { $regex: pattern, $options: 'i' } },
+    ],
+  };
+}
+
+function buildSchedulingActivityFilter(query = {}, scope = {}) {
+  const targetTypes = scope.targetTypes || csv(query.target_type);
+  const filters = [
+    {
+      $or: [
+        { module_key: { $in: SCHEDULING_ACTIVITY_MODULES } },
+        { target_type: { $in: SCHEDULING_ACTIVITY_TARGETS } },
+        { action: { $regex: SCHEDULING_ACTIVITY_ACTION_REGEX } },
+      ],
+    },
+    dateRangeFilter(query),
+    activitySearchFilter(query),
+  ].filter((item) => Object.keys(item).length > 0);
+
+  if (targetTypes.length) {
+    filters.push({ target_type: { $in: targetTypes } });
+  }
+
+  if (scope.actionRegex) {
+    filters.push({ action: { $regex: scope.actionRegex, $options: 'i' } });
+  } else if (query.action && query.action !== 'all') {
+    filters.push({ action: { $regex: escapeRegex(query.action), $options: 'i' } });
+  }
+
+  if (query.status) filters.push({ status: query.status });
+  if (query.severity) filters.push({ severity: query.severity });
+  if (query.request_id) filters.push({ request_id: query.request_id });
+  if (query.actor_id) filters.push({ actor_id: query.actor_id });
+
+  if (filters.length === 0) return {};
+  if (filters.length === 1) return filters[0];
+  return { $and: filters };
+}
+
+function activityScope(scopeName) {
+  const scopes = {
+    all: {},
+    doctorSchedules: { targetTypes: ['doctor_schedule'], actionRegex: 'schedule|schedules' },
+    appointments: { targetTypes: ['appointment'], actionRegex: 'appointment|appointments' },
+    slots: { targetTypes: ['schedule_slot'], actionRegex: 'slot|schedule_slots' },
+    queue: { targetTypes: ['queue_ticket'], actionRegex: 'queue' },
+    checkIn: { targetTypes: ['appointment', 'queue_ticket'], actionRegex: 'check[_-]?in|checkin|queue\\.appointment|queue\\.check' },
+  };
+  return scopes[scopeName] || scopes.all;
+}
+
+async function actorNameMap(items = []) {
+  const actorIds = uniqueIds(items.map((item) => item.actor_id))
+    .filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (!actorIds.length) return new Map();
+  const users = await User.find({ _id: { $in: actorIds } })
+    .select('full_name username email employee_code')
+    .lean()
+    .catch(() => []);
+  return new Map(users.map((user) => [
+    toId(user._id),
+    user.full_name || user.username || user.email || user.employee_code || toId(user._id),
+  ]));
+}
+
+function serializeActivityLog(item = {}, actors = new Map()) {
+  const actorId = toId(item.actor_id);
+  const actorName = actors.get(actorId) || item.metadata?.actor_name || item.actor_type || 'System';
+  return {
+    audit_log_id: toId(item._id),
+    id: toId(item._id),
+    created_at: item.created_at,
+    actor_type: item.actor_type,
+    actor_id: actorId,
+    actor_name: actorName,
+    actor_role: item.metadata?.actor_role || item.actor_type,
+    action: item.action,
+    module_key: item.module_key,
+    target_type: item.target_type,
+    target_id: toId(item.target_id),
+    target_label: item.metadata?.target_label || item.metadata?.label || item.message || toId(item.target_id) || item.target_type,
+    status: item.status,
+    severity: item.severity,
+    message: item.message,
+    request_id: item.request_id,
+    session_id: toId(item.session_id),
+    ip_address: item.ip_address,
+    user_agent: item.user_agent,
+    before: item.before,
+    after: item.after,
+    metadata: item.metadata,
+  };
+}
+
+function activitySummary(items = []) {
+  return {
+    total: items.length,
+    success: items.filter((item) => item.status === 'success').length,
+    failed: items.filter((item) => item.status === 'failure' || item.status === 'failed').length,
+    warning: items.filter((item) => item.severity === 'warning').length,
+    critical: items.filter((item) => item.severity === 'critical').length,
+    schedules: items.filter((item) => item.target_type === 'doctor_schedule').length,
+    appointments: items.filter((item) => item.target_type === 'appointment').length,
+    slots: items.filter((item) => item.target_type === 'schedule_slot').length,
+    queue: items.filter((item) => item.target_type === 'queue_ticket').length,
+    settings: items.filter((item) => item.target_type === 'system_setting' || item.action?.startsWith('settings.')).length,
+  };
+}
+
+async function getOperationsActivity(query = {}, actor = {}, scopeName = 'all') {
+  const { page, limit, skip } = pagination(query, 80);
+  const filter = buildSchedulingActivityFilter(query, activityScope(scopeName));
+  const sort = sortSpec(query, 'created_at');
+  const [items, total] = await Promise.all([
+    AuditLog.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+    AuditLog.countDocuments(filter),
+  ]);
+  const actors = await actorNameMap(items);
+  const serialized = items.map((item) => serializeActivityLog(item, actors));
+  return {
+    items: serialized,
+    summary: activitySummary(serialized),
+    pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
+    generated_at: now().toISOString(),
+    scope: scopeName,
+  };
+}
+
+async function getOperationsActivityDetail(activityId, query = {}, actor = {}) {
+  const baseFilter = buildSchedulingActivityFilter(query, activityScope('all'));
+  const idClause = mongoose.Types.ObjectId.isValid(activityId)
+    ? { _id: activityId }
+    : { request_id: activityId };
+  const filter = Object.keys(baseFilter).length ? { $and: [baseFilter, idClause] } : idClause;
+  const item = await AuditLog.findOne(filter).lean();
+  if (!item) throw ApiError.notFound('Không tìm thấy activity log.');
+  const actors = await actorNameMap([item]);
+  return serializeActivityLog(item, actors);
+}
+
+function activitiesToCsv(items = []) {
+  const headers = ['created_at', 'actor_name', 'action', 'module_key', 'target_type', 'target_id', 'status', 'severity', 'ip_address', 'request_id'];
+  const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  return [
+    headers.join(','),
+    ...items.map((item) => headers.map((field) => quote(item[field])).join(',')),
+  ].join('\n');
+}
+
+async function exportOperationsActivity(query = {}, actor = {}) {
+  const result = await getOperationsActivity({ ...query, page: 1, limit: Math.min(Number(query.limit) || 1000, 1000) }, actor, query.scope || 'all');
+  const format = String(query.format || 'json').toLowerCase();
+  if (format === 'csv') {
+    return {
+      format,
+      content_type: 'text/csv',
+      filename: `scheduling_activity_${new Date().toISOString().slice(0, 10)}.csv`,
+      content: activitiesToCsv(result.items),
+    };
+  }
+  return { format: 'json', ...result };
+}
+
 module.exports = {
   getDashboard,
   getSchedulingDashboardToday,
   getSchedulingHourlyFlow,
+  getOperationsQueueCurrent,
+  getOperationsQueueBoard,
+  getOperationsQueueToday,
+  getOperationsQueueCallConsole,
+  getOperationsQueueTransferCandidates,
+  getOperationsQueueMissedNoShow,
+  getOperationsQueueTicketContext,
+  getOperationsQueueAvailableActions,
+  getPatientFlowToday,
+  getPatientFlowCheckInMonitor,
+  getPatientFlowWaiting,
+  getPatientFlowInConsultation,
+  getPatientFlowNeedsAction,
+  getPatientFlowCompleted,
+  getPatientFlowContext,
+  acknowledgePatientFlowAlert,
+  getOperationsResourcesLoad,
+  getOperationsResourceDepartments,
+  getOperationsResourceDoctors,
+  getOperationsResourceRooms,
+  getOperationsDoctorLoad,
+  getOperationsRoomStatus,
+  getOperationsResourceAttention,
+  acknowledgeResourceAttention,
+  assignResourceAttention,
+  resolveResourceAttention,
+  getOperationsSlotsCapacity,
+  getOperationsAlerts,
+  getOperationsAlertsSummary,
+  getOperationsAlertsByCategory,
+  getOperationsAlertDetail,
+  operationAlertAction,
   getHealth,
   getJobs,
   runJobNow,
@@ -1678,4 +3498,12 @@ module.exports = {
   endMaintenance,
   updateMaintenance,
   previewMaintenance,
+  getOperationsActivity,
+  getOperationsActivityDoctorSchedules: (query, actor) => getOperationsActivity(query, actor, 'doctorSchedules'),
+  getOperationsActivityAppointments: (query, actor) => getOperationsActivity(query, actor, 'appointments'),
+  getOperationsActivitySlots: (query, actor) => getOperationsActivity(query, actor, 'slots'),
+  getOperationsActivityQueue: (query, actor) => getOperationsActivity(query, actor, 'queue'),
+  getOperationsActivityCheckIn: (query, actor) => getOperationsActivity(query, actor, 'checkIn'),
+  getOperationsActivityDetail,
+  exportOperationsActivity,
 };

@@ -219,6 +219,9 @@ export const schedulingApi = {
   previewScheduleSlotImport: (body) => request('/schedule-slots/import-excel/preview', { method: 'POST', body }),
   importScheduleSlots: (body) => request('/schedule-slots/import-excel', { method: 'POST', body }),
   exportScheduleSlots: (params) => request('/schedule-slots/export', { params }),
+  searchPatients: (params) => request('/patients/search', { params }),
+  checkPatientCanBookAppointment: (patientId, params) =>
+    request(`/patients/${encodeURIComponent(patientId)}/can-book-appointment`, { params }),
   listAppointments: (params) => request('/appointments', { params }),
   searchAppointments: (params) => request('/appointments/search', { params }),
   getAppointmentSummary: (params) => request('/appointments/summary', { params }),
@@ -229,6 +232,10 @@ export const schedulingApi = {
     request(`/appointments/${encodeURIComponent(appointmentId)}/timeline`, { params }),
   confirmAppointment: (appointmentId) =>
     request(`/appointments/${encodeURIComponent(appointmentId)}/confirm`, { method: 'POST', body: {} }),
+  sendAppointmentReminder: (appointmentId, body = {}) =>
+    request(`/appointments/${encodeURIComponent(appointmentId)}/reminder`, { method: 'POST', body }),
+  logAppointmentCall: (appointmentId, body = {}) =>
+    request(`/appointments/${encodeURIComponent(appointmentId)}/call-log`, { method: 'POST', body }),
   cancelAppointment: (appointmentId, body) =>
     request(`/appointments/${encodeURIComponent(appointmentId)}/cancel`, { method: 'POST', body }),
   rescheduleAppointment: (appointmentId, body) =>
@@ -248,6 +255,7 @@ export const schedulingApi = {
   checkDoctorConflict: (body) => request('/appointments/check-doctor-conflict', { method: 'POST', body }),
   checkPatientConflict: (body) => request('/appointments/check-patient-conflict', { method: 'POST', body }),
   listAppointmentWaitlist: (params) => request('/appointments/waitlist', { params }),
+  createAppointmentWaitlist: (body) => request('/appointments/waitlist', { method: 'POST', body }),
   offerWaitlistSlot: (waitlistId, body) =>
     request(`/appointments/waitlist/${encodeURIComponent(waitlistId)}/offer-slot`, { method: 'POST', body }),
   bookWaitlist: (waitlistId, body) =>
@@ -309,6 +317,15 @@ export const schedulingApi = {
     request(`/nursing/queue/${encodeURIComponent(ticketId)}/unmark-ready-for-doctor`, { method: 'POST', body }),
   notifyDoctorQueue: (ticketId, body = {}) =>
     request(`/nursing/queue/${encodeURIComponent(ticketId)}/notify-doctor`, { method: 'POST', body }),
+
+  getReportOperationsOverview: (params) => request('/reports/operations/overview', { params }),
+  getReportOperationsAppointments: (params) => request('/reports/operations/appointments', { params }),
+  getReportOperationsQueue: (params) => request('/reports/operations/queue', { params }),
+  getReportOperationsNoShow: (params) => request('/reports/operations/no-show', { params }),
+  getReportOperationsWaitTime: (params) => request('/reports/operations/wait-time', { params }),
+  getReportOperationsDepartmentLoad: (params) => request('/reports/operations/department-load', { params }),
+  getReportOperationsSlotEfficiency: (params) => request('/reports/operations/slot-efficiency', { params }),
+  getReportOperationsPatientFlow: (params) => request('/reports/operations/patient-flow', { params }),
   getOperationsReportDashboard: (params) => request('/operations/reports/dashboard', { params }),
   getOperationsReportInsights: (params) => request('/operations/reports/insights', { params }),
   getOperationsReportCompare: (params) => request('/operations/reports/compare', { params }),

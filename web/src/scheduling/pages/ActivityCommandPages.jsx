@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 import { schedulingApi } from '../api/schedulingApi.js';
+import '../../styles/scheduling/17-activity-config-legacy.css';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const daysAgoIso = (days) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);

@@ -1,0 +1,524 @@
+/* V23 - Topbar + Configuration Toggle Polish
+   Load LAST. Designed to be safe for Scheduling workspace only but also styles common shell topbar classes. */
+
+:root {
+  --topbar-h: 76px;
+  --topbar-bg: rgba(255,255,255,.86);
+  --topbar-border: rgba(203,213,225,.72);
+  --topbar-text: #0f172a;
+  --topbar-muted: #64748b;
+  --topbar-primary: #0f766e;
+  --topbar-blue: #2563eb;
+  --topbar-danger: #dc2626;
+  --topbar-soft: #f6fafc;
+  --topbar-shadow: 0 18px 42px rgba(15,23,42,.08);
+}
+
+/* =========================
+   1) PROFESSIONAL TOPBAR
+   ========================= */
+.app-topbar,
+.topbar,
+.workspace-topbar,
+.shell-topbar,
+.layout-topbar,
+.admin-topbar,
+header[class*="topbar"],
+header[class*="Topbar"] {
+  min-height: var(--topbar-h) !important;
+  height: var(--topbar-h) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  padding: 10px 22px !important;
+  border-bottom: 1px solid var(--topbar-border) !important;
+  background:
+    radial-gradient(circle at 22% 0%, rgba(20,184,166,.12), transparent 280px),
+    linear-gradient(180deg, rgba(255,255,255,.94), rgba(248,252,255,.90)) !important;
+  box-shadow: 0 10px 32px rgba(15,23,42,.06) !important;
+  backdrop-filter: blur(16px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(145%) !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 80 !important;
+  box-sizing: border-box !important;
+}
+
+.app-topbar *,
+.topbar *,
+.workspace-topbar *,
+.shell-topbar *,
+.layout-topbar *,
+.admin-topbar * { box-sizing: border-box !important; }
+
+.app-topbar button,
+.topbar button,
+.workspace-topbar button,
+.shell-topbar button,
+.layout-topbar button,
+.admin-topbar button {
+  font: inherit !important;
+  border-radius: 14px !important;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease, color .16s ease !important;
+}
+
+.app-topbar button:hover,
+.topbar button:hover,
+.workspace-topbar button:hover,
+.shell-topbar button:hover,
+.layout-topbar button:hover,
+.admin-topbar button:hover {
+  transform: translateY(-1px) !important;
+}
+
+/* Menu / hamburger button */
+.app-topbar > button:first-child,
+.topbar > button:first-child,
+.workspace-topbar > button:first-child,
+.shell-topbar > button:first-child,
+.layout-topbar > button:first-child,
+.admin-topbar > button:first-child {
+  width: 44px !important;
+  height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid #dbe7f3 !important;
+  background: #ffffff !important;
+  color: #164e63 !important;
+  box-shadow: 0 10px 22px rgba(15,23,42,.055) !important;
+}
+
+/* Search shell */
+.app-topbar input[type="search"],
+.app-topbar input[placeholder*="Tìm"],
+.topbar input[type="search"],
+.topbar input[placeholder*="Tìm"],
+.workspace-topbar input[type="search"],
+.workspace-topbar input[placeholder*="Tìm"],
+.shell-topbar input[type="search"],
+.shell-topbar input[placeholder*="Tìm"],
+.layout-topbar input[type="search"],
+.layout-topbar input[placeholder*="Tìm"],
+.admin-topbar input[type="search"],
+.admin-topbar input[placeholder*="Tìm"] {
+  height: 46px !important;
+  min-width: min(620px, 42vw) !important;
+  max-width: 720px !important;
+  border: 1px solid #d6e3f1 !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(180deg, #ffffff, #f8fbff) !important;
+  color: #0f172a !important;
+  font-size: 15px !important;
+  font-weight: 750 !important;
+  padding: 0 54px 0 44px !important;
+  outline: none !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 12px 30px rgba(15,23,42,.045) !important;
+}
+
+.app-topbar input[type="search"]:focus,
+.app-topbar input[placeholder*="Tìm"]:focus,
+.topbar input[type="search"]:focus,
+.topbar input[placeholder*="Tìm"]:focus,
+.workspace-topbar input[type="search"]:focus,
+.workspace-topbar input[placeholder*="Tìm"]:focus,
+.shell-topbar input[type="search"]:focus,
+.shell-topbar input[placeholder*="Tìm"]:focus,
+.layout-topbar input[type="search"]:focus,
+.layout-topbar input[placeholder*="Tìm"]:focus,
+.admin-topbar input[type="search"]:focus,
+.admin-topbar input[placeholder*="Tìm"]:focus {
+  border-color: rgba(37,99,235,.45) !important;
+  box-shadow: 0 0 0 4px rgba(37,99,235,.10), 0 14px 34px rgba(15,23,42,.075) !important;
+}
+
+/* Icon buttons cluster */
+.app-topbar button[aria-label*="notification"],
+.app-topbar button[aria-label*="Thông"],
+.app-topbar button[aria-label*="theme"],
+.app-topbar button[aria-label*="dark"],
+.topbar button[aria-label*="notification"],
+.topbar button[aria-label*="Thông"],
+.topbar button[aria-label*="theme"],
+.topbar button[aria-label*="dark"],
+.workspace-topbar button[aria-label*="notification"],
+.workspace-topbar button[aria-label*="Thông"],
+.workspace-topbar button[aria-label*="theme"],
+.workspace-topbar button[aria-label*="dark"],
+.shell-topbar button[aria-label*="notification"],
+.shell-topbar button[aria-label*="Thông"],
+.shell-topbar button[aria-label*="theme"],
+.shell-topbar button[aria-label*="dark"] {
+  width: 44px !important;
+  height: 44px !important;
+  border: 1px solid #dbe7f3 !important;
+  background: #ffffff !important;
+  color: #0f3349 !important;
+  box-shadow: 0 10px 24px rgba(15,23,42,.055) !important;
+}
+
+/* User/account trigger */
+.app-topbar [class*="account"],
+.app-topbar [class*="Account"],
+.app-topbar [class*="profile"],
+.app-topbar [class*="Profile"],
+.app-topbar [class*="user"],
+.app-topbar [class*="User"],
+.topbar [class*="account"],
+.topbar [class*="Account"],
+.topbar [class*="profile"],
+.topbar [class*="Profile"],
+.topbar [class*="user"],
+.topbar [class*="User"],
+.workspace-topbar [class*="account"],
+.workspace-topbar [class*="Account"],
+.workspace-topbar [class*="profile"],
+.workspace-topbar [class*="Profile"],
+.workspace-topbar [class*="user"],
+.workspace-topbar [class*="User"],
+.shell-topbar [class*="account"],
+.shell-topbar [class*="Account"],
+.shell-topbar [class*="profile"],
+.shell-topbar [class*="Profile"],
+.shell-topbar [class*="user"],
+.shell-topbar [class*="User"] {
+  max-width: none;
+}
+
+.app-topbar button[class*="account"],
+.app-topbar button[class*="Account"],
+.app-topbar button[class*="profile"],
+.app-topbar button[class*="Profile"],
+.app-topbar button[class*="user"],
+.app-topbar button[class*="User"],
+.topbar button[class*="account"],
+.topbar button[class*="Account"],
+.topbar button[class*="profile"],
+.topbar button[class*="Profile"],
+.topbar button[class*="user"],
+.topbar button[class*="User"],
+.workspace-topbar button[class*="account"],
+.workspace-topbar button[class*="Account"],
+.workspace-topbar button[class*="profile"],
+.workspace-topbar button[class*="Profile"],
+.workspace-topbar button[class*="user"],
+.workspace-topbar button[class*="User"],
+.shell-topbar button[class*="account"],
+.shell-topbar button[class*="Account"],
+.shell-topbar button[class*="profile"],
+.shell-topbar button[class*="Profile"],
+.shell-topbar button[class*="user"],
+.shell-topbar button[class*="User"] {
+  min-width: 236px !important;
+  height: 58px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  padding: 7px 12px !important;
+  border: 1px solid rgba(20,184,166,.25) !important;
+  border-radius: 999px !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(240,253,250,.86)) !important;
+  color: var(--topbar-text) !important;
+  box-shadow: 0 0 0 4px rgba(20,184,166,.08), 0 14px 32px rgba(15,23,42,.07) !important;
+}
+
+.app-topbar img,
+.topbar img,
+.workspace-topbar img,
+.shell-topbar img,
+.layout-topbar img,
+.admin-topbar img {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 999px !important;
+  object-fit: cover !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 8px 18px rgba(15,23,42,.18) !important;
+}
+
+/* Account dropdown/menu */
+.account-menu,
+.profile-menu,
+.user-dropdown,
+.topbar-menu,
+.app-topbar [role="menu"],
+.topbar [role="menu"],
+.workspace-topbar [role="menu"],
+.shell-topbar [role="menu"] {
+  min-width: 290px !important;
+  padding: 10px !important;
+  border: 1px solid rgba(203,213,225,.9) !important;
+  border-radius: 22px !important;
+  background: rgba(255,255,255,.98) !important;
+  box-shadow: 0 28px 70px rgba(15,23,42,.17) !important;
+  backdrop-filter: blur(18px) saturate(160%) !important;
+  z-index: 250 !important;
+}
+
+.account-menu a,
+.account-menu button,
+.profile-menu a,
+.profile-menu button,
+.user-dropdown a,
+.user-dropdown button,
+.topbar-menu a,
+.topbar-menu button,
+.app-topbar [role="menu"] a,
+.app-topbar [role="menu"] button,
+.topbar [role="menu"] a,
+.topbar [role="menu"] button,
+.workspace-topbar [role="menu"] a,
+.workspace-topbar [role="menu"] button,
+.shell-topbar [role="menu"] a,
+.shell-topbar [role="menu"] button {
+  width: 100% !important;
+  min-height: 46px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  color: #334155 !important;
+  font-size: 14px !important;
+  font-weight: 850 !important;
+  text-decoration: none !important;
+  box-shadow: none !important;
+}
+
+.account-menu a:hover,
+.account-menu button:hover,
+.profile-menu a:hover,
+.profile-menu button:hover,
+.user-dropdown a:hover,
+.user-dropdown button:hover,
+.topbar-menu a:hover,
+.topbar-menu button:hover,
+.app-topbar [role="menu"] a:hover,
+.app-topbar [role="menu"] button:hover,
+.topbar [role="menu"] a:hover,
+.topbar [role="menu"] button:hover,
+.workspace-topbar [role="menu"] a:hover,
+.workspace-topbar [role="menu"] button:hover,
+.shell-topbar [role="menu"] a:hover,
+.shell-topbar [role="menu"] button:hover {
+  background: #f1f7fb !important;
+  color: #0f172a !important;
+}
+
+.account-menu a:last-child,
+.account-menu button:last-child,
+.profile-menu a:last-child,
+.profile-menu button:last-child,
+.user-dropdown a:last-child,
+.user-dropdown button:last-child,
+.topbar-menu a:last-child,
+.topbar-menu button:last-child,
+.app-topbar [role="menu"] a:last-child,
+.app-topbar [role="menu"] button:last-child,
+.topbar [role="menu"] a:last-child,
+.topbar [role="menu"] button:last-child,
+.workspace-topbar [role="menu"] a:last-child,
+.workspace-topbar [role="menu"] button:last-child,
+.shell-topbar [role="menu"] a:last-child,
+.shell-topbar [role="menu"] button:last-child {
+  color: var(--topbar-danger) !important;
+}
+
+/* =========================
+   2) CONFIGURATION SWITCHES
+   ========================= */
+.sched-settings-page input[type="checkbox"],
+.sched-settings-page .switch input,
+.sched-settings-page .toggle input,
+.sched-settings-page [role="switch"] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 72px !important;
+  height: 38px !important;
+  flex: 0 0 72px !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  position: relative !important;
+  cursor: pointer !important;
+  border: 1px solid #d6e3f1 !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #f8fafc, #eef2f7) !important;
+  box-shadow: inset 0 2px 4px rgba(15,23,42,.08), 0 12px 24px rgba(15,23,42,.055) !important;
+  outline: none !important;
+  vertical-align: middle !important;
+}
+
+.sched-settings-page input[type="checkbox"]::before,
+.sched-settings-page .switch input::before,
+.sched-settings-page .toggle input::before,
+.sched-settings-page [role="switch"]::before {
+  content: '' !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  position: absolute !important;
+  left: 5px !important;
+  top: 4px !important;
+  box-shadow: 0 8px 18px rgba(15,23,42,.18), inset 0 1px 0 rgba(255,255,255,.9) !important;
+  transition: transform .18s ease, background .18s ease !important;
+}
+
+.sched-settings-page input[type="checkbox"]::after,
+.sched-settings-page .switch input::after,
+.sched-settings-page .toggle input::after,
+.sched-settings-page [role="switch"]::after {
+  content: 'OFF' !important;
+  position: absolute !important;
+  right: 10px !important;
+  color: #334155 !important;
+  font-size: 10px !important;
+  font-weight: 950 !important;
+  letter-spacing: .04em !important;
+}
+
+.sched-settings-page input[type="checkbox"]:checked,
+.sched-settings-page .switch input:checked,
+.sched-settings-page .toggle input:checked,
+.sched-settings-page [role="switch"][aria-checked="true"] {
+  border-color: rgba(15,118,110,.55) !important;
+  background: linear-gradient(135deg, #0f766e, #14b8a6) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 14px 28px rgba(15,118,110,.22) !important;
+}
+
+.sched-settings-page input[type="checkbox"]:checked::before,
+.sched-settings-page .switch input:checked::before,
+.sched-settings-page .toggle input:checked::before,
+.sched-settings-page [role="switch"][aria-checked="true"]::before {
+  transform: translateX(34px) !important;
+}
+
+.sched-settings-page input[type="checkbox"]:checked::after,
+.sched-settings-page .switch input:checked::after,
+.sched-settings-page .toggle input:checked::after,
+.sched-settings-page [role="switch"][aria-checked="true"]::after {
+  content: 'ON' !important;
+  left: 12px !important;
+  right: auto !important;
+  color: #fff !important;
+}
+
+.sched-settings-page input[type="checkbox"]:focus-visible,
+.sched-settings-page .switch input:focus-visible,
+.sched-settings-page .toggle input:focus-visible,
+.sched-settings-page [role="switch"]:focus-visible {
+  box-shadow: 0 0 0 4px rgba(37,99,235,.14), 0 14px 28px rgba(15,23,42,.10) !important;
+}
+
+/* Better feature-flag cards */
+.sched-settings-page .sched-settings-flag-card,
+.sched-settings-page article:has(input[type="checkbox"]),
+.sched-settings-page .sched-settings-card:has(input[type="checkbox"]) {
+  position: relative !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(148,163,184,.23) !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(20,184,166,.08), transparent 180px),
+    linear-gradient(180deg, #fff, #f8fbff) !important;
+  box-shadow: 0 18px 42px rgba(15,23,42,.065) !important;
+}
+
+.sched-settings-page .sched-settings-flag-card::before,
+.sched-settings-page article:has(input[type="checkbox"])::before,
+.sched-settings-page .sched-settings-card:has(input[type="checkbox"])::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, #0f766e, #2563eb);
+  opacity: .85;
+}
+
+.sched-settings-page .sched-settings-flag-card h3,
+.sched-settings-page article:has(input[type="checkbox"]) h3,
+.sched-settings-page .sched-settings-card:has(input[type="checkbox"]) h3 {
+  margin-bottom: 16px !important;
+  font-size: 19px !important;
+  letter-spacing: -.02em !important;
+}
+
+/* Admin operations buttons on the right panel */
+.sched-settings-page .sched-side-panel button,
+.sched-settings-page aside button,
+.sched-settings-page [class*="danger"] button,
+.sched-settings-page [class*="Danger"] button {
+  min-height: 44px !important;
+  border-radius: 14px !important;
+  border: 1px solid #dbe7f3 !important;
+  background: linear-gradient(180deg, #fff, #f8fafc) !important;
+  color: #0f172a !important;
+  font-weight: 900 !important;
+  box-shadow: 0 8px 20px rgba(15,23,42,.045) !important;
+}
+
+.sched-settings-page .sched-side-panel button:hover,
+.sched-settings-page aside button:hover,
+.sched-settings-page [class*="danger"] button:hover,
+.sched-settings-page [class*="Danger"] button:hover {
+  border-color: rgba(37,99,235,.3) !important;
+  background: #eef6ff !important;
+  color: #1d4ed8 !important;
+}
+
+/* =========================
+   3) RESPONSIVE SAFETY
+   ========================= */
+@media (max-width: 1180px) {
+  .app-topbar,
+  .topbar,
+  .workspace-topbar,
+  .shell-topbar,
+  .layout-topbar,
+  .admin-topbar { gap: 10px !important; padding-inline: 14px !important; }
+
+  .app-topbar input[type="search"],
+  .app-topbar input[placeholder*="Tìm"],
+  .topbar input[type="search"],
+  .topbar input[placeholder*="Tìm"],
+  .workspace-topbar input[type="search"],
+  .workspace-topbar input[placeholder*="Tìm"],
+  .shell-topbar input[type="search"],
+  .shell-topbar input[placeholder*="Tìm"] {
+    min-width: 280px !important;
+    max-width: 44vw !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-topbar,
+  .topbar,
+  .workspace-topbar,
+  .shell-topbar,
+  .layout-topbar,
+  .admin-topbar {
+    height: auto !important;
+    min-height: var(--topbar-h) !important;
+    flex-wrap: wrap !important;
+  }
+
+  .app-topbar input[type="search"],
+  .app-topbar input[placeholder*="Tìm"],
+  .topbar input[type="search"],
+  .topbar input[placeholder*="Tìm"],
+  .workspace-topbar input[type="search"],
+  .workspace-topbar input[placeholder*="Tìm"],
+  .shell-topbar input[type="search"],
+  .shell-topbar input[placeholder*="Tìm"] {
+    order: 10 !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+}

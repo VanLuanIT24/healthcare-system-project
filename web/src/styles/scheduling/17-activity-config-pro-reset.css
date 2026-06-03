@@ -1,0 +1,821 @@
+/* V22 - professional repair for Scheduling Activity + Configuration only.
+   This file is intentionally loaded last from styles/scheduling.css. */
+
+.sched-settings-page,
+.sched-activity-page {
+  --sched-bg: #eef7f6;
+  --sched-card: rgba(255,255,255,.96);
+  --sched-border: #dbe7f3;
+  --sched-line: #e7edf5;
+  --sched-text: #0f1f33;
+  --sched-muted: #617087;
+  --sched-soft: #f6f9fc;
+  --sched-primary: #0f766e;
+  --sched-blue: #2563eb;
+  --sched-danger: #dc2626;
+  width: min(100%, 1500px);
+  margin: 0 auto;
+  padding: 18px 24px 34px;
+  display: grid;
+  gap: 18px;
+  color: var(--sched-text);
+  line-height: 1.45;
+  box-sizing: border-box;
+}
+
+.sched-settings-page *,
+.sched-activity-page * { box-sizing: border-box; }
+
+.sched-settings-page button,
+.sched-settings-page input,
+.sched-settings-page select,
+.sched-activity-page button,
+.sched-activity-page input,
+.sched-activity-page select {
+  font: inherit;
+  letter-spacing: normal;
+}
+
+.sched-settings-page button,
+.sched-activity-page button,
+.sched-settings-page a,
+.sched-activity-page a {
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+.sched-settings-page button:hover,
+.sched-activity-page button:hover,
+.sched-settings-page a:hover,
+.sched-activity-page a:hover { transform: translateY(-1px); }
+
+.sched-settings-hero,
+.sched-activity-hero {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, .62fr) !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: 22px !important;
+  overflow: hidden;
+  border: 1px solid rgba(148,163,184,.24) !important;
+  border-radius: 24px !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(20,184,166,.18), transparent 280px),
+    radial-gradient(circle at 100% 0%, rgba(37,99,235,.12), transparent 320px),
+    linear-gradient(135deg, rgba(255,255,255,.98), rgba(248,252,255,.94)) !important;
+  box-shadow: 0 24px 54px rgba(15,23,42,.08) !important;
+}
+
+.sched-settings-hero::before,
+.sched-activity-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, #14b8a6, #2563eb);
+}
+
+.sched-settings-hero > div:first-child,
+.sched-activity-hero > div:first-child { min-width: 0; padding-left: 8px; }
+
+.sched-settings-hero > div:first-child > span,
+.sched-activity-hero > div:first-child > span {
+  display: inline-flex !important;
+  width: fit-content;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef6ff;
+  color: #1d4ed8 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  letter-spacing: .09em !important;
+  text-transform: uppercase !important;
+}
+
+.sched-settings-hero h1,
+.sched-activity-hero h1 {
+  margin: 0 !important;
+  color: var(--sched-text) !important;
+  font-size: clamp(28px, 3.1vw, 48px) !important;
+  font-weight: 950 !important;
+  line-height: 1.03 !important;
+  letter-spacing: -.035em !important;
+  overflow-wrap: anywhere;
+}
+
+.sched-settings-hero p,
+.sched-activity-hero p {
+  max-width: 760px !important;
+  margin: 10px 0 0 !important;
+  color: #475569 !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+}
+
+.sched-settings-hero small,
+.sched-activity-hero small {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px !important;
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.35;
+}
+
+.sched-settings-hero__tools,
+.sched-activity-hero__tools {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  align-content: start !important;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(148,163,184,.20);
+  border-radius: 18px;
+  background: rgba(255,255,255,.72);
+  backdrop-filter: blur(10px);
+}
+
+.sched-settings-hero__tools label,
+.sched-activity-hero__tools label {
+  display: grid !important;
+  gap: 6px !important;
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+}
+
+.sched-settings-hero__tools input,
+.sched-settings-hero__tools select,
+.sched-activity-hero__tools input,
+.sched-activity-hero__tools select {
+  width: 100%;
+  min-height: 42px !important;
+  padding: 0 12px !important;
+  border: 1px solid #d8e5f2 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  color: var(--sched-text) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.sched-settings-hero__tools button,
+.sched-settings-hero__tools a,
+.sched-activity-hero__tools button,
+.sched-activity-hero__tools a {
+  min-height: 42px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  border-radius: 12px !important;
+  border: 1px solid #0f172a !important;
+  background: #0f172a !important;
+  color: #fff !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  text-decoration: none !important;
+}
+
+.sched-settings-kpis,
+.sched-activity-kpis {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+
+.sched-settings-kpi,
+.sched-activity-kpis article {
+  min-height: 94px !important;
+  display: grid !important;
+  align-content: center !important;
+  gap: 7px !important;
+  padding: 16px !important;
+  overflow: hidden;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, #fff, #f8fafc) !important;
+  box-shadow: 0 16px 34px rgba(15,23,42,.055) !important;
+}
+
+.sched-settings-kpi span,
+.sched-activity-kpis article span {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.sched-settings-kpi strong,
+.sched-activity-kpis article strong {
+  display: block;
+  color: #0f172a !important;
+  font-size: 30px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  word-break: normal;
+}
+
+.sched-settings-kpi small,
+.sched-activity-kpis article small {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 760 !important;
+  line-height: 1.35 !important;
+}
+
+.sched-settings-nav,
+.sched-activity-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  padding: 14px !important;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  border-radius: 22px !important;
+  background: rgba(255,255,255,.94) !important;
+  box-shadow: 0 18px 38px rgba(15,23,42,.055) !important;
+}
+
+.sched-settings-nav a,
+.sched-activity-toolbar button {
+  min-height: 42px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 16px !important;
+  border: 1px solid #dbe7f3 !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: #334155 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+}
+
+.sched-settings-nav a.is-active,
+.sched-activity-toolbar button.is-active {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #0f766e, #0d9488) !important;
+  color: #fff !important;
+  box-shadow: 0 14px 28px rgba(13,148,136,.22) !important;
+}
+
+.sched-settings-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px) !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+.sched-settings-main { min-width: 0; display: grid; gap: 16px; }
+
+.sched-settings-section,
+.sched-settings-preview,
+.sched-template-builder,
+.sched-rule-simulator,
+.sched-calendar-preview,
+.sched-telehealth-preview,
+.sched-template-editor,
+.sched-danger-zone {
+  padding: 20px !important;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  border-radius: 22px !important;
+  background: var(--sched-card) !important;
+  box-shadow: 0 22px 46px rgba(15,23,42,.065) !important;
+}
+
+.sched-settings-section > header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 0 0 18px !important;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--sched-line);
+}
+
+.sched-settings-section h2,
+.sched-settings-preview h3,
+.sched-template-builder h3,
+.sched-rule-simulator h3,
+.sched-calendar-preview h3,
+.sched-telehealth-preview h3,
+.sched-template-editor h3,
+.sched-danger-zone h3 {
+  margin: 0 !important;
+  color: var(--sched-text) !important;
+  font-size: 22px !important;
+  font-weight: 950 !important;
+  line-height: 1.14 !important;
+  letter-spacing: -.018em !important;
+}
+
+.sched-settings-section p,
+.sched-settings-preview p,
+.sched-template-builder p,
+.sched-rule-simulator p,
+.sched-calendar-preview p,
+.sched-telehealth-preview p,
+.sched-template-editor p,
+.sched-danger-zone p {
+  margin: 5px 0 0 !important;
+  color: #64748b !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+
+.sched-settings-grid,
+.sched-schedule-type-grid,
+.sched-rule-grid,
+.sched-advanced-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.sched-setting-card,
+.sched-schedule-type-card,
+.sched-template-card,
+.sched-rule-card,
+.sched-exception-card,
+.sched-advanced-card {
+  position: relative;
+  display: grid !important;
+  gap: 12px !important;
+  min-height: 178px;
+  padding: 18px !important;
+  overflow: hidden;
+  border: 1px solid #dbe7f3 !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, #fff, #fbfdff) !important;
+  box-shadow: 0 12px 26px rgba(15,23,42,.04) !important;
+}
+
+.sched-setting-card::before,
+.sched-schedule-type-card::before,
+.sched-template-card::before,
+.sched-rule-card::before,
+.sched-exception-card::before,
+.sched-advanced-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, #0f766e, #60a5fa);
+  opacity: .9;
+}
+
+.sched-setting-card header,
+.sched-schedule-type-card header,
+.sched-template-card header,
+.sched-rule-card header,
+.sched-exception-card header {
+  display: grid !important;
+  gap: 6px !important;
+  margin: 0 !important;
+}
+
+.sched-setting-card span,
+.sched-schedule-type-card header span,
+.sched-template-card header span,
+.sched-rule-card header span,
+.sched-exception-card header span,
+.sched-advanced-card span,
+.sched-rule-simulator > span,
+.sched-template-builder > span,
+.sched-calendar-preview > span,
+.sched-telehealth-preview > span,
+.sched-template-editor > span,
+.sched-danger-zone > span,
+.sched-settings-preview > span {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  color: #047857 !important;
+  font-size: 11px !important;
+  font-weight: 950 !important;
+  letter-spacing: .08em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.sched-setting-card h3,
+.sched-schedule-type-card strong,
+.sched-template-card strong,
+.sched-rule-card strong,
+.sched-exception-card strong,
+.sched-advanced-card strong {
+  display: block;
+  color: var(--sched-text) !important;
+  font-size: 18px !important;
+  font-weight: 950 !important;
+  line-height: 1.22 !important;
+  letter-spacing: -.012em !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.sched-setting-card p,
+.sched-template-card p,
+.sched-rule-card p,
+.sched-exception-card p {
+  color: #64748b !important;
+  font-size: 13px !important;
+  line-height: 1.48 !important;
+}
+
+.sched-setting-card input,
+.sched-rule-simulator input,
+.sched-report-export-form select,
+.sched-report-export-form input,
+.sched-activity-toolbar input,
+.sched-activity-toolbar select {
+  width: 100% !important;
+  min-height: 44px !important;
+  padding: 0 12px !important;
+  border: 1px solid #dbe7f3 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  color: var(--sched-text) !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.sched-setting-card footer,
+.sched-schedule-type-card footer,
+.sched-template-card footer,
+.sched-rule-card footer,
+.sched-exception-card footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.sched-setting-card footer small,
+.sched-schedule-type-card footer small,
+.sched-template-card footer small,
+.sched-rule-card footer small,
+.sched-exception-card footer small {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+.sched-setting-card button,
+.sched-schedule-type-card button,
+.sched-template-card button,
+.sched-rule-card button,
+.sched-rule-simulator button,
+.sched-exception-card button,
+.sched-telehealth-preview button,
+.sched-template-editor button,
+.sched-danger-zone button,
+.sched-settings-preview button,
+.sched-settings-drawer button,
+.sched-activity-drawer button {
+  min-height: 38px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 0 14px !important;
+  border: 1px solid #dbe7f3 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+}
+
+.sched-setting-card button:last-child,
+.sched-rule-simulator button,
+.sched-telehealth-preview button,
+.sched-template-editor button,
+.sched-settings-preview button,
+.sched-settings-drawer footer button:first-child,
+.sched-danger-zone button:hover {
+  border-color: transparent !important;
+  background: #0f172a !important;
+  color: #fff !important;
+}
+
+.sched-type-metrics,
+.sched-type-badges,
+.sched-rule-primary,
+.sched-rule-card ul,
+.sched-template-days,
+.sched-impact-preview,
+.sched-simulator-result {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.sched-type-metrics span,
+.sched-type-badges b,
+.sched-rule-primary b,
+.sched-rule-primary small,
+.sched-rule-card li,
+.sched-template-days b,
+.sched-impact-preview,
+.sched-simulator-result {
+  min-height: 32px;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 6px 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid #e3ebf5 !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1.2 !important;
+}
+
+.sched-type-badges b,
+.sched-template-days b.is-on,
+.sched-simulator-result {
+  background: #ecfdf5 !important;
+  border-color: #bbf7d0 !important;
+  color: #047857 !important;
+}
+
+.sched-rule-card ul { padding: 0 !important; margin: 0 !important; list-style: none !important; }
+
+.sched-week-grid,
+.sched-month-grid {
+  display: grid !important;
+  gap: 8px !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  margin-top: 14px;
+}
+
+.sched-week-grid button,
+.sched-month-grid button {
+  min-height: 48px !important;
+  border: 1px solid #dbe7f3 !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+  font-weight: 900 !important;
+}
+
+.sched-week-grid button.is-on,
+.sched-month-grid button.has-exception {
+  background: #ecfdf5 !important;
+  border-color: #99f6e4 !important;
+  color: #047857 !important;
+}
+
+.sched-exception-list,
+.sched-template-list,
+.sched-activity-timeline { display: grid !important; gap: 14px !important; }
+
+.sched-notification-table {
+  display: grid !important;
+  gap: 8px !important;
+  overflow-x: auto;
+}
+
+.sched-notification-row {
+  min-width: 760px;
+  display: grid !important;
+  grid-template-columns: 1.4fr repeat(4, .58fr) 1fr !important;
+  gap: 8px !important;
+  align-items: center !important;
+  padding: 12px !important;
+  border: 1px solid #e3ebf5 !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+}
+
+.sched-notification-row.is-head {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+}
+
+.sched-settings-toggle {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  width: fit-content;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid #dbe7f3;
+  border-radius: 999px;
+  background: #f8fafc;
+}
+
+.sched-settings-toggle input {
+  appearance: none;
+  width: 46px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 999px !important;
+  background: #e2e8f0 !important;
+  cursor: pointer;
+}
+
+.sched-settings-toggle input::before {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15,23,42,.18);
+  transition: transform .18s ease;
+}
+
+.sched-settings-toggle input:checked { background: #0f766e !important; border-color: #0f766e !important; }
+.sched-settings-toggle input:checked::before { transform: translateX(20px); }
+.sched-settings-toggle span { color: #334155 !important; font-weight: 900 !important; }
+
+.sched-settings-notice,
+.sched-settings-warning {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 13px 16px !important;
+  border-radius: 16px !important;
+  font-weight: 850 !important;
+}
+.sched-settings-notice { background: #ecfdf5 !important; border: 1px solid #bbf7d0 !important; color: #047857 !important; }
+.sched-settings-warning { background: #fffbeb !important; border: 1px solid #fde68a !important; color: #92400e !important; }
+
+.sched-settings-drawer,
+.sched-activity-drawer {
+  position: fixed !important;
+  z-index: 9999 !important;
+  top: 76px !important;
+  right: 24px !important;
+  bottom: 24px !important;
+  width: min(620px, calc(100vw - 48px)) !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  gap: 14px !important;
+  overflow: auto !important;
+  padding: 20px !important;
+  border: 1px solid rgba(148,163,184,.32) !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 34px 90px rgba(15,23,42,.24) !important;
+}
+
+.sched-settings-drawer header,
+.sched-activity-drawer header {
+  position: sticky;
+  top: -20px;
+  z-index: 2;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  margin: -20px -20px 0 !important;
+  padding: 20px !important;
+  border-bottom: 1px solid #e3ebf5 !important;
+  background: rgba(255,255,255,.96) !important;
+  backdrop-filter: blur(12px);
+}
+
+.sched-settings-drawer header span,
+.sched-activity-drawer header span { color: #2563eb !important; font-size: 11px !important; font-weight: 950 !important; letter-spacing: .08em !important; text-transform: uppercase; }
+.sched-settings-drawer header h2,
+.sched-activity-drawer header h2 { margin: 4px 0 0 !important; font-size: 24px !important; line-height: 1.15 !important; }
+.sched-settings-drawer section,
+.sched-activity-drawer section { display: grid !important; gap: 10px !important; padding: 14px !important; border: 1px solid #e3ebf5; border-radius: 16px; background: #f8fafc; }
+
+.sched-settings-drawer dl,
+.sched-activity-drawer dl,
+.sched-audit-diff { display: grid !important; gap: 8px !important; margin: 0 !important; }
+.sched-settings-drawer dl div,
+.sched-activity-drawer dl div,
+.sched-audit-diff div { display: grid !important; grid-template-columns: 140px minmax(0, 1fr) !important; gap: 10px !important; align-items: start; padding: 10px !important; border-radius: 12px !important; background: #fff !important; border: 1px solid #e3ebf5 !important; }
+.sched-settings-drawer dt,
+.sched-activity-drawer dt { color: #64748b !important; font-size: 12px !important; font-weight: 900 !important; text-transform: uppercase; }
+.sched-settings-drawer dd,
+.sched-activity-drawer dd { margin: 0 !important; color: #0f172a !important; font-weight: 850 !important; overflow-wrap: anywhere; }
+
+/* Activity pages */
+.sched-activity-toolbar > div {
+  flex: 1 1 380px;
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #dbe7f3;
+  border-radius: 14px;
+  background: #fff;
+}
+.sched-activity-toolbar > div input { border: 0 !important; padding: 0 !important; min-height: 40px !important; }
+.sched-activity-toolbar select { width: auto !important; min-width: 180px; }
+
+.sched-activity-timeline article {
+  display: grid !important;
+  grid-template-columns: 48px minmax(0,1fr) !important;
+  gap: 14px !important;
+  align-items: start !important;
+  padding: 16px !important;
+  border: 1px solid #dbe7f3 !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+  box-shadow: 0 14px 30px rgba(15,23,42,.045) !important;
+  cursor: pointer;
+}
+.sched-activity-timeline article > span {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+.sched-activity-timeline header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.sched-activity-timeline strong { color: #0f172a; font-size: 16px; font-weight: 950; }
+.sched-activity-timeline p { margin: 6px 0; color: #334155; font-size: 14px; line-height: 1.45; }
+.sched-activity-timeline footer { display: flex; flex-wrap: wrap; gap: 8px; }
+.sched-activity-timeline em { padding: 5px 8px; border-radius: 999px; background: #f1f5f9; color: #64748b; font-size: 11px; font-style: normal; font-weight: 850; }
+
+.sched-activity-table {
+  display: grid !important;
+  gap: 8px !important;
+  padding: 14px !important;
+  border: 1px solid rgba(148,163,184,.22);
+  border-radius: 20px;
+  background: #fff;
+  overflow-x: auto;
+}
+.sched-activity-table > div,
+.sched-activity-table > button {
+  min-width: 980px;
+  display: grid !important;
+  grid-template-columns: 150px 1.2fr 1.1fr 1.4fr 100px 120px 120px !important;
+  gap: 10px !important;
+  align-items: center !important;
+  padding: 12px !important;
+  border: 1px solid #e3ebf5 !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  text-align: left !important;
+}
+.sched-activity-table > div { background: #f8fafc !important; color: #64748b; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.sched-activity-table > button { color: #334155 !important; cursor: pointer; }
+.sched-activity-table small { display: block; color: #64748b; font-size: 12px; margin-top: 3px; }
+
+.sched-settings-skeleton,
+.sched-activity-skeleton {
+  min-height: 110px;
+  border-radius: 20px;
+  background: linear-gradient(90deg, #f8fafc, #eef2f7, #f8fafc);
+  background-size: 220% 100%;
+  animation: sched-shimmer 1.2s infinite linear;
+}
+@keyframes sched-shimmer { to { background-position: -220% 0; } }
+
+@media (max-width: 1180px) {
+  .sched-settings-hero,
+  .sched-activity-hero,
+  .sched-settings-layout { grid-template-columns: 1fr !important; }
+  .sched-settings-kpis,
+  .sched-activity-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 760px) {
+  .sched-settings-page,
+  .sched-activity-page { padding: 12px; }
+  .sched-settings-hero__tools,
+  .sched-activity-hero__tools,
+  .sched-settings-grid,
+  .sched-schedule-type-grid,
+  .sched-rule-grid,
+  .sched-advanced-grid,
+  .sched-settings-kpis,
+  .sched-activity-kpis { grid-template-columns: 1fr !important; }
+  .sched-settings-drawer,
+  .sched-activity-drawer { top: 12px !important; right: 12px !important; bottom: 12px !important; width: calc(100vw - 24px) !important; }
+}

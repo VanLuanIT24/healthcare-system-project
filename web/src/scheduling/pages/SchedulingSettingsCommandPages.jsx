@@ -355,7 +355,7 @@ function getViewCall(view, params) {
     slotRules: schedulingApi.getSchedulingConfigSlotRules,
     bookingRules: schedulingApi.getSchedulingConfigBookingRules,
     checkInRules: schedulingApi.getSchedulingConfigCheckInRules,
-    cancelRules: schedulingApi.getSchedulingConfigCancelRescheduleNoShow,
+    cancelRules: schedulingApi.getSchedulingConfigCancelRules,
     queueRules: schedulingApi.getSchedulingConfigQueueRules,
     exceptions: schedulingApi.getSchedulingConfigExceptions,
     telehealth: schedulingApi.getSchedulingConfigTelehealth,
