@@ -10,6 +10,11 @@ import {
   CalendarPlus,
   CheckCircle2,
   ChevronRight,
+  DoorOpen,
+  FileSearch,
+  PlayCircle,
+  RotateCcw,
+  Sparkles,
   ClipboardCheck,
   ClipboardList,
   Clock3,
@@ -83,6 +88,36 @@ function safeNumber(value, fallback = 0) {
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.items)) return value.items;
+  if (Array.isArray(value?.data)) return value.data;
+  if (Array.isArray(value?.results)) return value.results;
+  if (Array.isArray(value?.alerts)) return value.alerts;
+  if (Array.isArray(value?.departments)) return value.departments;
+  return [];
+}
+
+function pickObject(...values) {
+  return values.find((value) => value && typeof value === 'object') || {};
+}
+
+function firstArray(...values) {
+  for (const value of values) {
+    const items = asArray(value);
+    if (items.length) return items;
+  }
+  return [];
+}
+
+function getUtilizationFromSlots(slots = {}, fallback = 0) {
+  const total = safeNumber(slots.total ?? slots.total_slots ?? slots.total_capacity ?? slots.capacity);
+  const booked = safeNumber(slots.booked ?? slots.booked_slots ?? slots.booked_count);
+  const remote = safeNumber(slots.utilization_rate ?? slots.utilization ?? slots.used_percent, NaN);
+  if (Number.isFinite(remote)) return remote;
+  return total > 0 ? (booked / total) * 100 : fallback;
 }
 
 function getTodayKey() {
@@ -266,6 +301,100 @@ function buildQueueSummary(queueItems) {
     max_wait_minutes: waitMinutes.length ? Math.max(...waitMinutes) : 0,
     waiting_over_15m: waitMinutes.filter((value) => value >= 15).length,
     waiting_over_30m: waitMinutes.filter((value) => value >= 30).length,
+  };
+}
+
+
+function normalizeRemoteDepartmentLoad(item = {}, index = 0) {
+  const today = pickObject(item.today, item.metrics);
+  const slots = pickObject(item.slots, item.capacity, item.slot_summary);
+  const utilization = getUtilizationFromSlots(slots, safeNumber(item.utilization || item.utilization_rate));
+  const queueWaiting = safeNumber(today.queue_waiting ?? item.queue_waiting ?? item.waiting);
+  const avgWait = safeNumber(item.queue?.max_wait_minutes ?? item.avg_wait_minutes ?? item.avgWait);
+  const alertCount = asArray(item.alerts).length;
+  return {
+    id: item.department_id || item.id || item._id || `department-${index}`,
+    name: item.department_name || item.name || 'Chưa xác định khoa',
+    schedules: safeNumber(today.schedules_count ?? item.schedules_count ?? item.schedules),
+    doctors: new Set(),
+    doctorCount: safeNumber(today.doctors_count ?? item.doctor_count ?? item.doctors_count),
+    totalSlots: safeNumber(slots.total ?? slots.total_slots ?? slots.total_capacity),
+    bookedSlots: safeNumber(slots.booked ?? slots.booked_slots ?? slots.booked_count),
+    availableSlots: safeNumber(slots.available ?? slots.available_slots),
+    blockedSlots: safeNumber(slots.blocked ?? slots.blocked_slots),
+    appointments: safeNumber(today.appointments_count ?? item.appointments_count ?? item.appointments),
+    queueWaiting,
+    avgWait,
+    utilization,
+    risk: item.load?.level || getRiskLevel(utilization, avgWait, alertCount),
+    alerts: asArray(item.alerts),
+    source: item.data_source || 'database',
+  };
+}
+
+function normalizeRemoteDoctorLoad(item = {}, index = 0) {
+  const today = pickObject(item.today, item.metrics);
+  const slots = pickObject(item.slots, item.capacity, item.slot_summary);
+  const utilization = getUtilizationFromSlots(slots, safeNumber(item.utilization || item.utilization_rate));
+  return {
+    id: item.doctor_id || item.id || item._id || `doctor-${index}`,
+    name: item.full_name || item.doctor_name || item.name || 'Chưa rõ bác sĩ',
+    department: item.department_name || item.department || 'Chưa xác định khoa',
+    schedules: safeNumber(today.schedules_count ?? item.schedules_count ?? item.schedules),
+    totalSlots: safeNumber(slots.total ?? slots.total_slots ?? slots.total_capacity),
+    bookedSlots: safeNumber(slots.booked ?? slots.booked_slots ?? slots.booked_count),
+    availableSlots: safeNumber(slots.available ?? slots.available_slots),
+    blockedSlots: safeNumber(slots.blocked ?? slots.blocked_slots),
+    queueWaiting: safeNumber(today.queue_waiting ?? item.queue_waiting),
+    inService: safeNumber(today.queue_in_service ?? item.in_service),
+    noShowCount: safeNumber(today.no_show_count ?? item.no_show_count),
+    utilization,
+    risk: item.load?.level || getRiskLevel(utilization, safeNumber(item.queue?.max_wait_minutes), asArray(item.alerts).length),
+    alerts: asArray(item.alerts),
+  };
+}
+
+function normalizeRemoteRoom(item = {}, index = 0) {
+  return {
+    id: item.room_id || item.id || item._id || `room-${index}`,
+    name: item.room_name || item.name || 'Phòng chưa đặt tên',
+    code: item.room_code || item.code || 'ROOM',
+    department: item.department_name || item.department || 'Chưa xác định khoa',
+    status: item.status || 'available',
+    resourceType: item.resource_type || item.room_type || 'clinic_room',
+    queueWaiting: safeNumber(item.queue_waiting),
+    appointmentsLeft: safeNumber(item.appointments_left),
+    nextFreeAt: item.next_free_at || '—',
+    alerts: asArray(item.alerts),
+  };
+}
+
+function normalizeOperationAlert(item = {}, index = 0) {
+  const severity = item.severity || item.priority || (item.tone === 'danger' ? 'critical' : item.tone === 'warning' ? 'warning' : 'info');
+  return {
+    id: item.alert_id || item.id || item._id || `remote-alert-${index}`,
+    severity,
+    type: item.type || item.alert_type || item.category || 'operation_alert',
+    title: item.title || item.message || 'Cảnh báo vận hành',
+    message: item.message || item.description || item.body || 'Cần kiểm tra cảnh báo vận hành.',
+    entity: item.department_name || item.doctor_name || item.patient_name || item.entity || 'Operations',
+    action: asArray(item.suggested_actions).map((action) => action.label || action.action || action)[0] || item.action || 'Xem chi tiết',
+    to: item.to || '/scheduling/alerts',
+    status: item.status || 'open',
+    category: item.category || item.alert_category || 'operation',
+    raw: item,
+  };
+}
+
+function normalizeRemoteSlotSummary(capacity) {
+  const summary = pickObject(capacity?.summary, capacity?.overview, capacity);
+  return {
+    total: safeNumber(summary.total_capacity ?? summary.total_slots ?? summary.total),
+    booked: safeNumber(summary.booked_slots ?? summary.booked ?? summary.booked_count),
+    available: safeNumber(summary.available_slots ?? summary.available),
+    blocked: safeNumber(summary.blocked_slots ?? summary.blocked),
+    held: safeNumber(summary.held_slots ?? summary.held),
+    utilization: safeNumber(summary.utilization_rate ?? summary.utilization),
   };
 }
 
@@ -482,6 +611,11 @@ function useOperationsData(date) {
         schedulingApi.getQueueSummaryToday({ date }),
         schedulingApi.listQueueTickets({ date, limit: 120 }),
         schedulingApi.getDepartmentSummary({ preset: 'today', date }),
+        schedulingApi.getOperationsResourcesLoad({ date }),
+        schedulingApi.getOperationsSlotsCapacity({ date }),
+        schedulingApi.getOperationsAlerts({ date }),
+        schedulingApi.getOperationsQueueBoard({ date }),
+        schedulingApi.getOperationsResourceAttention({ date }),
       ]);
 
       if (!isActive) return;
@@ -498,6 +632,11 @@ function useOperationsData(date) {
           queueSummary: getSettled(results[5]),
           queueTickets: getSettled(results[6]),
           departmentSummary: getSettled(results[7]),
+          resourcesLoad: getSettled(results[8]),
+          slotsCapacity: getSettled(results[9]),
+          operationsAlerts: getSettled(results[10]),
+          queueBoard: getSettled(results[11]),
+          resourceAttention: getSettled(results[12]),
         },
       });
     }
@@ -514,30 +653,48 @@ function useOperationsData(date) {
     const appointments = safeArray(state.remote.todayAppointments?.items).length
       ? state.remote.todayAppointments.items.map(normalizeAppointment)
       : fallbackAppointments;
-    const queueItems = safeArray(state.remote.queueTickets?.items).length
-      ? state.remote.queueTickets.items.map(normalizeQueueTicket)
-      : buildFallbackQueue(appointments);
+    const queueFromBoard = firstArray(state.remote.queueBoard?.items, state.remote.queueBoard?.tickets, state.remote.queueBoard?.queue, state.remote.queueBoard);
+    const queueFromLegacy = firstArray(state.remote.queueTickets?.items, state.remote.queueTickets);
+    const queueItems = queueFromBoard.length
+      ? queueFromBoard.map(normalizeQueueTicket)
+      : queueFromLegacy.length
+        ? queueFromLegacy.map(normalizeQueueTicket)
+        : buildFallbackQueue(appointments);
     const appointmentSummary = state.remote.appointmentSummary || buildSummaryFromAppointments(appointments);
     const queueSummary = { ...buildQueueSummary(queueItems), ...(state.remote.queueSummary || {}) };
-    const departmentLoad = buildDepartmentLoad(
-      schedules.length ? schedules : scheduling.schedules,
-      appointments,
-      queueItems,
-      scheduling.departments,
-    );
-    const doctorLoad = buildDoctorLoad(schedules.length ? schedules : scheduling.schedules, queueItems);
+    const remoteDepartments = firstArray(state.remote.resourcesLoad?.departments, state.remote.departmentSummary?.items, state.remote.departmentSummary);
+    const remoteDoctors = firstArray(state.remote.resourcesLoad?.doctors, state.remote.resourcesLoad?.doctor_load);
+    const remoteRooms = firstArray(state.remote.resourcesLoad?.rooms, state.remote.resourcesLoad?.room_status);
+    const departmentLoad = remoteDepartments.length
+      ? remoteDepartments.map(normalizeRemoteDepartmentLoad).sort((first, second) => second.utilization - first.utilization)
+      : buildDepartmentLoad(
+        schedules.length ? schedules : scheduling.schedules,
+        appointments,
+        queueItems,
+        scheduling.departments,
+      );
+    const doctorLoad = remoteDoctors.length
+      ? remoteDoctors.map(normalizeRemoteDoctorLoad).sort((first, second) => second.utilization - first.utilization)
+      : buildDoctorLoad(schedules.length ? schedules : scheduling.schedules, queueItems);
+    const rooms = remoteRooms.map(normalizeRemoteRoom);
     const hourlyFlow = safeArray(state.remote.hourly?.items).length
       ? state.remote.hourly.items
       : buildHourlyFlow(appointments, queueItems, date);
-    const alerts = buildAlerts(schedules, appointmentSummary, queueSummary, departmentLoad, scheduling.operationAlerts);
+    const remoteAlerts = firstArray(state.remote.operationsAlerts?.items, state.remote.operationsAlerts, state.remote.resourceAttention?.items, state.remote.resourceAttention)
+      .map(normalizeOperationAlert);
+    const alerts = remoteAlerts.length
+      ? remoteAlerts
+      : buildAlerts(schedules, appointmentSummary, queueSummary, departmentLoad, scheduling.operationAlerts);
     const scheduleOverview = state.remote.scheduleSummary?.overview || scheduling.rawSummary?.overview || {};
-    const slotTotals = {
+    const remoteSlotTotals = normalizeRemoteSlotSummary(state.remote.slotsCapacity);
+    const slotTotals = remoteSlotTotals.total > 0 ? remoteSlotTotals : {
       total: safeNumber(scheduleOverview.total_slots) || schedules.reduce((sum, item) => sum + safeNumber(item.totalSlots), 0),
       booked: safeNumber(scheduleOverview.booked_slots) || schedules.reduce((sum, item) => sum + safeNumber(item.bookedSlots), 0),
       available: safeNumber(scheduleOverview.available_slots) || schedules.reduce((sum, item) => sum + safeNumber(item.availableSlots), 0),
       blocked: safeNumber(scheduleOverview.blocked_slots) || schedules.reduce((sum, item) => sum + safeNumber(item.blockedSlots), 0),
+      held: 0,
     };
-    const utilizationRate = slotTotals.total > 0 ? (slotTotals.booked / slotTotals.total) * 100 : 0;
+    const utilizationRate = safeNumber(slotTotals.utilization) || (slotTotals.total > 0 ? (slotTotals.booked / slotTotals.total) * 100 : 0);
 
     return {
       schedules,
@@ -551,6 +708,7 @@ function useOperationsData(date) {
       alerts,
       slotTotals,
       utilizationRate,
+      rooms,
       health: state.remote.dashboard?.health || {
         status: alerts.some((item) => item.severity === 'critical') ? 'warning' : 'healthy',
         score: Math.max(58, 100 - alerts.filter((item) => item.severity !== 'info').length * 6),
@@ -603,6 +761,11 @@ function CommandHeader({ config, date, setDate, data, loading, onRefresh }) {
           <RefreshCw size={16} strokeWidth={2.3} aria-hidden="true" />
           Làm mới
         </button>
+      </div>
+      <div className="sched-ops-hero__statusbar" aria-label="Trạng thái vận hành nhanh">
+        <span><Sparkles size={14} />Realtime-ready</span>
+        <span><FileSearch size={14} />DB-first</span>
+        <span><ShieldAlert size={14} />{data.alerts.filter((item) => item.severity === 'critical' || item.severity === 'high').length} cảnh báo ưu tiên</span>
       </div>
     </section>
   );
@@ -761,18 +924,26 @@ function CapacityPanel({ data }) {
   );
 }
 
-function AlertInbox({ alerts, dense = false }) {
+function AlertInbox({ alerts, dense = false, compact = false }) {
+  const visibleLimit = dense ? 4 : compact ? 6 : 10;
+  const visibleAlerts = alerts.slice(0, visibleLimit);
+  const hiddenCount = Math.max(alerts.length - visibleAlerts.length, 0);
+
   return (
-    <section className={`sched-ops-panel sched-ops-alerts${dense ? ' is-dense' : ''}`}>
-      <header><span>Cảnh báo & việc cần xử lý</span><h2>Alert inbox</h2></header>
+    <section className={`sched-ops-panel sched-ops-alerts${dense ? ' is-dense' : ''}${compact ? ' is-compact' : ''}`}>
+      <header>
+        <span>Cảnh báo & việc cần xử lý</span>
+        <h2>Alert inbox</h2>
+        {alerts.length ? <b>{alerts.length} mở</b> : null}
+      </header>
       <div>
-        {alerts.slice(0, dense ? 7 : 12).map((alert) => (
+        {visibleAlerts.map((alert) => (
           <article key={alert.id} className={`is-${alert.severity}`}>
             <i />
             <div>
               <strong>{alert.title}</strong>
               <span>{alert.message}</span>
-              <small>{alert.type} - {alert.entity}</small>
+              <small>{alert.type} · {alert.entity}</small>
             </div>
             <Link to={alert.to || '/scheduling/alerts'}>{alert.action}<ChevronRight size={14} /></Link>
           </article>
@@ -785,6 +956,11 @@ function AlertInbox({ alerts, dense = false }) {
           </article>
         ) : null}
       </div>
+      {hiddenCount ? (
+        <Link className="sched-ops-panel-more" to="/scheduling/alerts">
+          Xem thêm {hiddenCount} cảnh báo<ChevronRight size={14} />
+        </Link>
+      ) : null}
     </section>
   );
 }
@@ -845,6 +1021,29 @@ function DoctorLoadTable({ rows }) {
   );
 }
 
+
+function RoomStatusPanel({ rooms }) {
+  return (
+    <section className="sched-ops-panel sched-ops-room-panel">
+      <header><span>Phòng / tài nguyên</span><h2>Trạng thái phòng khám</h2></header>
+      <div>
+        {rooms.slice(0, 10).map((room) => (
+          <article key={room.id} className={`is-${room.status}`}>
+            <DoorOpen size={17} />
+            <div>
+              <strong>{room.name}</strong>
+              <span>{room.department} · {room.resourceType}</span>
+            </div>
+            <b>{room.status}</b>
+            <small>Queue {room.queueWaiting} · còn {room.appointmentsLeft}</small>
+          </article>
+        ))}
+        {!rooms.length ? <p className="sched-ops-empty">Chưa có dữ liệu phòng từ backend.</p> : null}
+      </div>
+    </section>
+  );
+}
+
 function QueueBoard({ data, selectedTicket, setSelectedTicket, runAction }) {
   return (
     <section className="sched-ops-queue-layout">
@@ -892,22 +1091,27 @@ function QueueBoard({ data, selectedTicket, setSelectedTicket, runAction }) {
               <span>Chờ <b>{getWaitMinutes(selectedTicket)} phút</b></span>
             </div>
             <div className="sched-ops-detail__actions">
-              <button type="button" onClick={() => runAction(() => schedulingApi.callQueueTicket(selectedTicket.id), {
+              <button type="button" disabled={!['waiting', 'skipped'].includes(selectedTicket.status)} onClick={() => runAction(() => schedulingApi.callQueueTicket(selectedTicket.id), {
                 confirm: { title: 'Gọi queue', body: `Gọi ${selectedTicket.number} - ${selectedTicket.patientName}.`, confirmLabel: 'gọi' },
-                successBody: `Đã gọi ${selectedTicket.number}.`,
-              })}>Gọi</button>
-              <button type="button" onClick={() => runAction(() => schedulingApi.recallQueueTicket(selectedTicket.id), {
+                successBody: `Đã gọi ${selectedTicket.number}. Thông báo realtime sẽ cập nhật ở quầy/phòng khám.`,
+              })}><Megaphone size={15} />Gọi</button>
+              <button type="button" disabled={!['called', 'recalled', 'skipped'].includes(selectedTicket.status)} onClick={() => runAction(() => schedulingApi.recallQueueTicket(selectedTicket.id), {
                 confirm: { title: 'Gọi lại queue', body: `Gọi lại ${selectedTicket.number}.`, confirmLabel: 'gọi lại' },
                 successBody: `Đã gọi lại ${selectedTicket.number}.`,
-              })}>Gọi lại</button>
-              <button type="button" onClick={() => runAction(() => schedulingApi.skipQueueTicket(selectedTicket.id, { reason: 'Điều phối viên bỏ qua tạm thời' }), {
+              })}><RotateCcw size={15} />Gọi lại</button>
+              <button type="button" disabled={['completed', 'no_show'].includes(selectedTicket.status)} onClick={() => runAction(() => schedulingApi.skipQueueTicket(selectedTicket.id, { reason: 'Điều phối viên bỏ qua tạm thời' }), {
                 confirm: { title: 'Bỏ qua queue', body: `Bỏ qua ${selectedTicket.number}.`, confirmLabel: 'bỏ qua' },
                 successBody: `Đã bỏ qua ${selectedTicket.number}.`,
-              })}>Bỏ qua</button>
-              <button type="button" onClick={() => runAction(() => schedulingApi.startQueueService(selectedTicket.id), {
+              })}><AlertTriangle size={15} />Bỏ qua</button>
+              <button type="button" disabled={!['called', 'recalled', 'waiting'].includes(selectedTicket.status)} onClick={() => runAction(() => schedulingApi.startQueueService(selectedTicket.id), {
                 confirm: { title: 'Bắt đầu khám', body: `Chuyển ${selectedTicket.number} sang đang phục vụ.`, confirmLabel: 'bắt đầu khám' },
                 successBody: `Đã bắt đầu khám cho ${selectedTicket.number}.`,
-              })}>Bắt đầu khám</button>
+              })}><PlayCircle size={15} />Bắt đầu khám</button>
+            </div>
+            <div className="sched-ops-detail__links">
+              <Link to={`/scheduling/appointments/${selectedTicket.appointmentId || ''}`}><FileSearch size={14} />Appointment</Link>
+              <Link to="/scheduling/alerts/queue"><ShieldAlert size={14} />Alert queue</Link>
+              <Link to="/scheduling/load"><Workflow size={14} />Điều phối tải</Link>
             </div>
           </>
         ) : (
@@ -967,7 +1171,7 @@ export function OperationsCommandPage({ view = 'dashboard' }) {
           <KpiStrip data={data} />
           <section className="sched-ops-grid sched-ops-grid--wide">
             <PatientFlow data={data} />
-            <AlertInbox alerts={data.alerts} dense />
+            <AlertInbox alerts={data.alerts} dense compact />
           </section>
           <section className="sched-ops-grid">
             <DepartmentHeatmap rows={data.departmentLoad} />
@@ -976,6 +1180,10 @@ export function OperationsCommandPage({ view = 'dashboard' }) {
           <section className="sched-ops-grid">
             <CapacityPanel data={data} />
             <DoctorLoadTable rows={data.doctorLoad} />
+          </section>
+          <section className="sched-ops-grid">
+            <RoomStatusPanel rooms={data.rooms} />
+            <AlertInbox alerts={data.alerts.filter((item) => ['critical', 'high'].includes(item.severity))} dense compact />
           </section>
         </>
       ) : null}
@@ -989,7 +1197,7 @@ export function OperationsCommandPage({ view = 'dashboard' }) {
           </section>
           <section className="sched-ops-grid">
             <PatientFlow data={data} />
-            <AlertInbox alerts={data.alerts} dense />
+            <AlertInbox alerts={data.alerts} dense compact />
           </section>
         </>
       ) : null}
@@ -1013,6 +1221,7 @@ export function OperationsCommandPage({ view = 'dashboard' }) {
             <DepartmentHeatmap rows={data.departmentLoad} />
             <DoctorLoadTable rows={data.doctorLoad} />
           </section>
+          <RoomStatusPanel rooms={data.rooms} />
         </>
       ) : null}
 
@@ -1058,7 +1267,7 @@ export function OperationsCommandPage({ view = 'dashboard' }) {
             <article className="is-blue"><span><BellRing size={17} />Info</span><strong>{filteredAlerts.filter((item) => item.severity === 'info').length}</strong><small>thông tin vận hành</small></article>
             <article className="is-green"><span><CheckCircle2 size={17} />Open</span><strong>{filteredAlerts.length}</strong><small>alert đang mở</small></article>
           </section>
-          <AlertInbox alerts={filteredAlerts} />
+          <AlertInbox alerts={filteredAlerts} compact />
         </>
       ) : null}
     </main>

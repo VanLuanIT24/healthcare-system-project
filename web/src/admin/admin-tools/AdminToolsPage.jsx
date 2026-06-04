@@ -338,6 +338,42 @@ function FindingDrawer({ finding, onClose, onAction }) {
   );
 }
 
+
+
+function normalizeToolRows(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.records)) return data.records;
+  if (Array.isArray(data?.rows)) return data.rows;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+function ToolRunway({ toolCode, config, tool, currentRun, overview }) {
+  const checks = toolCode
+    ? ['Đọc catalog công cụ', 'Chạy scan/dry-run', 'Xem findings', 'Apply có xác nhận']
+    : ['Quan sát toàn hệ thống', 'Chọn công cụ', 'Xem rủi ro', 'Chạy có audit'];
+  return (
+    <section className="at-runway">
+      <article className="at-runway__copy">
+        <span className="at-eyebrow">Admin engineering console</span>
+        <h2>{config.title}</h2>
+        <p>{config.subtitle}</p>
+        <div className="at-stage-row">
+          {checks.map((check, index) => <span key={check}><b>{index + 1}</b>{check}</span>)}
+        </div>
+      </article>
+      <article className="at-runway__guard">
+        <strong>Cổng an toàn backend</strong>
+        <span>Tool code: {toolCode || 'overview'}</span>
+        <span>Risk: {RISK_TEXT[tool?.risk_level] || tool?.risk_level || 'dashboard'}</span>
+        <span>Latest run: {formatValue(currentRun?.status || 'not_run')}</span>
+        <span>Open findings: {formatValue(overview?.kpis?.open_findings || currentRun?.summary?.open_findings || 0)}</span>
+      </article>
+    </section>
+  );
+}
+
 export function AdminToolsPage({ view = 'overview' }) {
   const config = TOOL_VIEWS[view] || TOOL_VIEWS.overview;
   const toolCode = config.code;
@@ -369,8 +405,8 @@ export function AdminToolsPage({ view = 'overview' }) {
       adminToolsGet('/findings', { tool_code: toolCode, limit: 120 }),
     ]);
     setTool(toolData);
-    setRuns(runsData?.items || []);
-    setFindings(findingsData?.items || []);
+    setRuns(normalizeToolRows(runsData));
+    setFindings(normalizeToolRows(findingsData));
   }, [toolCode]);
 
   const loadData = useCallback(async () => {
@@ -519,6 +555,8 @@ export function AdminToolsPage({ view = 'overview' }) {
 
       {error ? <div className="at-alert"><AlertTriangle size={17} /> {error}</div> : null}
 
+      <ToolRunway toolCode={toolCode} config={config} tool={tool} currentRun={currentRun} overview={overview} />
+
       <section className="at-kpi-grid">
         {toolCode ? (
           <>
@@ -549,7 +587,7 @@ export function AdminToolsPage({ view = 'overview' }) {
               <p>Mỗi công cụ có mức rủi ro, trạng thái lần chạy gần nhất và thao tác chính riêng.</p>
             </div>
             <div className="at-tool-grid">
-              {(overview?.tools || []).map((item) => {
+              {(overview?.tools || Object.values(TOOL_VIEWS).filter((item) => item.code).map((item) => ({ tool_code: item.code, tool_name: item.title, description: item.subtitle, risk_level: 'info', latest_run: null }))).map((item) => {
                 const viewKey = Object.entries(TOOL_VIEWS).find(([, value]) => value.code === item.tool_code)?.[0];
                 const ToolIcon = NAV_ITEMS.find(([key]) => key === viewKey)?.[2] || FileCog;
                 return (

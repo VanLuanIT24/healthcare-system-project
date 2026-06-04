@@ -260,35 +260,58 @@ function KpiCard({ label, value, tone = 'neutral', icon: Icon }) {
 }
 
 function DataTable({ rows = [], columns = [], onOpen, actionSlot }) {
+  const safeRows = rows.filter((row) => row && typeof row === 'object');
+  const minWidth = Math.max(920, columns.length * 156 + 124);
   return (
-    <div className="ih-table" style={{ '--ih-table-cols': `minmax(180px, 1.4fr) repeat(${Math.max(columns.length - 1, 0)}, minmax(130px, 1fr)) 96px` }}>
-      <div className="ih-table__head">
-        {columns.map((column) => <span key={column.key}>{column.label}</span>)}
-        <span>Thao tác</span>
-      </div>
-      <div className="ih-table__body">
-        {rows.length ? rows.map((row) => (
-          <button type="button" className="ih-table__row" key={getRowId(row)} onClick={() => onOpen(row)}>
-            {columns.map((column, index) => {
-              const value = column.render ? column.render(row) : getNested(row, column.key);
-              return (
-                <span key={column.key} className={index === 0 ? 'ih-table__primary' : ''}>
-                  {column.status ? <StatusBadge value={value} /> : formatValue(value)}
-                </span>
-              );
-            })}
-            <span className="ih-table__actions" onClick={(event) => event.stopPropagation()}>
-              {actionSlot ? actionSlot(row) : null}
-              <IconButton icon={Eye} label="Xem chi tiết" onClick={() => onOpen(row)} />
-            </span>
-          </button>
-        )) : (
-          <div className="ih-empty">
-            <Database size={20} strokeWidth={2.25} />
-            <span>Không có dữ liệu phù hợp</span>
-          </div>
-        )}
-      </div>
+    <div className="ih-table-wrap" style={{ '--ih-table-min': `${minWidth}px` }}>
+      <table className="ih-table">
+        <colgroup>
+          {columns.map((column, index) => (
+            <col key={column.key} style={{ width: column.width || (index === 0 ? '220px' : '156px') }} />
+          ))}
+          <col style={{ width: '124px' }} />
+        </colgroup>
+        <thead>
+          <tr>
+            {columns.map((column) => <th key={column.key} scope="col">{column.label}</th>)}
+            <th scope="col" className="ih-table__action-head">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {safeRows.length ? safeRows.map((row, index) => (
+            <tr
+              key={getRowId(row) || `${index}-${JSON.stringify(row).slice(0, 80)}`}
+              onClick={() => onOpen(row)}
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') onOpen(row);
+              }}
+            >
+              {columns.map((column, colIndex) => {
+                const value = column.render ? column.render(row) : getNested(row, column.key);
+                return (
+                  <td key={column.key} className={colIndex === 0 ? 'ih-table__primary' : ''} title={typeof value === 'object' ? undefined : String(formatValue(value))}>
+                    {column.status ? <StatusBadge value={value} /> : formatValue(value)}
+                  </td>
+                );
+              })}
+              <td className="ih-table__actions" onClick={(event) => event.stopPropagation()}>
+                {actionSlot ? actionSlot(row) : null}
+                <IconButton icon={Eye} label="Xem chi tiết" onClick={() => onOpen(row)} />
+              </td>
+            </tr>
+          )) : (
+            <tr>
+              <td colSpan={columns.length + 1}>
+                <div className="ih-empty">
+                  <Database size={20} strokeWidth={2.25} />
+                  <span>Không có dữ liệu phù hợp</span>
+                </div>
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

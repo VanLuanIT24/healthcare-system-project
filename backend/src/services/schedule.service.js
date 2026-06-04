@@ -149,6 +149,10 @@ function applyScheduleReadScope(filter, actor = {}) {
     return filter;
   }
 
+  if (hasPermission(actor, PERMISSION.APPOINTMENTS.CREATE)) {
+    return filter;
+  }
+
   if (isDoctorActor(actor) || hasAnyPermission(actor, [PERMISSION.SCHEDULES.READ_OWN, PERMISSION.APPOINTMENTS.READ_OWN])) {
     if (filter.doctor_id && String(filter.doctor_id) !== String(actor.userId)) {
       filter._id = null;
@@ -866,6 +870,59 @@ async function generateScheduleSlots(scheduleId, actor = {}, requestMeta = {}, o
     schedule_id: String(schedule._id),
     generated_slots: bookableSlots.length,
     cancelled_stale_slots: staleUpdate.modifiedCount || 0,
+  };
+}
+
+async function previewGenerateScheduleSlots(scheduleId, payload = {}, actor = {}) {
+  const schedule = await DoctorSchedule.findById(scheduleId).lean();
+  if (!schedule || schedule.is_deleted) {
+    throw createError('Không tìm thấy lịch làm việc.', 404);
+  }
+  assertScheduleReadable(schedule, actor);
+
+  const bookableSlots = calculateBookableScheduleSlots(schedule);
+  const existingSlots = await ScheduleSlot.find({ doctor_schedule_id: schedule._id, is_deleted: false }).lean();
+  const existingByTime = new Map(existingSlots.map((slot) => [new Date(slot.start_time).toISOString(), slot]));
+  const desiredKeys = new Set(bookableSlots.map((slot) => new Date(slot.slot_time).toISOString()));
+  const items = bookableSlots.map((slot, index) => {
+    const key = new Date(slot.slot_time).toISOString();
+    const existing = existingByTime.get(key);
+    return {
+      slot_time: slot.slot_time,
+      start_time: slot.slot_time,
+      end_time: slot.slot_end,
+      slot_number: index + 1,
+      status: existing?.status || 'available',
+      operation: existing ? 'keep_or_update' : 'create',
+      booked_count: existing?.booked_count || 0,
+      capacity: existing?.capacity || 1,
+      appointment_id: existing?.appointment_id ? String(existing.appointment_id) : null,
+      patient_id: existing?.patient_id ? String(existing.patient_id) : null,
+    };
+  });
+  const staleSlots = existingSlots.filter((slot) => {
+    const key = new Date(slot.start_time).toISOString();
+    return !desiredKeys.has(key) && !['booked', 'completed', 'no_show'].includes(slot.status);
+  });
+
+  return {
+    schedule_id: String(schedule._id),
+    items,
+    stale_slots: staleSlots.map((slot) => ({
+      slot_id: String(slot._id),
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      status: slot.status,
+      operation: 'cancel_stale',
+    })),
+    summary: {
+      desired_slots: items.length,
+      new_slots: items.filter((item) => item.operation === 'create').length,
+      existing_slots: items.filter((item) => item.operation === 'keep_or_update').length,
+      booked_kept: items.filter((item) => item.booked_count > 0).length,
+      stale_to_cancel: staleSlots.length,
+    },
+    data_source: 'database',
   };
 }
 
@@ -3224,6 +3281,8 @@ module.exports = {
   getAvailableSlots,
   // generateScheduleSlots: Sinh/tạo khung giờ lịch làm việc.
   generateScheduleSlots,
+  // previewGenerateScheduleSlots: Xem trước đồng bộ khung giờ lịch làm việc.
+  previewGenerateScheduleSlots,
   // markSlotBookedForAppointment: Đánh dấu khung giờ đã được đặt bởi lịch hẹn.
   markSlotBookedForAppointment,
   // releaseSlotForAppointment: Giải phóng khung giờ khi lịch hẹn được hủy hoặc đổi.

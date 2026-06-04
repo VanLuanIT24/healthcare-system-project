@@ -132,13 +132,6 @@ function timeToMinutes(value) {
   return hour * 60 + minute;
 }
 
-function minutesToTime(value) {
-  const minutes = Math.max(0, value);
-  const hour = Math.floor(minutes / 60);
-  const minute = minutes % 60;
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
-
 function classifyShift(startTime) {
   const minutes = timeToMinutes(formatTime(startTime));
   if (minutes >= 360 && minutes < 720) return 'morning';
@@ -184,66 +177,12 @@ function normalizeSlot(item = {}, index = 0) {
     holdExpiresAt: item.hold_expires_at || '',
     blockReason: item.block_reason || item.reason || '',
     mode: item.is_telehealth ? 'Telehealth' : item.mode || 'Trực tiếp',
+    raw: item,
   };
 
   slot.status = normalizeStatus(slot);
   slot.shift = classifyShift(slot.startTime);
   return slot;
-}
-
-function buildSlotsFromSchedules(schedules) {
-  const slots = [];
-
-  schedules.forEach((schedule, scheduleIndex) => {
-    const total = Math.max(1, Math.min(10, safeNumber(schedule.totalSlots || 6)));
-    const duration = Math.max(5, safeNumber(schedule.slotDuration || 30));
-    const startMinutes = timeToMinutes(schedule.start || '07:00');
-
-    for (let index = 0; index < total; index += 1) {
-      const slotStart = startMinutes + index * duration;
-      const isBooked = index < safeNumber(schedule.bookedSlots);
-      const isBlocked = index >= safeNumber(schedule.bookedSlots) && index < safeNumber(schedule.bookedSlots) + safeNumber(schedule.blockedSlots);
-      slots.push(normalizeSlot({
-        slot_id: `${schedule.id}-${index}`,
-        schedule_id: schedule.id,
-        doctor: schedule.doctor,
-        doctor_id: schedule.doctorId,
-        department: schedule.department,
-        department_id: schedule.departmentId,
-        room: schedule.raw?.room_name || (schedule.scheduleType === 'Tư vấn từ xa' ? 'Telehealth Room' : `P. Khám ${scheduleIndex % 4 + 1}`),
-        schedule_type: schedule.scheduleType,
-        start_time: `${schedule.date}T${minutesToTime(slotStart)}:00`,
-        end_time: `${schedule.date}T${minutesToTime(slotStart + duration)}:00`,
-        status: isBlocked ? 'blocked' : isBooked ? 'booked' : 'available',
-        capacity: Math.max(1, safeNumber(schedule.maxPatients || schedule.capacity || 1)),
-        booked_count: isBooked ? 1 : 0,
-        patient_name: isBooked ? ['Nguyễn Văn An', 'Trần Thị Bích', 'Lê Quốc Tuấn', 'Phạm Thu Hương'][index % 4] : '',
-        block_reason: isBlocked ? 'Khóa theo vận hành' : '',
-      }, slots.length));
-    }
-  });
-
-  if (slots.length) return slots;
-
-  return [
-    ['07:00', 'BS. Trần Thanh Hải', 'Nội tổng quát', 'available', 1, 0],
-    ['07:30', 'BS. Lê Minh Tuấn', 'Tim mạch', 'booked', 1, 1],
-    ['08:00', 'BS. Nguyễn Thị Lan', 'Nhi khoa', 'blocked', 1, 0],
-    ['13:00', 'BS. Hoàng Văn Dũng', 'Da liễu', 'available', 1, 0],
-    ['18:00', 'BS. Nguyễn Thu Thảo', 'Tai mũi họng', 'held', 1, 0],
-  ].map(([time, doctor, department, status, capacity, booked], index) => normalizeSlot({
-    slot_id: `fallback-slot-${index}`,
-    schedule_id: `fallback-schedule-${index}`,
-    doctor,
-    department,
-    room: `P. Khám ${index + 1}`,
-    start_time: `${dateKey()}T${time}:00`,
-    end_time: `${dateKey()}T${minutesToTime(timeToMinutes(time) + 30)}:00`,
-    status,
-    capacity,
-    booked_count: booked,
-    block_reason: status === 'blocked' ? 'Bác sĩ họp chuyên môn' : '',
-  }, index));
 }
 
 function buildStats(slots) {
@@ -300,6 +239,8 @@ function useSlotCapacityData() {
   const [remoteUtilization, setRemoteUtilization] = useState(null);
   const [remoteActivity, setRemoteActivity] = useState([]);
   const [selectedSlotId, setSelectedSlotId] = useState('');
+  const [filters, setFilters] = useState({ date: dateKey(), departmentId: 'all' });
+  const [slotContext, setSlotContext] = useState({ loading: false, detail: null, patients: [], timeline: [], error: '' });
   const [actionMessage, setActionMessage] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -310,9 +251,25 @@ function useSlotCapacityData() {
     async function load() {
       setLoadingRemote(true);
       const [slotsResult, utilizationResult, activityResult] = await Promise.allSettled([
-        schedulingApi.listScheduleSlots({ date: dateKey(), include_patients: true, include_schedule: true, limit: 250 }),
-        schedulingApi.getScheduleSlotUtilization({ date_from: dateKey(), date_to: dateKey(), group_by: 'hour' }),
-        schedulingApi.getScheduleSlotActivity({ date_from: dateKey(), date_to: dateKey(), limit: 30 }),
+        schedulingApi.listScheduleSlots({
+          date: filters.date,
+          department_id: filters.departmentId === 'all' ? undefined : filters.departmentId,
+          include_patients: true,
+          include_schedule: true,
+          limit: 300,
+        }),
+        schedulingApi.getScheduleSlotUtilization({
+          date_from: filters.date,
+          date_to: filters.date,
+          department_id: filters.departmentId === 'all' ? undefined : filters.departmentId,
+          group_by: 'hour',
+        }),
+        schedulingApi.getScheduleSlotActivity({
+          date_from: filters.date,
+          date_to: filters.date,
+          department_id: filters.departmentId === 'all' ? undefined : filters.departmentId,
+          limit: 40,
+        }),
       ]);
       if (!active) return;
       setRemoteSlots(slotsResult.status === 'fulfilled' ? safeArray(slotsResult.value?.items || slotsResult.value?.groups?.flatMap((group) => group.slots)) : []);
@@ -325,19 +282,44 @@ function useSlotCapacityData() {
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [filters, reloadKey]);
 
-  const normalizedSchedules = useMemo(() => context.schedules, [context.schedules]);
   const slots = useMemo(() => {
-    const source = remoteSlots.length ? remoteSlots.map(normalizeSlot) : buildSlotsFromSchedules(normalizedSchedules);
-    return source;
-  }, [normalizedSchedules, remoteSlots]);
+    return remoteSlots.map(normalizeSlot);
+  }, [remoteSlots]);
 
   useEffect(() => {
     if (!selectedSlotId && slots[0]?.id) setSelectedSlotId(slots[0].id);
   }, [selectedSlotId, slots]);
 
   const selectedSlot = slots.find((slot) => String(slot.id) === String(selectedSlotId)) || slots[0] || null;
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedSlot?.id || !isObjectId(selectedSlot.id)) {
+      setSlotContext({ loading: false, detail: null, patients: [], timeline: [], error: '' });
+      return undefined;
+    }
+    async function loadSlotContext() {
+      setSlotContext((current) => ({ ...current, loading: true, error: '' }));
+      const [detailResult, patientsResult, timelineResult] = await Promise.allSettled([
+        schedulingApi.getScheduleSlot(selectedSlot.id),
+        schedulingApi.getScheduleSlotPatients(selectedSlot.id, { limit: 20 }),
+        schedulingApi.getScheduleSlotTimeline(selectedSlot.id, { limit: 20 }),
+      ]);
+      if (!active) return;
+      setSlotContext({
+        loading: false,
+        detail: detailResult.status === 'fulfilled' ? detailResult.value : null,
+        patients: patientsResult.status === 'fulfilled' ? safeArray(patientsResult.value?.items || patientsResult.value?.patients || patientsResult.value) : [],
+        timeline: timelineResult.status === 'fulfilled' ? safeArray(timelineResult.value?.items || timelineResult.value?.timeline || timelineResult.value) : [],
+        error: detailResult.status === 'rejected' ? detailResult.reason?.message || 'Không tải được chi tiết slot.' : '',
+      });
+    }
+    loadSlotContext();
+    return () => { active = false; };
+  }, [selectedSlot?.id]);
+
   const stats = useMemo(() => buildStats(slots), [slots]);
   const groups = useMemo(() => groupSlots(slots), [slots]);
 
@@ -368,6 +350,7 @@ function useSlotCapacityData() {
     ...context,
     actionMessage,
     groups,
+    filters,
     loadingRemote,
     remoteActivity,
     remoteUtilization,
@@ -375,7 +358,9 @@ function useSlotCapacityData() {
     runAction,
     selectedSlot,
     selectedSlotId,
+    slotContext,
     setActionMessage,
+    setFilters,
     setSelectedSlotId,
     slots,
     stats,
@@ -383,16 +368,20 @@ function useSlotCapacityData() {
 }
 
 function Header({ config, data }) {
+  function updateFilter(name, value) {
+    data.setFilters((current) => ({ ...current, [name]: value }));
+  }
+
   return (
-    <section className="sched-slot-hero">
+    <section className="sched-slot-hero sched-slot-hero--premium">
       <div>
         <span><Clock3 size={16} />{config.eyebrow}</span>
         <h1>{config.title}</h1>
         <p>{config.copy}</p>
       </div>
       <div className="sched-slot-hero__tools">
-        <label><span>Ngày</span><input type="date" defaultValue={dateKey()} /></label>
-        <label><span>Khoa</span><select defaultValue="all"><option value="all">Tất cả khoa</option>{data.departments.map((item) => <option key={item.id || item.name} value={item.id}>{item.name}</option>)}</select></label>
+        <label><span>Ngày</span><input type="date" value={data.filters.date} onChange={(event) => updateFilter('date', event.target.value)} /></label>
+        <label><span>Khoa</span><select value={data.filters.departmentId} onChange={(event) => updateFilter('departmentId', event.target.value)}><option value="all">Tất cả khoa</option>{data.departments.map((item) => <option key={item.id || item.name} value={item.id}>{item.name}</option>)}</select></label>
         <button type="button" onClick={data.refresh}><RefreshCw size={16} />Làm mới</button>
       </div>
     </section>
@@ -412,7 +401,7 @@ function QuickActions({ data }) {
       }}>
         <Download size={16} />Xuất dữ liệu
       </button>
-      <span className={`sched-slot-sync ${data.backendConnected ? '' : 'is-demo'}`}><i />{data.backendConnected ? 'Backend connected' : 'Demo/fallback data'}</span>
+      <span className={`sched-slot-sync ${data.backendConnected ? '' : 'is-demo'}`}><i />{data.backendConnected ? 'Database live' : 'Chưa kết nối API/DB'}</span>
     </section>
   );
 }
@@ -520,11 +509,18 @@ function SlotDetail({ data }) {
   const slot = data.selectedSlot;
   if (!slot) return null;
 
-  const patients = slot.patient
-    ? [{ name: slot.patient, status: 'confirmed', time: formatTime(slot.startTime) }]
-    : [
-        { name: 'Chưa có bệnh nhân', status: 'available', time: formatTime(slot.startTime) },
-      ];
+  const backendPatients = safeArray(data.slotContext?.patients).map((patient, index) => ({
+    id: patient.id || patient.patient_id || patient._id || index,
+    name: patient.name || patient.patient_name || patient.full_name || slot.patient || 'Bệnh nhân trong slot',
+    code: patient.patient_code || patient.code || patient.medical_record_number || '',
+    status: patient.status || patient.appointment_status || 'confirmed',
+    time: formatTime(patient.appointment_time || patient.start_time || slot.startTime),
+  }));
+  const patients = backendPatients.length
+    ? backendPatients
+    : slot.patient
+      ? [{ id: 'inline', name: slot.patient, code: '', status: 'confirmed', time: formatTime(slot.startTime) }]
+      : [];
 
   return (
     <aside className="sched-slot-detail">
@@ -543,14 +539,26 @@ function SlotDetail({ data }) {
       <div className="sched-slot-detail-progress"><i><em style={{ width: `${Math.min(100, fillRate(slot))}%` }} /></i></div>
       {slot.blockReason ? <div className="sched-slot-warning"><AlertTriangle size={15} />{slot.blockReason}</div> : null}
       <section className="sched-slot-patients">
-        <div><strong>Bệnh nhân trong slot</strong><small>Backend hiện có thể chỉ 0/1 appointment nếu chưa nâng multi-booking.</small></div>
+        <div><strong>Bệnh nhân trong slot</strong><small>{data.slotContext?.loading ? 'Đang tải từ backend...' : 'Dữ liệu từ /schedule-slots/:id/patients'}</small></div>
         {patients.map((patient) => (
-          <span key={`${patient.name}-${patient.time}`}>
+          <span key={`${patient.id}-${patient.time}`}>
             <UsersRound size={15} />
             <strong>{patient.name}</strong>
-            <small>{patient.time} · {patient.status}</small>
+            <small>{patient.code ? `${patient.code} · ` : ''}{patient.time} · {patient.status}</small>
           </span>
         ))}
+        {!patients.length ? <span><UsersRound size={15} /><strong>Không có bệnh nhân trong slot</strong><small>Theo dữ liệu backend hiện tại</small></span> : null}
+      </section>
+      <section className="sched-slot-patients sched-slot-timeline-mini">
+        <div><strong>Timeline slot</strong><small>{data.slotContext?.timeline?.length || 0} sự kiện</small></div>
+        {safeArray(data.slotContext?.timeline).slice(0, 5).map((event, index) => (
+          <span key={`${event.action || event.type || 'slot'}-${index}`}>
+            <History size={15} />
+            <strong>{event.action || event.type || 'slot.activity'}</strong>
+            <small>{event.message || event.created_at || 'Cập nhật vận hành'}</small>
+          </span>
+        ))}
+        {!safeArray(data.slotContext?.timeline).length ? <span><History size={15} /><strong>Chưa có timeline</strong><small>Backend chưa trả sự kiện cho slot này.</small></span> : null}
       </section>
       <section className="sched-slot-detail-actions">
         <button type="button" disabled={!slot.scheduleId || slot.status === 'blocked'} onClick={() => data.runAction('Đã block slot.', () => schedulingApi.blockSlot(slot.scheduleId, { slot_time: slot.startTime, reason: 'Khóa từ slot board' }), {
@@ -577,7 +585,33 @@ function SlotDetail({ data }) {
 function GenerateView({ data }) {
   const [scheduleId, setScheduleId] = useState(data.schedules[0]?.id || '');
   const schedule = data.schedules.find((item) => String(item.id) === String(scheduleId)) || data.schedules[0];
-  const preview = schedule ? buildSlotsFromSchedules([schedule]).slice(0, 12) : [];
+  const [previewState, setPreviewState] = useState({ loading: false, data: null, error: '' });
+
+  useEffect(() => {
+    let active = true;
+    if (!schedule?.id) {
+      setPreviewState({ loading: false, data: null, error: '' });
+      return undefined;
+    }
+
+    async function loadPreview() {
+      setPreviewState((current) => ({ ...current, loading: true, error: '' }));
+      try {
+        const data = await schedulingApi.previewGenerateScheduleSlots(schedule.id, {});
+        if (active) setPreviewState({ loading: false, data, error: '' });
+      } catch (error) {
+        if (active) setPreviewState({ loading: false, data: null, error: error.message });
+      }
+    }
+
+    loadPreview();
+    return () => {
+      active = false;
+    };
+  }, [schedule?.id]);
+
+  const preview = safeArray(previewState.data?.items).map(normalizeSlot).slice(0, 12);
+  const summary = previewState.data?.summary || {};
 
   return (
     <section className="sched-slot-generate">
@@ -592,18 +626,19 @@ function GenerateView({ data }) {
           {preview.map((slot, index) => (
             <span key={`${slot.id}-${index}`} className={`is-${slot.status}`}>
               <strong>{formatTime(slot.startTime)}</strong>
-              <small>{slot.status === 'booked' ? 'keep booked' : slot.status === 'blocked' ? 'check blocked' : 'create/keep'}</small>
+              <small>{slot.raw?.operation || (slot.status === 'booked' ? 'keep booked' : slot.status === 'blocked' ? 'check blocked' : 'create/keep')}</small>
             </span>
           ))}
+          {!preview.length ? <div className="sched-slot-empty">{previewState.loading ? 'Đang lấy preview từ backend...' : previewState.error || 'Backend chưa trả slot preview cho lịch này.'}</div> : null}
         </div>
       </main>
       <aside>
         <h2>Kết quả dự kiến</h2>
         <div className="sched-slot-generate-summary">
-          <div><span>Theoretical</span><strong>{preview.length}</strong></div>
-          <div><span>New</span><strong>{preview.filter((item) => item.status === 'available').length}</strong></div>
-          <div><span>Booked kept</span><strong>{preview.filter((item) => item.status === 'booked').length}</strong></div>
-          <div><span>Blocked check</span><strong>{preview.filter((item) => item.status === 'blocked').length}</strong></div>
+          <div><span>Theoretical</span><strong>{safeNumber(summary.desired_slots)}</strong></div>
+          <div><span>New</span><strong>{safeNumber(summary.new_slots)}</strong></div>
+          <div><span>Booked kept</span><strong>{safeNumber(summary.booked_kept)}</strong></div>
+          <div><span>Stale cancel</span><strong>{safeNumber(summary.stale_to_cancel)}</strong></div>
         </div>
         <button type="button" className="sched-slot-primary" disabled={!schedule?.id} onClick={() => data.runAction('Đã generate slot cho lịch.', () => schedulingApi.generateScheduleSlots(schedule.id), {
           confirm: {
@@ -748,7 +783,7 @@ function UtilizationView({ data }) {
           <div className="sched-slot-bars">
             {hours.map((hour) => {
               const hourSlots = data.slots.filter((slot) => Number(formatTime(slot.startTime).slice(0, 2)) === hour);
-              const value = hourSlots.length ? Math.round(hourSlots.reduce((sum, slot) => sum + fillRate(slot), 0) / hourSlots.length) : Math.max(14, (hour * 7) % 90);
+              const value = hourSlots.length ? Math.round(hourSlots.reduce((sum, slot) => sum + fillRate(slot), 0) / hourSlots.length) : 0;
               return <span key={hour}><i style={{ height: `${value}%` }} /><small>{hour}:00</small></span>;
             })}
           </div>
@@ -756,7 +791,13 @@ function UtilizationView({ data }) {
         <div className="sched-slot-heatmap">
           {['T2', 'T3', 'T4', 'T5', 'T6', 'T7'].flatMap((day, row) =>
             hours.slice(0, 8).map((hour, col) => {
-              const value = (row * 17 + col * 13 + 35) % 100;
+              const matchingSlots = data.slots.filter((slot) => {
+                const date = new Date(slot.startTime);
+                if (Number.isNaN(date.getTime())) return false;
+                const weekday = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
+                return weekday === day && date.getHours() === hour;
+              });
+              const value = matchingSlots.length ? Math.round(matchingSlots.reduce((sum, slot) => sum + fillRate(slot), 0) / matchingSlots.length) : 0;
               return <span key={`${day}-${hour}`} style={{ '--heat': value }}><b>{day}</b><small>{hour}:00</small></span>;
             }),
           )}
@@ -784,12 +825,7 @@ function UtilizationView({ data }) {
 }
 
 function ActivityView({ data, embedded = false }) {
-  const items = data.remoteActivity.length ? data.remoteActivity : [
-    { action: 'schedule.slots_generate', actor_name: 'Scheduler', message: 'Generate slot từ lịch làm việc' },
-    { action: 'schedule.block_slot', actor_name: 'Điều phối viên', message: 'Block slot do bác sĩ họp' },
-    { action: 'schedule.reopen_slot', actor_name: 'Admin', message: 'Mở lại slot sau khi kiểm tra' },
-    { action: 'schedule.slot_book', actor_name: 'Receptionist', message: 'Đặt appointment vào slot' },
-  ];
+  const items = data.remoteActivity;
 
   return (
     <section className={embedded ? 'sched-slot-activity is-embedded' : 'sched-slot-activity'}>
@@ -803,6 +839,7 @@ function ActivityView({ data, embedded = false }) {
           <time>{item.created_at ? formatTime(item.created_at) : `${String(8 + index).padStart(2, '0')}:00`}</time>
         </article>
       ))}
+      {!items.length ? <div className="sched-slot-empty">Chưa có nhật ký slot từ backend.</div> : null}
     </section>
   );
 }

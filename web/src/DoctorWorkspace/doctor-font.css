@@ -1,4 +1,5 @@
 @charset "UTF-8";
+@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap");
 
 :root,
 .doctor-workspace-font-root,
@@ -9,7 +10,9 @@
 .doctor-account-page *,
 .hc-toast-viewport,
 .hc-toast-viewport * {
-  --doctor-font-family: "Times New Roman", Times, Georgia, serif;
+  --doctor-font-family: "Be Vietnam Pro", Inter, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --doctor-heading-font-family: "Be Vietnam Pro", Inter, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --doctor-number-font-family: Inter, "Be Vietnam Pro", "Segoe UI", Arial, sans-serif;
 }
 
 .doctor-shell,
@@ -20,7 +23,11 @@
 .doctor-account-page *,
 .hc-toast-viewport,
 .hc-toast-viewport * {
-  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-family: var(--doctor-font-family) !important;
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .doctor-workspace-font-root button,
@@ -39,5 +46,5 @@
 .hc-toast-viewport input,
 .hc-toast-viewport select,
 .hc-toast-viewport textarea {
-  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-family: var(--doctor-font-family) !important;
 }

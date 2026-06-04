@@ -15,6 +15,7 @@ const readPermissions = [
   PERMISSION.SCHEDULE_SLOTS.READ,
   PERMISSION.SCHEDULES.READ,
   PERMISSION.APPOINTMENTS.READ,
+  PERMISSION.APPOINTMENTS.CREATE,
 ].filter(Boolean);
 
 const writePermissions = [

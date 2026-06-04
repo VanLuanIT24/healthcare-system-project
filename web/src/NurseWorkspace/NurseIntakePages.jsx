@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRightLeft,
+  Ban,
   Bell,
   CheckCircle2,
   ClipboardCheck,
@@ -20,6 +21,7 @@ import {
   Stethoscope,
   UserCheck,
   Users,
+  UserX,
   Wifi,
   WifiOff,
   X,
@@ -74,6 +76,83 @@ const acuityLabels = {
   yellow: 'VÀNG',
   green: 'XANH LÁ',
   blue: 'XANH DƯƠNG',
+};
+
+const intakeActionPresentation = {
+  claim: {
+    label: 'Nhận xử lý',
+    description: 'Gán bệnh nhân cho điều dưỡng hiện tại.',
+    icon: UserCheck,
+    tone: 'primary',
+  },
+  record_vital: {
+    label: 'Nhập sinh hiệu',
+    description: 'Mở phiếu đo sinh hiệu trước khám.',
+    icon: HeartPulse,
+    tone: 'cyan',
+  },
+  triage: {
+    label: 'Phân loại',
+    description: 'Mở phiếu phân loại nguy cơ lâm sàng.',
+    icon: ClipboardCheck,
+    tone: 'violet',
+  },
+  ready: {
+    label: 'Sẵn sàng gặp bác sĩ',
+    description: 'Chuyển bệnh nhân sang danh sách bác sĩ có thể gọi vào phòng.',
+    confirmLabel: 'Đánh dấu sẵn sàng',
+    icon: CheckCircle2,
+    tone: 'success',
+  },
+  call: {
+    label: 'Gọi số',
+    description: 'Phát lệnh gọi bệnh nhân trên hàng đợi và màn hình phòng khám.',
+    confirmLabel: 'Gọi bệnh nhân',
+    icon: PhoneCall,
+    tone: 'info',
+  },
+  skip: {
+    label: 'Bỏ qua',
+    description: 'Tạm bỏ qua lượt gọi hiện tại, vẫn giữ bệnh nhân trong hàng đợi.',
+    confirmLabel: 'Bỏ qua lượt gọi',
+    icon: Ban,
+    tone: 'warning',
+  },
+  no_show: {
+    label: 'Không có mặt',
+    description: 'Đánh dấu bệnh nhân vắng mặt sau khi gọi nhưng không phản hồi.',
+    confirmLabel: 'Đánh dấu vắng mặt',
+    icon: UserX,
+    tone: 'danger',
+  },
+  release: {
+    label: 'Trả về chờ',
+    description: 'Gỡ điều dưỡng phụ trách và đưa bệnh nhân về danh sách chờ.',
+    confirmLabel: 'Trả về danh sách chờ',
+    icon: Users,
+    tone: 'warning',
+  },
+  priority: {
+    label: 'Tăng ưu tiên',
+    description: 'Đưa bệnh nhân vào luồng ưu tiên để xử lý sớm hơn.',
+    confirmLabel: 'Tăng ưu tiên',
+    icon: ShieldAlert,
+    tone: 'danger',
+  },
+  transfer: {
+    label: 'Chuyển tuyến',
+    description: 'Chuyển bệnh nhân sang bác sĩ hoặc khoa phù hợp hơn.',
+    confirmLabel: 'Chuyển tuyến',
+    icon: ArrowRightLeft,
+    tone: 'info',
+  },
+  notify_doctor: {
+    label: 'Báo bác sĩ',
+    description: 'Tạo thông báo cho bác sĩ phụ trách bệnh nhân này.',
+    confirmLabel: 'Báo bác sĩ',
+    icon: Send,
+    tone: 'info',
+  },
 };
 
 const demoMeta = {
@@ -164,6 +243,63 @@ demoIntake.intake.ready_items = demoIntake.intake.checked_in_items.filter((item)
 demoIntake.intake.triage_items = demoIntake.intake.checked_in_items.filter((item) => item.nursing_stage === 'triage_pending');
 demoIntake.triage.pending_items = demoIntake.intake.triage_items;
 
+const emptyMeta = {
+  date: toLocalDateKey(),
+  shift: 'all',
+  generated_at: null,
+  department_name: 'Khoa được phân quyền',
+};
+
+const emptyIntakeDashboard = {
+  meta: emptyMeta,
+  intake: {
+    summary: {
+      checked_in: 0,
+      waiting_nurse: 0,
+      nurse_in_progress: 0,
+      triage_waiting: 0,
+      triage_in_progress: 0,
+      vital_pending: 0,
+      abnormal_vitals: 0,
+      ready_for_doctor: 0,
+      sla_breached: 0,
+    },
+    checked_in_items: [],
+    ready_items: [],
+    triage_items: [],
+    priority_lane: { immediate: [], longest_waiting: [], unassigned: [] },
+  },
+  queue: { table: [], board: {}, total: 0, waiting: 0, called: 0, in_service: 0, skipped: 0, completed: 0, no_show: 0 },
+  vitals: { pending: 0, abnormal: 0, abnormal_items: [], pending_items: [] },
+  triage: { pending: 0, in_progress: 0, completed: 0, high_priority: 0, pending_items: [] },
+  activity_feed: [],
+  priority_alerts: [],
+};
+
+const emptyWorklist = {
+  meta: emptyMeta,
+  summary: emptyIntakeDashboard.intake.summary,
+  lanes: {
+    waiting_nurse: [],
+    in_progress: [],
+    vital_pending: [],
+    triage_pending: [],
+    ready_for_doctor: [],
+  },
+};
+
+const emptyTriageWorklist = {
+  meta: emptyMeta,
+  summary: { pending: 0, in_progress: 0, completed: 0, high_priority: 0 },
+  items: [],
+};
+
+const emptyReadyForDoctor = {
+  meta: emptyMeta,
+  summary: { total: 0, priority: 0, called: 0, in_service: 0, waiting_after_ready: 0 },
+  items: [],
+};
+
 function toLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -235,6 +371,20 @@ function safeItem(item) {
   return item && typeof item === 'object' ? item : {};
 }
 
+function rawId(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value !== 'object') return '';
+  for (const key of ['_id', 'id', 'patient_id', 'encounter_id', 'queue_ticket_id', 'appointment_id', 'department_id', 'doctor_id']) {
+    const candidate = value[key];
+    if (candidate && candidate !== value) {
+      const id = rawId(candidate);
+      if (id) return id;
+    }
+  }
+  return '';
+}
+
 function patientName(item = {}) {
   const value = safeItem(item);
   return textValue(value.patient_name || value.patient?.patient_name || value.patient?.full_name || value.raw_queue_ticket?.patient_id, 'Chưa rõ bệnh nhân');
@@ -247,7 +397,24 @@ function patientCode(item = {}) {
 
 function queueId(item = {}) {
   const value = safeItem(item);
-  return textValue(value.queue_ticket_id || value.source_id || value.id, '');
+  const id = value.queue_ticket_id || value.source_id || value.id || value._id;
+  return rawId(id);
+}
+
+function patientId(item = {}) {
+  const value = safeItem(item);
+  return rawId(value.patient_id || value.patient?.patient_id || value.patient);
+}
+
+function selectedQueueIdFromUrl() {
+  if (typeof window === 'undefined') return '';
+  return new URLSearchParams(window.location.search).get('queue_ticket_id') || '';
+}
+
+function goToNursePath(path, label = 'Điều hướng') {
+  if (typeof window === 'undefined') return;
+  notifyNurse({ title: label, message: 'Đang mở màn hình liên quan.' });
+  window.location.assign(path);
 }
 
 function queueNumber(item = {}) {
@@ -346,7 +513,7 @@ function IntakeHeader({ eyebrow, title, description, meta, isDemo, loading, acti
       <aside>
         <span className={`nurse-realtime-badge${isDemo ? ' is-offline' : ''}`}>
           {isDemo ? <WifiOff size={15} /> : <Wifi size={15} />}
-          {isDemo ? 'Dữ liệu mẫu' : 'Thời gian thực bật'}
+          {isDemo ? 'API chưa sẵn sàng' : 'Thời gian thực bật'}
         </span>
         <small>{loading ? 'Đang đồng bộ' : `Cập nhật ${formatTime(meta?.generated_at)}`}</small>
         <div className="nurse-intake-actions">{actions}</div>
@@ -360,7 +527,7 @@ function DemoNotice({ isDemo, error }) {
   return (
     <div className="nurse-dashboard-demo-note">
       <AlertTriangle size={16} />
-      API chưa phản hồi nên đang hiển thị dữ liệu mẫu. {error}
+      API chưa phản hồi nên chưa thể đồng bộ dữ liệu database. {error}
     </div>
   );
 }
@@ -406,9 +573,10 @@ function QueueStatusBadge({ value }) {
 }
 
 function PriorityBadge({ item }) {
-  const value = item.priority || (item.queue_type === 'vip' ? 'high' : item.queue_type === 'priority' ? 'high' : 'normal');
+  const row = safeItem(item);
+  const value = row.priority || (row.queue_type === 'vip' ? 'high' : row.queue_type === 'priority' ? 'high' : 'normal');
   const safeValue = textValue(value, 'normal');
-  return <span className={`nurse-priority-pill nurse-priority-pill--${safeValue}`}>{queueTypeLabels[item.queue_type] || priorityLabels[safeValue] || safeValue}</span>;
+  return <span className={`nurse-priority-pill nurse-priority-pill--${safeValue}`}>{queueTypeLabels[row.queue_type] || priorityLabels[safeValue] || safeValue}</span>;
 }
 
 function SlaBadge({ minutes }) {
@@ -417,12 +585,13 @@ function SlaBadge({ minutes }) {
 }
 
 function ClinicalRiskStrip({ item = {}, context = null }) {
+  const row = safeItem(item);
   const tags = context?.risk_tags || [];
   const fallback = [
-    item.queue_type === 'vip' ? { code: 'VIP', label: 'VIP', severity: 'high' } : null,
-    item.queue_type === 'priority' ? { code: 'PRIORITY', label: 'Ưu tiên', severity: 'high' } : null,
-    item.waiting_minutes >= 30 ? { code: 'SLA', label: 'Quá SLA', severity: 'warning' } : null,
-    item.nursing_stage === 'vital_pending' ? { code: 'VITAL', label: 'Chưa sinh hiệu', severity: 'warning' } : null,
+    row.queue_type === 'vip' ? { code: 'VIP', label: 'VIP', severity: 'high' } : null,
+    row.queue_type === 'priority' ? { code: 'PRIORITY', label: 'Ưu tiên', severity: 'high' } : null,
+    row.waiting_minutes >= 30 ? { code: 'SLA', label: 'Quá SLA', severity: 'warning' } : null,
+    row.nursing_stage === 'vital_pending' ? { code: 'VITAL', label: 'Chưa sinh hiệu', severity: 'warning' } : null,
   ].filter(Boolean);
   const riskTags = tags.length ? tags : fallback;
 
@@ -430,6 +599,32 @@ function ClinicalRiskStrip({ item = {}, context = null }) {
     <div className="nurse-risk-strip">
       {riskTags.slice(0, 4).map((tag) => <span key={tag.code || tag.label} className={`is-${tag.severity || 'normal'}`}>{tag.label}</span>)}
       {!riskTags.length ? <span>Không có cảnh báo nổi bật</span> : null}
+    </div>
+  );
+}
+
+function IntakeQuickActions({ item, onAction }) {
+  const actions = ['claim', 'record_vital', 'triage', 'ready', 'call', 'skip', 'no_show'];
+  return (
+    <div className="nurse-intake-action-grid">
+      {actions.map((action) => {
+        const meta = intakeActionPresentation[action] || {};
+        const Icon = meta.icon || CheckCircle2;
+        return (
+          <button
+            key={action}
+            type="button"
+            className={`nurse-intake-action nurse-intake-action--${meta.tone || 'primary'}`}
+            onClick={() => onAction(action, item)}
+          >
+            <Icon size={18} />
+            <span>
+              <strong>{meta.label || action}</strong>
+              <small>{meta.description || 'Thực hiện thao tác điều dưỡng.'}</small>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -511,17 +706,7 @@ function PatientContextDrawer({ item, onClose, onAction }) {
 
       <section>
         <h3>Hành động nhanh</h3>
-        <div className="nurse-row-actions">
-          {[
-            ['claim', 'Nhận xử lý'],
-            ['record_vital', 'Nhập sinh hiệu'],
-            ['triage', 'Phân loại'],
-            ['ready', 'Sẵn sàng'],
-            ['call', 'Gọi số'],
-            ['skip', 'Bỏ qua'],
-            ['no_show', 'Không có mặt'],
-          ].map(([action, label]) => <button key={action} type="button" onClick={() => onAction(action, active)}>{label}</button>)}
-        </div>
+        <IntakeQuickActions item={active} onAction={onAction} />
       </section>
     </aside>
   );
@@ -589,7 +774,7 @@ function useIntakePageData(filters, refresh) {
   const params = queryParams(filters);
   return useNursingData(
     () => nurseOperationsApi.getIntakeDashboard(params),
-    demoIntake,
+    emptyIntakeDashboard,
     [filters.date, filters.shift, filters.priority, filters.status, filters.type, refresh],
   );
 }
@@ -597,21 +782,108 @@ function useIntakePageData(filters, refresh) {
 function filterQueueItems(items, filters) {
   const query = normalizeText(filters.search);
   return listOf(items).filter((item) => {
-    if (filters.status !== 'all' && item.status !== filters.status && item.nursing_stage !== filters.status) return false;
+    if (!item || typeof item !== 'object') return false;
+    const row = safeItem(item);
+    if (filters.status !== 'all' && row.status !== filters.status && row.nursing_stage !== filters.status) return false;
     if (filters.priority !== 'all') {
-      const mappedPriority = item.queue_type === 'vip' || item.queue_type === 'priority' ? 'high' : 'medium';
-      if (mappedPriority !== filters.priority && item.priority !== filters.priority) return false;
+      const mappedPriority = row.queue_type === 'vip' || row.queue_type === 'priority' ? 'high' : 'medium';
+      if (mappedPriority !== filters.priority && row.priority !== filters.priority) return false;
     }
     if (query) {
-      const haystack = normalizeText(`${patientName(item)} ${patientCode(item)} ${queueNumber(item)} ${textValue(item.phone, '')}`);
+      const haystack = normalizeText(`${patientName(item)} ${patientCode(item)} ${queueNumber(item)} ${textValue(row.phone, '')}`);
       if (!haystack.includes(query)) return false;
     }
     return true;
   });
 }
 
+function IntakeActionConfirmDialog({ request, onCancel, onConfirm }) {
+  const meta = intakeActionPresentation[request?.action] || {};
+  const Icon = meta.icon || CheckCircle2;
+  const tone = meta.tone || 'primary';
+  const item = request?.item || {};
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') onCancel();
+      if (event.key === 'Enter') onConfirm();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel, onConfirm]);
+
+  return (
+    <div className="nurse-modal" role="dialog" aria-modal="true" aria-label={meta.label || request?.title || 'Xác nhận thao tác'}>
+      <div className="nurse-modal__backdrop" onClick={onCancel} />
+      <section className={`nurse-action-confirm nurse-action-confirm--${tone}`}>
+        <header>
+          <span className="nurse-action-confirm__icon"><Icon size={22} /></span>
+          <div>
+            <span>Xác nhận thao tác</span>
+            <h2>{meta.label || request?.title || 'Xác nhận'}</h2>
+          </div>
+          <button type="button" className="nurse-icon-button" onClick={onCancel} aria-label="Đóng">
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="nurse-action-confirm__patient">
+          <div>
+            <span>{queueNumber(item)}</span>
+            <strong>{patientName(item)}</strong>
+            <small>{patientCode(item)} · {doctorName(item)} · {departmentName(item)}</small>
+          </div>
+          <PriorityBadge item={item} />
+        </div>
+
+        <p>{meta.description || request?.message || 'Xác nhận thao tác điều dưỡng cho bệnh nhân này.'}</p>
+
+        <dl className="nurse-action-confirm__facts">
+          <div><dt>Tiếp nhận</dt><dd>{formatTime(item.checkin_time)}</dd></div>
+          <div><dt>Đang chờ</dt><dd>{waitText(item.waiting_minutes)}</dd></div>
+          <div><dt>Bước hiện tại</dt><dd>{statusLabels[textValue(item.nursing_stage, '')] || textValue(item.nursing_stage, '--')}</dd></div>
+        </dl>
+
+        <footer>
+          <button type="button" className="nurse-action-confirm__secondary" onClick={onCancel}>Hủy</button>
+          <button type="button" className="nurse-action-confirm__primary" onClick={onConfirm}>
+            <Icon size={17} />
+            {meta.confirmLabel || request?.confirmLabel || 'Xác nhận'}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function useIntakeActionConfirm() {
+  const [request, setRequest] = useState(null);
+  const resolverRef = useRef(null);
+
+  function confirmAction(nextRequest) {
+    if (resolverRef.current) resolverRef.current(false);
+    return new Promise((resolve) => {
+      resolverRef.current = resolve;
+      setRequest(nextRequest);
+    });
+  }
+
+  function settle(result) {
+    resolverRef.current?.(result);
+    resolverRef.current = null;
+    setRequest(null);
+  }
+
+  const confirmDialog = request
+    ? <IntakeActionConfirmDialog request={request} onCancel={() => settle(false)} onConfirm={() => settle(true)} />
+    : null;
+
+  return { confirmAction, confirmDialog };
+}
+
 function useActionRunner(setRefresh) {
   const [notice, setNotice] = useState('');
+  const { confirmAction, confirmDialog } = useIntakeActionConfirm();
   async function run(action, item, body = {}) {
     const id = queueId(item);
     if (!id) {
@@ -620,8 +892,17 @@ function useActionRunner(setRefresh) {
       notifyNurse({ tone: 'warning', title: 'Tiếp nhận điều dưỡng', message });
       return;
     }
+    if (action === 'triage') {
+      goToNursePath(`/nurse/reception-triage/create-triage?queue_ticket_id=${encodeURIComponent(id)}`, 'Mở phiếu phân loại');
+      return;
+    }
+    if (action === 'record_vital') {
+      goToNursePath(`/nurse/vitals-records/entry?queue_ticket_id=${encodeURIComponent(id)}`, 'Nhập sinh hiệu');
+      return;
+    }
     const actionNames = {
       claim: 'Nhận bệnh nhân',
+      release: 'Trả về danh sách chờ',
       ready: 'Sẵn sàng gặp bác sĩ',
       call: 'Gọi bệnh nhân',
       skip: 'Bỏ qua',
@@ -630,14 +911,22 @@ function useActionRunner(setRefresh) {
       priority: 'Tăng ưu tiên',
       transfer: 'Chuyển tuyến',
       notify_doctor: 'Báo bác sĩ',
+      note: 'Ghi chú tiếp nhận',
     };
+    if (['release', 'ready', 'call', 'skip', 'no_show', 'priority', 'transfer', 'notify_doctor'].includes(action)) {
+      const confirmed = await confirmAction({
+        action,
+        item,
+        title: actionNames[action] || 'Xác nhận thao tác',
+        message: `${queueNumber(item)} - ${patientName(item)}`,
+      });
+      if (!confirmed) return null;
+    }
     await runNurseAction({
       label: actionNames[action] || 'Cập nhật tiếp nhận',
-      confirm: ['ready', 'call', 'skip', 'no_show', 'priority', 'transfer', 'notify_doctor'].includes(action)
-        ? { title: actionNames[action] || 'Xác nhận thao tác', message: `${queueNumber(item)} - ${patientName(item)}` }
-        : null,
       run: async () => {
         if (action === 'claim') return nurseOperationsApi.claimIntake(id);
+        if (action === 'release') return nurseOperationsApi.releaseIntake(id);
         if (action === 'ready') return nurseOperationsApi.markReadyForDoctor(id);
         if (action === 'call') return nurseOperationsApi.callQueue(id);
         if (action === 'skip') return nurseOperationsApi.skipQueue(id, { reason: 'Điều dưỡng bỏ qua từ trung tâm điều phối' });
@@ -646,6 +935,7 @@ function useActionRunner(setRefresh) {
         if (action === 'priority') return nurseOperationsApi.reorderPriority(id, body);
         if (action === 'transfer') return nurseOperationsApi.transferQueue(id, body);
         if (action === 'notify_doctor') return nurseOperationsApi.notifyDoctor(id, body);
+        if (action === 'note') return nurseOperationsApi.addIntakeNote(id, body);
         return null;
       },
       successMessage: 'Đã cập nhật thao tác thành công.',
@@ -655,24 +945,35 @@ function useActionRunner(setRefresh) {
       },
     });
   }
-  return { notice, setNotice, run };
+  return { notice, setNotice, run, confirmDialog };
 }
 
 export function CheckedInPatientsPage() {
   const [filters, setFilters] = useState({ date: toLocalDateKey(), shift: 'morning', priority: 'all', status: 'all', type: 'all', search: '' });
   const [selected, setSelected] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(true);
   const [refresh, setRefresh] = useState(0);
   const { data, loading, isDemo, error } = useIntakePageData(filters, refresh);
-  const { notice, run } = useActionRunner(setRefresh);
+  const { notice, run, confirmDialog } = useActionRunner(setRefresh);
   const items = useMemo(() => filterQueueItems(data.intake?.checked_in_items || data.queue?.table || [], filters), [data, filters]);
   const summary = data.intake?.summary || {};
   const active = selected || items[0];
+
+  function selectPatient(item) {
+    setSelected(item);
+    setDrawerOpen(true);
+  }
+
+  function closeDrawer() {
+    setSelected(null);
+    setDrawerOpen(false);
+  }
 
   async function callNextQueue() {
     await runNurseAction({
       label: 'Gọi số tiếp theo',
       confirm: { title: 'Gọi số tiếp theo?', message: 'Hệ thống sẽ gọi bệnh nhân tiếp theo trong hàng đợi điều dưỡng.' },
-      run: () => nurseOperationsApi.callNextQueue(),
+      run: () => nurseOperationsApi.callNextQueue({ department_id: active?.department_id, doctor_id: active?.doctor_id }),
       successMessage: 'Đã gọi số tiếp theo.',
       onSuccess: () => setRefresh((value) => value + 1),
     });
@@ -687,7 +988,7 @@ export function CheckedInPatientsPage() {
         meta={data.meta}
         isDemo={isDemo}
         loading={loading}
-        actions={<><button type="button" onClick={() => notifyNurse({ title: 'Tiếp nhận nhanh', message: 'Mở workspace lễ tân/queue để tạo tiếp nhận mới.' })}><Plus size={16} />Tiếp nhận nhanh</button><button type="button" onClick={() => window.location.assign('/nurse/overview/realtime-queue')}><Monitor size={16} />Màn hình hàng đợi</button><button type="button" onClick={callNextQueue}><Zap size={16} />Gọi số tiếp theo</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>}
+        actions={<><button type="button" onClick={() => run('claim', active)}><Plus size={16} />Tiếp nhận nhanh</button><button type="button" onClick={() => goToNursePath('/nurse/overview/realtime-queue', 'Màn hình hàng đợi')}><Monitor size={16} />Màn hình hàng đợi</button><button type="button" onClick={callNextQueue}><Zap size={16} />Gọi số tiếp theo</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>}
       />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
@@ -705,7 +1006,7 @@ export function CheckedInPatientsPage() {
 
       <section className="nurse-intake-command-grid">
         <main className="nurse-operation-table-card">
-          <QueueTable items={items} selectedId={queueId(selected)} onSelect={setSelected} onAction={run} />
+          <QueueTable items={items} selectedId={queueId(selected)} onSelect={selectPatient} onAction={run} />
         </main>
         <aside className="nurse-intake-sidefeed">
           <section>
@@ -719,7 +1020,8 @@ export function CheckedInPatientsPage() {
         </aside>
       </section>
 
-      <PatientContextDrawer item={selected || active} onClose={() => setSelected(null)} onAction={run} />
+      <PatientContextDrawer item={drawerOpen ? active : null} onClose={closeDrawer} onAction={run} />
+      {confirmDialog}
     </section>
   );
 }
@@ -729,17 +1031,9 @@ export function WaitingNursePage() {
   const [selected, setSelected] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getIntakeWorklist(queryParams(filters)), {
-    meta: demoMeta,
-    summary: demoIntake.intake.summary,
-    lanes: {
-      waiting_nurse: demoIntake.intake.checked_in_items,
-      in_progress: [],
-      vital_pending: demoIntake.intake.checked_in_items.slice(1, 2),
-      triage_pending: demoIntake.intake.triage_items,
-      ready_for_doctor: demoIntake.intake.ready_items,
-    },
+    ...emptyWorklist,
   }, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
-  const { notice, run } = useActionRunner(setRefresh);
+  const { notice, run, confirmDialog } = useActionRunner(setRefresh);
   const lanes = data.lanes || {};
   const firstWaiting = listOf(lanes.waiting_nurse)[0] || listOf(lanes.vital_pending)[0] || listOf(lanes.triage_pending)[0];
 
@@ -757,7 +1051,7 @@ export function WaitingNursePage() {
     <section className="nurse-intake-page">
       <IntakeHeader eyebrow="Danh sách việc điều dưỡng" title="Chờ điều dưỡng" description="Nhận bệnh nhân, xác minh danh tính, kiểm tra dị ứng, ghi chú lý do khám và quyết định có cần sinh hiệu hoặc phân loại." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={bulkClaimWaiting}><UserCheck size={16} />Nhận hàng loạt</button><button type="button" onClick={() => {
         const note = promptNurseText({ title: 'Ghi chú tiếp nhận', message: patientName(firstWaiting), defaultValue: 'Đã rà soát thông tin tiếp nhận điều dưỡng.' });
-        if (note) notifyNurse({ tone: 'success', title: 'Ghi chú tiếp nhận', message: 'Đã ghi nhận nội dung để điều dưỡng bổ sung vào hồ sơ.' });
+        if (note) run('note', selected || firstWaiting, { note });
       }}><FileText size={16} />Tạo ghi chú</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
@@ -784,17 +1078,19 @@ export function WaitingNursePage() {
         ))}
       </section>
       <PatientContextDrawer item={selected} onClose={() => setSelected(null)} onAction={run} />
+      {confirmDialog}
     </section>
   );
 }
 
 function PatientMiniCard({ item, onSelect, onAction }) {
+  const row = safeItem(item);
   return (
-    <article className={`nurse-intake-card nurse-intake-card--${item.queue_type || item.priority || 'normal'}`}>
+    <article className={`nurse-intake-card nurse-intake-card--${row.queue_type || row.priority || 'normal'}`}>
       <button type="button" onClick={() => onSelect(item)}>
         <header><strong>{queueNumber(item)} · {patientName(item)}</strong><PriorityBadge item={item} /></header>
         <p>{reasonText(item)}</p>
-        <dl><div><dt>Chờ</dt><dd>{waitText(item.waiting_minutes)}</dd></div><div><dt>Bác sĩ</dt><dd>{doctorName(item)}</dd></div></dl>
+        <dl><div><dt>Chờ</dt><dd>{waitText(row.waiting_minutes)}</dd></div><div><dt>Bác sĩ</dt><dd>{doctorName(item)}</dd></div></dl>
         <ClinicalRiskStrip item={item} />
       </button>
       <footer>
@@ -808,19 +1104,26 @@ function PatientMiniCard({ item, onSelect, onAction }) {
 export function WaitingTriagePage() {
   const [filters, setFilters] = useState({ date: toLocalDateKey(), shift: 'morning', priority: 'all', status: 'all', type: 'all', search: '' });
   const [selected, setSelected] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(true);
   const [refresh, setRefresh] = useState(0);
-  const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getTriageWorklist(queryParams(filters)), {
-    meta: demoMeta,
-    summary: { pending: 12, in_progress: 3, completed: 18, high_priority: 5 },
-    items: demoIntake.intake.triage_items,
-  }, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
-  const { notice, run } = useActionRunner(setRefresh);
+  const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getTriageWorklist(queryParams(filters)), emptyTriageWorklist, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
+  const { notice, run, confirmDialog } = useActionRunner(setRefresh);
   const items = filterQueueItems(data.items, filters);
   const active = selected || items[0];
 
+  function selectPatient(item) {
+    setSelected(item);
+    setDrawerOpen(true);
+  }
+
+  function closeDrawer() {
+    setSelected(null);
+    setDrawerOpen(false);
+  }
+
   return (
     <section className="nurse-intake-page">
-      <IntakeHeader eyebrow="Phân loại nguy cơ lâm sàng" title="Chờ phân loại" description="Phân loại nguy cơ, theo dõi SLA phân loại, xem sinh hiệu mới nhất và quyết định ưu tiên lâm sàng." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => window.location.assign('/nurse/reception-triage/create-triage')}><ClipboardCheck size={16} />Tạo phiếu</button><button type="button" onClick={() => run('notify_doctor', active, { message: 'Bệnh nhân chờ phân loại có nguy cơ cần bác sĩ xem lại.' })}><ShieldAlert size={16} />Báo khẩn</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
+      <IntakeHeader eyebrow="Phân loại nguy cơ lâm sàng" title="Chờ phân loại" description="Phân loại nguy cơ, theo dõi SLA phân loại, xem sinh hiệu mới nhất và quyết định ưu tiên lâm sàng." meta={data.meta} isDemo={isDemo} loading={loading} actions={<><button type="button" onClick={() => active ? run('triage', active) : goToNursePath('/nurse/reception-triage/create-triage', 'Tạo phiếu phân loại')}><ClipboardCheck size={16} />Tạo phiếu</button><button type="button" onClick={() => run('notify_doctor', active, { message: 'Bệnh nhân chờ phân loại có nguy cơ cần bác sĩ xem lại.' })}><ShieldAlert size={16} />Báo khẩn</button><button type="button" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={16} />Làm mới</button></>} />
       <DemoNotice isDemo={isDemo} error={error} />
       {notice ? <div className="nurse-intake-toast">{notice}</div> : null}
       <Filters filters={filters} setFilters={setFilters} />
@@ -832,14 +1135,15 @@ export function WaitingTriagePage() {
       ]} />
       <section className="nurse-intake-command-grid nurse-intake-command-grid--wide">
         <main className="nurse-operation-table-card">
-          <QueueTable items={items} selectedId={queueId(selected)} onSelect={setSelected} onAction={run} />
+          <QueueTable items={items} selectedId={queueId(selected)} onSelect={selectPatient} onAction={run} />
         </main>
         <aside className="nurse-triage-risk-panel">
           <h2><Zap size={16} />Dải nguy cơ</h2>
-          {items.slice(0, 6).map((item) => <PatientMiniCard key={queueId(item)} item={item} onSelect={setSelected} onAction={run} />)}
+          {items.slice(0, 6).map((item) => <PatientMiniCard key={queueId(item)} item={item} onSelect={selectPatient} onAction={run} />)}
         </aside>
       </section>
-      <PatientContextDrawer item={selected || active} onClose={() => setSelected(null)} onAction={run} />
+      <PatientContextDrawer item={drawerOpen ? active : null} onClose={closeDrawer} onAction={run} />
+      {confirmDialog}
     </section>
   );
 }
@@ -847,12 +1151,10 @@ export function WaitingTriagePage() {
 export function CreateTriagePage() {
   const [filters, setFilters] = useState({ date: toLocalDateKey(), shift: 'morning', priority: 'all', status: 'all', type: 'all', search: '' });
   const [refresh, setRefresh] = useState(0);
-  const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getTriageWorklist(queryParams(filters)), {
-    meta: demoMeta,
-    summary: { pending: 12, in_progress: 3, completed: 18, high_priority: 5 },
-    items: demoIntake.intake.triage_items,
-  }, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
+  const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getTriageWorklist(queryParams(filters)), emptyTriageWorklist, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
   const [selected, setSelected] = useState(null);
+  const { confirmAction, confirmDialog } = useIntakeActionConfirm();
+  const [draftTriageId, setDraftTriageId] = useState('');
   const [form, setForm] = useState({
     chief_complaint: '',
     symptoms: '',
@@ -866,7 +1168,35 @@ export function CreateTriagePage() {
     note: '',
   });
   const [notice, setNotice] = useState('');
-  const active = selected || listOf(data.items)[0] || demoIntake.intake.triage_items[0];
+  const requestedQueueId = selectedQueueIdFromUrl();
+  const active = selected || listOf(data.items).find((item) => queueId(item) === requestedQueueId) || listOf(data.items)[0] || null;
+
+  useEffect(() => {
+    if (!requestedQueueId || selected) return;
+    const match = listOf(data.items).find((item) => queueId(item) === requestedQueueId);
+    if (match) setSelected(match);
+  }, [data.items, requestedQueueId, selected]);
+
+  useEffect(() => {
+    setDraftTriageId(selected?.triage_id || '');
+  }, [selected]);
+
+  function buildTriagePayload(status = 'completed') {
+    const priority = ['red', 'orange'].includes(form.acuity_level) ? 'critical' : form.acuity_level === 'yellow' ? 'high' : 'medium';
+    return {
+      patient_id: patientId(active),
+      queue_ticket_id: queueId(active),
+      encounter_id: active?.encounter_id || undefined,
+      appointment_id: active?.appointment_id || undefined,
+      department_id: active?.department_id || undefined,
+      doctor_id: active?.doctor_id || undefined,
+      status,
+      ...form,
+      priority,
+      triage_level: form.acuity_level === 'red' ? 'emergency' : form.acuity_level === 'orange' ? 'urgent' : form.acuity_level === 'yellow' ? 'semi_urgent' : 'non_urgent',
+      red_flags: redFlagList(form),
+    };
+  }
 
   async function triageQuickAction(action) {
     const id = queueId(active);
@@ -889,28 +1219,40 @@ export function CreateTriagePage() {
     });
   }
 
-  async function submitTriage(event) {
-    event.preventDefault();
-    if (!active?.patient_id && !active?.patient?.patient_id) {
+  async function saveTriageDraft() {
+    if (!patientId(active)) {
       setNotice('Chưa chọn bệnh nhân có patient_id hợp lệ.');
       return;
     }
-    const priority = ['red', 'orange'].includes(form.acuity_level) ? 'critical' : form.acuity_level === 'yellow' ? 'high' : 'medium';
+    try {
+      const payload = buildTriagePayload('draft');
+      const triageId = draftTriageId || active?.triage_id;
+      const saved = triageId
+        ? await nurseOperationsApi.updateTriage(triageId, payload)
+        : await nurseOperationsApi.createTriage(payload);
+      setDraftTriageId(saved?.triage_id || saved?._id || saved?.id || triageId || '');
+      setNotice('Đã lưu nháp phiếu phân loại vào database.');
+      notifyNurse({ tone: 'success', title: 'Lưu nháp phân loại', message: 'Phiếu nháp đã được đồng bộ.' });
+      setRefresh((value) => value + 1);
+    } catch (saveError) {
+      setNotice(saveError?.message || 'Không thể lưu nháp phiếu phân loại.');
+      notifyNurse({ tone: 'danger', title: 'Lưu nháp phân loại', message: saveError?.message || 'Không thể lưu nháp phiếu phân loại.' });
+    }
+  }
+
+  async function submitTriage(event) {
+    event.preventDefault();
+    if (!patientId(active)) {
+      setNotice('Chưa chọn bệnh nhân có patient_id hợp lệ.');
+      return;
+    }
     if (!confirmNurseAction({ title: 'Hoàn tất phiếu phân loại?', message: `${patientName(active)} - mức ${acuityLabels[form.acuity_level]}` })) return;
     try {
-      const payload = await nurseOperationsApi.createTriage({
-        patient_id: active.patient_id || active.patient?.patient_id,
-        queue_ticket_id: queueId(active),
-        encounter_id: active.encounter_id || undefined,
-        department_id: active.department_id || undefined,
-        doctor_id: active.doctor_id || undefined,
-        status: 'completed',
-        ...form,
-        priority,
-        triage_level: form.acuity_level === 'red' ? 'emergency' : form.acuity_level === 'orange' ? 'urgent' : form.acuity_level === 'yellow' ? 'semi_urgent' : 'non_urgent',
-        red_flags: redFlagList(form),
-      });
-      if (['red', 'orange', 'yellow'].includes(form.acuity_level)) {
+      const triageId = draftTriageId || active?.triage_id;
+      const payload = triageId
+        ? await nurseOperationsApi.completeTriage(triageId, buildTriagePayload('completed'))
+        : await nurseOperationsApi.createTriage(buildTriagePayload('completed'));
+      if (queueId(active) && ['red', 'orange', 'yellow'].includes(form.acuity_level)) {
         await nurseOperationsApi.reorderPriority(queueId(active), { queue_type: 'priority', priority_reason: form.chief_complaint || form.note });
       }
       setNotice(`Đã tạo phiếu phân loại ${payload?.id || ''}`.trim());
@@ -934,7 +1276,30 @@ export function CreateTriagePage() {
       <section className="nurse-triage-builder">
         <aside className="nurse-triage-patient-list">
           <h2><Users size={16} />Danh sách chờ</h2>
-          {listOf(data.items).slice(0, 12).map((item) => <PatientMiniCard key={queueId(item)} item={item} onSelect={setSelected} onAction={(action, row) => { setSelected(row); notifyNurse({ title: action === 'claim' ? 'Đã chọn bệnh nhân' : 'Sẵn sàng phân loại', message: patientName(row) }); }} />)}
+          {listOf(data.items).slice(0, 12).map((item) => <PatientMiniCard key={queueId(item)} item={item} onSelect={setSelected} onAction={async (action, row) => {
+            setSelected(row);
+            if (action === 'claim') {
+              await runNurseAction({
+                label: 'Nhận bệnh nhân',
+                run: () => nurseOperationsApi.claimIntake(queueId(row)),
+                successMessage: 'Đã nhận bệnh nhân để phân loại.',
+                onSuccess: () => setRefresh((value) => value + 1),
+              });
+              return;
+            }
+            if (action === 'ready') {
+              const confirmed = await confirmAction({ action: 'ready', item: row });
+              if (!confirmed) return;
+              await runNurseAction({
+                label: 'Sẵn sàng gặp bác sĩ',
+                run: () => nurseOperationsApi.markReadyForDoctor(queueId(row)),
+                successMessage: 'Đã đánh dấu bệnh nhân sẵn sàng gặp bác sĩ.',
+                onSuccess: () => setRefresh((value) => value + 1),
+              });
+              return;
+            }
+            notifyNurse({ title: 'Đã chọn bệnh nhân', message: patientName(row) });
+          }} />)}
         </aside>
         <form className="nurse-triage-form" onSubmit={submitTriage}>
           <header>
@@ -955,7 +1320,7 @@ export function CreateTriagePage() {
             {['red', 'orange', 'yellow', 'green', 'blue'].map((level) => <button key={level} type="button" className={form.acuity_level === level ? 'is-active' : ''} onClick={() => setForm((current) => ({ ...current, acuity_level: level }))}><strong>{acuityLabels[level]}</strong><span>{level === 'red' ? 'Cấp cứu ngay' : level === 'orange' ? 'Rất khẩn' : level === 'yellow' ? 'Ưu tiên' : level === 'green' ? 'Thường' : 'Không cấp thiết'}</span></button>)}
           </section>
           <label className="nurse-triage-note"><span>Ghi chú điều dưỡng</span><textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} rows={4} /></label>
-          <footer><button type="submit"><CheckCircle2 size={16} />Hoàn tất phân loại</button><button type="button" onClick={() => setNotice('Đã lưu nháp cục bộ trên biểu mẫu.')}>Lưu nháp</button></footer>
+          <footer><button type="submit"><CheckCircle2 size={16} />Hoàn tất phân loại</button><button type="button" onClick={saveTriageDraft}>Lưu nháp</button></footer>
         </form>
         <aside className="nurse-triage-decision">
           <h2><ShieldAlert size={16} />Bảng quyết định</h2>
@@ -965,6 +1330,7 @@ export function CreateTriagePage() {
           <div className="nurse-row-actions"><button type="button" onClick={() => triageQuickAction('notify_doctor')}>Báo bác sĩ</button><button type="button" onClick={() => triageQuickAction('vitals')}>Yêu cầu đo lại</button><button type="button" onClick={() => triageQuickAction('transfer')}>Chuyển tuyến</button></div>
         </aside>
       </section>
+      {confirmDialog}
     </section>
   );
 }
@@ -983,15 +1349,24 @@ export function PriorityTransferPage() {
   const [selected, setSelected] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const { data, loading, isDemo, error } = useIntakePageData(filters, refresh);
-  const { notice, run } = useActionRunner(setRefresh);
+  const { notice, run, confirmDialog } = useActionRunner(setRefresh);
   const items = filterQueueItems(data.intake?.checked_in_items || [], filters)
-    .filter((item) => item.queue_type !== 'normal' || item.waiting_minutes >= 15 || ['triage_pending', 'vital_pending'].includes(item.nursing_stage));
+    .filter((item) => {
+      const row = safeItem(item);
+      return row.queue_type !== 'normal' || row.waiting_minutes >= 15 || ['triage_pending', 'vital_pending'].includes(row.nursing_stage);
+    });
   const active = selected || items[0];
 
   function transferSelected(item = active) {
-    const targetDepartmentId = promptNurseText({ title: 'Chuyển tuyến/khoa', message: 'Nhập target_department_id hoặc để trống nếu chỉ ghi nhận yêu cầu chuyển.', defaultValue: '' });
+    const targetDepartmentId = promptNurseText({ title: 'Chuyển tuyến/khoa', message: 'Nhập department_id đích hoặc để trống để giữ khoa hiện tại.', defaultValue: item?.department_id || '' });
     if (targetDepartmentId === null) return;
-    run('transfer', item, { target_department_id: targetDepartmentId || undefined, reason: 'Điều dưỡng yêu cầu chuyển tuyến/khoa.' });
+    const targetDoctorId = promptNurseText({ title: 'Bác sĩ đích', message: 'Nhập doctor_id đích hoặc để trống để giữ bác sĩ hiện tại.', defaultValue: item?.doctor_id || '' });
+    if (targetDoctorId === null) return;
+    run('transfer', item, {
+      department_id: targetDepartmentId || undefined,
+      doctor_id: targetDoctorId || undefined,
+      reason: 'Điều dưỡng yêu cầu chuyển tuyến/khoa.',
+    });
   }
 
   return (
@@ -1014,6 +1389,7 @@ export function PriorityTransferPage() {
         </aside>
       </section>
       <PatientContextDrawer item={selected} onClose={() => setSelected(null)} onAction={run} />
+      {confirmDialog}
     </section>
   );
 }
@@ -1022,12 +1398,8 @@ export function ReadyForDoctorPage() {
   const [filters, setFilters] = useState({ date: toLocalDateKey(), shift: 'morning', priority: 'all', status: 'all', type: 'all', search: '' });
   const [selected, setSelected] = useState(null);
   const [refresh, setRefresh] = useState(0);
-  const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getReadyForDoctor(queryParams(filters)), {
-    meta: demoMeta,
-    summary: { total: 9, priority: 3, called: 2, in_service: 1, waiting_after_ready: 2 },
-    items: demoIntake.intake.ready_items,
-  }, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
-  const { notice, run } = useActionRunner(setRefresh);
+  const { data, loading, isDemo, error } = useNursingData(() => nurseOperationsApi.getReadyForDoctor(queryParams(filters)), emptyReadyForDoctor, [filters.date, filters.shift, filters.priority, filters.status, refresh]);
+  const { notice, run, confirmDialog } = useActionRunner(setRefresh);
   const items = filterQueueItems(data.items, filters);
   const active = selected || items[0];
 
@@ -1054,6 +1426,7 @@ export function ReadyForDoctorPage() {
         </aside>
       </section>
       <PatientContextDrawer item={selected} onClose={() => setSelected(null)} onAction={run} />
+      {confirmDialog}
     </section>
   );
 }

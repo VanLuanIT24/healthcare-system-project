@@ -11,11 +11,21 @@ function buildQuery(params = {}) {
 }
 
 async function parseResponse(response) {
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(payload?.message || payload?.error?.message || 'Không thể tải Admin Tools.');
+  const text = await response.text().catch(() => '');
+  let payload = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch (error) {
+      payload = { message: text };
+    }
   }
-  return payload?.data;
+  if (!response.ok) {
+    const message = payload?.message || payload?.error?.message || payload?.error || response.statusText || 'Không thể tải Admin Tools.';
+    throw new Error(typeof message === 'string' ? message : 'Không thể tải Admin Tools.');
+  }
+  if (response.status === 204) return null;
+  return payload?.data ?? payload ?? null;
 }
 
 export async function adminToolsGet(path = '', params) {

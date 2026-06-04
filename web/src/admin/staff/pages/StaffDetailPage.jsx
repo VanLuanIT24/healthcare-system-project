@@ -67,6 +67,7 @@ export function StaffDetailPage() {
   const [permissionCheck, setPermissionCheck] = useState('');
   const [permissionResult, setPermissionResult] = useState(null);
   const [error, setError] = useState('');
+  const [actionNotice, setActionNotice] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -124,8 +125,8 @@ export function StaffDetailPage() {
   useEffect(() => {
     const modal = searchParams.get('modal');
     if (!modal || !user) return;
-    if (['reset-password', 'activate', 'deactivate', 'unlock'].includes(modal)) {
-      setDialog({ type: modal === 'reset-password' ? 'reset' : modal, staff: user });
+    if (['reset-password', 'activate', 'deactivate', 'unlock', 'force-logout'].includes(modal)) {
+      setDialog({ type: modal === 'reset-password' ? 'reset' : modal === 'force-logout' ? 'forceLogout' : modal, staff: user });
     }
   }, [searchParams, user]);
 
@@ -155,10 +156,11 @@ export function StaffDetailPage() {
   }
 
   function openDialog(type) {
+    const normalizedType = type === 'force-logout' ? 'forceLogout' : type;
     const params = new URLSearchParams(searchParams);
     params.set('modal', type === 'reset' ? 'reset-password' : type);
     setSearchParams(params);
-    setDialog({ type, staff: user });
+    setDialog({ type: normalizedType, staff: user });
   }
 
   function closeDialog() {
@@ -175,8 +177,10 @@ export function StaffDetailPage() {
       if (action === 'activate') await activateStaffAccount(staffId);
       if (action === 'deactivate') await deactivateStaffAccount(staffId);
       if (action === 'unlock') await unlockStaffAccount(staffId);
+      if (action === 'forceLogout') await forceLogoutStaff(staffId);
       closeDialog();
       await refreshDetail();
+      setActionNotice({ tone: 'success', title: 'Tác vụ đã hoàn tất', message: action === 'forceLogout' ? 'Đã thu hồi tất cả phiên đăng nhập active. Nhân sự phải đăng nhập lại để tiếp tục.' : 'Trạng thái tài khoản đã được cập nhật và ghi nhận vào audit log.' });
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -191,6 +195,7 @@ export function StaffDetailPage() {
       await resetStaffPassword(staffId, payload);
       closeDialog();
       await refreshDetail();
+      setActionNotice({ tone: 'success', title: 'Đã đặt lại mật khẩu', message: 'Credential mới đã được cập nhật. Chính sách đổi mật khẩu lần đăng nhập tiếp theo đã được áp dụng theo cấu hình.' });
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -204,6 +209,7 @@ export function StaffDetailPage() {
     try {
       await syncStaffRoles(staffId, roleState);
       await refreshDetail();
+      setActionNotice({ tone: 'success', title: 'Đã đồng bộ vai trò', message: 'Danh sách vai trò/quyền của nhân sự đã được cập nhật từ backend.' });
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -224,18 +230,6 @@ export function StaffDetailPage() {
     }
   }
 
-  async function handleForceLogout() {
-    setSubmitting(true);
-    setError('');
-    try {
-      await forceLogoutStaff(staffId);
-      await refreshDetail();
-    } catch (submitError) {
-      setError(submitError.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   function toggleRole(roleCode) {
     setRoleState((current) =>
@@ -322,6 +316,13 @@ export function StaffDetailPage() {
         </section>
 
         {error ? <p className="form-message error">{error}</p> : null}
+        {actionNotice ? (
+          <div className={`staff-action-notice staff-action-notice--${actionNotice.tone}`}>
+            <strong>{actionNotice.title}</strong>
+            <span>{actionNotice.message}</span>
+            <button type="button" onClick={() => setActionNotice(null)}>×</button>
+          </div>
+        ) : null}
 
         {tab === 'general' ? (
           <section className="staff-detail-general-layout">
@@ -542,8 +543,8 @@ export function StaffDetailPage() {
                 <h2>Phiên thiết bị đang hoạt động</h2>
                 <p>Theo dõi thời gian thực các điểm truy cập còn hiệu lực.</p>
               </div>
-              <button type="button" className="staff-button staff-button--danger" onClick={handleForceLogout} disabled={submitting}>
-                Đăng xuất tất cả phiên
+              <button type="button" className="staff-button staff-button--danger" onClick={() => openDialog('force-logout')} disabled={submitting}>
+                Force logout tất cả phiên
               </button>
             </div>
             <div className="staff-session-list staff-session-list--large">
@@ -604,7 +605,7 @@ export function StaffDetailPage() {
         <ResetPasswordDialog staff={dialog.staff} onClose={closeDialog} onSubmit={handleResetPassword} isSubmitting={submitting} />
       ) : null}
 
-      {['activate', 'deactivate', 'unlock'].includes(dialog?.type) ? (
+      {['activate', 'deactivate', 'unlock', 'forceLogout'].includes(dialog?.type) ? (
         <StaffStatusDialog
           action={dialog.type}
           staff={dialog.staff}

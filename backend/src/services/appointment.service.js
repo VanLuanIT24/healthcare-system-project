@@ -26,6 +26,7 @@ const {
   SCHEDULE_SLOT_STATUS,
   DOCTOR_PROFILE_STATUS,
   QUEUE_STATUS,
+  REALTIME_EVENT_TYPE,
 } = require('../constants/statuses');
 const { APPOINTMENT_TRANSITIONS } = require('../constants/transitions');
 const { assertTransition } = require('../shared/utils/status-transition');
@@ -44,6 +45,7 @@ const {
 } = require('./core.service');
 const { AuditLog } = require('../models');
 const scheduleService = require('./schedule.service');
+const eventBus = require('../events/event-bus.service');
 
 const TERMINAL_APPOINTMENT_STATUSES = [
   APPOINTMENT_STATUS.COMPLETED,
@@ -1088,6 +1090,105 @@ async function confirmAppointment(appointmentId, actor, requestMeta = {}) {
   return getAppointmentDetail(appointment._id, actor);
 }
 
+async function sendAppointmentReminder(appointmentId, payload = {}, actor, requestMeta = {}) {
+  const appointment = await Appointment.findById(appointmentId).lean();
+  if (!appointment || appointment.is_deleted) throw createError('Không tìm thấy lịch hẹn.', 404);
+  assertAppointmentReadable(appointment, actor);
+  assertAppointmentWritable(appointment, actor, 'update');
+
+  if (![APPOINTMENT_STATUS.BOOKED, APPOINTMENT_STATUS.CONFIRMED].includes(appointment.status)) {
+    throw createError('Chỉ gửi nhắc lịch cho appointment đang chờ xác nhận hoặc đã xác nhận.', 409);
+  }
+
+  const channel = normalizeString(payload.channel || 'auto') || 'auto';
+  const note = normalizeString(payload.note || payload.message);
+  const notificationBody = note || 'Bạn có lịch hẹn sắp tới. Vui lòng kiểm tra thông tin trước khi đến khám.';
+  const idempotencyKey = `appointment_reminder_manual:${toId(appointment._id)}:${Date.now()}`;
+
+  const event = await eventBus.publishDomainEvent({
+    eventType: REALTIME_EVENT_TYPE.APPOINTMENT_REMINDER,
+    aggregateType: 'appointment',
+    aggregateId: appointment._id,
+    actor: {
+      actor_type: actor?.actorType || actor?.actor_type || 'staff',
+      actor_id: actor?.userId || actor?.actorId || actor?.actor_id,
+    },
+    recipientScope: {
+      patient_id: appointment.patient_id,
+      appointment_id: appointment._id,
+      user_id: appointment.doctor_id,
+      department_id: appointment.department_id,
+      recipients: [{ recipient_type: 'patient', recipient_id: appointment.patient_id, patient_id: appointment.patient_id }],
+    },
+    payload: {
+      appointment_id: toId(appointment._id),
+      appointment_time: appointment.appointment_time,
+      doctor_id: toId(appointment.doctor_id),
+      department_id: toId(appointment.department_id),
+      notification: {
+        title: 'Nhắc lịch hẹn',
+        body: notificationBody,
+        priority: 'normal',
+        channel,
+      },
+    },
+    idempotencyKey,
+  }, { publishImmediately: true });
+
+  await recordAuditLog({
+    actor,
+    action: 'appointment.reminder',
+    targetType: 'appointment',
+    targetId: appointment._id,
+    status: 'success',
+    message: 'Gửi nhắc lịch hẹn thủ công.',
+    requestMeta,
+    metadata: {
+      channel,
+      note,
+      event_id: toId(event?.event?._id || event?.event?.id),
+      dispatch: event?.dispatch || null,
+    },
+  });
+
+  return {
+    appointment_id: toId(appointment._id),
+    channel,
+    dispatched: event?.dispatch?.delivered !== false,
+    event_id: toId(event?.event?._id || event?.event?.id),
+  };
+}
+
+async function logAppointmentCall(appointmentId, payload = {}, actor, requestMeta = {}) {
+  const appointment = await Appointment.findById(appointmentId).lean();
+  if (!appointment || appointment.is_deleted) throw createError('Không tìm thấy lịch hẹn.', 404);
+  assertAppointmentReadable(appointment, actor);
+  assertAppointmentWritable(appointment, actor, 'update');
+
+  const outcome = normalizeString(payload.outcome || 'reached') || 'reached';
+  const note = normalizeString(payload.note || payload.message || 'Đã gọi bệnh nhân về lịch hẹn.');
+  await recordAuditLog({
+    actor,
+    action: 'appointment.call_logged',
+    targetType: 'appointment',
+    targetId: appointment._id,
+    status: 'success',
+    message: 'Ghi nhận cuộc gọi lịch hẹn.',
+    requestMeta,
+    metadata: {
+      outcome,
+      note,
+      channel: payload.channel || 'phone',
+    },
+  });
+
+  return {
+    appointment_id: toId(appointment._id),
+    outcome,
+    note,
+  };
+}
+
 async function cancelAppointment(appointmentId, payload = {}, actor, requestMeta = {}) {
   const appointment = await Appointment.findById(appointmentId);
   if (!appointment || appointment.is_deleted) throw createError('Không tìm thấy lịch hẹn.', 404);
@@ -1644,10 +1745,6 @@ async function sendAppointmentConfirmation() {
   return { delivered: false, message: 'MVP hiện chưa tích hợp kênh gửi xác nhận lịch hẹn.' };
 }
 
-async function sendAppointmentReminder() {
-  return { delivered: false, message: 'MVP hiện chưa tích hợp kênh gửi nhắc lịch hẹn.' };
-}
-
 async function cancelAppointmentsBySchedule(scheduleId, actor, requestMeta = {}) {
   const appointments = await Appointment.find({
     doctor_schedule_id: scheduleId,
@@ -1876,6 +1973,10 @@ module.exports = {
   updateAppointment,
   // confirmAppointment: Xác nhận lịch hẹn.
   confirmAppointment,
+  // sendAppointmentReminder: Gửi nhắc lịch hẹn thủ công.
+  sendAppointmentReminder,
+  // logAppointmentCall: Ghi nhận cuộc gọi xác nhận/nhắc lịch.
+  logAppointmentCall,
   // cancelAppointment: Hủy lịch hẹn.
   cancelAppointment,
   // rescheduleAppointment: Đổi lịch cho lịch hẹn.
@@ -1931,8 +2032,6 @@ module.exports = {
   autoConfirmAppointment,
   // sendAppointmentConfirmation: Gửi thông báo xác nhận lịch hẹn.
   sendAppointmentConfirmation,
-  // sendAppointmentReminder: Gửi thông báo nhắc lịch hẹn.
-  sendAppointmentReminder,
   // cancelAppointmentsBySchedule: Hủy lịch hẹn thuộc lịch làm việc.
   cancelAppointmentsBySchedule,
   // rescheduleAppointmentsByScheduleChange: Đổi lịch cho lịch hẹn bị ảnh hưởng khi đổi lịch làm việc.

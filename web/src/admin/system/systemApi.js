@@ -1,15 +1,36 @@
 import { API_BASE_URL } from '../../lib/api';
 import { fetchWithAuth } from '../../lib/authSession';
 
-async function request(url, options) {
+async function request(url, options = {}) {
   const response = await fetchWithAuth(url, options);
-  const payload = await response.json();
+  const text = await response.text();
+  let payload = null;
 
-  if (!response.ok) {
-    throw new Error(payload?.message || 'Không thể xử lý yêu cầu hệ thống.');
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch (error) {
+      payload = { message: text };
+    }
   }
 
-  return payload?.data;
+  if (!response.ok) {
+    throw new Error(payload?.message || payload?.error || 'Không thể xử lý yêu cầu hệ thống.');
+  }
+
+  if (payload && Object.prototype.hasOwnProperty.call(payload, 'data')) return payload.data;
+  return payload;
+}
+
+function toQueryString(query) {
+  if (!query) return '';
+  if (typeof query === 'string') return query.replace(/^\?/, '');
+  return new URLSearchParams(query).toString();
+}
+
+function withQuery(baseUrl, query) {
+  const qs = toQueryString(query);
+  return qs ? `${baseUrl}?${qs}` : baseUrl;
 }
 
 export function listDepartments(query = '') {
@@ -165,9 +186,9 @@ export function logoutAllMyDevices() {
 }
 
 export function getMyLoginHistory(query = 'limit=50') {
-  return request(`${API_BASE_URL}/auth/me/login-history?${query}`);
+  return request(withQuery(`${API_BASE_URL}/auth/me/login-history`, query));
 }
 
 export function getAuditLogs(query = 'limit=100') {
-  return request(`${API_BASE_URL}/auth/audit-logs?${query}`);
+  return request(withQuery(`${API_BASE_URL}/auth/audit-logs`, query));
 }

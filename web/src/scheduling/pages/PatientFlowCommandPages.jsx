@@ -19,6 +19,7 @@ import {
   UserCheck,
   UserRoundX,
   UsersRound,
+  XCircle,
 } from 'lucide-react';
 
 import { useSchedulingData } from '../context/SchedulingDataContext.jsx';
@@ -110,91 +111,6 @@ const VIEW_CONFIG = {
     eyebrow: 'Exit flow',
   },
 };
-
-const fallbackFlowItems = [
-  {
-    id: 'demo-flow-1',
-    patientName: 'Nguyễn Văn An',
-    patientCode: 'BN000123',
-    patientMeta: 'Nam · 35 tuổi',
-    appointmentId: 'APT-001',
-    appointmentTime: new Date().toISOString(),
-    appointmentStatus: 'checked_in',
-    queueId: 'QUE-001',
-    queueNumber: 'NTQ-N008',
-    queueStatus: 'waiting',
-    doctorName: 'BS. Trần Thanh Hải',
-    departmentName: 'Nội tổng quát',
-    currentStage: 'ready_for_doctor',
-    nursingStage: 'vital_done',
-    waitingMinutes: 34,
-    slaStatus: 'warning',
-    riskTags: ['Chờ lâu', 'Ready for doctor'],
-    source: 'demo',
-  },
-  {
-    id: 'demo-flow-2',
-    patientName: 'Trần Thị Bích Ngọc',
-    patientCode: 'BN000491',
-    patientMeta: 'Nữ · 28 tuổi',
-    appointmentId: 'APT-002',
-    appointmentTime: new Date(Date.now() + 20 * 60000).toISOString(),
-    appointmentStatus: 'confirmed',
-    queueId: null,
-    queueNumber: null,
-    queueStatus: null,
-    doctorName: 'BS. Lê Minh Tuấn',
-    departmentName: 'Tim mạch',
-    currentStage: 'confirmed',
-    nursingStage: 'not_started',
-    waitingMinutes: 0,
-    slaStatus: 'normal',
-    riskTags: ['Sắp đến'],
-    source: 'demo',
-  },
-  {
-    id: 'demo-flow-3',
-    patientName: 'Lê Quốc Tuấn',
-    patientCode: 'BN000812',
-    patientMeta: 'Nam · 42 tuổi',
-    appointmentId: 'APT-003',
-    appointmentTime: new Date(Date.now() - 45 * 60000).toISOString(),
-    appointmentStatus: 'in_consultation',
-    queueId: 'QUE-003',
-    queueNumber: 'NTQ-N002',
-    queueStatus: 'in_service',
-    encounterId: 'ENC-003',
-    doctorName: 'BS. Nguyễn Thị Lan',
-    departmentName: 'Nhi khoa',
-    currentStage: 'in_consultation',
-    nursingStage: 'completed',
-    waitingMinutes: 0,
-    serviceMinutes: 28,
-    slaStatus: 'normal',
-    riskTags: ['Encounter active'],
-    source: 'demo',
-  },
-  {
-    id: 'demo-flow-4',
-    patientName: 'Phạm Minh Châu',
-    patientCode: 'BN000247',
-    patientMeta: 'Nữ · 61 tuổi',
-    appointmentId: 'APT-004',
-    appointmentTime: new Date(Date.now() - 80 * 60000).toISOString(),
-    appointmentStatus: 'checked_in',
-    queueId: 'QUE-004',
-    queueNumber: 'NTQ-P010',
-    queueStatus: 'skipped',
-    doctorName: 'BS. Vũ Hoàng Nam',
-    departmentName: 'Cơ xương khớp',
-    currentStage: 'exceptions',
-    nursingStage: 'ready_for_doctor',
-    waitingMinutes: 68,
-    slaStatus: 'breached',
-    riskTags: ['Bỏ qua', 'Ưu tiên', 'Quá SLA'],
-    source: 'demo',
-  },
-];
 
 function asArray(value) {
   if (Array.isArray(value)) return value;
@@ -694,7 +610,7 @@ export function PatientFlowCommandPage({ view = 'board' }) {
       appointments: state.appointments,
       queueTickets: state.queueTickets,
     });
-    return built.length ? built : fallbackFlowItems;
+    return built;
   }, [state.appointments, state.flow, state.queueTickets]);
 
   const filteredItems = useMemo(() => {
@@ -769,7 +685,7 @@ export function PatientFlowCommandPage({ view = 'board' }) {
 
   return (
     <div className="sched-flow-page">
-      <PatientFlowHeader config={config} filters={filters} updateFilters={updateFilters} state={state} />
+      <PatientFlowHeader config={config} filters={filters} updateFilters={updateFilters} state={state} scheduling={scheduling} />
 
       {feedback ? <div className={`sched-command-feedback is-${feedback.type}`}>{feedback.message}</div> : null}
 
@@ -796,7 +712,7 @@ export function PatientFlowCommandPage({ view = 'board' }) {
       ) : null}
 
       {view === 'inConsultation' ? (
-        <InConsultationPatients items={filteredItems} source={state.inConsultation} loading={state.loading} onSelect={setSelectedItem} runAction={runAction} />
+        <InConsultationPatients items={filteredItems} source={state.inConsultation} loading={state.loading} onSelect={setSelectedItem} runAction={runAction} onSync={refreshFlow} />
       ) : null}
 
       {view === 'needsAction' ? (
@@ -814,7 +730,9 @@ export function PatientFlowCommandPage({ view = 'board' }) {
   );
 }
 
-function PatientFlowHeader({ config, filters, updateFilters, state }) {
+function PatientFlowHeader({ config, filters, updateFilters, state, scheduling }) {
+  const departments = asArray(scheduling?.departments);
+  const doctors = asArray(scheduling?.doctors);
   return (
     <section className="sched-command-hero sched-flow-hero">
       <div className="sched-command-hero__copy">
@@ -841,17 +759,22 @@ function PatientFlowHeader({ config, filters, updateFilters, state }) {
           Khoa
           <select value={filters.departmentId || ''} onChange={(event) => updateFilters({ departmentId: event.target.value || null })}>
             <option value="">Toàn hệ thống</option>
-            <option value="dept-demo-1">Nội tổng quát</option>
-            <option value="dept-demo-2">Tim mạch</option>
-            <option value="dept-demo-3">Nhi khoa</option>
+            {departments.map((department) => (
+              <option key={department.id || department.department_id || department.name} value={department.id || department.department_id || ''}>
+                {department.name || department.department_name}
+              </option>
+            ))}
           </select>
         </label>
         <label>
           Bác sĩ
           <select value={filters.doctorId || ''} onChange={(event) => updateFilters({ doctorId: event.target.value || null })}>
             <option value="">Tất cả bác sĩ</option>
-            <option value="doctor-demo-1">BS. Trần Thanh Hải</option>
-            <option value="doctor-demo-2">BS. Lê Minh Tuấn</option>
+            {doctors.map((doctor) => (
+              <option key={doctor.id || doctor.doctor_id || doctor.name} value={doctor.id || doctor.doctor_id || ''}>
+                {doctor.name || doctor.full_name || doctor.doctor_name}
+              </option>
+            ))}
           </select>
         </label>
       </div>
@@ -1114,7 +1037,7 @@ function WaitingPatients({ items, waiting, loading, onSelect, runAction }) {
   );
 }
 
-function InConsultationPatients({ items, source, loading, onSelect, runAction }) {
+function InConsultationPatients({ items, source, loading, onSelect, runAction, onSync }) {
   const remote = firstArray(source?.items, source?.in_consultation, source?.data).map(normalizeFlowRemote);
   const rows = remote.length ? remote : items.filter((item) => item.currentStage === 'in_consultation' || item.queueStatus === 'in_service');
 
@@ -1144,7 +1067,7 @@ function InConsultationPatients({ items, source, loading, onSelect, runAction })
             </div>
             <footer onClick={(event) => event.stopPropagation()}>
               {item.encounterId ? <Link to={`/clinical/encounters/${item.encounterId}`}>Mở encounter</Link> : <span>Chưa có encounter</span>}
-              {item.queueId ? <button type="button" onClick={() => runAction('start-service', { queueId: item.queueId })}>Đồng bộ</button> : null}
+              <button type="button" className="sched-flow-sync-btn" onClick={() => onSync?.()}><RefreshCw size={14} /> Đồng bộ</button>
             </footer>
           </article>
         )) : <EmptyColumn label="Không có bệnh nhân đang khám" />}
@@ -1228,13 +1151,17 @@ function CompletedPatients({ items, completed, loading, onSelect, onSync }) {
 function PatientFlowDrawer({ item, onClose, runAction }) {
   return (
     <aside className="sched-queue-drawer">
-      <header>
+      <header className="sched-queue-drawer__header">
         <div>
           <span className="sched-command-eyebrow">Patient context</span>
           <h2>{item.patientName}</h2>
           <p>{item.patientCode} · {item.departmentName}</p>
         </div>
-        <button type="button" onClick={onClose}>Đóng</button>
+        <div className="sched-queue-drawer__headerActions">
+          <button type="button" className="sched-queue-drawer__close" onClick={onClose} aria-label="Đóng panel chi tiết" title="Đóng">
+            <XCircle size={18} />
+          </button>
+        </div>
       </header>
 
       <div className="sched-queue-drawer__section">

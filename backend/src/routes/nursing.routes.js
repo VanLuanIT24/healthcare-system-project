@@ -199,6 +199,7 @@ router.post('/intake/:ticketId/claim', authorize({ anyPermissions: nursingWriteP
 router.post('/intake/:ticketId/release', authorize({ anyPermissions: nursingWritePermissions }), nursingController.releaseQueueIntake);
 router.post('/intake/:ticketId/start', authorize({ anyPermissions: nursingWritePermissions }), nursingController.startQueueIntake);
 router.post('/intake/:ticketId/complete', authorize({ anyPermissions: nursingWritePermissions }), nursingController.completeQueueIntake);
+router.post('/intake/:ticketId/note', authorize({ anyPermissions: nursingWritePermissions }), nursingController.addQueueIntakeNote);
 router.post('/work-items/:workItemId/assign-to-me', authorize({ anyPermissions: nursingWritePermissions }), nursingController.assignWorkItemToMe);
 router.post('/work-items/:workItemId/complete', authorize({ anyPermissions: nursingWritePermissions }), nursingController.completeWorkItem);
 
@@ -216,8 +217,13 @@ router.get('/queue/metrics', authorize({ anyPermissions: dashboardReadPermission
 
 router.get('/vitals/pending', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getPendingVitals);
 router.get('/vitals/abnormal', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getAbnormalVitals);
+router.get('/vitals/history', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getVitalHistory);
+router.get('/vitals/nursing-notes', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getNursingVitalNotes);
 router.post('/vitals/:vitalSignId/acknowledge', authorize({ anyPermissions: nursingWritePermissions }), nursingController.acknowledgeVitalAlert);
 router.post('/vitals/:vitalSignId/notify-doctor', authorize({ anyPermissions: nursingWritePermissions }), nursingController.notifyDoctorOfVital);
+router.post('/vitals/:vitalSignId/request-recheck', authorize({ anyPermissions: nursingWritePermissions }), nursingController.requestVitalRecheck);
+router.post('/vitals/:vitalSignId/nursing-note', authorize({ anyPermissions: nursingWritePermissions }), nursingController.createVitalNursingNote);
+router.post('/vitals/:vitalSignId/escalate', authorize({ anyPermissions: nursingWritePermissions }), nursingController.escalateVitalAlert);
 
 router.get('/vital-corrections', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.listVitalCorrections);
 router.get('/vital-corrections/:requestId', authorize({ anyPermissions: dashboardReadPermissions }), nursingController.getVitalCorrectionDetail);

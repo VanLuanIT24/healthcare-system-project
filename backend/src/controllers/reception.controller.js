@@ -33,6 +33,7 @@ module.exports = {
   snoozeWorklistItem: wrap((req) => worklistService.snoozeWorklistItem(req.params.itemId, req.body, req.auth, requestMeta(req)), 'Snooze việc thành công.'),
 
   quickCheckin: wrap((req) => checkinService.quickCheckin(req.body, req.auth, requestMeta(req)), 'Quick check-in thành công.', 201),
+  previewQrCheckin: wrap((req) => checkinService.previewQrCheckin(req.body, req.auth, requestMeta(req)), 'Preview QR check-in thành công.'),
   qrCheckin: wrap((req) => checkinService.qrCheckin(req.body, req.auth, requestMeta(req)), 'QR check-in thành công.', 201),
   walkInCheckin: wrap((req) => checkinService.walkInCheckin(req.body, req.auth, requestMeta(req)), 'Walk-in check-in thành công.', 201),
 

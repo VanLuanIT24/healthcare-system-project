@@ -33,16 +33,20 @@ import {
   getFacilityDepartmentOperationsBoard,
   getFacilityDepartmentOperationalProfile,
   getFacilityOperationalStatus,
+  assignDepartmentHead,
   getFacilityOverview,
   getFacilityResourceBoard,
+  removeDepartmentHead,
   updateDepartmentStatus,
 } from '../../system/systemApi';
+import { getStaffAccounts } from '../../staff/staffApi';
 import {
   formatCompactDate,
   formatNumber,
   getDepartmentTypeLabel,
   getInitials,
 } from '../../system/systemUi';
+import '../../staff/staffWorkforcePro.css';
 
 const VIEW_META = {
   overview: {
@@ -131,6 +135,41 @@ function riskTone(severity) {
   return 'low';
 }
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function textValue(...values) {
+  const found = values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
+  return found === undefined ? '' : String(found);
+}
+
+function resourceName(item) {
+  return textValue(item.name, item.location_name, item.room_name, item.service_name, item.warehouse_name, item.procedure_name, item.code, item.service_code, item.department_name) || 'Chưa đặt tên';
+}
+
+function resourceType(item) {
+  return textValue(item.type, item.location_type, item.room_type, item.service_type, item.modality, item.warehouse_type, item.procedure_type) || 'resource';
+}
+
+function resourceDepartment(item) {
+  return textValue(item.department_name, item.department_code, item.department?.department_name) || 'Chưa gắn khoa';
+}
+
+function userIdOf(user) {
+  return user?.user_id || user?._id || user?.id || user?.account_id || '';
+}
+
+function userNameOf(user) {
+  return user?.full_name || user?.display_name || user?.username || user?.email || 'Nhân sự';
+}
+
+function normalizeStatus(value) {
+  if (value === true) return 'active';
+  if (value === false) return 'inactive';
+  return textValue(value, 'unknown').toLowerCase();
+}
+
 function FacilityHero({ view, onRefresh, loading }) {
   const meta = VIEW_META[view] || VIEW_META.overview;
   const Icon = meta.icon;
@@ -166,7 +205,8 @@ function MetricCard({ icon: Icon, label, value, note, tone = 'blue' }) {
 }
 
 function StatusBadge({ status }) {
-  return <span className={`facility-pro-status facility-pro-status--${status || 'unknown'}`}>{status || 'unknown'}</span>;
+  const normalized = normalizeStatus(status);
+  return <span className={`facility-pro-status facility-pro-status--${normalized}`}>{normalized}</span>;
 }
 
 function RiskBadge({ value }) {
@@ -313,58 +353,211 @@ function FacilityHeatmap({ heatmap = [], compact = false }) {
   );
 }
 
-function HeadsView({ departments, onSelect, selectedId, onOpen, onToggleStatus }) {
+function HeadsView({ departments, profile, selectedDepartmentId, setSelectedDepartmentId, headCandidates, onAssignHead, onRemoveHead, onOpen, assigning }) {
+  const selected = departments.find((item) => item.department_id === selectedDepartmentId) || departments[0];
+  const currentHeadId = selected?.head?.user_id || selected?.head_user_id || '';
+  const selectedDepartmentStaff = asArray(profile?.staff);
+  const candidates = selectedDepartmentStaff.length ? selectedDepartmentStaff : headCandidates;
+  const validCandidates = candidates.filter((user) => normalizeStatus(user.status || 'active') === 'active');
+  const [candidateId, setCandidateId] = useState('');
+
+  useEffect(() => {
+    setCandidateId(currentHeadId || '');
+  }, [currentHeadId, selectedDepartmentId]);
+
   const missing = departments.filter((item) => !item.head);
   const withHead = departments.filter((item) => item.head);
+
   return (
-    <>
+    <section className="facility-heads-pro">
       <section className="facility-pro-metrics">
         <MetricCard icon={Building2} label="Tổng khoa" value={departments.length} />
         <MetricCard icon={UserCheck} label="Đã có head" value={withHead.length} tone="green" />
         <MetricCard icon={AlertTriangle} label="Thiếu head" value={missing.length} tone="red" />
-        <MetricCard icon={ShieldAlert} label="Head inactive" value={withHead.filter((item) => item.head?.status !== 'active').length} tone="amber" />
+        <MetricCard icon={ShieldAlert} label="Head inactive" value={withHead.filter((item) => normalizeStatus(item.head?.status) !== 'active').length} tone="amber" />
       </section>
-      <DepartmentOperationsTable departments={[...missing, ...withHead]} onSelect={onSelect} selectedId={selectedId} onOpen={onOpen} onToggleStatus={onToggleStatus} />
-    </>
+
+      <section className="facility-heads-pro__layout">
+        <aside className="facility-heads-pro__departments">
+          <div className="facility-pro-panel__head"><h2>Khoa cần bổ nhiệm</h2><span>{formatNumber(departments.length)}</span></div>
+          <div className="facility-heads-pro__list">
+            {[...missing, ...withHead].map((department) => (
+              <button key={department.department_id} type="button" className={selected?.department_id === department.department_id ? 'is-active' : ''} onClick={() => setSelectedDepartmentId(department.department_id)}>
+                <strong>{department.department_code}</strong>
+                <span>{department.department_name}</span>
+                {department.head ? <small>{department.head.full_name || department.head.username}</small> : <RiskBadge value="missing_head" />}
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <main className="facility-heads-pro__console">
+          <section className="facility-heads-pro__hero-card">
+            <div>
+              <span>Department ownership</span>
+              <h2>{selected?.department_name || 'Chọn khoa/phòng'}</h2>
+              <p>{selected?.department_code || 'N/A'} · {getDepartmentTypeLabel(selected?.department_type)} · {selected?.location_note || 'Chưa cấu hình vị trí'}</p>
+            </div>
+            <StatusBadge status={selected?.status} />
+          </section>
+
+          <section className="facility-heads-pro__assign-card">
+            <div className="facility-heads-pro__current">
+              <span>Trưởng khoa hiện tại</span>
+              {selected?.head ? (
+                <div>
+                  <i>{getInitials(selected.head.full_name || selected.head.username)}</i>
+                  <strong>{selected.head.full_name || selected.head.username}</strong>
+                  <small>{selected.head.email || selected.head.status}</small>
+                </div>
+              ) : (
+                <p>Chưa có trưởng khoa. Hãy chọn một nhân sự active của khoa để nâng cấp/gán làm trưởng khoa.</p>
+              )}
+            </div>
+            <label className="facility-heads-pro__picker">
+              <span>Chọn nhân sự để gán trưởng khoa</span>
+              <select value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
+                <option value="">-- Chọn nhân sự active --</option>
+                {validCandidates.map((candidate) => (
+                  <option key={userIdOf(candidate)} value={userIdOf(candidate)}>
+                    {userNameOf(candidate)} · {candidate.employee_code || candidate.email || candidate.role_code || 'staff'}
+                  </option>
+                ))}
+              </select>
+              <small>{selectedDepartmentStaff.length ? 'Danh sách lấy từ operational profile của khoa đã chọn.' : 'Backend chưa trả staff theo khoa, đang dùng danh sách nhân sự active làm nguồn dự phòng.'}</small>
+            </label>
+            <div className="facility-heads-pro__actions">
+              <button type="button" className="staff-button staff-button--primary" disabled={!selected || !candidateId || assigning} onClick={() => onAssignHead(selected.department_id, candidateId)}>
+                <UserCheck size={16} /> {assigning ? 'Đang gán...' : 'Gán / nâng cấp trưởng khoa'}
+              </button>
+              <button type="button" className="staff-button staff-button--ghost" disabled={!selected?.head || assigning} onClick={() => onRemoveHead(selected.department_id)}>
+                Gỡ trưởng khoa
+              </button>
+              <button type="button" className="staff-button staff-button--ghost" disabled={!selected} onClick={() => onOpen(selected.department_id)}>
+                Mở hồ sơ khoa
+              </button>
+            </div>
+          </section>
+
+          <section className="facility-heads-pro__candidate-grid">
+            {validCandidates.slice(0, 12).map((candidate) => (
+              <button key={userIdOf(candidate)} type="button" className={candidateId === userIdOf(candidate) ? 'is-active' : ''} onClick={() => setCandidateId(userIdOf(candidate))}>
+                <i>{getInitials(userNameOf(candidate))}</i>
+                <strong>{userNameOf(candidate)}</strong>
+                <small>{candidate.email || candidate.employee_code || candidate.role_code || 'active staff'}</small>
+                <StatusBadge status={candidate.status || 'active'} />
+              </button>
+            ))}
+            {!validCandidates.length ? <p className="facility-pro-empty-text">Chưa có nhân sự active phù hợp để gán trưởng khoa.</p> : null}
+          </section>
+        </main>
+      </section>
+    </section>
   );
 }
 
 function StaffView({ departments, profile, selectedDepartmentId, setSelectedDepartmentId, onOpen }) {
   const selected = departments.find((item) => item.department_id === selectedDepartmentId) || departments[0];
+  const staffRows = profile?.staff || [];
+  const roleMix = staffRows.reduce((acc, user) => {
+    const roleLabel = user.primary_role || user.role_code || user.role_name || user.role || 'Chưa rõ role';
+    acc[roleLabel] = (acc[roleLabel] || 0) + 1;
+    return acc;
+  }, {});
+
   return (
-    <section className="facility-pro-workforce">
-      <aside className="facility-pro-workforce__nav">
-        {departments.map((department) => (
-          <button key={department.department_id} type="button" className={selected?.department_id === department.department_id ? 'is-active' : ''} onClick={() => setSelectedDepartmentId(department.department_id)}>
-            <strong>{department.department_name}</strong>
-            <span>{formatNumber(department.staff?.active)}/{formatNumber(department.staff?.total)} active</span>
-          </button>
-        ))}
-      </aside>
-      <main className="facility-pro-panel">
-        <div className="facility-pro-panel__head">
-          <h2>{selected?.department_name || 'Nhân sự theo khoa'}</h2>
-          <button type="button" className="staff-button staff-button--ghost" onClick={() => selected && onOpen(selected.department_id)}>Mở hồ sơ khoa</button>
+    <section className="facility-pro-workforce facility-pro-workforce--select">
+      <section className="facility-pro-panel facility-pro-workforce-console">
+        <div className="facility-pro-workforce-console__top">
+          <div>
+            <span>Department Workforce Matrix</span>
+            <h2>{selected?.department_name || 'Nhân sự theo khoa'}</h2>
+            <p>Chọn khoa bằng dropdown để tránh sidebar phụ dài, đồng thời xem nhanh staff active, locked, bác sĩ và danh sách Staff 360.</p>
+          </div>
+          <div className="facility-pro-department-picker">
+            <label htmlFor="facility-workforce-department">Khoa/phòng đang xem</label>
+            <select
+              id="facility-workforce-department"
+              value={selected?.department_id || ''}
+              onChange={(event) => setSelectedDepartmentId(event.target.value)}
+            >
+              {departments.map((department) => (
+                <option key={department.department_id} value={department.department_id}>
+                  {department.department_name} · {formatNumber(department.staff?.active)}/{formatNumber(department.staff?.total)} active
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <section className="facility-pro-metrics facility-pro-metrics--compact">
-          <MetricCard icon={UsersRound} label="Total staff" value={selected?.staff?.total || 0} />
-          <MetricCard icon={CheckCircle2} label="Active" value={selected?.staff?.active || 0} tone="green" />
-          <MetricCard icon={ShieldAlert} label="Locked" value={selected?.staff?.locked || 0} tone="red" />
-          <MetricCard icon={Stethoscope} label="Doctors" value={selected?.doctors_count || 0} tone="violet" />
+
+        <section className="facility-pro-workforce-summary">
+          <article>
+            <UsersRound size={18} />
+            <span>Total staff</span>
+            <strong>{formatNumber(selected?.staff?.total || 0)}</strong>
+            <small>{formatNumber(selected?.staff?.active || 0)} đang active</small>
+          </article>
+          <article>
+            <CheckCircle2 size={18} />
+            <span>Active</span>
+            <strong>{formatNumber(selected?.staff?.active || 0)}</strong>
+            <small>Sẵn sàng nhận lịch/queue</small>
+          </article>
+          <article>
+            <ShieldAlert size={18} />
+            <span>Locked</span>
+            <strong>{formatNumber(selected?.staff?.locked || 0)}</strong>
+            <small>Cần kiểm tra bảo mật</small>
+          </article>
+          <article>
+            <Stethoscope size={18} />
+            <span>Doctors</span>
+            <strong>{formatNumber(selected?.doctors_count || 0)}</strong>
+            <small>Lực lượng khám chính</small>
+          </article>
         </section>
-        <div className="facility-pro-mini-table">
-          {(profile?.staff || []).map((user) => (
-            <div key={user.user_id}>
-              <span className="facility-pro-avatar">{getInitials(user.full_name || user.username)}</span>
-              <strong>{user.full_name || user.username}</strong>
-              <small>{user.email || user.employee_code}</small>
-              <StatusBadge status={user.status} />
-              <Link to={`/admin/staff/${user.user_id}`}>Staff 360</Link>
+
+        <section className="facility-pro-workforce-content">
+          <div className="facility-pro-mini-table facility-pro-mini-table--staff">
+            <div className="facility-pro-mini-table__head">
+              <span>Nhân sự</span>
+              <span>Email / mã NV</span>
+              <span>Trạng thái</span>
+              <span>Hành động</span>
             </div>
-          ))}
-          {profile && !profile.staff?.length ? <p className="facility-pro-empty-text">Khoa này chưa có nhân sự trong dữ liệu trả về.</p> : null}
-        </div>
-      </main>
+            {staffRows.map((user) => (
+              <div key={user.user_id}>
+                <span className="facility-pro-avatar">{getInitials(user.full_name || user.username)}</span>
+                <strong>{user.full_name || user.username}</strong>
+                <small>{user.email || user.employee_code}</small>
+                <StatusBadge status={user.status} />
+                <Link to={`/admin/staff/${user.user_id}`}>Staff 360</Link>
+              </div>
+            ))}
+            {profile && !staffRows.length ? <p className="facility-pro-empty-text">Khoa này chưa có nhân sự trong dữ liệu trả về.</p> : null}
+          </div>
+
+          <aside className="facility-pro-workforce-side">
+            <button type="button" className="staff-button staff-button--primary" onClick={() => selected && onOpen(selected.department_id)}>
+              Mở hồ sơ khoa
+            </button>
+            <div>
+              <span>Mã khoa</span>
+              <strong>{selected?.department_code || 'N/A'}</strong>
+            </div>
+            <div>
+              <span>Loại khoa</span>
+              <strong>{getDepartmentTypeLabel(selected?.department_type)}</strong>
+            </div>
+            <div>
+              <span>Role mix</span>
+              {Object.keys(roleMix).length ? Object.entries(roleMix).slice(0, 6).map(([role, count]) => (
+                <em key={role}>{role}: {formatNumber(count)}</em>
+              )) : <em>Chưa có dữ liệu role từ profile.</em>}
+            </div>
+          </aside>
+        </section>
+      </section>
     </section>
   );
 }
@@ -429,74 +622,179 @@ function ResourceList({ title, items = [], primary, secondary, statusKey }) {
   );
 }
 
-function ResourceBoardView({ view, resources }) {
+function LocationCard({ item }) {
+  const status = item.status || (item.active ? 'active' : 'inactive');
+  const hasPhone = Boolean(item.phone || item.telephone || item.hotline);
+  const hasHours = Boolean(item.opening_hours || item.working_hours || item.hours);
+  const publicVisible = Boolean(item.public_visible || item.is_public || item.visible_on_portal);
+  return (
+    <article className="facility-location-card">
+      <div className="facility-location-card__top">
+        <strong>{resourceName(item)}</strong>
+        <StatusBadge status={status} />
+      </div>
+      <p>{resourceDepartment(item)} · {item.address || item.full_address || item.location_note || 'Chưa có địa chỉ/ghi chú địa điểm'}</p>
+      <div className="facility-location-card__chips">
+        <span>{resourceType(item)}</span>
+        <span className={hasPhone ? 'is-ready' : 'is-missing'}>{hasPhone ? 'PHONE' : 'NO PHONE'}</span>
+        <span className={hasHours ? 'is-ready' : 'is-missing'}>{hasHours ? 'HOURS' : 'NO HOURS'}</span>
+        <span className={publicVisible ? 'is-ready' : 'is-muted'}>{publicVisible ? 'PUBLIC' : 'INTERNAL'}</span>
+      </div>
+    </article>
+  );
+}
+
+function ResourceBoardView({ view, resources, departments = [] }) {
+  const locations = asArray(resources?.locations);
   if (view === 'locations') {
-    return <GenericResourceBoard icon={MapPin} title="Facility locations" items={resources?.locations || []} columns={['name', 'type', 'department_name', 'status', 'public_visible']} />;
-  }
-  if (view === 'reception') {
-    const items = (resources?.departments || []).map((department) => ({
-      name: department.department_name,
-      department_name: department.department_code,
-      type: 'queue department',
-      status: department.status,
-      public_visible: 'queue-ready',
-    }));
-    return <GenericResourceBoard icon={ClipboardList} title="Reception areas từ queue/department" items={items} columns={['name', 'type', 'department_name', 'status', 'public_visible']} />;
-  }
-  if (view === 'lab') {
-    const labLocations = (resources?.locations || []).filter((item) => item.type === 'lab');
+    const lanes = [
+      ['clinic', 'Clinic', Hospital],
+      ['reception', 'Reception', ClipboardList],
+      ['lab', 'Lab', TestTube2],
+      ['imaging', 'Imaging', MonitorCheck],
+      ['procedure', 'Procedure', Stethoscope],
+      ['pharmacy', 'Kho / nhà thuốc', Store],
+    ];
     return (
-      <>
+      <section className="facility-location-board">
+        <section className="facility-pro-metrics">
+          <MetricCard icon={MapPin} label="Tổng địa điểm" value={locations.length} tone="cyan" />
+          <MetricCard icon={CheckCircle2} label="Active" value={locations.filter((item) => normalizeStatus(item.status || item.active) === 'active').length} tone="green" />
+          <MetricCard icon={Building2} label="Chưa gắn khoa" value={locations.filter((item) => !item.department_id && !item.department_name).length} tone="amber" />
+          <MetricCard icon={Eye} label="Public portal" value={locations.filter((item) => item.public_visible || item.is_public || item.visible_on_portal).length} tone="blue" />
+        </section>
+        <div className="facility-location-board__lanes">
+          {lanes.map(([type, label, Icon]) => {
+            const laneItems = locations.filter((item) => {
+              const normalizedType = resourceType(item).toLowerCase();
+              if (type === 'pharmacy') return ['pharmacy', 'warehouse', 'storage'].some((keyword) => normalizedType.includes(keyword));
+              if (type === 'reception') return normalizedType.includes('reception') || normalizedType.includes('front');
+              return normalizedType.includes(type);
+            });
+            return (
+              <section key={type} className="facility-location-lane">
+                <div className="facility-location-lane__head"><Icon size={17} /><h2>{label}</h2><span>{formatNumber(laneItems.length)}</span></div>
+                <div className="facility-location-lane__list">
+                  {laneItems.slice(0, 12).map((item, index) => <LocationCard key={item.location_id || item.id || index} item={item} />)}
+                  {!laneItems.length ? <p>Chưa có địa điểm {label.toLowerCase()}.</p> : null}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
+  if (view === 'reception') {
+    const receptionLocations = locations.filter((item) => resourceType(item).toLowerCase().includes('reception') || resourceType(item).toLowerCase().includes('clinic'));
+    const queueDepartments = asArray(resources?.departments).length ? asArray(resources?.departments) : departments;
+    return (
+      <section className="facility-resource-console">
+        <section className="facility-pro-metrics">
+          <MetricCard icon={ClipboardList} label="Reception/clinic points" value={receptionLocations.length} />
+          <MetricCard icon={Activity} label="Queue departments" value={queueDepartments.length} tone="violet" />
+          <MetricCard icon={AlertTriangle} label="Thiếu địa điểm" value={queueDepartments.filter((item) => !item.locations_count).length} tone="amber" />
+        </section>
+        <GenericResourceBoard icon={ClipboardList} title="Khu vực tiếp nhận & queue-ready departments" items={receptionLocations.length ? receptionLocations : queueDepartments} columns={['name', 'department_name', 'type', 'status', 'public_visible']} />
+      </section>
+    );
+  }
+
+  if (view === 'lab') {
+    const labLocations = locations.filter((item) => resourceType(item).toLowerCase().includes('lab'));
+    return (
+      <section className="facility-resource-console">
         <section className="facility-pro-metrics">
           <MetricCard icon={TestTube2} label="Lab tests" value={resources?.lab?.tests_count || 0} />
           <MetricCard icon={FlaskConical} label="Specimen types" value={resources?.lab?.specimen_types_count || 0} tone="violet" />
           <MetricCard icon={Gauge} label="SLA rules" value={resources?.lab?.sla_rules_count || 0} tone="green" />
           <MetricCard icon={MapPin} label="Lab locations" value={labLocations.length} tone="cyan" />
         </section>
-        <GenericResourceBoard icon={TestTube2} title="Lab locations" items={labLocations} columns={['name', 'type', 'department_name', 'status', 'public_visible']} />
-      </>
+        <GenericResourceBoard icon={TestTube2} title="Lab readiness board" items={labLocations} columns={['name', 'department_name', 'address', 'status', 'public_visible']} />
+      </section>
     );
   }
+
   if (view === 'imaging') {
     return (
-      <>
-        <GenericResourceBoard icon={MonitorCheck} title="Imaging rooms" items={resources?.imaging_rooms || []} columns={['code', 'name', 'modality', 'maintenance_status', 'active']} />
-        <GenericResourceBoard icon={Activity} title="Imaging equipment" items={resources?.imaging_equipment || []} columns={['code', 'name', 'modality', 'manufacturer', 'status']} />
-      </>
+      <section className="facility-resource-console">
+        <GenericResourceBoard icon={MonitorCheck} title="Imaging rooms" items={asArray(resources?.imaging_rooms)} columns={['code', 'name', 'modality', 'maintenance_status', 'active']} />
+        <GenericResourceBoard icon={Activity} title="Imaging equipment" items={asArray(resources?.imaging_equipment)} columns={['code', 'name', 'modality', 'manufacturer', 'status']} />
+      </section>
     );
   }
+
   if (view === 'procedure') {
-    return <GenericResourceBoard icon={Stethoscope} title="Procedure catalog readiness" items={resources?.procedure_rooms?.catalog || []} columns={['procedure_code', 'procedure_name', 'status', 'location_count', 'service_id']} />;
+    const catalog = asArray(resources?.procedure_rooms?.catalog);
+    const rooms = asArray(resources?.procedure_rooms?.rooms);
+    return (
+      <section className="facility-resource-console">
+        <section className="facility-pro-metrics">
+          <MetricCard icon={Stethoscope} label="Procedure catalog" value={catalog.length} />
+          <MetricCard icon={DoorOpen} label="Procedure rooms" value={rooms.length} tone="violet" />
+        </section>
+        <GenericResourceBoard icon={Stethoscope} title="Procedure catalog readiness" items={catalog.length ? catalog : rooms} columns={catalog.length ? ['procedure_code', 'procedure_name', 'status', 'location_count', 'service_id'] : ['room_code', 'room_name', 'room_type', 'status', 'department_name']} />
+      </section>
+    );
   }
+
   if (view === 'warehouse') {
     return (
-      <>
-        <GenericResourceBoard icon={Store} title="Warehouses" items={resources?.warehouses || []} columns={['warehouse_code', 'name', 'type', 'department_name', 'status']} />
-        <GenericResourceBoard icon={PackageCheck} title="Storage locations" items={resources?.storage_locations || []} columns={['location_code', 'name', 'location_type', 'status', 'is_locked']} />
-      </>
+      <section className="facility-resource-console">
+        <GenericResourceBoard icon={Store} title="Warehouses" items={asArray(resources?.warehouses)} columns={['warehouse_code', 'name', 'type', 'department_name', 'status']} />
+        <GenericResourceBoard icon={PackageCheck} title="Storage locations" items={asArray(resources?.storage_locations)} columns={['location_code', 'name', 'location_type', 'status', 'is_locked']} />
+      </section>
     );
   }
-  return <GenericResourceBoard icon={Settings} title="Service bindings" items={resources?.services || []} columns={['service_code', 'service_name', 'service_type', 'department_name', 'status']} />;
+
+  const services = asArray(resources?.services);
+  return (
+    <section className="facility-bindings-pro">
+      <section className="facility-pro-metrics">
+        <MetricCard icon={Settings} label="Service catalog" value={services.length} />
+        <MetricCard icon={Building2} label="Có gắn khoa" value={services.filter((item) => item.department_id || item.department_name).length} tone="green" />
+        <MetricCard icon={MapPin} label="Có địa điểm/phòng" value={services.filter((item) => item.location_id || item.room_id || item.location_name || item.room_name).length} tone="cyan" />
+        <MetricCard icon={PackageCheck} label="Billable" value={services.filter((item) => item.is_billable || item.billable).length} tone="violet" />
+      </section>
+      <section className="facility-bindings-pro__flow">
+        <article><Building2 size={18} /><strong>Department</strong><small>Khoa/phòng sở hữu dịch vụ</small></article>
+        <article><MapPin size={18} /><strong>Location / Room</strong><small>Nơi bệnh nhân đến nhận dịch vụ</small></article>
+        <article><PackageCheck size={18} /><strong>ServiceCatalog</strong><small>Mã dịch vụ, loại dịch vụ, billable</small></article>
+        <article><CalendarClock size={18} /><strong>Queue / Schedule / Billing</strong><small>Điều kiện sẵn sàng vận hành</small></article>
+      </section>
+      <GenericResourceBoard icon={Settings} title="Service bindings" items={services} columns={['service_code', 'service_name', 'service_type', 'department_name', 'status', 'is_billable']} />
+    </section>
+  );
 }
 
 function GenericResourceBoard({ icon: Icon, title, items = [], columns = [] }) {
+  const rows = asArray(items);
   return (
-    <section className="facility-pro-panel">
-      <div className="facility-pro-panel__head"><h2><Icon size={18} /> {title}</h2><span>{formatNumber(items.length)}</span></div>
-      <div className="facility-pro-resource-table">
-        <div className="facility-pro-resource-table__head" style={{ '--facility-columns': columns.length }}>
-          {columns.map((column) => <span key={column}>{column}</span>)}
-        </div>
-        {items.map((item, index) => (
-          <div key={item.location_id || item.room_id || item.equipment_id || item.warehouse_id || item.service_id || index} className="facility-pro-resource-table__row" style={{ '--facility-columns': columns.length }}>
-            {columns.map((column) => {
-              const value = item[column];
-              if (column.includes('status') || column === 'active') return <StatusBadge key={column} status={String(value)} />;
-              return <span key={column}>{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value || 'N/A'}</span>;
-            })}
+    <section className="facility-pro-panel facility-pro-panel--resource">
+      <div className="facility-pro-panel__head"><h2><Icon size={18} /> {title}</h2><span>{formatNumber(rows.length)}</span></div>
+      {rows.length ? (
+        <div className="facility-pro-resource-table-wrap">
+          <div className="facility-pro-resource-table" style={{ '--facility-columns': columns.length }}>
+            <div className="facility-pro-resource-table__head">
+              {columns.map((column) => <span key={column}>{column}</span>)}
+            </div>
+            {rows.map((item, index) => (
+              <div key={item.location_id || item.room_id || item.equipment_id || item.warehouse_id || item.service_id || item.id || index} className="facility-pro-resource-table__row">
+                {columns.map((column) => {
+                  let value = item[column];
+                  if (column === 'name') value = resourceName(item);
+                  if (column === 'type') value = resourceType(item);
+                  if (column === 'department_name') value = resourceDepartment(item);
+                  if (column.includes('status') || column === 'active') return <StatusBadge key={column} status={value} />;
+                  if (column === 'public_visible' || column === 'is_billable' || column === 'is_locked') return <span key={column} className={value ? 'facility-pro-yes' : 'facility-pro-no'}>{value ? 'Yes' : 'No'}</span>;
+                  return <span key={column}>{textValue(value, 'N/A')}</span>;
+                })}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ) : <p className="facility-pro-empty-text">Chưa có dữ liệu cho bảng này từ backend.</p>}
     </section>
   );
 }
@@ -519,7 +817,7 @@ function StatusView({ status }) {
         </section>
         <section className="facility-pro-panel">
           <div className="facility-pro-panel__head"><h2>Critical blockers</h2><span>{formatNumber(status?.critical_blockers?.length || 0)}</span></div>
-          <div className="facility-pro-warning-list">
+          <div className="facility-pro-warning-list facility-pro-warning-list--scroll">
             {(status?.critical_blockers || []).map((warning, index) => (
               <article key={`${warning.resource_id}-${index}`}>
                 <RiskBadge value={warning.severity} />
@@ -542,6 +840,8 @@ export function FacilityControlPlanePage({ view = 'overview' }) {
   const [resources, setResources] = useState(null);
   const [status, setStatus] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [headCandidates, setHeadCandidates] = useState([]);
+  const [assigningHead, setAssigningHead] = useState(false);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -552,16 +852,18 @@ export function FacilityControlPlanePage({ view = 'overview' }) {
     setLoading(true);
     setError('');
     try {
-      const [overviewData, boardData, resourcesData, statusData] = await Promise.all([
+      const [overviewData, boardData, resourcesData, statusData, staffData] = await Promise.all([
         getFacilityOverview().catch(() => null),
         getFacilityDepartmentOperationsBoard(),
         getFacilityResourceBoard().catch(() => null),
         getFacilityOperationalStatus().catch(() => null),
+        getStaffAccounts('limit=200&status=active').catch(() => ({ items: [] })),
       ]);
       setOverview(overviewData);
       setBoard(boardData);
       setResources(resourcesData);
       setStatus(statusData);
+      setHeadCandidates(staffData?.items || []);
       const firstDepartmentId = routeDepartmentId || selectedDepartmentId || boardData?.items?.[0]?.department_id || '';
       setSelectedDepartmentId(firstDepartmentId);
       if (firstDepartmentId) {
@@ -611,6 +913,34 @@ export function FacilityControlPlanePage({ view = 'overview' }) {
     }
   }
 
+  async function handleAssignHead(departmentId, headUserId) {
+    if (!departmentId || !headUserId) return;
+    setAssigningHead(true);
+    setError('');
+    try {
+      await assignDepartmentHead(departmentId, headUserId);
+      await load();
+    } catch (assignError) {
+      setError(assignError.message);
+    } finally {
+      setAssigningHead(false);
+    }
+  }
+
+  async function handleRemoveHead(departmentId) {
+    if (!departmentId) return;
+    setAssigningHead(true);
+    setError('');
+    try {
+      await removeDepartmentHead(departmentId);
+      await load();
+    } catch (removeError) {
+      setError(removeError.message);
+    } finally {
+      setAssigningHead(false);
+    }
+  }
+
   const actualView = view === 'departmentProfile' ? 'profile' : view;
 
   return (
@@ -648,10 +978,10 @@ export function FacilityControlPlanePage({ view = 'overview' }) {
           <DepartmentDrawer department={(board?.items || []).find((item) => item.department_id === selectedDepartmentId)} profile={profile} onOpen={openDepartmentProfile} />
         </section>
       ) : null}
-      {!loading && actualView === 'heads' ? <HeadsView departments={departments} onSelect={setSelectedDepartmentId} selectedId={selectedDepartmentId} onOpen={openDepartmentProfile} onToggleStatus={toggleDepartmentStatus} /> : null}
+      {!loading && actualView === 'heads' ? <HeadsView departments={departments} profile={profile} selectedDepartmentId={selectedDepartmentId} setSelectedDepartmentId={setSelectedDepartmentId} headCandidates={headCandidates} onAssignHead={handleAssignHead} onRemoveHead={handleRemoveHead} onOpen={openDepartmentProfile} assigning={assigningHead} /> : null}
       {!loading && actualView === 'staff' ? <StaffView departments={departments} profile={profile} selectedDepartmentId={selectedDepartmentId} setSelectedDepartmentId={setSelectedDepartmentId} onOpen={openDepartmentProfile} /> : null}
       {!loading && actualView === 'profile' ? <ProfileView departments={board?.items || []} profile={profile} selectedDepartmentId={selectedDepartmentId} setSelectedDepartmentId={setSelectedDepartmentId} /> : null}
-      {!loading && ['locations', 'reception', 'lab', 'imaging', 'procedure', 'warehouse', 'bindings'].includes(actualView) ? <ResourceBoardView view={actualView} resources={resources} /> : null}
+      {!loading && ['locations', 'reception', 'lab', 'imaging', 'procedure', 'warehouse', 'bindings'].includes(actualView) ? <ResourceBoardView view={actualView} resources={resources} departments={board?.items || []} /> : null}
       {!loading && actualView === 'status' ? <StatusView status={status} /> : null}
     </section>
   );

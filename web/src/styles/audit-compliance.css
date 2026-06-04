@@ -728,3 +728,291 @@
     min-width: 100%;
   }
 }
+
+/* v5 audit & compliance polish: compliance cockpit with safer evidence tables */
+.audit-compliance-page {
+  max-width: 100%;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(51,65,85,0.10), transparent 25rem),
+    radial-gradient(circle at 92% 4%, rgba(37,99,235,0.12), transparent 28rem),
+    linear-gradient(180deg, #f8fbff 0%, #eef3f8 54%, #f8fafc 100%);
+}
+
+.audit-compliance-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 158px;
+  padding: 1.35rem;
+  border-radius: 18px;
+  border-left-width: 0;
+  border-color: rgba(37,99,235,0.15);
+  background:
+    radial-gradient(circle at right top, rgba(37,99,235,0.16), transparent 18rem),
+    linear-gradient(135deg, rgba(255,255,255,0.98), rgba(239,246,255,0.84));
+}
+
+.audit-compliance-hero::after {
+  content: '';
+  position: absolute;
+  right: -5rem;
+  top: -5rem;
+  width: 17rem;
+  height: 17rem;
+  border-radius: 999px;
+  background: rgba(37,99,235,0.10);
+  pointer-events: none;
+}
+
+.audit-compliance-hero__copy,
+.audit-compliance-hero__actions,
+.audit-compliance-hero__score { position: relative; z-index: 1; }
+
+.audit-compliance-kicker {
+  color: #2563eb;
+  font-weight: 950;
+  letter-spacing: 0.22em;
+}
+
+.audit-compliance-hero h1 {
+  letter-spacing: -0.045em;
+  color: #0f172a;
+}
+
+.audit-compliance-hero p {
+  max-width: 980px;
+  color: #64748b;
+  font-weight: 760;
+  line-height: 1.55;
+}
+
+.audit-compliance-hero__score {
+  border-radius: 18px;
+  min-width: 128px;
+  background: rgba(255,255,255,0.82);
+  box-shadow: 0 16px 30px rgba(15,23,42,0.08);
+}
+
+.audit-compliance-hero__score strong {
+  font-size: clamp(1.8rem, 2.4vw, 2.5rem);
+  letter-spacing: -0.06em;
+}
+
+.audit-compliance-hero__actions button,
+.audit-compliance-action,
+.audit-compliance-row-actions button,
+.audit-compliance-form-grid__actions button,
+.audit-compliance-drawer button {
+  min-height: 42px;
+  border-radius: 12px;
+  font-weight: 900;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.audit-compliance-hero__actions button:hover,
+.audit-compliance-action:hover,
+.audit-compliance-row-actions button:hover,
+.audit-compliance-form-grid__actions button:hover,
+.audit-compliance-drawer button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(15,23,42,0.10);
+}
+
+.audit-compliance-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
+  gap: 0.55rem;
+  padding: 0.78rem;
+  border-radius: 16px;
+  border: 1px solid rgba(148,163,184,0.28);
+  background: rgba(255,255,255,0.86);
+  box-shadow: 0 16px 34px rgba(15,23,42,0.06);
+  backdrop-filter: blur(14px);
+}
+
+.audit-compliance-nav a {
+  min-height: 48px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  color: #475569;
+  font-weight: 900;
+}
+
+.audit-compliance-nav a[aria-current='page'],
+.audit-compliance-nav a.active,
+.audit-compliance-nav a:hover {
+  color: #0f3c91;
+  border-color: rgba(37,99,235,0.25);
+  background: linear-gradient(135deg, #eff6ff, #f8fafc);
+}
+
+.audit-compliance-filter,
+.audit-compliance-panel,
+.audit-compliance-drawer,
+.audit-compliance-evidence,
+.audit-compliance-export,
+.audit-compliance-export-history {
+  border-radius: 16px;
+  border-color: rgba(148,163,184,0.30);
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 18px 36px rgba(15,23,42,0.07);
+}
+
+.audit-compliance-filter input,
+.audit-compliance-filter select,
+.audit-compliance-panel input,
+.audit-compliance-panel select,
+.audit-compliance-panel textarea,
+.audit-compliance-drawer input,
+.audit-compliance-drawer select,
+.audit-compliance-drawer textarea {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid #dbe5ef;
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 760;
+}
+
+.audit-compliance-filter input:focus,
+.audit-compliance-filter select:focus,
+.audit-compliance-panel input:focus,
+.audit-compliance-panel select:focus,
+.audit-compliance-panel textarea:focus,
+.audit-compliance-drawer input:focus,
+.audit-compliance-drawer select:focus,
+.audit-compliance-drawer textarea:focus {
+  outline: 3px solid rgba(37,99,235,0.16);
+  border-color: rgba(37,99,235,0.46);
+  background: #fff;
+}
+
+.audit-compliance-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.8rem;
+}
+
+.audit-compliance-metric {
+  min-height: 112px;
+  padding: 1rem;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.audit-compliance-metric strong {
+  font-size: clamp(1.45rem, 2vw, 2.08rem);
+  letter-spacing: -0.04em;
+}
+
+.audit-compliance-content-grid,
+.audit-compliance-detail-grid,
+.audit-compliance-task-grid,
+.audit-compliance-form-grid { min-width: 0; }
+
+.audit-compliance-panel__head {
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.75rem;
+}
+
+.audit-compliance-panel__head h2,
+.audit-compliance-panel h2 {
+  letter-spacing: -0.025em;
+  color: #0f172a;
+}
+
+.audit-compliance-table-wrap,
+.audit-compliance-table {
+  width: 100%;
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.audit-compliance-table table,
+table.audit-compliance-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.audit-compliance-table th,
+.audit-compliance-table td {
+  vertical-align: top;
+  border-bottom: 1px solid #eef2f7;
+  padding: 0.78rem 0.9rem;
+}
+
+.audit-compliance-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.audit-compliance-table tr:hover td { background: #f8fbff; }
+
+.audit-compliance-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.audit-compliance-drawer {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 130px);
+  overflow: auto;
+}
+
+.audit-compliance-json,
+.audit-compliance-diff {
+  max-height: 380px;
+  overflow: auto;
+  border-radius: 14px;
+  background: #0f172a;
+  color: #dbeafe;
+}
+
+.audit-compliance-empty,
+.audit-compliance-state,
+.audit-compliance-message {
+  border-radius: 16px;
+  color: #64748b;
+  font-weight: 850;
+  background: linear-gradient(135deg, #ffffff, #f8fafc);
+}
+
+.audit-compliance-alert {
+  border-radius: 16px;
+  max-height: 340px;
+  overflow: auto;
+}
+
+@media (max-width: 1120px) {
+  .audit-compliance-hero,
+  .audit-compliance-content-grid,
+  .audit-compliance-detail-grid,
+  .audit-compliance-task-grid,
+  .audit-compliance-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .audit-compliance-drawer { position: static; max-height: none; }
+}
+
+@media (max-width: 760px) {
+  .audit-compliance-page { padding: 0.65rem; }
+  .audit-compliance-hero { min-height: auto; }
+  .audit-compliance-hero__actions { width: 100%; justify-content: stretch; }
+  .audit-compliance-hero__actions button, .audit-compliance-hero__actions a { flex: 1; }
+  .audit-compliance-nav { grid-template-columns: 1fr; }
+}

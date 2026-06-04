@@ -17,8 +17,10 @@ import {
 } from 'lucide-react';
 import { getStaffAccounts } from '../../staff/staffApi';
 import {
+  assignDepartmentHead,
   createDepartmentWithDefaults,
   getDepartmentDetail,
+  removeDepartmentHead,
   updateDepartment,
   updateDepartmentStatus,
 } from '../systemApi';
@@ -76,6 +78,38 @@ function defaultRoomCode(code) {
 
 function defaultWarehouseCode(code) {
   return `${normalizeDepartmentCode(code) || 'DEPT'}-WH`;
+}
+
+function stripVietnamese(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+function codeFromName(name, type = 'clinical') {
+  const normalized = stripVietnamese(name)
+    .toUpperCase()
+    .replace(/KHOA|PHONG|TRUNG TAM|BO PHAN/g, ' ')
+    .replace(/[^A-Z0-9\s-]/g, ' ')
+    .trim();
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const prefixByType = {
+    clinical: 'CLN', laboratory: 'LAB', lab: 'LAB', imaging: 'IMG', procedure: 'PROC', pharmacy: 'PHA', warehouse: 'WH', reception: 'REC', billing: 'BIL', emergency: 'ER', inpatient: 'INP', administration: 'ADM', support: 'SUP', other: 'DEPT',
+  };
+  if (!words.length) return prefixByType[type] || 'DEPT';
+  const acronym = words.map((word) => word[0]).join('').slice(0, 8);
+  return normalizeDepartmentCode(acronym.length >= 2 ? acronym : `${prefixByType[type] || 'DEPT'}-${words[0].slice(0, 4)}`);
+}
+
+function suggestedCodes(name, type) {
+  const base = codeFromName(name, type);
+  const prefixByType = {
+    clinical: 'CLN', laboratory: 'LAB', lab: 'LAB', imaging: 'IMG', procedure: 'PROC', pharmacy: 'PHA', warehouse: 'WH', reception: 'REC', billing: 'BIL', emergency: 'ER', inpatient: 'INP', administration: 'ADM', support: 'SUP', other: 'DEPT',
+  };
+  const typePrefix = prefixByType[type] || 'DEPT';
+  return Array.from(new Set([base, `${base}-01`, `${typePrefix}-${base}`].map(normalizeDepartmentCode).filter(Boolean))).slice(0, 3);
 }
 
 function ToggleCard({ active, icon: Icon, title, description, onClick }) {
@@ -180,6 +214,8 @@ function DepartmentFormPage({ mode }) {
     [form.head_user_id, headCandidates],
   );
 
+  const codeSuggestions = useMemo(() => suggestedCodes(form.department_name, form.department_type), [form.department_name, form.department_type]);
+
   const workspaceSuggestions = useMemo(() => {
     const map = {
       clinical: ['scheduling', 'doctor', 'nursing', 'reports'],
@@ -225,6 +261,11 @@ function DepartmentFormPage({ mode }) {
           location_note: form.location_note,
         });
         await updateDepartmentStatus(departmentId, form.status);
+        if (form.head_user_id) {
+          await assignDepartmentHead(departmentId, form.head_user_id);
+        } else {
+          await removeDepartmentHead(departmentId).catch(() => null);
+        }
         navigate(`/admin/facilities/departments/${departmentId}`, { replace: true });
         return;
       }
@@ -276,6 +317,11 @@ function DepartmentFormPage({ mode }) {
               </Field>
               <Field label="Mã khoa/phòng">
                 <input value={form.department_code} onChange={(event) => updateForm('department_code', event.target.value)} placeholder="CARDIO" />
+                <div className="facility-create-pro-code-suggest">
+                  {codeSuggestions.map((code) => (
+                    <button key={code} type="button" onClick={() => updateForm('department_code', code)}>{code}</button>
+                  ))}
+                </div>
               </Field>
               <Field label="Loại khoa">
                 <select value={form.department_type} onChange={(event) => updateForm('department_type', event.target.value)}>
@@ -304,7 +350,7 @@ function DepartmentFormPage({ mode }) {
                     <option key={candidate.user_id} value={candidate.user_id}>{candidate.full_name || candidate.username}</option>
                   ))}
                 </select>
-                <small>{isEdit ? 'Backend sẽ kiểm tra active, đúng khoa và role department_head khi gán ở màn chi tiết.' : 'Khoa mới cần có nhân sự thuộc khoa trước khi gán trưởng khoa.'}</small>
+                <small>{isEdit ? 'Khi lưu, frontend gọi API assignDepartmentHead/removeDepartmentHead. Backend vẫn kiểm tra nhân sự active và quan hệ khoa.' : 'Khoa mới nên tạo trước resource mặc định, sau đó vào trang Trưởng khoa để chọn nhân sự thuộc khoa.'}</small>
               </Field>
               <div className="facility-create-pro-head-preview">
                 <span>{selectedHead ? selectedHead.full_name || selectedHead.username : 'Chưa chọn head'}</span>

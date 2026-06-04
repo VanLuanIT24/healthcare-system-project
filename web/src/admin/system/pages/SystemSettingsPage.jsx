@@ -292,8 +292,8 @@ export function SystemSettingsPage() {
       || { module_key: 'general', route_key: 'general', title: 'Cấu hình chung' };
   }, [activeTab, overview]);
 
-  const settings = moduleData?.settings || [];
-  const validationIssues = moduleData?.validation?.issues || [];
+  const settings = Array.isArray(moduleData?.settings) ? moduleData.settings : [];
+  const validationIssues = Array.isArray(moduleData?.validation?.issues) ? moduleData.validation.issues : [];
   const changedSettings = useMemo(
     () => settings.filter((setting) => isSettingChanged(setting, drafts, initialDrafts)),
     [settings, drafts, initialDrafts],
@@ -461,7 +461,8 @@ export function SystemSettingsPage() {
   const restartRequired = changedSettings.filter((setting) => setting.requires_restart);
   const affectedServices = [...new Set(changedSettings.flatMap((setting) => setting.affected_services || []))];
   const driftCount = drift?.drift_count || 0;
-  const secretCount = secrets?.items?.filter((item) => item.configured).length || 0;
+  const secretItems = Array.isArray(secrets?.items) ? secrets.items : [];
+  const secretCount = secretItems.filter((item) => item.configured).length || 0;
 
   return (
     <section className="platform-config-page">
@@ -520,6 +521,24 @@ export function SystemSettingsPage() {
       {error ? <ErrorBlock message={error} onRetry={() => loadModule(activeModule.module_key)} /> : null}
       {message ? <p className="form-message success">{message}</p> : null}
 
+      <section className="platform-config-command-deck">
+        <article>
+          <span>Backend contract</span>
+          <strong>/api/platform-config/modules/{activeModule?.module_key}</strong>
+          <small>Đọc cấu hình hiệu lực, nguồn DB/ENV/default, validation, secrets fingerprint và cờ requires_restart.</small>
+        </article>
+        <article>
+          <span>Quy trình vận hành</span>
+          <strong>Validate → Test → Apply → Reload → Audit</strong>
+          <small>Mọi thay đổi đều cần lý do, ghi revision, preview affected_services và rollback được theo setting.</small>
+        </article>
+        <article>
+          <span>Production readiness</span>
+          <strong>{restartRequired.length ? `${restartRequired.length} cấu hình cần restart` : 'Runtime-safe'}</strong>
+          <small>Ưu tiên bật dần theo module để tránh làm gián đoạn đăng nhập, thanh toán, realtime và upload.</small>
+        </article>
+      </section>
+
       <section className="platform-config-nav">
         {(overview?.modules || []).map((module) => {
           const Icon = MODULE_ICONS[module.module_key] || Settings;
@@ -565,6 +584,8 @@ export function SystemSettingsPage() {
             </div>
             {moduleLoading ? (
               <div className="platform-config-table__empty"><RefreshCw size={16} /> Đang tải module...</div>
+            ) : !filteredSettings.length ? (
+              <div className="platform-config-table__empty"><Database size={16} /> Chưa có cấu hình phù hợp. Backend có thể chưa seed module này.</div>
             ) : filteredSettings.map((setting) => (
               <button
                 type="button"
@@ -598,7 +619,9 @@ export function SystemSettingsPage() {
           </div>
 
           <div className="platform-config-editor__list">
-            {filteredSettings.map((setting) => (
+            {!filteredSettings.length ? (
+              <div className="platform-config-empty"><Settings size={22} /><span>Không có setting để chỉnh sửa trong module này.</span></div>
+            ) : filteredSettings.map((setting) => (
               <label key={setting.setting_key} className={`platform-config-field${isSettingChanged(setting, drafts, initialDrafts) ? ' is-dirty' : ''}`}>
                 <span>
                   <strong>{setting.setting_name}</strong>

@@ -46,8 +46,10 @@ router.post('/validate-status-transition', authorize({ anyPermissions: [PERMISSI
 router.post('/check-doctor-conflict', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CREATE, PERMISSION.SCHEDULES.READ] }), appointmentController.checkAppointmentConflictForDoctor);
 router.post('/check-patient-conflict', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CREATE] }), appointmentController.checkAppointmentConflictForPatient);
 router.post('/', authorize({ permissions: [PERMISSION.APPOINTMENTS.CREATE] }), domainValidators.appointment.request.booking, idempotencyRequired({ route: '/api/appointments' }), appointmentController.createAppointment);
+router.post('/staff', authorize({ permissions: [PERMISSION.APPOINTMENTS.CREATE] }), domainValidators.appointment.request.booking, idempotencyRequired({ route: '/api/appointments/staff' }), appointmentController.createAppointmentByStaff);
 router.post('/staff-create', authorize({ permissions: [PERMISSION.APPOINTMENTS.CREATE] }), domainValidators.appointment.request.booking, idempotencyRequired({ route: '/api/appointments/staff-create' }), appointmentController.createAppointmentByStaff);
 router.get('/waitlist', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.READ_DEPARTMENT] }), appointmentWaitlistController.listWaitlist);
+router.post('/waitlist', authorize({ permissions: [PERMISSION.APPOINTMENTS.CREATE] }), appointmentWaitlistController.createWaitlist);
 router.post('/waitlist/:waitlistId/offer-slot', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CREATE, PERMISSION.SCHEDULE_SLOTS.READ] }), appointmentWaitlistController.offerSlot);
 router.post('/waitlist/:waitlistId/book', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CREATE] }), appointmentWaitlistController.bookWaitlist);
 router.post('/waitlist/:waitlistId/cancel', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CANCEL, PERMISSION.APPOINTMENTS.CANCEL_BY_POLICY] }), appointmentWaitlistController.cancelWaitlist);
@@ -68,6 +70,8 @@ router.get('/:appointmentId/can-reschedule', authorize({ anyPermissions: [PERMIS
 router.get('/:appointmentId/can-check-in', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CHECKIN] }), appointmentController.checkAppointmentCanBeCheckedIn);
 router.patch('/:appointmentId', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.UPDATE, PERMISSION.APPOINTMENTS.UPDATE_BASIC] }), appointmentController.updateAppointment);
 router.post('/:appointmentId/confirm', authorize({ permissions: [PERMISSION.APPOINTMENTS.CONFIRM] }), appointmentController.confirmAppointment);
+router.post('/:appointmentId/reminder', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CONFIRM, PERMISSION.APPOINTMENTS.UPDATE, PERMISSION.APPOINTMENTS.UPDATE_BASIC] }), appointmentController.sendAppointmentReminder);
+router.post('/:appointmentId/call-log', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CONFIRM, PERMISSION.APPOINTMENTS.UPDATE, PERMISSION.APPOINTMENTS.UPDATE_BASIC] }), appointmentController.logAppointmentCall);
 router.post('/:appointmentId/cancel', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CANCEL, PERMISSION.APPOINTMENTS.CANCEL_BY_POLICY] }), appointmentController.cancelAppointment);
 router.post('/:appointmentId/reschedule', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.RESCHEDULE, PERMISSION.APPOINTMENTS.RESCHEDULE_BY_POLICY] }), appointmentController.rescheduleAppointment);
 router.post('/:appointmentId/check-in', authorize({ anyPermissions: [PERMISSION.APPOINTMENTS.CHECKIN, PERMISSION.QUEUE.CREATE] }), appointmentController.checkInAppointment);

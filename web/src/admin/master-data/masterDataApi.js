@@ -3,13 +3,20 @@ import { fetchWithAuth } from '../../lib/authSession';
 
 async function request(url, options) {
   const response = await fetchWithAuth(url, options);
-  const payload = await response.json();
+  const text = await response.text();
+  let payload = {};
+
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch (error) {
+    payload = { message: text || 'Backend trả về response không phải JSON.' };
+  }
 
   if (!response.ok) {
     throw new Error(payload?.message || 'Không thể xử lý yêu cầu Master Data.');
   }
 
-  return payload?.data;
+  return payload?.data ?? payload;
 }
 
 export function getMasterDataOverview() {

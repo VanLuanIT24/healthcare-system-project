@@ -36,6 +36,10 @@ router.use(authorize({ actorTypes: ['staff'] }));
 
 router.get('/overview', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.getOverview);
 router.get('/search', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.search);
+router.get('/queue', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.getQueue);
+router.get('/schedules/today', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.getTodaySchedule);
+router.get('/patients', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.getDoctorPatients);
+router.get('/encounters', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.getDoctorEncounters);
 router.get('/tasks', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.getTasks);
 router.get('/results', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.getResults);
 router.get('/collaboration', authorize({ anyPermissions: workspaceReadPermissions }), doctorWorkspaceController.getCollaboration);

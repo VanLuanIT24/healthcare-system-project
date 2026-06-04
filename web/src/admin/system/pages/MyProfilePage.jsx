@@ -1,5 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  Activity,
+  BadgeCheck,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Fingerprint,
+  History,
+  KeyRound,
+  Laptop,
+  LockKeyhole,
+  Mail,
+  MapPin,
+  Phone,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  ShieldEllipsis,
+  Sparkles,
+  UserRound,
+  UsersRound,
+} from 'lucide-react';
 import { getDepartments } from '../../staff/staffApi';
 import {
   getMyLoginHistory,
@@ -10,28 +33,87 @@ import {
   logoutAllMyDevices,
   updateMyProfile,
 } from '../systemApi';
-import { formatCompactDate, formatNumber, formatRelativeTime, getInitials } from '../systemUi';
+import { formatCompactDate, formatDateTime, formatNumber, formatRelativeTime, getBrowserLabel, getDeviceLabel, getInitials } from '../systemUi';
+import './myProfilePro.css';
+
+function pickProfile(payload) {
+  return payload?.profile || payload?.user || payload?.account || payload?.data?.profile || payload?.data?.user || payload?.data || payload || null;
+}
+
+function normalizeList(payload, key) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.[key])) return payload[key];
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
 
 function getSecurityScore(profile, permissions, sessions) {
-  let score = 62;
-  if (!profile?.must_change_password) score += 18;
-  if ((permissions?.length || 0) >= 5) score += 10;
-  if ((sessions?.filter((item) => item.is_active).length || 0) <= 3) score += 10;
+  let score = 58;
+  if (profile?.status === 'active' || profile?.is_active) score += 10;
+  if (!profile?.must_change_password) score += 12;
+  if ((permissions?.length || 0) >= 20) score += 8;
+  if ((sessions?.filter((item) => item.is_active).length || 0) <= 3) score += 8;
+  if (profile?.last_login_at) score += 4;
   return Math.min(score, 100);
 }
 
-function guessGender(fullName = '') {
-  const lower = String(fullName || '').toLowerCase();
-  if (/(thị|thu|ngọc|lan|mai|hoa|huệ|lệ|trang|anh)\b/.test(lower)) return 'Nữ';
-  if (lower) return 'Nam';
-  return 'Chưa cập nhật';
+function getSecurityTone(score) {
+  if (score >= 86) return 'Ổn định';
+  if (score >= 70) return 'Tốt';
+  if (score >= 50) return 'Cần theo dõi';
+  return 'Rủi ro';
+}
+
+function getDisplayName(profile) {
+  return profile?.full_name || profile?.name || profile?.display_name || profile?.username || 'Tài khoản quản trị';
+}
+
+function getRoleLabel(role) {
+  return role?.role_name || role?.name || role?.role_code || role?.code || 'Vai trò hệ thống';
+}
+
+function getRoleCode(role) {
+  return role?.role_code || role?.code || role?.id || getRoleLabel(role);
+}
+
+function getPermissionCode(permission) {
+  return typeof permission === 'string' ? permission : permission?.permission_code || permission?.code || permission?.name || 'permission.unknown';
+}
+
+function groupPermissions(permissions) {
+  return permissions.reduce((groups, item) => {
+    const code = getPermissionCode(item);
+    const moduleKey = code.split('.')[0] || 'general';
+    groups[moduleKey] = groups[moduleKey] || [];
+    groups[moduleKey].push(code);
+    return groups;
+  }, {});
+}
+
+function SessionCard({ session, index }) {
+  const device = getDeviceLabel(session?.user_agent || '');
+  const browser = getBrowserLabel(session?.user_agent || '');
+  return (
+    <article className="profile-session-card">
+      <span className="profile-session-card__icon"><Laptop size={18} /></span>
+      <div>
+        <strong>{index === 0 ? 'Phiên hiện tại / gần nhất' : `${device} khác`}</strong>
+        <small>{browser} · {session?.ip_address || 'IP chưa ghi nhận'}</small>
+      </div>
+      <span className={session?.is_active ? 'profile-status profile-status--green' : 'profile-status profile-status--slate'}>
+        {session?.is_active ? 'Active' : 'Inactive'}
+      </span>
+    </article>
+  );
 }
 
 export function MyProfilePage() {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('personal');
+  const [activeTab, setActiveTab] = useState('overview');
   const [data, setData] = useState({
     profile: null,
     roles: [],
@@ -44,304 +126,294 @@ export function MyProfilePage() {
 
   async function loadData() {
     setError('');
-    const [profileData, rolesData, permissionsData, sessionsData, departmentsData, loginHistoryData] = await Promise.all([
-      getMyProfile(),
-      getMyRoles(),
-      getMyPermissions(),
-      getMySessions(),
-      getDepartments('limit=100'),
-      getMyLoginHistory('limit=6').catch(() => ({ items: [] })),
-    ]);
+    setLoading(true);
+    try {
+      const [profileData, rolesData, permissionsData, sessionsData, departmentsData, loginHistoryData] = await Promise.all([
+        getMyProfile(),
+        getMyRoles().catch(() => ({ roles: [] })),
+        getMyPermissions().catch(() => ({ permissions: [] })),
+        getMySessions().catch(() => ({ items: [] })),
+        getDepartments('limit=200').catch(() => ({ items: [] })),
+        getMyLoginHistory('limit=8').catch(() => ({ items: [] })),
+      ]);
 
-    const profile = profileData?.profile;
-    setData({
-      profile,
-      roles: rolesData?.roles || [],
-      permissions: permissionsData?.permissions || [],
-      sessions: sessionsData?.items || [],
-      departments: departmentsData?.items || [],
-      loginHistory: loginHistoryData?.items || [],
-    });
-    setForm({
-      full_name: profile?.full_name || '',
-      email: profile?.email || '',
-      phone: profile?.phone || '',
-    });
+      const profile = pickProfile(profileData);
+      const roles = normalizeList(rolesData, 'roles');
+      const permissions = normalizeList(permissionsData, 'permissions');
+      const sessions = normalizeList(sessionsData, 'items');
+      const departments = normalizeList(departmentsData, 'items');
+      const loginHistory = normalizeList(loginHistoryData, 'items');
+
+      setData({ profile, roles, permissions, sessions, departments, loginHistory });
+      setForm({
+        full_name: profile?.full_name || profile?.name || profile?.display_name || '',
+        email: profile?.email || '',
+        phone: profile?.phone || '',
+      });
+    } catch (loadError) {
+      setError(loadError?.message || 'Không thể tải hồ sơ cá nhân.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    loadData().catch((loadError) => setError(loadError.message));
+    loadData();
   }, []);
 
-  const departmentName = useMemo(
-    () => data.departments.find((item) => item.department_id === data.profile?.department_id)?.department_name || 'Quản trị hệ thống',
-    [data.departments, data.profile],
-  );
-
-  const securityScore = useMemo(
-    () => getSecurityScore(data.profile, data.permissions, data.sessions),
-    [data.permissions, data.profile, data.sessions],
-  );
-
-  const activeSessions = useMemo(
-    () => data.sessions.filter((item) => item.is_active),
-    [data.sessions],
-  );
+  const profile = data.profile;
+  const displayName = getDisplayName(profile);
+  const primaryRole = data.roles[0];
+  const activeSessions = useMemo(() => data.sessions.filter((item) => item.is_active), [data.sessions]);
+  const securityScore = useMemo(() => getSecurityScore(profile, data.permissions, data.sessions), [profile, data.permissions, data.sessions]);
+  const permissionGroups = useMemo(() => groupPermissions(data.permissions), [data.permissions]);
+  const topModules = Object.entries(permissionGroups).sort((a, b) => b[1].length - a[1].length).slice(0, 6);
+  const departmentName = useMemo(() => {
+    const id = profile?.department_id || profile?.department?._id || profile?.department?.department_id;
+    return data.departments.find((item) => item.department_id === id || item._id === id)?.department_name
+      || profile?.department_name
+      || profile?.department?.department_name
+      || 'System Control Plane';
+  }, [data.departments, profile]);
 
   async function handleSave() {
     setSaving(true);
     setError('');
     try {
       const result = await updateMyProfile(form);
-      setData((current) => ({ ...current, profile: result?.profile || current.profile }));
+      const updatedProfile = pickProfile(result) || { ...profile, ...form };
+      setData((current) => ({ ...current, profile: updatedProfile }));
       setEditing(false);
     } catch (saveError) {
-      setError(saveError.message);
+      setError(saveError?.message || 'Không thể lưu hồ sơ.');
     } finally {
       setSaving(false);
     }
   }
 
   async function handleLogoutAll() {
+    setError('');
     try {
       await logoutAllMyDevices();
       await loadData();
     } catch (logoutError) {
-      setError(logoutError.message);
+      setError(logoutError?.message || 'Không thể đăng xuất các thiết bị.');
     }
   }
 
-  if (!data.profile) {
-    return <section className="staff-loading-panel">{error || 'Đang tải hồ sơ cá nhân...'}</section>;
+  if (loading) {
+    return (
+      <section className="profile-pro-page">
+        <div className="profile-pro-loading">
+          <RefreshCw size={22} className="profile-pro-spin" />
+          <strong>Đang tải hồ sơ quản trị...</strong>
+          <span>Đồng bộ profile, vai trò, quyền, phiên và lịch sử đăng nhập.</span>
+        </div>
+      </section>
+    );
   }
 
-  const profile = data.profile;
-  const lastSession = activeSessions[0];
+  if (!profile) {
+    return (
+      <section className="profile-pro-page">
+        <div className="profile-pro-error">
+          <ShieldEllipsis size={26} />
+          <h1>Không thể hiển thị hồ sơ</h1>
+          <p>{error || 'Backend chưa trả về thông tin tài khoản hiện tại.'}</p>
+          <button type="button" onClick={loadData}>Tải lại</button>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section className="role-page system-admin-page admin-profile-page">
-      <section className="admin-panel admin-profile-hero">
-        <div className="admin-profile-hero__main">
-          <div className="admin-profile-hero__portrait">
-            <div className="admin-profile-hero__portrait-frame">
-              <span>{getInitials(profile.full_name || profile.username)}</span>
-            </div>
-            <span className="admin-profile-hero__presence" />
+    <section className="profile-pro-page">
+      <section className="profile-pro-hero">
+        <div className="profile-pro-hero__identity">
+          <div className="profile-pro-avatar">
+            <span>{getInitials(displayName)}</span>
+            <i />
           </div>
-
-          <div className="admin-profile-hero__content">
-            <div className="admin-profile-hero__chips">
-            <span className="role-chip role-chip--teal">Đang hoạt động</span>
-              {data.roles.slice(0, 1).map((role) => (
-                <span key={role.role_code} className="role-chip role-chip--indigo">{role.role_name || role.role_code}</span>
-              ))}
-            </div>
-
-            <div>
-              <h1>{profile.full_name || profile.username}</h1>
-              <p>Hệ thống Quản trị Cấp cao • ID: {profile.employee_code || 'AA-2023-001'}</p>
-            </div>
-
-            <div className="admin-profile-hero__actions">
-              <button type="button" className="staff-button staff-button--primary admin-profile-button" onClick={() => (editing ? handleSave() : setEditing(true))}>
-                {editing ? (saving ? 'Đang lưu...' : 'Lưu hồ sơ') : '✎ Chỉnh sửa hồ sơ'}
-              </button>
-              <Link to="/admin/security/change-password" className="staff-button staff-button--ghost admin-profile-button">↻ Đổi mật khẩu</Link>
+          <div className="profile-pro-hero__copy">
+            <span className="profile-pro-eyebrow">ADMIN PROFILE CENTER</span>
+            <h1>{displayName}</h1>
+            <p>{profile.email || profile.username || 'Tài khoản quản trị'} · {departmentName}</p>
+            <div className="profile-pro-chipline">
+              <span><BadgeCheck size={15} /> {getRoleLabel(primaryRole)}</span>
+              <span><ShieldCheck size={15} /> {getSecurityTone(securityScore)} · {securityScore}%</span>
+              <span><Clock3 size={15} /> {formatRelativeTime(profile.last_login_at)}</span>
             </div>
           </div>
         </div>
+        <div className="profile-pro-hero__actions">
+          <button type="button" className="profile-pro-btn profile-pro-btn--ghost" onClick={loadData}>
+            <RefreshCw size={17} /> Làm mới
+          </button>
+          <button type="button" className="profile-pro-btn profile-pro-btn--primary" onClick={() => (editing ? handleSave() : setEditing(true))} disabled={saving}>
+            {editing ? <Save size={17} /> : <UserRound size={17} />}
+            {editing ? (saving ? 'Đang lưu...' : 'Lưu hồ sơ') : 'Chỉnh sửa hồ sơ'}
+          </button>
+          {editing ? (
+            <button type="button" className="profile-pro-btn profile-pro-btn--ghost" onClick={() => setEditing(false)}>
+              Hủy
+            </button>
+          ) : null}
+        </div>
       </section>
 
-      <section className="admin-profile-stats">
-        <article className="admin-panel admin-profile-stat">
-          <span className="admin-profile-stat__icon admin-profile-stat__icon--indigo">▣</span>
-          <div>
-            <small>Phòng ban</small>
-            <strong>{departmentName}</strong>
-          </div>
-        </article>
-        <article className="admin-panel admin-profile-stat">
-          <span className="admin-profile-stat__icon admin-profile-stat__icon--teal">◫</span>
-          <div>
-            <small>Ngày tham gia</small>
-            <strong>{formatCompactDate(profile.created_at) || '15/01/2023'}</strong>
-          </div>
-        </article>
-        <article className="admin-panel admin-profile-stat">
-          <span className="admin-profile-stat__icon admin-profile-stat__icon--amber">⇢</span>
-          <div>
-            <small>Đăng nhập</small>
-            <strong>{formatRelativeTime(profile.last_login_at)}</strong>
-          </div>
-        </article>
-        <article className="admin-panel admin-profile-stat">
-          <span className="admin-profile-stat__icon admin-profile-stat__icon--green">⛨</span>
-          <div>
-            <small>Bảo mật</small>
-            <strong>Tối ưu - {securityScore}%</strong>
-          </div>
-        </article>
+      {error ? <div className="profile-pro-alert">{error}</div> : null}
+
+      <section className="profile-pro-metrics">
+        <article><Building2 size={20} /><span>Workspace</span><strong>{departmentName}</strong></article>
+        <article><UsersRound size={20} /><span>Vai trò</span><strong>{formatNumber(data.roles.length)}</strong></article>
+        <article><Fingerprint size={20} /><span>Quyền hiệu lực</span><strong>{formatNumber(data.permissions.length)}</strong></article>
+        <article><Laptop size={20} /><span>Phiên active</span><strong>{formatNumber(activeSessions.length)}</strong></article>
       </section>
 
-      <section className="admin-panel admin-profile-tabs">
+      <section className="profile-pro-tabs" role="tablist" aria-label="Hồ sơ quản trị">
         {[
-          ['personal', 'Thông tin cá nhân'],
-          ['roles', 'Vai trò & Quyền hạn'],
-          ['security', 'Bảo mật & Phiên'],
-          ['activity', 'Nhật ký cá nhân'],
-        ].map(([key, label]) => (
+          ['overview', 'Tổng quan', UserRound],
+          ['access', 'Vai trò & quyền', ShieldCheck],
+          ['security', 'Bảo mật & phiên', LockKeyhole],
+          ['activity', 'Nhật ký', History],
+        ].map(([key, label, Icon]) => (
           <button key={key} type="button" className={activeTab === key ? 'is-active' : ''} onClick={() => setActiveTab(key)}>
-            {label}
+            <Icon size={17} /> {label}
           </button>
         ))}
       </section>
 
-      <section className="admin-profile-workspace">
-        <div className="admin-profile-main">
-          {(activeTab === 'personal' || activeTab === 'roles') && (
-            <article className="admin-panel admin-profile-card">
-              <div className="admin-profile-card__heading">
-                <h2>Chi tiết tài khoản</h2>
+      <section className="profile-pro-grid">
+        <main className="profile-pro-main">
+          {activeTab === 'overview' ? (
+            <article className="profile-pro-card">
+              <div className="profile-pro-card__head">
+                <div><span>PERSONAL RECORD</span><h2>Thông tin tài khoản</h2></div>
+                <span className="profile-status profile-status--green">Đã xác thực</span>
               </div>
-              <div className="admin-profile-detail-grid">
-                <div>
-                  <span>Họ tên</span>
-                  {editing ? (
-                    <input value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} />
-                  ) : (
-                    <strong>{profile.full_name || 'Chưa cập nhật'}</strong>
-                  )}
-                </div>
-                <div>
+              <div className="profile-pro-formgrid">
+                <label>
+                  <span>Họ và tên</span>
+                  {editing ? <input value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} /> : <strong>{displayName}</strong>}
+                </label>
+                <label>
                   <span>Email</span>
-                  {editing ? (
-                    <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
-                  ) : (
-                    <strong>{profile.email || 'Chưa cập nhật'}</strong>
-                  )}
-                </div>
-                <div>
+                  {editing ? <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /> : <strong>{profile.email || 'Chưa cập nhật'}</strong>}
+                </label>
+                <label>
                   <span>Số điện thoại</span>
-                  {editing ? (
-                    <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} />
-                  ) : (
-                    <strong>{profile.phone || 'Chưa cập nhật'}</strong>
-                  )}
-                </div>
-                <div>
-                  <span>Giới tính</span>
-                  <strong>{guessGender(profile.full_name)}</strong>
-                </div>
-                <div>
-                  <span>Ngày sinh</span>
-                  <strong>20/05/1988</strong>
-                </div>
-                <div>
-                  <span>Ngôn ngữ</span>
-                  <strong>Tiếng Việt (Gốc), English</strong>
-                </div>
+                  {editing ? <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /> : <strong>{profile.phone || 'Chưa cập nhật'}</strong>}
+                </label>
+                <label>
+                  <span>Username</span>
+                  <strong>{profile.username || 'Chưa cập nhật'}</strong>
+                </label>
+                <label>
+                  <span>Mã nhân sự</span>
+                  <strong>{profile.employee_code || profile.staff_code || 'Chưa gắn mã'}</strong>
+                </label>
+                <label>
+                  <span>Ngày tạo</span>
+                  <strong>{formatCompactDate(profile.created_at)}</strong>
+                </label>
               </div>
             </article>
-          )}
+          ) : null}
 
-          {(activeTab === 'roles' || activeTab === 'personal') && (
-            <article className="admin-panel admin-profile-role-banner">
-              <div className="admin-profile-role-banner__heading">
-                <h2>Vai trò đang hoạt động</h2>
+          {activeTab === 'access' ? (
+            <article className="profile-pro-card">
+              <div className="profile-pro-card__head">
+                <div><span>ACCESS SURFACE</span><h2>Vai trò & quyền hiệu lực</h2></div>
+                <Link to="/admin/iam/effective" className="profile-pro-link">Xem IAM</Link>
               </div>
-              <div className="admin-profile-role-banner__grid">
-                {data.roles.map((role) => (
-                  <div key={role.role_code} className="admin-profile-role-pill">
-                    <span>{role.role_name || role.role_code}</span>
-                    <small>Quyền truy cập toàn cục</small>
+              <div className="profile-role-grid">
+                {data.roles.length ? data.roles.map((role) => (
+                  <div key={getRoleCode(role)} className="profile-role-card">
+                    <strong>{getRoleLabel(role)}</strong>
+                    <small>{getRoleCode(role)}</small>
+                    <span>Priority {role.priority_level ?? role.priority ?? '—'}</span>
                   </div>
-                ))}
+                )) : <p className="profile-pro-empty">Chưa có vai trò được gán.</p>}
               </div>
-              <div className="admin-profile-role-banner__footer">
-                <p>"Mọi quyền hạn được cấp theo chính sách Zero Trust của tổ chức."</p>
-                <Link to="/admin/roles" className="admin-profile-role-banner__link">Xem chi tiết quyền hạn →</Link>
+              <div className="profile-module-grid">
+                {topModules.length ? topModules.map(([module, codes]) => (
+                  <div key={module} className="profile-module-card">
+                    <span>{module}</span>
+                    <strong>{formatNumber(codes.length)}</strong>
+                    <small>{codes.slice(0, 2).join(', ')}</small>
+                  </div>
+                )) : <p className="profile-pro-empty">Chưa có permission hiệu lực.</p>}
               </div>
             </article>
-          )}
+          ) : null}
 
-          {(activeTab === 'activity' || activeTab === 'security') && (
-            <article className="admin-panel admin-profile-card">
-              <div className="admin-profile-card__heading">
-                <h2>Nhật ký mới nhất</h2>
+          {activeTab === 'security' ? (
+            <article className="profile-pro-card">
+              <div className="profile-pro-card__head">
+                <div><span>SESSION SECURITY</span><h2>Phiên đăng nhập & kiểm soát thiết bị</h2></div>
+                <button type="button" className="profile-pro-link profile-pro-link--danger" onClick={handleLogoutAll}>Đăng xuất tất cả</button>
               </div>
-              <div className="admin-profile-activity-list">
-                {data.loginHistory.length ? data.loginHistory.map((item) => (
-                  <div key={item.audit_log_id} className="admin-profile-activity-item">
+              <div className="profile-security-score">
+                <div><strong>{securityScore}%</strong><span>{getSecurityTone(securityScore)}</span></div>
+                <progress value={securityScore} max="100" />
+              </div>
+              <div className="profile-session-list">
+                {data.sessions.length ? data.sessions.slice(0, 5).map((session, index) => (
+                  <SessionCard key={session.session_id || session._id || index} session={session} index={index} />
+                )) : <p className="profile-pro-empty">Chưa có phiên đăng nhập được ghi nhận.</p>}
+              </div>
+            </article>
+          ) : null}
+
+          {activeTab === 'activity' ? (
+            <article className="profile-pro-card">
+              <div className="profile-pro-card__head">
+                <div><span>AUDIT TIMELINE</span><h2>Lịch sử hoạt động gần đây</h2></div>
+                <Link to="/admin/logs/login-history" className="profile-pro-link">Mở lịch sử</Link>
+              </div>
+              <div className="profile-timeline">
+                {data.loginHistory.length ? data.loginHistory.map((item, index) => (
+                  <div key={item.audit_log_id || item._id || index} className="profile-timeline__item">
                     <span />
                     <div>
-                      <strong>{item.message}</strong>
-                      <small>{formatDateTime(item.created_at)}</small>
+                      <strong>{item.message || item.action || 'Hoạt động tài khoản'}</strong>
+                      <small>{formatDateTime(item.created_at || item.time)} · {item.ip_address || item.ip || 'IP chưa ghi nhận'}</small>
                     </div>
                   </div>
-                )) : (
-                  <p className="permission-side-empty">Chưa có lịch sử đăng nhập gần đây.</p>
-                )}
+                )) : <p className="profile-pro-empty">Chưa có lịch sử đăng nhập gần đây.</p>}
               </div>
             </article>
-          )}
-        </div>
+          ) : null}
+        </main>
 
-        <aside className="admin-profile-side">
-          <article className="admin-panel admin-profile-side-card">
-            <div className="admin-panel__heading"><h2>Bảo mật</h2></div>
-            <div className="admin-profile-security-list">
-              <div>
-                <strong>Xác thực 2FA</strong>
-                <small>Đang bật qua ứng dụng xác thực</small>
-                <button type="button">Cài đặt</button>
-              </div>
-              <div>
-                <strong>Lịch sử mật khẩu</strong>
-                <small>Thay đổi lần cuối: 45 ngày trước</small>
-                <Link to="/admin/security/change-password">Xem</Link>
-              </div>
+        <aside className="profile-pro-side">
+          <article className="profile-pro-card profile-pro-card--compact">
+            <div className="profile-pro-card__head"><div><span>QUICK ACTIONS</span><h2>Thao tác nhanh</h2></div></div>
+            <div className="profile-action-list">
+              <Link to="/admin/security/change-password"><KeyRound size={18} /><span>Đổi mật khẩu</span></Link>
+              <Link to="/admin/system/my-sessions"><Laptop size={18} /><span>Thiết bị & phiên</span></Link>
+              <Link to="/admin/iam/overview"><ShieldCheck size={18} /><span>IAM & phân quyền</span></Link>
+              <Link to="/admin/logs/login-history"><History size={18} /><span>Lịch sử đăng nhập</span></Link>
             </div>
           </article>
 
-          <article className="admin-panel admin-profile-side-card">
-            <div className="admin-panel__heading"><h2>Phiên làm việc ({formatNumber(activeSessions.length)})</h2></div>
-            <div className="admin-profile-session-list">
-              {activeSessions.slice(0, 3).map((session, index) => (
-                <div key={session.session_id} className="admin-profile-session-item">
-                  <strong>{index === 0 ? 'Thiết bị hiện tại' : 'Thiết bị khác'}</strong>
-            <span>{session.user_agent || 'Trình duyệt máy tính'}</span>
-                  <small>{session.ip_address || 'N/A'} • {formatRelativeTime(session.last_seen_at)}</small>
-                </div>
-              ))}
+          <article className="profile-pro-card profile-pro-card--compact">
+            <div className="profile-pro-card__head"><div><span>CONTACT</span><h2>Liên hệ</h2></div></div>
+            <div className="profile-contact-list">
+              <div><Mail size={17} /><span>{profile.email || 'Chưa cập nhật email'}</span></div>
+              <div><Phone size={17} /><span>{profile.phone || 'Chưa cập nhật số điện thoại'}</span></div>
+              <div><MapPin size={17} /><span>{departmentName}</span></div>
+              <div><CalendarDays size={17} /><span>Tham gia {formatCompactDate(profile.created_at)}</span></div>
             </div>
-            <button type="button" className="admin-profile-danger" onClick={handleLogoutAll}>Đăng xuất khỏi tất cả thiết bị</button>
           </article>
 
-          <article className="admin-panel admin-profile-side-card">
-            <div className="admin-panel__heading"><h2>Nhật ký mới nhất</h2></div>
-            <div className="admin-profile-mini-timeline">
-              {data.loginHistory.slice(0, 4).map((item) => (
-                <div key={item.audit_log_id} className="admin-profile-mini-timeline__item">
-                  <span />
-                  <div>
-                    <strong>{item.message}</strong>
-                    <small>{formatDateTime(item.created_at)}</small>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <article className="profile-pro-card profile-pro-card--compact profile-ai-card">
+            <Sparkles size={22} />
+            <h2>Security insight</h2>
+            <p>{activeSessions.length > 3 ? 'Tài khoản có nhiều phiên active, nên kiểm tra thiết bị lạ.' : 'Tài khoản đang ổn định. Nên duy trì đổi mật khẩu định kỳ và kiểm tra audit log.'}</p>
           </article>
         </aside>
       </section>
-
-      {lastSession ? (
-        <section className="admin-panel admin-profile-inline-note">
-          <strong>Phiên gần nhất</strong>
-          <span>{lastSession.user_agent || 'Trình duyệt máy tính'} • {lastSession.ip_address || 'N/A'} • {formatRelativeTime(lastSession.last_seen_at)}</span>
-        </section>
-      ) : null}
-
-      {error ? <p className="form-message error">{error}</p> : null}
     </section>
   );
 }

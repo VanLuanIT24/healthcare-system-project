@@ -52,6 +52,18 @@ export function validateWorkspacePolicies() {
   return request('/policies/validate', { method: 'POST' });
 }
 
+export function updateWorkspacePolicy(policyId, payload) {
+  return request(`/policies/${policyId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteWorkspacePolicy(policyId) {
+  return request(`/policies/${policyId}`, { method: 'DELETE' });
+}
+
 export function getWorkspaceConflicts() {
   return request('/conflicts');
 }

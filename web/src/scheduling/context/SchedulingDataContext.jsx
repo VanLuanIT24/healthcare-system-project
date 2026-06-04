@@ -2,17 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { schedulingApi } from '../api/schedulingApi';
 import { translateDepartmentName } from '../utils/schedulingUi';
 import {
-  calendarEvents as mockCalendarEvents,
-  departments as mockDepartments,
-  doctors as mockDoctors,
-  operationAlerts as mockOperationAlerts,
-  scheduleStats as mockScheduleStats,
-  schedules as mockSchedules,
-  slots as mockSlots,
-  timeline as mockTimeline,
-  utilizationSeries as mockUtilizationSeries,
-} from '../data/schedulingData';
-import {
   DEFAULT_SCHEDULE_TYPE,
   mapScheduleTypeFromApi,
   normalizeScheduleType,
@@ -361,14 +350,14 @@ function mapActivityFromApi(item) {
 
 function createFallbackState() {
   return {
-    schedules: mockSchedules,
-    doctors: mockDoctors,
-    departments: mockDepartments,
+    schedules: [],
+    doctors: [],
+    departments: [],
     scheduleTypes: scheduleTypeCatalog,
-    scheduleStats: mockScheduleStats,
-    operationAlerts: mockOperationAlerts,
-    utilizationSeries: mockUtilizationSeries,
-    calendarEvents: mockCalendarEvents,
+    scheduleStats: buildStatsFromSchedules([]),
+    operationAlerts: [],
+    utilizationSeries: [],
+    calendarEvents: [],
     rawSummary: null,
     backendConnected: false,
     createResourcesLoaded: false,
@@ -591,11 +580,11 @@ export function useSchedulingData() {
 
 export function useScheduleDetailData(scheduleId) {
   const context = useSchedulingData();
-  const fallbackSchedule = context.schedules.find((item) => item.id === scheduleId) || context.schedules[0] || mockSchedules[0];
+  const fallbackSchedule = context.schedules.find((item) => item.id === scheduleId) || context.schedules[0] || null;
   const [detailState, setDetailState] = useState({
     schedule: fallbackSchedule,
-    slots: mockSlots,
-    timeline: mockTimeline,
+    slots: [],
+    timeline: [],
     impact: null,
     loading: false,
     error: '',
@@ -609,8 +598,8 @@ export function useScheduleDetailData(scheduleId) {
         setDetailState((current) => ({
           ...current,
           schedule: fallbackSchedule,
-          slots: mockSlots,
-          timeline: mockTimeline,
+          slots: [],
+          timeline: [],
           impact: null,
           loading: false,
           error: context.backendConnected ? '' : context.error,
@@ -639,8 +628,8 @@ export function useScheduleDetailData(scheduleId) {
 
       setDetailState({
         schedule: detail?.schedule ? mapScheduleFromApi(detail.schedule) : fallbackSchedule,
-        slots: available?.items?.length ? available.items.map((slot) => mapSlotFromApi(slot, bookedMap, blockedMap)) : mockSlots,
-        timeline: activity?.items?.length ? activity.items.map(mapActivityFromApi) : mockTimeline,
+        slots: available?.items?.length ? available.items.map((slot) => mapSlotFromApi(slot, bookedMap, blockedMap)) : [],
+        timeline: activity?.items?.length ? activity.items.map(mapActivityFromApi) : [],
         impact,
         loading: false,
         error:

@@ -4415,6 +4415,269 @@
   font-weight: 800;
 }
 
+.nurse-intake-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.52rem;
+}
+
+.nurse-intake-action {
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.52rem;
+  padding: 0.56rem;
+  border: 1px solid color-mix(in srgb, var(--action-accent) 22%, transparent);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, var(--action-soft));
+  color: var(--nurse-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(15, 74, 70, 0.07);
+}
+
+.nurse-intake-action:hover,
+.nurse-intake-action:focus-visible {
+  outline: 0;
+  border-color: color-mix(in srgb, var(--action-accent) 42%, transparent);
+  background: var(--action-soft);
+  transform: translateY(-1px);
+}
+
+.nurse-intake-action svg {
+  width: 34px;
+  height: 34px;
+  padding: 0.45rem;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--action-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--action-accent) 14%, transparent);
+}
+
+.nurse-intake-action span {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.nurse-intake-action strong,
+.nurse-intake-action small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nurse-intake-action strong {
+  color: var(--nurse-text);
+  font-size: 0.83rem;
+  line-height: 1.18;
+  font-weight: 900;
+}
+
+.nurse-intake-action small {
+  color: var(--nurse-text-soft);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.nurse-intake-action--primary { --action-accent: #0d9488; --action-soft: #ecfdf9; }
+.nurse-intake-action--success { --action-accent: #16a34a; --action-soft: #ecfdf5; }
+.nurse-intake-action--info { --action-accent: #2563eb; --action-soft: #eff6ff; }
+.nurse-intake-action--warning { --action-accent: #d97706; --action-soft: #fffbeb; }
+.nurse-intake-action--danger { --action-accent: #dc2626; --action-soft: #fef2f2; }
+.nurse-intake-action--cyan { --action-accent: #0891b2; --action-soft: #ecfeff; }
+.nurse-intake-action--violet { --action-accent: #7c3aed; --action-soft: #f5f3ff; }
+
+.nurse-action-confirm {
+  width: min(560px, calc(100vw - 2rem));
+  position: relative;
+  display: grid;
+  gap: 0.9rem;
+  overflow: hidden;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--confirm-accent) 24%, transparent);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(5, 46, 44, 0.26);
+}
+
+.nurse-action-confirm::before {
+  content: "";
+  height: 4px;
+  position: absolute;
+  inset: 0 0 auto;
+  background: var(--confirm-accent);
+}
+
+.nurse-action-confirm header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.72rem;
+}
+
+.nurse-action-confirm__icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--confirm-soft);
+  color: var(--confirm-accent);
+}
+
+.nurse-action-confirm header div {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.nurse-action-confirm header span:not(.nurse-action-confirm__icon) {
+  color: var(--nurse-text-soft);
+  font-size: 0.76rem;
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.nurse-action-confirm h2 {
+  margin: 0;
+  color: var(--nurse-text);
+  font-size: 1.18rem;
+  line-height: 1.2;
+  font-weight: 920;
+}
+
+.nurse-action-confirm p {
+  margin: 0;
+  color: var(--nurse-text-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  font-weight: 720;
+}
+
+.nurse-action-confirm__patient {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.76rem;
+  border: 1px solid rgba(15, 118, 110, 0.12);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.nurse-action-confirm__patient div {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.nurse-action-confirm__patient span,
+.nurse-action-confirm__patient small {
+  color: var(--nurse-text-soft);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.nurse-action-confirm__patient strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--nurse-text);
+  font-size: 1rem;
+  font-weight: 920;
+}
+
+.nurse-action-confirm__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.48rem;
+  margin: 0;
+}
+
+.nurse-action-confirm__facts div {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.62rem;
+  border-radius: 8px;
+  background: var(--confirm-soft);
+}
+
+.nurse-action-confirm__facts dt,
+.nurse-action-confirm__facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nurse-action-confirm__facts dt {
+  color: var(--nurse-text-soft);
+  font-size: 0.73rem;
+  font-weight: 820;
+}
+
+.nurse-action-confirm__facts dd {
+  color: var(--nurse-text);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.nurse-action-confirm footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.nurse-action-confirm footer button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0 0.84rem;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 880;
+  cursor: pointer;
+}
+
+.nurse-action-confirm__secondary {
+  border: 1px solid rgba(15, 118, 110, 0.14);
+  background: #ffffff;
+  color: var(--nurse-text-soft);
+}
+
+.nurse-action-confirm__primary {
+  border: 1px solid var(--confirm-accent);
+  background: var(--confirm-accent);
+  color: #ffffff;
+}
+
+.nurse-action-confirm__secondary:hover,
+.nurse-action-confirm__secondary:focus-visible {
+  outline: 0;
+  border-color: rgba(15, 118, 110, 0.26);
+  background: #f8fafc;
+}
+
+.nurse-action-confirm__primary:hover,
+.nurse-action-confirm__primary:focus-visible {
+  outline: 0;
+  filter: brightness(0.95);
+}
+
+.nurse-action-confirm--primary { --confirm-accent: #0d9488; --confirm-soft: #ecfdf9; }
+.nurse-action-confirm--success { --confirm-accent: #16a34a; --confirm-soft: #ecfdf5; }
+.nurse-action-confirm--info { --confirm-accent: #2563eb; --confirm-soft: #eff6ff; }
+.nurse-action-confirm--warning { --confirm-accent: #d97706; --confirm-soft: #fffbeb; }
+.nurse-action-confirm--danger { --confirm-accent: #dc2626; --confirm-soft: #fef2f2; }
+
 .nurse-intake-kanban {
   display: grid;
   grid-template-columns: repeat(5, minmax(220px, 1fr));
@@ -4668,6 +4931,8 @@
   .nurse-acuity-picker,
   .nurse-transfer-list,
   .nurse-intake-drawer dl,
+  .nurse-intake-action-grid,
+  .nurse-action-confirm__facts,
   .nurse-transfer-card dl,
   .nurse-intake-card dl {
     grid-template-columns: minmax(0, 1fr);
@@ -4675,6 +4940,17 @@
 
   .nurse-intake-actions {
     justify-content: flex-start;
+  }
+
+  .nurse-action-confirm {
+    align-self: start;
+    margin-top: 0;
+  }
+
+  .nurse-action-confirm__patient,
+  .nurse-action-confirm footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
@@ -4834,6 +5110,10 @@
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 16px 34px rgba(15, 74, 70, 0.07);
+}
+
+.nurse-vitals-selector .nurse-vitals-filters {
+  grid-template-columns: 1fr;
 }
 
 .nurse-vitals-filters label,
@@ -5626,6 +5906,24 @@
   font-weight: 700;
 }
 
+.nurse-vitals-table tbody tr {
+  cursor: pointer;
+}
+
+.nurse-vitals-table tbody tr.is-selected {
+  background: #ecfdf9;
+  box-shadow: inset 3px 0 0 var(--nurse-primary);
+}
+
+.nurse-empty-state {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  color: var(--nurse-text-soft);
+  font-weight: 850;
+  text-align: center;
+}
+
 .nurse-vitals-alert-card {
   display: grid;
   gap: 0.36rem;
@@ -5670,6 +5968,145 @@
   border-color: rgba(22, 163, 74, 0.22);
 }
 
+.nurse-vitals-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.46);
+}
+
+.nurse-vitals-confirm {
+  width: min(440px, 100%);
+  display: grid;
+  gap: 0.72rem;
+  padding: 1rem;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 72px rgba(15, 23, 42, 0.22);
+}
+
+.nurse-vitals-confirm.is-danger {
+  border-color: rgba(220, 38, 38, 0.18);
+}
+
+.nurse-vitals-correction-form {
+  width: min(640px, 100%);
+}
+
+.nurse-vitals-confirm > svg {
+  color: var(--nurse-primary);
+}
+
+.nurse-vitals-confirm.is-danger > svg {
+  color: #dc2626;
+}
+
+.nurse-vitals-confirm h2,
+.nurse-vitals-confirm p {
+  margin: 0;
+}
+
+.nurse-vitals-confirm h2 {
+  color: var(--nurse-text);
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.nurse-vitals-confirm p {
+  color: var(--nurse-text-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  font-weight: 700;
+  white-space: pre-line;
+}
+
+.nurse-vitals-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.62rem;
+}
+
+.nurse-vitals-form-grid label,
+.nurse-vitals-confirm-note {
+  display: grid;
+  gap: 0.34rem;
+}
+
+.nurse-vitals-form-grid label.is-wide {
+  grid-column: 1 / -1;
+}
+
+.nurse-vitals-form-grid span,
+.nurse-vitals-confirm-note span {
+  color: var(--nurse-text-soft);
+  font-size: 0.76rem;
+  font-weight: 880;
+}
+
+.nurse-vitals-form-grid input,
+.nurse-vitals-form-grid select,
+.nurse-vitals-form-grid textarea,
+.nurse-vitals-confirm-note textarea {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--nurse-text);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 780;
+}
+
+.nurse-vitals-form-grid input,
+.nurse-vitals-form-grid select {
+  padding: 0 0.72rem;
+}
+
+.nurse-vitals-form-grid textarea,
+.nurse-vitals-confirm-note textarea {
+  resize: vertical;
+  padding: 0.62rem 0.72rem;
+  line-height: 1.45;
+}
+
+.nurse-vitals-form-grid input:focus,
+.nurse-vitals-form-grid select:focus,
+.nurse-vitals-form-grid textarea:focus,
+.nurse-vitals-confirm-note textarea:focus {
+  outline: 0;
+  border-color: rgba(13, 148, 136, 0.45);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12);
+}
+
+.nurse-vitals-confirm footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.nurse-vitals-confirm footer button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0 0.78rem;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--nurse-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
 .nurse-vitals-correction-layout {
   grid-template-columns: minmax(0, 1fr) minmax(340px, 0.36fr);
 }
@@ -5684,6 +6121,34 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.nurse-vitals-note-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.35rem 0.2rem 0.5rem;
+}
+
+.nurse-vitals-note-timeline-header strong {
+  color: var(--nurse-text);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.nurse-vitals-note-timeline-header button {
+  width: auto;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  padding: 0 0.58rem;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  background: #ffffff;
+  color: var(--nurse-primary-strong);
+  font-size: 0.78rem;
 }
 
 .nurse-vitals-note-timeline button:hover,
@@ -5705,6 +6170,21 @@
   color: var(--nurse-text);
   font-size: 0.88rem;
   font-weight: 880;
+}
+
+.nurse-vitals-note-empty {
+  min-height: 92px;
+  display: grid;
+  place-items: center;
+  padding: 0.8rem;
+  border: 1px dashed rgba(15, 118, 110, 0.18);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--nurse-text-soft);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  font-weight: 780;
+  text-align: center;
 }
 
 .nurse-vitals-template-grid {
@@ -5745,6 +6225,44 @@
   font-size: 0.76rem;
   line-height: 1.42;
   font-weight: 700;
+}
+
+.nurse-vitals-template-grid button:disabled,
+.nurse-vitals-note-timeline-header button:disabled,
+.nurse-vitals-note-fields input:disabled,
+.nurse-vitals-note-fields select:disabled,
+.nurse-vitals-note-content textarea:disabled {
+  cursor: not-allowed;
+  border-color: rgba(148, 163, 184, 0.2);
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.nurse-vitals-note-editor header > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
+}
+
+.nurse-vitals-note-editor header p {
+  margin: 0;
+  color: var(--nurse-text-soft);
+  font-size: 0.8rem;
+  font-weight: 760;
+}
+
+.nurse-vitals-note-lock {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.68rem;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 820;
 }
 
 @media (max-width: 1320px) {
@@ -12543,6 +13061,55 @@
 .nurse-notification-tabs button.is-active {
   background: var(--nurse-primary);
   color: #ffffff;
+}
+
+.nurse-vitals-actions button:disabled,
+.nurse-vitals-card-actions button:disabled,
+.nurse-row-actions button:disabled,
+.nurse-vitals-alert-detail footer button:disabled,
+.nurse-vitals-correction-detail footer button:disabled,
+.nurse-vitals-confirm footer button:disabled,
+.nurse-vitals-note-editor footer button:disabled {
+  cursor: not-allowed;
+  border-color: rgba(148, 163, 184, 0.22);
+  background: #f1f5f9;
+  color: #64748b;
+  box-shadow: none;
+}
+
+.nurse-row-actions button:disabled:hover,
+.nurse-row-actions button:disabled:focus-visible,
+.nurse-vitals-confirm footer button:disabled:hover,
+.nurse-vitals-confirm footer button:disabled:focus-visible {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.nurse-vitals-alert-detail footer button.is-danger,
+.nurse-vitals-correction-detail footer button.is-danger,
+.nurse-vitals-confirm footer button.is-danger {
+  border-color: rgba(220, 38, 38, 0.24);
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.nurse-vitals-alert-detail footer button.is-danger:hover,
+.nurse-vitals-alert-detail footer button.is-danger:focus-visible,
+.nurse-vitals-correction-detail footer button.is-danger:hover,
+.nurse-vitals-correction-detail footer button.is-danger:focus-visible,
+.nurse-vitals-confirm footer button.is-danger:hover,
+.nurse-vitals-confirm footer button.is-danger:focus-visible {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.nurse-vitals-alert-detail footer button.is-danger:disabled,
+.nurse-vitals-correction-detail footer button.is-danger:disabled {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .nurse-notification-list {

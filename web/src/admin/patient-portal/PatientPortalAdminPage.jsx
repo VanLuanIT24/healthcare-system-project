@@ -43,7 +43,7 @@ const VIEW_CONFIG = {
     icon: UserRound,
     endpoint: '/accounts',
     summaryEndpoint: '/accounts/summary',
-    detail: (row) => `/accounts/${row.id}`,
+    detail: (row) => `/accounts/${getRowId(row)}`,
   },
   relatives: {
     title: 'Người thân bệnh nhân',
@@ -51,7 +51,7 @@ const VIEW_CONFIG = {
     icon: UsersRound,
     endpoint: '/relatives',
     summaryEndpoint: '/relatives/summary',
-    detail: (row) => `/relatives/${row.id}`,
+    detail: (row) => `/relatives/${getRowId(row)}`,
   },
   authorizations: {
     title: 'Ủy quyền người thân',
@@ -59,7 +59,7 @@ const VIEW_CONFIG = {
     icon: ShieldCheck,
     endpoint: '/authorizations',
     summaryEndpoint: '/authorizations/summary',
-    detail: (row) => `/authorizations/${row.id}`,
+    detail: (row) => `/authorizations/${getRowId(row)}`,
   },
   profilePolicies: {
     title: 'Hồ sơ bệnh nhân tự cập nhật',
@@ -74,7 +74,7 @@ const VIEW_CONFIG = {
     icon: ClipboardCheck,
     endpoint: '/profile-change-requests',
     summaryEndpoint: '/profile-change-requests/summary',
-    detail: (row) => `/profile-change-requests/${row.id}`,
+    detail: (row) => `/profile-change-requests/${getRowId(row)}`,
   },
   documents: {
     title: 'Tài liệu bệnh nhân tải lên',
@@ -82,7 +82,7 @@ const VIEW_CONFIG = {
     icon: UploadCloud,
     endpoint: '/documents',
     summaryEndpoint: '/documents/summary',
-    detail: (row) => `/documents/${row.id}`,
+    detail: (row) => `/documents/${getRowId(row)}`,
   },
   exports: {
     title: 'Yêu cầu xuất hồ sơ',
@@ -90,7 +90,7 @@ const VIEW_CONFIG = {
     icon: Download,
     endpoint: '/document-exports',
     summaryEndpoint: '/document-exports/summary',
-    detail: (row) => `/document-exports/${row.id}`,
+    detail: (row) => `/document-exports/${getRowId(row)}`,
   },
   insurance: {
     title: 'Bảo hiểm bệnh nhân gửi',
@@ -98,7 +98,7 @@ const VIEW_CONFIG = {
     icon: ShieldAlert,
     endpoint: '/insurance-submissions',
     summaryEndpoint: '/insurance-submissions/summary',
-    detail: (row) => `/insurance-submissions/${row.id}`,
+    detail: (row) => `/insurance-submissions/${getRowId(row)}`,
   },
   featureFlags: {
     title: 'Cờ tính năng cổng bệnh nhân',
@@ -113,7 +113,7 @@ const VIEW_CONFIG = {
     icon: FileClock,
     endpoint: '/audit',
     summaryEndpoint: '/audit/summary',
-    detail: (row) => `/audit/${row.id || row._id}`,
+    detail: (row) => `/audit/${getRowId(row)}`,
   },
 };
 
@@ -328,7 +328,8 @@ function formatValue(value) {
 
 function StatusBadge({ value }) {
   const text = value === true ? 'enabled' : value === false ? 'disabled' : value || 'unknown';
-  const tone = STATUS_TONE[text] || STATUS_TONE[String(text).toLowerCase()] || 'neutral';
+  const normalized = String(text).toLowerCase();
+  const tone = STATUS_TONE[text] || STATUS_TONE[normalized] || 'neutral';
   return <span className={`ppa-badge ppa-badge--${tone}`}>{formatValue(text)}</span>;
 }
 
@@ -644,6 +645,62 @@ function DashboardView({ data }) {
   );
 }
 
+
+function normalizePortalItems(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.records)) return data.records;
+  if (Array.isArray(data?.rows)) return data.rows;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+function EntityRunway({ view, config, rows, summary, data }) {
+  if (view === 'dashboard') return null;
+  const endpoint = config.endpoint;
+  const stages = workflowStages(view);
+  return (
+    <section className="ppa-runway">
+      <article className="ppa-runway__main">
+        <span className="ppa-eyebrow">Production workflow</span>
+        <h2>{config.title}</h2>
+        <p>{config.subtitle}</p>
+        <div className="ppa-stage-row">
+          {stages.map((stage, index) => (
+            <div className="ppa-stage" key={stage}>
+              <b>{index + 1}</b>
+              <span>{stage}</span>
+            </div>
+          ))}
+        </div>
+      </article>
+      <article className="ppa-runway__side">
+        <strong>Backend contract</strong>
+        <span>GET /api/admin/patient-portal{endpoint}</span>
+        <span>Records: {formatValue(rows.length)}</span>
+        <span>Summary: {summary ? 'Đã kết nối' : 'Không có endpoint summary'}</span>
+        <span>Realtime: {formatValue(data?.portal_health?.status || 'live')}</span>
+      </article>
+    </section>
+  );
+}
+
+function workflowStages(view) {
+  const map = {
+    accounts: ['Định danh', 'Xác thực', 'Phiên đăng nhập', 'Khóa / mở khóa'],
+    relatives: ['Tạo người thân', 'Xác minh quan hệ', 'Liên kết bệnh nhân', 'Theo dõi rủi ro'],
+    authorizations: ['Yêu cầu', 'Duyệt phạm vi', 'Hiệu lực', 'Thu hồi'],
+    profilePolicies: ['Chọn trường', 'Đặt policy', 'SLA duyệt', 'Audit thay đổi'],
+    profileChanges: ['Bệnh nhân gửi', 'So sánh dữ liệu', 'Duyệt / từ chối', 'Cập nhật hồ sơ'],
+    documents: ['Upload', 'Virus scan', 'Duyệt tài liệu', 'Release / archive'],
+    exports: ['Tạo yêu cầu', 'Worker ZIP', 'Link tải', 'Hết hạn / thu hồi'],
+    insurance: ['Gửi bảo hiểm', 'Kiểm tra ảnh thẻ', 'Xác minh', 'Áp dụng billing'],
+    featureFlags: ['Cấu hình', 'Rollout', 'Giám sát', 'Rollback'],
+    audit: ['Ghi log', 'Tra cứu', 'Phân loại', 'Export bằng chứng'],
+  };
+  return map[view] || ['Tải dữ liệu', 'Kiểm tra', 'Thao tác', 'Audit'];
+}
+
 export function PatientPortalAdminPage({ view = 'dashboard' }) {
   const config = VIEW_CONFIG[view] || VIEW_CONFIG.dashboard;
   const Icon = config.icon;
@@ -714,8 +771,8 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
   }
 
   async function executeAction(action, row, reason = '') {
-    const id = row.id || row._id;
-    const key = row.key;
+    const id = getRowId(row);
+    const key = row.key || id;
     const body = reason ? { reason } : {};
     const calls = {
       lock: () => portalAdminPost(`/accounts/${id}/lock`, body),
@@ -752,7 +809,7 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
   }
 
   const kpis = useMemo(() => buildKpis(view, data, summary), [view, data, summary]);
-  const items = data?.items || [];
+  const items = normalizePortalItems(data);
 
   return (
     <div className="ppa-shell">
@@ -784,6 +841,8 @@ export function PatientPortalAdminPage({ view = 'dashboard' }) {
       <section className="ppa-kpi-strip">
         {kpis.map(([label, value, tone, KpiIcon]) => <KpiCard key={label} label={label} value={value} tone={tone} icon={KpiIcon} />)}
       </section>
+
+      <EntityRunway view={view} config={config} rows={items} summary={summary} data={data} />
 
       {view !== 'dashboard' ? (
         <section className="ppa-filter-bar">

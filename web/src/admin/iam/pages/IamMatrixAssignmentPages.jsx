@@ -1,3 +1,4 @@
+import '../iamControlPlanePro.css';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,

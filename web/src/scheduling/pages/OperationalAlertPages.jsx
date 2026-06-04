@@ -62,13 +62,6 @@ const VIEW_CONFIG = {
 
 const severityRank = { critical: 0, high: 1, warning: 2, info: 3, resolved: 4 };
 
-const demoAlerts = [
-  { id: 'demo-alert-1', category: 'queue', type: 'queue_wait_long', severity: 'critical', status: 'open', title: 'Queue chờ quá SLA - Khoa Nội tổng quát', message: '12 bệnh nhân có nguy cơ chờ quá SLA, chờ lâu nhất 73 phút.', owner: 'Điều phối queue', departmentName: 'Nội tổng quát', doctorName: 'BS. Trần Thanh Hải', affectedCount: 12, detectedAt: new Date(Date.now() - 18 * 60000).toISOString(), suggestedActions: ['Gọi ngay', 'Chuyển queue', 'Báo trưởng khoa'] },
-  { id: 'demo-alert-2', category: 'schedule', type: 'unpublished_schedule', severity: 'high', status: 'open', title: '3 lịch chưa publish trước giờ mở khám', message: '42 slot chưa mở cho bệnh nhân đặt lịch.', owner: 'Scheduler', departmentName: 'Nhi khoa', affectedCount: 42, detectedAt: new Date(Date.now() - 40 * 60000).toISOString(), suggestedActions: ['Publish lịch', 'Generate slot'] },
-  { id: 'demo-alert-3', category: 'doctor_department', type: 'doctor_overloaded', severity: 'high', status: 'assigned', title: 'BS. Lê Minh Tuấn đang quá tải', message: 'Slot 100%, queue waiting 14, max wait 55 phút.', owner: 'Trưởng khoa Tim mạch', departmentName: 'Tim mạch', doctorName: 'BS. Lê Minh Tuấn', affectedCount: 14, detectedAt: new Date(Date.now() - 25 * 60000).toISOString(), suggestedActions: ['Chuyển appointment', 'Mở thêm ca'] },
-  { id: 'demo-alert-4', category: 'no_show', type: 'no_show_spike', severity: 'warning', status: 'open', title: 'No-show tăng trong khung 09:00-10:00', message: 'No-show hôm nay cao hơn trung bình tuần 18%.', owner: 'Front desk', departmentName: 'Khám ngoại trú', affectedCount: 6, detectedAt: new Date(Date.now() - 65 * 60000).toISOString(), suggestedActions: ['Gọi follow-up', 'Dời lịch', 'Đưa vào waitlist'] },
-];
-
 function asArray(value) {
   if (Array.isArray(value)) return value;
   if (Array.isArray(value?.items)) return value.items;
@@ -243,8 +236,7 @@ function deriveAlerts({ operational, scheduleSummary, queueTickets, appointments
   const clinicalAlerts = firstArray(clinical?.items, clinical, nursingAlerts).map(normalizeClinicalAlert);
   const diagnosticAlerts = firstArray(diagnostic?.items, diagnostic).map(normalizeDiagnosticAlert);
 
-  const built = [...scheduleAlerts, ...queueAlerts, ...queueSummaryAlert, ...noShowAlerts, ...clinicalAlerts, ...diagnosticAlerts];
-  return built.length ? built : demoAlerts;
+  return [...scheduleAlerts, ...queueAlerts, ...queueSummaryAlert, ...noShowAlerts, ...clinicalAlerts, ...diagnosticAlerts];
 }
 
 export function OperationalAlertPage({ view = 'all' }) {
@@ -396,9 +388,6 @@ export function OperationalAlertPage({ view = 'all' }) {
 
     await runSchedulingAction({
       action: async () => {
-        if (String(item.id).startsWith('demo-') || String(item.id).includes('summary') || String(item.id).includes('queue-alert')) {
-          return { local_only: true };
-        }
         if (item.source === 'clinical') {
           if (action === 'ack') return schedulingApi.acknowledgeClinicalAlert(item.id, {});
           if (action === 'resolve') return schedulingApi.resolveClinicalAlert(item.id, {});

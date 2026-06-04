@@ -1,6 +1,16 @@
 import { API_BASE_URL } from '../../lib/api';
 import { fetchWithAuth } from '../../lib/authSession';
 
+async function readPayload(response) {
+  const text = await response.text().catch(() => '');
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return { message: text.slice(0, 300), raw: text };
+  }
+}
+
 async function request(path, options = {}) {
   const response = await fetchWithAuth(`${API_BASE_URL}${path}`, {
     ...options,
@@ -9,13 +19,14 @@ async function request(path, options = {}) {
       ...(options.headers || {}),
     },
   });
-  const payload = await response.json().catch(() => null);
+  const payload = await readPayload(response);
 
   if (!response.ok) {
-    throw new Error(payload?.message || 'Không thể xử lý cấu hình nền tảng.');
+    const message = payload?.message || payload?.error || `Không thể xử lý cấu hình nền tảng (${response.status}).`;
+    throw new Error(message);
   }
 
-  return payload?.data;
+  return payload?.data ?? payload ?? null;
 }
 
 export function getPlatformConfigOverview() {

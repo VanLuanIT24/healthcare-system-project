@@ -31,108 +31,6 @@ import {
 } from 'lucide-react';
 import { nurseMonitoringApi } from './nurseApi';
 
-const nowIso = () => new Date().toISOString();
-const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
-const minutesAhead = (minutes) => new Date(Date.now() + minutes * 60000).toISOString();
-
-const DEMO_CASES = [
-  {
-    id: 'demo-ec-1',
-    case_id: 'demo-ec-1',
-    case_code: 'SOS-20260519-0142',
-    patient: { patient_name: 'Nguyễn Văn A', patient_code: 'BN0001', age: 62, gender: 'male', phone: '0901234567' },
-    patient_name: 'Nguyễn Văn A',
-    patient_code: 'BN0001',
-    priority: 'critical',
-    status: 'created',
-    type: 'fall',
-    source: 'inpatient',
-    location_text: 'Phòng 203 · Nội tổng quát',
-    location_lat: 10.776,
-    location_lng: 106.701,
-    symptoms: 'Tụt HA, khó thở, SpO2 thấp sau té ngã',
-    note: 'Chưa có đội nhận',
-    assigned_to: null,
-    assigned_department: { department_name: 'Cấp cứu' },
-    created_at: minutesAgo(4),
-    risk_flags: ['Dị ứng Penicillin', 'COPD', 'SpO2 thấp', 'Té ngã', 'Nguy kịch'],
-    latest_vital: { spo2: 86, heart_rate: 132, systolic_bp: 84, diastolic_bp: 52, respiratory_rate: 32, temperature: 38.4 },
-    metadata: {
-      patient_risk_snapshot: {
-        allergies: [{ allergen: 'Penicillin', severity: 'severe', reaction: 'Khó thở' }],
-        chronic_problems: [{ problem_name: 'COPD', severity: 'severe' }, { problem_name: 'Đái tháo đường type 2', severity: 'moderate' }],
-      },
-      triage_summary: { dispatch_required: true, doctor_required: true },
-    },
-    sla: { status: 'breached', next_due_seconds: -75, created_minutes: 4, acknowledge_due_at: minutesAgo(1) },
-  },
-  {
-    id: 'demo-ec-2',
-    case_id: 'demo-ec-2',
-    case_code: 'SOS-20260519-0141',
-    patient: { patient_name: 'Phạm Thị D', patient_code: 'BN0004', age: 73, gender: 'female', phone: '0918899000' },
-    patient_name: 'Phạm Thị D',
-    patient_code: 'BN0004',
-    priority: 'urgent',
-    status: 'triaged',
-    type: 'medical_emergency',
-    source: 'staff_created',
-    location_text: 'Sảnh A · Khu chờ khám',
-    symptoms: 'Đau ngực, vã mồ hôi, mạch nhanh',
-    note: 'Đã phân loại, chờ điều phối',
-    assigned_to: { full_name: 'ĐD Hoa' },
-    assigned_department: { department_name: 'Cấp cứu' },
-    created_at: minutesAgo(11),
-    acknowledged_at: minutesAgo(9),
-    triaged_at: minutesAgo(4),
-    triage_color: 'orange',
-    esi_level: 2,
-    risk_flags: ['Người cao tuổi', 'Đau ngực', 'Bệnh tim mạch'],
-    latest_vital: { spo2: 93, heart_rate: 118, systolic_bp: 152, diastolic_bp: 96, respiratory_rate: 24, temperature: 37.6 },
-    metadata: { triage_summary: { dispatch_required: true, doctor_required: true, esi_level: 2, triage_color: 'orange' } },
-    sla: { status: 'at_risk', next_due_seconds: 88, created_minutes: 11, dispatch_due_at: minutesAhead(2) },
-  },
-  {
-    id: 'demo-ec-3',
-    case_id: 'demo-ec-3',
-    case_code: 'SOS-20260519-0138',
-    patient: { patient_name: 'Lê Văn C', patient_code: 'BN0003', age: 47, gender: 'male', phone: '0933333311' },
-    patient_name: 'Lê Văn C',
-    patient_code: 'BN0003',
-    priority: 'urgent',
-    status: 'acknowledged',
-    type: 'panic',
-    source: 'patient_app',
-    location_text: 'Cổng B',
-    symptoms: 'Hoảng loạn, đau đầu, run tay',
-    note: 'Gia đình đang đi cùng',
-    assigned_to: { full_name: 'ĐD Minh' },
-    assigned_department: { department_name: 'Cấp cứu' },
-    created_at: minutesAgo(7),
-    acknowledged_at: minutesAgo(5),
-    risk_flags: ['Hoảng loạn', 'Có GPS'],
-    latest_vital: { spo2: 98, heart_rate: 104, systolic_bp: 134, diastolic_bp: 82, respiratory_rate: 22, temperature: 37.1 },
-    metadata: { patient_risk_snapshot: { allergies: [], chronic_problems: [] } },
-    sla: { status: 'on_time', next_due_seconds: 420, created_minutes: 7 },
-  },
-];
-
-const DEMO_TIMELINE = [
-  { id: 'tl-1', event_type: 'created', note: 'Ca SOS được tạo', created_at: minutesAgo(11), actor: { full_name: 'Ứng dụng bệnh nhân' } },
-  { id: 'tl-2', event_type: 'acknowledged', note: 'Điều dưỡng nhận ca', created_at: minutesAgo(9), actor: { full_name: 'ĐD Hoa' } },
-  { id: 'tl-3', event_type: 'triage_completed', note: 'ESI 2 · cần bác sĩ ngay', created_at: minutesAgo(4), actor: { full_name: 'ĐD Hoa' } },
-];
-
-const DEMO_ESCALATIONS = [
-  { id: 'esc-1', case: DEMO_CASES[0], case_id: 'demo-ec-1', case_code: DEMO_CASES[0].case_code, patient: DEMO_CASES[0].patient, priority: 'critical', case_status: 'created', reason: 'not_acknowledged_after_5_minutes', level: 2, status: 'open', overdue_seconds: 75, owner: null, department: { department_name: 'Cấp cứu' }, triggered_at: minutesAgo(2) },
-];
-
-const DEMO_TEAMS = [
-  { team_code: 'ERT-01', name: 'Đội phản ứng nhanh 1', status: 'available', eta_minutes: 3, equipment: ['Oxy', 'Màn hình theo dõi', 'Cáng'] },
-  { team_code: 'ERT-02', name: 'Đội cấp cứu nội viện', status: 'busy', eta_minutes: 8, equipment: ['Máy sốc điện', 'Xe cấp cứu'] },
-  { team_code: 'ICU-LIAISON', name: 'Liên lạc ICU', status: 'available', eta_minutes: 5, equipment: ['Màn hình theo dõi', 'Bàn giao máy thở'] },
-];
-
 const labelPriority = { critical: 'Nguy kịch', urgent: 'Khẩn' };
 const labelStatus = {
   created: 'Chờ nhận',
@@ -359,7 +257,7 @@ function CommandHeader({ title, subtitle, loading, demo, onRefresh, onCreate, me
       <div>
         <span className={demo ? 'nurse-em-live nurse-em-live--demo' : 'nurse-em-live'}>
           <Wifi size={15} />
-          {demo ? 'Dữ liệu mẫu' : 'Điều phối thời gian thực'}
+          {demo ? 'API/DB chưa sẵn sàng' : 'Điều phối thời gian thực'}
         </span>
         <h1>{title}</h1>
         <p>{subtitle}</p>
@@ -524,7 +422,7 @@ function LocationPanel({ item }) {
 }
 
 function TimelinePanel({ items }) {
-  const events = items?.length ? items : DEMO_TIMELINE;
+  const events = Array.isArray(items) ? items : [];
   return (
     <section className="nurse-em-timeline">
       <h3><Activity size={16} /> Dòng thời gian</h3>
@@ -675,7 +573,7 @@ function CreateCaseModal({ open, onClose, onCreate }) {
 }
 
 function useEmergencyOpenData() {
-  const [state, setState] = useState({ items: DEMO_CASES, summary: {}, loading: true, demo: true, error: null });
+  const [state, setState] = useState({ items: [], summary: {}, loading: true, demo: false, error: null });
   async function load() {
     setState((current) => ({ ...current, loading: true }));
     try {
@@ -691,7 +589,7 @@ function useEmergencyOpenData() {
         error: null,
       });
     } catch (error) {
-      setState({ items: DEMO_CASES.map(normalizeEmergencyCase), summary: {}, loading: false, demo: true, error });
+      setState({ items: [], summary: {}, loading: false, demo: true, error });
     }
   }
   useEffect(() => { load(); }, []);
@@ -703,15 +601,15 @@ function useTimeline(caseId, enabled) {
   useEffect(() => {
     let alive = true;
     async function load() {
-      if (!caseId || !enabled || String(caseId).startsWith('demo')) {
-        setTimeline(DEMO_TIMELINE);
+      if (!caseId || !enabled) {
+        setTimeline([]);
         return;
       }
       try {
         const payload = await nurseMonitoringApi.getEmergencyTimeline(caseId);
         if (alive) setTimeline(listFromPayload(payload));
       } catch {
-        if (alive) setTimeline(DEMO_TIMELINE);
+        if (alive) setTimeline([]);
       }
     }
     load();
@@ -724,8 +622,8 @@ function useEmergencyAction(refresh, setToast) {
   return async function runAction(action, item, payload = {}) {
     if (!item) return;
     const caseId = itemId(item);
-    if (String(caseId).startsWith('demo')) {
-      setToast(`${action} · ${item.case_code}`);
+    if (!caseId) {
+      setToast('Chọn một ca cấp cứu hợp lệ từ database trước khi thao tác.');
       return;
     }
     try {
@@ -890,16 +788,16 @@ function TriageForm({ selected, onComplete, onSaveDraft }) {
 }
 
 export function EmergencyTriagePage() {
-  const [state, setState] = useState({ items: DEMO_CASES, summary: {}, loading: true, demo: true });
+  const [state, setState] = useState({ items: [], summary: {}, loading: true, demo: false });
   const [selectedId, setSelectedId] = useState(null);
   const [toast, setToast] = useState('');
   async function load() {
     setState((current) => ({ ...current, loading: true }));
     try {
       const payload = await nurseMonitoringApi.getEmergencyTriageQueue({ limit: 120 });
-      setState({ items: listFromPayload(payload).map(normalizeEmergencyCase), summary: payload.summary || {}, loading: false, demo: false });
+      setState({ items: listFromPayload(payload).map(normalizeEmergencyCase), summary: payload?.summary || {}, loading: false, demo: false });
     } catch {
-      setState({ items: DEMO_CASES.map(normalizeEmergencyCase), summary: {}, loading: false, demo: true });
+      setState({ items: [], summary: {}, loading: false, demo: true });
     }
   }
   useEffect(() => { load(); }, []);
@@ -908,8 +806,8 @@ export function EmergencyTriagePage() {
 
   async function completeTriage(form) {
     if (!selected) return;
-    if (String(itemId(selected)).startsWith('demo')) {
-      setToast(`Hoàn tất phân loại · ${selected.case_code}`);
+    if (!itemId(selected)) {
+      setToast('Chọn ca cấp cứu hợp lệ từ database trước khi hoàn tất phân loại.');
       return;
     }
     await nurseMonitoringApi.completeEmergencyTriage(itemId(selected), {
@@ -928,8 +826,8 @@ export function EmergencyTriagePage() {
 
   async function saveDraft(form) {
     if (!selected) return;
-    if (String(itemId(selected)).startsWith('demo')) {
-      setToast(`Đã lưu nháp phân loại · ${selected.case_code}`);
+    if (!itemId(selected)) {
+      setToast('Chọn ca cấp cứu hợp lệ từ database trước khi lưu nháp.');
       return;
     }
     try {
@@ -974,16 +872,16 @@ export function EmergencyTriagePage() {
 }
 
 export function EmergencyResponseCoordinationPage() {
-  const [state, setState] = useState({ cases: DEMO_CASES, teams: DEMO_TEAMS, summary: {}, loading: true, demo: true });
+  const [state, setState] = useState({ cases: [], teams: [], summary: {}, loading: true, demo: false });
   const [selectedId, setSelectedId] = useState(null);
   const [toast, setToast] = useState('');
   async function load() {
     setState((current) => ({ ...current, loading: true }));
     try {
       const payload = await nurseMonitoringApi.getEmergencyDispatchBoard({ limit: 160 });
-      setState({ cases: listFromPayload(payload, 'cases').map(normalizeEmergencyCase), teams: payload.teams || DEMO_TEAMS, summary: payload.summary || {}, loading: false, demo: false });
+      setState({ cases: listFromPayload(payload, 'cases').map(normalizeEmergencyCase), teams: payload?.teams || [], summary: payload?.summary || {}, loading: false, demo: false });
     } catch {
-      setState({ cases: DEMO_CASES.map(normalizeEmergencyCase), teams: DEMO_TEAMS, summary: {}, loading: false, demo: true });
+      setState({ cases: [], teams: [], summary: {}, loading: false, demo: true });
     }
   }
   useEffect(() => { load(); }, []);
@@ -1012,13 +910,22 @@ export function EmergencyResponseCoordinationPage() {
             <span className="is-destination"><MapPin size={20} />{selected?.location_text || 'Ca cấp cứu'}</span>
           </div>
           <section className="nurse-em-dispatch-steps">
-            {['team_assigned', 'team_notified', 'en_route', 'arrived_at_scene', 'transporting', 'arrived_er', 'handover_to_doctor'].map((step, index) => (
-              <article key={step} className={index < 2 ? 'is-done' : ''}>
-                <span>{index + 1}</span>
-                <strong>{dispatchStepLabels[step] || step}</strong>
-                <small>{index < 2 ? 'Đã ghi nhận' : 'Chờ cập nhật'}</small>
-              </article>
-            ))}
+            {['team_assigned', 'team_notified', 'en_route', 'arrived_at_scene', 'transporting', 'arrived_er', 'handover_to_doctor'].map((step, index) => {
+              const done = Boolean(
+                selected?.metadata?.dispatch_steps?.[step]
+                || selected?.metadata?.dispatch?.[step]
+                || selected?.[`${step}_at`]
+                || (step === 'team_assigned' && selected?.assigned_to)
+                || (step === 'team_notified' && selected?.dispatched_at),
+              );
+              return (
+                <article key={step} className={done ? 'is-done' : ''}>
+                  <span>{index + 1}</span>
+                  <strong>{dispatchStepLabels[step] || step}</strong>
+                  <small>{done ? 'Đã ghi nhận' : 'Chờ cập nhật'}</small>
+                </article>
+              );
+            })}
           </section>
           <footer>
             <button type="button" className="nurse-em-primary" onClick={() => runAction('dispatch', selected)}><Navigation size={15} /> Điều phối đội</button>
@@ -1043,20 +950,22 @@ export function EmergencyResponseCoordinationPage() {
 }
 
 export function EmergencyEscalationPage() {
-  const [state, setState] = useState({ items: DEMO_ESCALATIONS, summary: {}, loading: true, demo: true });
+  const [state, setState] = useState({ items: [], summary: {}, loading: true, demo: false });
   const [selectedId, setSelectedId] = useState(null);
   const [toast, setToast] = useState('');
   async function load() {
     setState((current) => ({ ...current, loading: true }));
     try {
       const payload = await nurseMonitoringApi.getEmergencyEscalations({ limit: 160 });
-      setState({ items: listFromPayload(payload).map((item) => ({ ...item, case: normalizeEmergencyCase(item.case || item) })), summary: payload.summary || {}, loading: false, demo: false });
+      setState({ items: listFromPayload(payload).map((item) => ({ ...item, case: normalizeEmergencyCase(item.case || item) })), summary: payload?.summary || {}, loading: false, demo: false });
     } catch {
-      setState({ items: DEMO_ESCALATIONS, summary: {}, loading: false, demo: true });
+      setState({ items: [], summary: {}, loading: false, demo: true });
     }
   }
   useEffect(() => { load(); }, []);
   const selected = state.items.find((item) => item.id === selectedId) || state.items[0];
+  const selectedCase = selected?.case;
+  const timeline = useTimeline(itemId(selectedCase), Boolean(selectedCase));
   const runAction = useEmergencyAction(load, setToast);
   return (
     <section className="nurse-em-page">
@@ -1088,7 +997,7 @@ export function EmergencyEscalationPage() {
         </div>
         <aside className="nurse-em-escalation-detail">
           <header><AlertTriangle size={18} /><div><strong>{selected?.case_code || 'Báo khẩn'}</strong><span>Cấp {selected?.level || 1}</span></div></header>
-          {selected ? <CaseDetail item={selected.case} timeline={DEMO_TIMELINE} activeTab="Tổng quan" setActiveTab={() => {}} /> : null}
+          {selected ? <CaseDetail item={selectedCase} timeline={timeline} activeTab="Tổng quan" setActiveTab={() => {}} /> : null}
           <section>
             <button type="button" className="nurse-em-primary" onClick={() => runAction('acknowledge', selected?.case)}><UserCheck size={15} /> Nhận xử lý</button>
             <button type="button" onClick={() => runAction('notify', selected?.case)}><PhoneCall size={15} /> Gọi bác sĩ trực</button>
@@ -1102,14 +1011,14 @@ export function EmergencyEscalationPage() {
 }
 
 export function EmergencyResponseCommitmentPage() {
-  const [state, setState] = useState({ items: DEMO_CASES, analytics: {}, summary: {}, loading: true, demo: true });
+  const [state, setState] = useState({ items: [], analytics: {}, summary: {}, loading: true, demo: false });
   async function load() {
     setState((current) => ({ ...current, loading: true }));
     try {
       const payload = await nurseMonitoringApi.getEmergencySlaBoard({ limit: 220 });
-      setState({ items: listFromPayload(payload).map(normalizeEmergencyCase), analytics: payload.analytics || {}, summary: payload.summary || {}, loading: false, demo: false });
+      setState({ items: listFromPayload(payload).map(normalizeEmergencyCase), analytics: payload?.analytics || {}, summary: payload?.summary || {}, loading: false, demo: false });
     } catch {
-      setState({ items: DEMO_CASES.map(normalizeEmergencyCase), analytics: {}, summary: {}, loading: false, demo: true });
+      setState({ items: [], analytics: {}, summary: {}, loading: false, demo: true });
     }
   }
   useEffect(() => { load(); }, []);
@@ -1118,7 +1027,7 @@ export function EmergencyResponseCommitmentPage() {
     <section className="nurse-em-page">
       <CommandHeader title="Theo dõi SLA phản ứng" subtitle="Từ tạo ca đến tiếp nhận, phân loại, điều phối, phản hồi bác sĩ và tỷ lệ đóng ca đúng hạn." loading={state.loading} demo={state.demo} onRefresh={load} />
       <KpiStrip items={[
-        { key: 'compliance', label: 'Đúng hạn %', value: `${state.summary.compliance_percent ?? 82}%`, tone: 'green', icon: CheckCircle2 },
+        { key: 'compliance', label: 'Đúng hạn %', value: state.summary.compliance_percent !== undefined ? `${state.summary.compliance_percent}%` : '--', tone: 'green', icon: CheckCircle2 },
         { key: 'median', label: 'Trung vị tiếp nhận', value: state.summary.median_acknowledge_seconds ? secondsText(state.summary.median_acknowledge_seconds).replace('còn ', '') : '--', tone: 'blue', icon: Clock3 },
         { key: 'risk', label: 'Sắp quá hạn', value: state.summary.at_risk ?? 0, tone: 'amber', icon: AlertTriangle },
         { key: 'breach', label: 'Quá hạn', value: state.summary.breached ?? state.items.filter((item) => item.sla?.status === 'breached').length, tone: 'red', icon: Zap },
@@ -1162,7 +1071,7 @@ export function EmergencyResponseCommitmentPage() {
 }
 
 export function EmergencyClosedCasesPage() {
-  const [state, setState] = useState({ items: DEMO_CASES.map((item) => ({ ...item, status: 'resolved', resolved_at: nowIso(), sla: { ...item.sla, status: 'closed' } })), loading: true, demo: true });
+  const [state, setState] = useState({ items: [], loading: true, demo: false });
   const [filters, setFilters] = useState({ search: '', priority: 'all', status: 'all', type: 'all', risk: 'all', assignment: 'all', sla: 'all' });
   const [selectedId, setSelectedId] = useState(null);
   const [activeTab, setActiveTab] = useState('Tổng quan');
@@ -1172,7 +1081,7 @@ export function EmergencyClosedCasesPage() {
       const payload = await nurseMonitoringApi.getEmergencyClosedCases({ limit: 180 });
       setState({ items: listFromPayload(payload).map(normalizeEmergencyCase), loading: false, demo: false });
     } catch {
-      setState({ items: DEMO_CASES.map((item) => normalizeEmergencyCase({ ...item, status: 'resolved', resolved_at: nowIso(), sla: { ...item.sla, status: 'closed' } })), loading: false, demo: true });
+      setState({ items: [], loading: false, demo: true });
     }
   }
   useEffect(() => { load(); }, []);
@@ -1203,7 +1112,7 @@ export function EmergencyClosedCasesPage() {
                   <td><StatusBadge value={item.status} /></td>
                   <td>{elapsedText(item.created_at)}</td>
                   <td><SlaTimer item={item} /></td>
-                  <td><span className="nurse-em-review-pill">Chờ rà soát</span></td>
+                  <td><span className="nurse-em-review-pill">{item.review_status || item.metadata?.review_status || 'Chưa có rà soát'}</span></td>
                 </tr>
               ))}
             </tbody>

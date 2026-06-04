@@ -36,9 +36,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { nurseInpatientApi } from './nurseApi';
-import { confirmNurseAction, downloadNurseJson, notifyNurse, printNurseView, promptNurseText, runNurseAction } from './nurseActions';
-
-const now = Date.now();
+import { downloadNurseJson, notifyNurse, printNurseView, promptNurseText, runNurseAction } from './nurseActions';
 
 const shiftLabels = {
   morning: 'Ca sáng',
@@ -204,13 +202,13 @@ function PageFrame({ eyebrow, title, loading, isDemo, error, actions, children }
           <div className="nurse-ip-header__meta">
             <em>Khoa/phòng theo phân quyền</em>
             <em>{formatDate(new Date())}</em>
-            <em>{isDemo ? 'Dữ liệu mẫu' : 'API nội trú'}</em>
+            <em>{isDemo ? 'API/DB chưa sẵn sàng' : 'API nội trú'}</em>
           </div>
         </div>
         <aside>
           <span className={`nurse-ip-live${isDemo ? ' is-offline' : ''}`}>
             {isDemo ? <WifiOff size={15} /> : <Wifi size={15} />}
-            {isDemo ? 'Dữ liệu mẫu' : 'Thời gian thực sẵn sàng'}
+            {isDemo ? 'Chưa đồng bộ DB' : 'Thời gian thực sẵn sàng'}
           </span>
           <div className="nurse-ip-actions">{actions}</div>
         </aside>
@@ -277,145 +275,93 @@ function RiskBadges({ values = [] }) {
   );
 }
 
-const demoWardBoard = {
+const emptyWardBoard = {
   summary: {
-    active_admissions: 42,
-    pending_bed_assignment: 5,
-    occupied_beds: 38,
-    available_beds: 12,
-    reserved_beds: 2,
-    maintenance_beds: 1,
-    abnormal_vitals: 6,
-    high_risk_patients: 4,
-    overdue_tasks: 9,
-    medication_due_now: 11,
-    medication_overdue: 3,
-    planned_discharge_today: 4,
+    active_admissions: 0,
+    pending_bed_assignment: 0,
+    occupied_beds: 0,
+    available_beds: 0,
+    reserved_beds: 0,
+    maintenance_beds: 0,
+    abnormal_vitals: 0,
+    high_risk_patients: 0,
+    overdue_tasks: 0,
+    medication_due_now: 0,
+    medication_overdue: 0,
+    planned_discharge_today: 0,
   },
-  items: [
-    {
-      admission_id: 'adm-demo-1',
-      admission: { admission_no: 'IP-2026-00012', status: 'admitted', admitted_at: new Date(now - 74 * 3600000).toISOString(), reason: 'Theo dõi tăng huyết áp', priority: 'critical' },
-      patient: { patient_code: 'BN000123', full_name: 'Nguyễn Văn A', gender: 'male', date_of_birth: '1959-02-15' },
-      department: { department_name: 'Khoa Nội tổng hợp' },
-      attending_doctor: { full_name: 'BS Minh' },
-      room: { room_code: '301', room_name: 'Phòng 301' },
-      bed: { bed_code: '301-02', bed_type: 'standard', status: 'occupied' },
-      latest_vitals: { systolic_bp: 165, diastolic_bp: 95, heart_rate: 110, spo2: 92, temperature: 38.1, pain_score: 3, severity: 'critical' },
-      vital_alerts: [{ level: 'critical', message: 'SpO2 thấp và HA cao' }],
-      allergies: [{ allergen: 'Penicillin', severity: 'severe' }],
-      problems: [{ problem_name: 'Tăng huyết áp' }],
-      open_tasks_count: 4,
-      overdue_tasks_count: 1,
-      medication_due_count: 2,
-      medication_overdue_count: 1,
-      charges_summary: { count: 2, total_amount: 1800000, pending_count: 1 },
-      los_days: 3,
-      high_risk: true,
-    },
-    {
-      admission_id: 'adm-demo-2',
-      admission: { admission_no: 'IP-2026-00013', status: 'admitted', admitted_at: new Date(now - 29 * 3600000).toISOString(), reason: 'Theo dõi thiếu máu', priority: 'routine', expected_discharge_at: new Date(now + 6 * 3600000).toISOString() },
-      patient: { patient_code: 'BN000245', full_name: 'Trần Thị B', gender: 'female', date_of_birth: '1986-09-20' },
-      department: { department_name: 'Khoa Nội tổng hợp' },
-      attending_doctor: { full_name: 'BS Lan' },
-      room: { room_code: '304', room_name: 'Phòng 304' },
-      bed: { bed_code: '304-01', bed_type: 'standard', status: 'occupied' },
-      latest_vitals: { systolic_bp: 118, diastolic_bp: 76, heart_rate: 78, spo2: 98, temperature: 36.8, pain_score: 1, severity: 'normal' },
-      vital_alerts: [],
-      allergies: [],
-      problems: [{ problem_name: 'Thiếu máu' }],
-      open_tasks_count: 3,
-      overdue_tasks_count: 0,
-      medication_due_count: 1,
-      medication_overdue_count: 0,
-      charges_summary: { count: 1, total_amount: 650000, pending_count: 0 },
-      los_days: 1,
-      high_risk: false,
-    },
-  ],
+  items: [],
 };
 
-const demoWardMap = {
-  summary: { total_rooms: 9, total_beds: 52, available: 12, occupied: 38, reserved: 2, maintenance: 1, blocked: 0, inactive: 0, data_mismatch_active_assignment_on_available_bed: 1 },
-  buildings: [
-    {
-      building: 'A',
-      floors: [
-        {
-          floor: '3',
-          rooms: [
-            {
-              room: { room_id: 'room-301', room_code: '301', room_name: 'Phòng 301', room_type: 'ward', status: 'active', capacity: 4, department_id: { department_name: 'Khoa Nội tổng hợp' } },
-              bed_summary: { total_beds: 4, occupied: 3, available: 1, reserved: 0, maintenance: 0, blocked: 0, inactive: 0 },
-              beds: [
-                { bed: { bed_id: 'bed-301-01', bed_code: '301-01', bed_type: 'standard', status: 'occupied' }, patient: { full_name: 'Nguyễn Văn A', patient_code: 'BN000123' }, admission: { admission_no: 'IP-2026-00012', admitted_at: new Date(now - 74 * 3600000).toISOString() }, warnings: [] },
-                { bed: { bed_id: 'bed-301-02', bed_code: '301-02', bed_type: 'standard', status: 'available' }, patient: null, admission: null, warnings: ['active_assignment_on_available_bed'] },
-                { bed: { bed_id: 'bed-301-03', bed_code: '301-03', bed_type: 'isolation', status: 'reserved' }, patient: null, admission: null, warnings: [] },
-                { bed: { bed_id: 'bed-301-04', bed_code: '301-04', bed_type: 'standard', status: 'maintenance' }, patient: null, admission: null, warnings: [] },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  ],
+const emptyWardMap = {
+  summary: {
+    total_rooms: 0,
+    total_beds: 0,
+    available: 0,
+    occupied: 0,
+    reserved: 0,
+    maintenance: 0,
+    blocked: 0,
+    inactive: 0,
+    data_mismatch_active_assignment_on_available_bed: 0,
+  },
+  buildings: [],
 };
 
-const demoTasks = {
-  summary: { total: 18, todo: 7, in_progress: 4, done: 5, cancelled: 0, overdue: 2 },
-  items: [
-    { task_id: 'ipt-1', title: 'Đo lại sinh hiệu sau thuốc hạ áp', type: 'vital_sign', status: 'overdue', raw_status: 'todo', priority: 'urgent', patient: demoWardBoard.items[0].patient, admission: demoWardBoard.items[0].admission, room: demoWardBoard.items[0].room, bed: demoWardBoard.items[0].bed, due_at: new Date(now - 12 * 60000).toISOString(), overdue_minutes: 12, assigned_to_name: 'ĐD Mai' },
-    { task_id: 'ipt-2', title: 'Chuẩn bị bảng kiểm xuất viện', type: 'discharge_checklist', status: 'todo', raw_status: 'todo', priority: 'high', patient: demoWardBoard.items[1].patient, admission: demoWardBoard.items[1].admission, room: demoWardBoard.items[1].room, bed: demoWardBoard.items[1].bed, due_at: new Date(now + 45 * 60000).toISOString(), assigned_to_name: null },
-    { task_id: 'ipt-3', title: 'Đi buồng và đánh giá nguy cơ té ngã', type: 'round', status: 'in_progress', raw_status: 'in_progress', priority: 'normal', patient: demoWardBoard.items[0].patient, admission: demoWardBoard.items[0].admission, room: demoWardBoard.items[0].room, bed: demoWardBoard.items[0].bed, due_at: new Date(now + 90 * 60000).toISOString(), assigned_to_name: 'ĐD Hương' },
-  ],
-};
+const emptyAdmissions = { items: [] };
+const emptyBedOps = { admissions: [], beds: [], assignments: [] };
+const emptyTasks = { summary: { total: 0, todo: 0, in_progress: 0, done: 0, cancelled: 0, overdue: 0 }, items: [] };
+const emptyMedications = { summary: { total: 0, due_now: 0, overdue: 0, given: 0, held: 0, refused: 0, omitted: 0 }, items: [] };
+const emptyHandovers = { summary: { total: 0, prepared: 0, signed: 0, acknowledged: 0, closed: 0, high_risk: 0, overdue_tasks: 0 }, items: [] };
 
-const demoMedications = {
-  summary: { total: 24, due_now: 7, overdue: 2, given: 11, held: 1, refused: 1, omitted: 0 },
-  items: [
-    { administration_id: 'emar-1', scheduled_at: new Date(now - 35 * 60000).toISOString(), status: 'scheduled', dose: '1 viên', route: 'PO', site: '', patient: demoWardBoard.items[0].patient, admission: demoWardBoard.items[0].admission, medication: { name: 'Amlodipine', generic_name: 'Amlodipine 5mg' }, prescription_item: { instructions: 'Uống sau ăn sáng' }, is_overdue: true },
-    { administration_id: 'emar-2', scheduled_at: new Date(now + 18 * 60000).toISOString(), status: 'scheduled', dose: '500mg', route: 'IV', site: 'Tay trái', patient: demoWardBoard.items[1].patient, admission: demoWardBoard.items[1].admission, medication: { name: 'Ceftriaxone', generic_name: 'Ceftriaxone' }, prescription_item: { instructions: 'Truyền tĩnh mạch' }, is_due_now: true },
-    { administration_id: 'emar-3', scheduled_at: new Date(now - 90 * 60000).toISOString(), administered_at: new Date(now - 70 * 60000).toISOString(), status: 'given', dose: '1 viên', route: 'PO', patient: demoWardBoard.items[0].patient, admission: demoWardBoard.items[0].admission, medication: { name: 'Paracetamol', generic_name: 'Acetaminophen' } },
-  ],
-};
+function rawId(value) {
+  if (!value) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value !== 'object') return '';
+  const keys = ['_id', 'id', 'admission_id', 'bed_id', 'assignment_id', 'patient_id', 'encounter_id', 'room_id'];
+  for (const key of keys) {
+    const candidate = value[key];
+    if (candidate && candidate !== value) {
+      const resolved = rawId(candidate);
+      if (resolved) return resolved;
+    }
+  }
+  return '';
+}
 
-const demoHandovers = {
-  summary: { total: 1, prepared: 1, signed: 0, acknowledged: 0, closed: 0, high_risk: 2, overdue_tasks: 3 },
-  items: [
-    {
-      handover_id: 'iph-1',
-      handover_no: 'IPH20260519001',
-      status: 'prepared',
-      shift_date: toLocalDateKey(),
-      from_shift: 'morning',
-      to_shift: 'afternoon',
-      summary: 'Bàn giao 12 bệnh nhân, 2 nguy cơ cao, 3 việc quá hạn.',
-      patient_count: 12,
-      high_risk_count: 2,
-      abnormal_vital_count: 1,
-      overdue_task_count: 3,
-      medication_due_count: 6,
-      items: [
-        {
-          item_id: 'hi1',
-          priority: 'critical',
-          patient_id: 'p1',
-          admission_id: 'adm-demo-1',
-          bed_id: 'bed-301-01',
-          situation: 'Nguyễn Văn A HA còn cao, SpO2 92%, đang nằm P301/G301-02.',
-          background: 'Nhập viện theo dõi tăng huyết áp, dị ứng Penicillin.',
-          assessment: 'Sinh hiệu nguy cơ, còn 1 việc quá hạn và 1 thuốc quá giờ.',
-          recommendation: 'Đo lại sinh hiệu lúc 14:30, báo bác sĩ nếu HA > 160 hoặc SpO2 < 92%.',
-          open_tasks: [{ count: 4, overdue: 1 }],
-          medication_warnings: [{ due: 2, overdue: 1 }],
-          vital_warnings: [{ message: 'SpO2 thấp và HA cao' }],
-          acknowledged: false,
-        },
-      ],
-    },
-  ],
-};
+function admissionIdOf(item = {}) {
+  return rawId(item.admission_id || item._id || item.id || item.admission);
+}
+
+function patientIdOf(item = {}) {
+  return rawId(item.patient_id || item.patient?.patient_id || item.patient?._id || item.admission?.patient_id);
+}
+
+function encounterIdOf(item = {}) {
+  return rawId(item.encounter_id || item.admission?.encounter_id || item.related_encounter_id);
+}
+
+function bedIdOf(item = {}) {
+  return rawId(item.bed_id || item.bed || item.current_bed_assignment?.bed_id);
+}
+
+function assignmentIdOf(item = {}) {
+  return rawId(item.assignment_id || item.bed_assignment_id || item.current_bed_assignment || item._id || item.id);
+}
+
+function inpatientContextPath(path, item = {}) {
+  const params = new URLSearchParams();
+  const admissionId = admissionIdOf(item);
+  const patientId = patientIdOf(item);
+  const encounterId = encounterIdOf(item);
+  const bedId = bedIdOf(item);
+  if (admissionId) params.set('admission_id', admissionId);
+  if (patientId) params.set('patient_id', patientId);
+  if (encounterId) params.set('encounter_id', encounterId);
+  if (bedId) params.set('bed_id', bedId);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
 
 function PatientDrawer({ item, onClose, onAction }) {
   if (!item) return null;
@@ -449,21 +395,21 @@ export function InpatientWardBoardPage() {
   const [selected, setSelected] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const params = { ...filters, status: filters.status === 'all' ? undefined : filters.status, search: filters.search || filters.room || undefined };
-  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.getWardBoard(params), demoWardBoard, [filters.status, filters.search, filters.department_id, filters.room, refresh]);
+  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.getWardBoard(params), emptyWardBoard, [filters.status, filters.search, filters.department_id, filters.room, refresh]);
   const items = safeList(data.items).filter((item) => !filters.search || `${patientName(item)} ${admissionNo(item)} ${roomBedText(item)}`.toLowerCase().includes(filters.search.toLowerCase()));
   const active = selected || items[0];
 
   async function runWardAction(action, item = active) {
-    if (action === 'vitals') return window.location.assign('/nurse/vitals-records/entry');
-    if (action === 'medication') return window.location.assign('/nurse/inpatient/bedside-medication');
-    if (action === 'bed') return window.location.assign('/nurse/inpatient/bed-assignment-transfer');
+    if (action === 'vitals') return window.location.assign(inpatientContextPath('/nurse/vitals-records/entry', item));
+    if (action === 'medication') return window.location.assign(inpatientContextPath('/nurse/inpatient/bedside-medication', item));
+    if (action === 'bed') return window.location.assign(inpatientContextPath('/nurse/inpatient/bed-assignment-transfer', item));
     if (action === 'task') {
-      const admissionId = item?.admission_id || item?.admission?._id || item?.admission?.id;
+      const admissionId = admissionIdOf(item);
       const title = promptNurseText({ title: 'Tạo việc nội trú', message: patientName(item), defaultValue: 'Theo dõi sinh hiệu trong ca' });
       if (!title) return null;
       return runNurseAction({
         label: 'Tạo việc nội trú',
-        isDemo: isDemo || !admissionId || String(admissionId).includes('demo'),
+        isDemo: isDemo || !admissionId,
         demoMessage: 'Cần admission_id hợp lệ để tạo việc nội trú.',
         confirm: { title: 'Tạo việc?', message: title },
         run: () => nurseInpatientApi.createTask({ admission_id: admissionId, title, task_type: 'round', priority: 'normal' }),
@@ -472,8 +418,24 @@ export function InpatientWardBoardPage() {
       });
     }
     if (action === 'notify') {
-      notifyNurse({ title: 'Báo bác sĩ', message: `Đã ghi nhận yêu cầu báo bác sĩ cho ${patientName(item)}.` });
-      return null;
+      const admissionId = admissionIdOf(item);
+      return runNurseAction({
+        label: 'Báo bác sĩ',
+        isDemo: isDemo || !admissionId,
+        demoMessage: 'Cần admission_id hợp lệ để ghi nhận yêu cầu báo bác sĩ.',
+        confirm: { title: 'Báo bác sĩ?', message: patientName(item) },
+        run: () => nurseInpatientApi.createTask({
+          admission_id: admissionId,
+          title: `Báo bác sĩ: ${patientName(item)}`,
+          description: 'Điều dưỡng yêu cầu bác sĩ xem lại bệnh nhân từ bảng nội trú.',
+          task_type: 'round',
+          priority: 'urgent',
+          source_module: 'nurse_inpatient_workspace',
+          metadata: { action: 'notify_doctor' },
+        }),
+        successMessage: 'Đã ghi nhận yêu cầu báo bác sĩ trong task nội trú.',
+        onSuccess: () => setRefresh((value) => value + 1),
+      });
     }
     return null;
   }
@@ -533,14 +495,14 @@ export function InpatientAdmissionPage() {
   const [selected, setSelected] = useState(null);
   const [readiness, setReadiness] = useState(null);
   const [refresh, setRefresh] = useState(0);
-  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.listAdmissions({ status: filters.status === 'all' ? undefined : filters.status, search: filters.search || undefined, limit: 100 }), { items: demoWardBoard.items.map((item) => ({ ...item.admission, patient_id: item.patient, current_bed_assignment: item.current_bed_assignment, room: item.room, bed: item.bed })) }, [filters.status, filters.search, refresh]);
+  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.listAdmissions({ status: filters.status === 'all' ? undefined : filters.status, search: filters.search || undefined, limit: 100 }), emptyAdmissions, [filters.status, filters.search, refresh]);
   const admissions = safeList(data.items);
   const active = selected || admissions[0];
 
   async function checkReady(admission) {
-    const id = admission?._id || admission?.admission_id;
+    const id = admissionIdOf(admission);
     if (!id || isDemo) {
-      setReadiness({ can_discharge: false, blockers: ['Dữ liệu mẫu: chưa gọi hệ thống.'], warnings: ['Hoàn tất bảng kiểm và eMAR trước khi ra viện.'], suggested_actions: ['Tạo chi phí phòng/giường', 'Bổ sung tóm tắt ra viện'] });
+      setReadiness({ can_discharge: false, blockers: ['Chưa có admission_id hợp lệ từ database để kiểm tra ra viện.'], warnings: [], suggested_actions: [] });
       return;
     }
     try {
@@ -551,8 +513,8 @@ export function InpatientAdmissionPage() {
   }
 
   async function runAdmissionAction(label, admission = active) {
-    const id = admission?._id || admission?.admission_id;
-    if (label === 'Phân giường' || label === 'Chuyển giường') return window.location.assign('/nurse/inpatient/bed-assignment-transfer');
+    const id = admissionIdOf(admission);
+    if (label === 'Phân giường' || label === 'Chuyển giường') return window.location.assign(inpatientContextPath('/nurse/inpatient/bed-assignment-transfer', admission));
     if (label === 'In phiếu') return printNurseView('In phiếu nhập viện');
     if (label === 'Tạo chi phí phòng') {
       await runNurseAction({
@@ -645,17 +607,24 @@ export function InpatientRoomsBedsPage() {
   const [filters, setFilters] = useState({ department_id: '', room: '', status: 'all', search: '' });
   const [selectedBed, setSelectedBed] = useState(null);
   const [refresh, setRefresh] = useState(0);
-  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.getWardMap({ department_id: filters.department_id || undefined, status: filters.status === 'all' ? undefined : filters.status }), demoWardMap, [filters.department_id, filters.status, refresh]);
+  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.getWardMap({ department_id: filters.department_id || undefined, status: filters.status === 'all' ? undefined : filters.status }), emptyWardMap, [filters.department_id, filters.status, refresh]);
   const rooms = safeList(data.buildings).flatMap((building) => safeList(building.floors).flatMap((floor) => safeList(floor.rooms).map((room) => ({ ...room, building: building.building, floor: floor.floor }))));
-  const selectedBedId = selectedBed?.bed?._id || selectedBed?.bed?.bed_id || selectedBed?.bed?.id;
+  const selectedBedId = rawId(selectedBed?.bed);
 
   async function createRoomOrBed(kind) {
     const code = promptNurseText({ title: kind === 'room' ? 'Tạo phòng' : 'Tạo giường', message: 'Nhập mã định danh.', defaultValue: '' });
     if (!code) return;
+    const roomId = kind === 'bed'
+      ? rawId(selectedBed?.room) || promptNurseText({ title: 'Tạo giường', message: 'Nhập room_id từ database cho giường mới.', defaultValue: '' })
+      : '';
+    if (kind === 'bed' && !roomId) {
+      notifyNurse({ tone: 'warning', title: 'Thiếu room_id', message: 'Chọn một phòng hoặc nhập room_id trước khi tạo giường.' });
+      return;
+    }
     await runNurseAction({
       label: kind === 'room' ? 'Tạo phòng' : 'Tạo giường',
       confirm: { title: 'Xác nhận tạo mới?', message: code },
-      run: () => (kind === 'room' ? nurseInpatientApi.createRoom({ room_code: code }) : nurseInpatientApi.createBed({ bed_code: code, room_id: selectedBed?.room?._id })),
+      run: () => (kind === 'room' ? nurseInpatientApi.createRoom({ room_code: code }) : nurseInpatientApi.createBed({ bed_code: code, room_id: roomId })),
       successMessage: kind === 'room' ? 'Đã tạo phòng.' : 'Đã tạo giường.',
       onSuccess: () => setRefresh((value) => value + 1),
     });
@@ -664,7 +633,7 @@ export function InpatientRoomsBedsPage() {
   async function updateSelectedBed(status) {
     await runNurseAction({
       label: status === 'maintenance' ? 'Bảo trì giường' : 'Cập nhật giường',
-      isDemo: isDemo || !selectedBedId || String(selectedBedId).includes('demo'),
+      isDemo: isDemo || !selectedBedId,
       demoMessage: 'Cần bed_id hợp lệ để cập nhật giường.',
       confirm: { title: 'Cập nhật trạng thái giường?', message: selectedBed?.bed?.bed_code || '' },
       run: () => nurseInpatientApi.updateBed(selectedBedId, { status }),
@@ -710,7 +679,7 @@ export function InpatientRoomsBedsPage() {
           <section><h3>Bệnh nhân hiện tại</h3><p>{selectedBed?.patient?.full_name || selectedBed?.admission?.patient_id?.full_name || 'Không có bệnh nhân đang nằm'}</p></section>
           <section><h3>Trạng thái</h3><StatusPill value={selectedBed?.bed?.status || 'available'} /></section>
           <section><h3>Cảnh báo dữ liệu</h3><RiskBadges values={selectedBed?.warnings || []} /></section>
-          <footer><button type="button" onClick={() => window.location.assign('/nurse/inpatient/bed-assignment-transfer')}>Phân bệnh nhân</button><button type="button" onClick={() => updateSelectedBed('available')}>Chuyển khỏi giường</button><button type="button" onClick={() => updateSelectedBed('maintenance')}>Bảo trì</button></footer>
+          <footer><button type="button" onClick={() => window.location.assign(inpatientContextPath('/nurse/inpatient/bed-assignment-transfer', selectedBed?.bed))}>Phân bệnh nhân</button><button type="button" onClick={() => updateSelectedBed('available')}>Chuyển khỏi giường</button><button type="button" onClick={() => updateSelectedBed('maintenance')}>Bảo trì</button></footer>
         </aside>
       </section>
     </PageFrame>
@@ -729,13 +698,15 @@ export function InpatientBedAssignmentTransferPage() {
       nurseInpatientApi.listBedAssignments({ status: 'active', limit: 100 }),
     ]);
     return { admissions: safeList(admissions.items || admissions), beds: safeList(beds.items || beds), assignments: safeList(assignments.items || assignments) };
-  }, { admissions: demoWardBoard.items.map((item) => item.admission), beds: demoWardMap.buildings[0].floors[0].rooms[0].beds.filter((entry) => entry.bed.status === 'available').map((entry) => ({ ...entry.bed, room_id: { room_code: '301', room_name: 'Phòng 301' } })), assignments: [] }, [refresh]);
+  }, emptyBedOps, [refresh]);
 
   async function assign() {
     if (!selectedAdmission || !selectedBed) return setToast('Chưa chọn lượt nhập viện và giường.');
-    if (isDemo) return setToast('Dữ liệu mẫu: thao tác chưa gửi hệ thống.');
+    const admissionId = admissionIdOf(selectedAdmission);
+    const bedId = bedIdOf(selectedBed) || rawId(selectedBed);
+    if (isDemo || !admissionId || !bedId) return setToast('Thiếu admission_id hoặc bed_id hợp lệ từ database.');
     try {
-      await nurseInpatientApi.assignBed(selectedAdmission._id || selectedAdmission.admission_id, { bed_id: selectedBed._id || selectedBed.bed_id, mode: 'reserve', admit_now: false, enforce_department_match: true });
+      await nurseInpatientApi.assignBed(admissionId, { bed_id: bedId, mode: 'reserve', admit_now: false, enforce_department_match: true });
       setToast('Đã phân giường.');
       setRefresh((value) => value + 1);
     } catch (updateError) {
@@ -743,16 +714,32 @@ export function InpatientBedAssignmentTransferPage() {
     }
   }
 
-  function transferBed() {
+  async function transferBed() {
     if (!selectedAdmission || !selectedBed) {
       setToast('Chưa chọn lượt nhập viện và giường đích.');
       return;
     }
-    assign();
+    const admissionId = admissionIdOf(selectedAdmission);
+    const bedId = bedIdOf(selectedBed) || rawId(selectedBed);
+    if (isDemo || !admissionId || !bedId) {
+      setToast('Thiếu admission_id hoặc bed_id hợp lệ từ database.');
+      return;
+    }
+    try {
+      await nurseInpatientApi.transferBedByAdmission(admissionId, {
+        new_bed_id: bedId,
+        reason: 'Chuyển giường từ workspace điều dưỡng.',
+        enforce_department_match: true,
+      });
+      setToast('Đã chuyển giường.');
+      setRefresh((value) => value + 1);
+    } catch (updateError) {
+      setToast(updateError?.message || 'Không chuyển giường được.');
+    }
   }
 
   async function releaseBed() {
-    const assignmentId = data.assignments?.[0]?._id || data.assignments?.[0]?.assignment_id;
+    const assignmentId = assignmentIdOf(data.assignments?.[0]);
     await runNurseAction({
       label: 'Giải phóng giường',
       isDemo: isDemo || !assignmentId,
@@ -781,7 +768,7 @@ export function InpatientTasksPage() {
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState('');
   const [refresh, setRefresh] = useState(0);
-  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.listTasks({ status: filters.status === 'all' ? undefined : filters.status, type: filters.type === 'all' ? undefined : filters.type, search: filters.search || undefined, limit: 100 }), demoTasks, [filters.status, filters.type, filters.search, refresh]);
+  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.listTasks({ status: filters.status === 'all' ? undefined : filters.status, type: filters.type === 'all' ? undefined : filters.type, search: filters.search || undefined, limit: 100 }), emptyTasks, [filters.status, filters.type, filters.search, refresh]);
   const tasks = safeList(data.items);
   const active = selected || tasks[0];
 
@@ -793,7 +780,7 @@ export function InpatientTasksPage() {
     await runNurseAction({
       label: action === 'start' ? 'Bắt đầu việc' : action === 'complete' ? 'Hoàn tất việc' : 'Giao lại việc',
       isDemo: isDemo || !taskId,
-      demoMessage: 'Dữ liệu mẫu hoặc thiếu task_id nên thao tác việc chưa gửi hệ thống.',
+      demoMessage: 'API/DB chưa sẵn sàng hoặc thiếu task_id nên chưa gửi thao tác.',
       confirm: action === 'complete' ? { title: 'Hoàn tất việc?', message: task.title } : null,
       run: async () => {
         if (action === 'start') return nurseInpatientApi.startTask(taskId);
@@ -819,8 +806,14 @@ export function InpatientTasksPage() {
   return (
     <PageFrame eyebrow="Bảng việc điều dưỡng" title="Việc nội trú" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => {
       const title = promptNurseText({ title: 'Tạo việc nội trú', message: 'Nhập tên việc.', defaultValue: 'Đi buồng và ghi nhận tình trạng' });
-      if (title) runNurseAction({ label: 'Tạo việc nội trú', confirm: { title: 'Tạo việc?', message: title }, run: () => nurseInpatientApi.createTask({ title, task_type: 'round', priority: 'normal' }), successMessage: 'Đã tạo việc nội trú.', onSuccess: () => setRefresh((value) => value + 1) });
-    }}><Plus size={16} />Tạo việc</button><button type="button" onClick={() => run('assign')}><Users size={16} />Giao hàng loạt</button><button type="button" onClick={() => notifyNurse({ title: 'Bảng kiểm xuất viện', message: 'Mở bộ lọc loại việc "Bảng kiểm ra viện" để rà soát.' })}><ClipboardCheck size={16} />Bảng kiểm xuất viện</button><button type="button" onClick={() => printNurseView('In việc trong ca')}><Printer size={16} />In việc trong ca</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+      if (!title) return;
+      const admissionId = admissionIdOf(active) || promptNurseText({ title: 'Tạo việc nội trú', message: 'Nhập admission_id từ database.', defaultValue: '' });
+      if (!admissionId) {
+        notifyNurse({ tone: 'warning', title: 'Thiếu admission_id', message: 'Task nội trú cần liên kết một lượt nhập viện thật.' });
+        return;
+      }
+      runNurseAction({ label: 'Tạo việc nội trú', confirm: { title: 'Tạo việc?', message: title }, run: () => nurseInpatientApi.createTask({ admission_id: admissionId, title, task_type: 'round', priority: 'normal' }), successMessage: 'Đã tạo việc nội trú.', onSuccess: () => setRefresh((value) => value + 1) });
+    }}><Plus size={16} />Tạo việc</button><button type="button" onClick={() => run('assign')}><Users size={16} />Giao hàng loạt</button><button type="button" onClick={() => setFilters((current) => ({ ...current, type: 'discharge_checklist', status: 'all' }))}><ClipboardCheck size={16} />Bảng kiểm xuất viện</button><button type="button" onClick={() => printNurseView('In việc trong ca')}><Printer size={16} />In việc trong ca</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       {toast ? <div className="nurse-ip-toast">{toast}<button type="button" onClick={() => setToast('')}><X size={14} /></button></div> : null}
       <Kpis items={[
         { label: 'Việc hôm nay', value: data.summary?.total || tasks.length, detail: 'Trong bộ lọc', icon: ClipboardList, tone: 'blue' },
@@ -849,7 +842,7 @@ export function InpatientBedsideMedicationPage() {
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState('');
   const [refresh, setRefresh] = useState(0);
-  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.listMedicationAdministrations({ date: filters.date, status: filters.status === 'all' ? undefined : filters.status, search: filters.search || undefined, limit: 100 }), demoMedications, [filters.status, filters.date, filters.search, refresh]);
+  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.listMedicationAdministrations({ date: filters.date, status: filters.status === 'all' ? undefined : filters.status, search: filters.search || undefined, limit: 100 }), emptyMedications, [filters.status, filters.date, filters.search, refresh]);
   const medications = safeList(data.items);
   const active = selected || medications[0];
 
@@ -859,7 +852,7 @@ export function InpatientBedsideMedicationPage() {
     await runNurseAction({
       label: action === 'administer' ? 'Ghi nhận đã dùng' : action === 'hold' ? 'Tạm hoãn thuốc' : action === 'refuse' ? 'Từ chối thuốc' : action === 'omit' ? 'Bỏ qua thuốc' : 'Báo bác sĩ',
       isDemo: isDemo || !id,
-      demoMessage: 'Dữ liệu mẫu hoặc thiếu administration_id nên chưa ghi nhận eMAR.',
+      demoMessage: 'API/DB chưa sẵn sàng hoặc thiếu administration_id nên chưa ghi nhận eMAR.',
       confirm: { title: 'Xác nhận eMAR', message: `${patientName(item)} - ${item.medication?.name || item.medication?.generic_name || ''}` },
       run: async () => {
         if (action === 'administer') return nurseInpatientApi.administerMedication(id, { dose: item.dose, route: item.route, site: item.site, note: 'Ghi nhận tại giường.' });
@@ -876,8 +869,35 @@ export function InpatientBedsideMedicationPage() {
     });
   }
 
+  async function verifyScan(kind, item = active) {
+    if (!item) return;
+    const id = item.administration_id || item.id || item._id;
+    const code = promptNurseText({
+      title: kind === 'patient' ? 'Quét QR bệnh nhân' : 'Quét mã thuốc',
+      message: kind === 'patient' ? 'Nhập patient_id từ QR/database.' : 'Nhập medication_id hoặc batch_no từ mã thuốc.',
+      defaultValue: '',
+    });
+    if (!code) return;
+    const medicationScanPayload = /^[a-f\d]{24}$/i.test(code) ? { medication_id: code } : { batch_no: code };
+    await runNurseAction({
+      label: kind === 'patient' ? 'Xác minh bệnh nhân' : 'Xác minh thuốc',
+      isDemo: isDemo || !id,
+      demoMessage: 'Cần administration_id thật để xác minh eMAR.',
+      run: () => nurseInpatientApi.verifyMedicationScan({
+        administration_id: id,
+        ...(kind === 'patient' ? { patient_id: code } : medicationScanPayload),
+      }),
+      successMessage: 'Đã xác minh mã eMAR.',
+      onSuccess: (result) => {
+        const warnings = Array.isArray(result?.warnings) ? result.warnings.join(' | ') : '';
+        setToast(warnings || (result?.valid === false ? 'Mã quét không khớp.' : 'Mã quét hợp lệ.'));
+        setRefresh((value) => value + 1);
+      },
+    });
+  }
+
   return (
-    <PageFrame eyebrow="Cấp thuốc tại giường eMAR" title="Cấp thuốc tại giường" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => notifyNurse({ title: 'Quét QR bệnh nhân', message: 'Tính năng quét cần thiết bị đầu đọc hoặc camera trình duyệt.' })}><ScanLine size={16} />Quét QR bệnh nhân</button><button type="button" onClick={() => notifyNurse({ title: 'Quét mã thuốc', message: 'Tính năng quét cần thiết bị đầu đọc hoặc camera trình duyệt.' })}><Pill size={16} />Quét mã thuốc</button><button type="button" onClick={() => medicationAction('administer')}><CheckCircle2 size={16} />Ghi nhận đã dùng</button><button type="button" onClick={() => printNurseView('In phiếu MAR')}><Printer size={16} />In phiếu MAR</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
+    <PageFrame eyebrow="Cấp thuốc tại giường eMAR" title="Cấp thuốc tại giường" loading={loading} isDemo={isDemo} error={error} actions={<><button type="button" onClick={() => verifyScan('patient')}><ScanLine size={16} />Quét QR bệnh nhân</button><button type="button" onClick={() => verifyScan('medication')}><Pill size={16} />Quét mã thuốc</button><button type="button" onClick={() => medicationAction('administer')}><CheckCircle2 size={16} />Ghi nhận đã dùng</button><button type="button" onClick={() => printNurseView('In phiếu MAR')}><Printer size={16} />In phiếu MAR</button><button type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} />Làm mới</button></>}>
       {toast ? <div className="nurse-ip-toast">{toast}<button type="button" onClick={() => setToast('')}><X size={14} /></button></div> : null}
       <Kpis items={[
         { label: 'Lịch hôm nay', value: data.summary?.total || medications.length, detail: 'Theo ngày', icon: CalendarDays, tone: 'blue' },
@@ -895,7 +915,13 @@ export function InpatientBedsideMedicationPage() {
             <tbody>{medications.map((item) => <tr key={item.administration_id || item.id} className={active === item ? 'is-active' : ''} onClick={() => setSelected(item)}><td><strong>{formatTime(item.scheduled_at)}</strong><small>{item.is_overdue ? 'Quá giờ' : item.is_due_now ? 'Đến giờ' : ''}</small></td><td>{patientName(item)}<small>{admissionNo(item)}</small></td><td>{item.medication?.name || item.medication?.generic_name || '--'}<small>{item.prescription_item?.instructions || item.medication?.generic_name}</small></td><td>{item.dose || '--'}</td><td>{item.route || '--'}</td><td><StatusPill value={item.status} /></td><td><RiskBadges values={item.is_overdue ? ['Quá giờ dùng thuốc'] : []} /></td><td><div className="nurse-ip-row-actions"><button type="button" onClick={(event) => { event.stopPropagation(); medicationAction('administer', item); }}><CheckCircle2 size={13} /></button><button type="button" onClick={(event) => { event.stopPropagation(); medicationAction('hold', item); }}><ShieldAlert size={13} /></button><button type="button" onClick={(event) => { event.stopPropagation(); medicationAction('omit', item); }}><X size={13} /></button></div></td></tr>)}</tbody>
           </table>
         </main>
-        <aside className="nurse-ip-drawer nurse-ip-drawer--static"><header><h2>{active?.medication?.name || 'Chọn thuốc'}</h2><p>{patientName(active)} · {formatTime(active?.scheduled_at)}</p></header><section><h3><ScanLine size={16} />Năm đúng</h3>{['Đúng bệnh nhân', 'Đúng thuốc', 'Đúng liều', 'Đúng đường dùng', 'Đúng thời điểm'].map((label, index) => <div key={label} className="nurse-ip-right-check"><CheckCircle2 size={15} /><span>{label}</span><strong>{index < 3 ? 'Khớp' : 'Cần xác minh'}</strong></div>)}</section><section><h3>Không dùng thuốc</h3><div className="nurse-ip-action-grid"><button type="button" onClick={() => medicationAction('hold')}>Tạm hoãn</button><button type="button" onClick={() => medicationAction('refuse')}>Từ chối</button><button type="button" onClick={() => medicationAction('omit')}>Bỏ qua</button><button type="button" onClick={() => medicationAction('notify')}>Báo bác sĩ</button></div></section></aside>
+        <aside className="nurse-ip-drawer nurse-ip-drawer--static"><header><h2>{active?.medication?.name || 'Chọn thuốc'}</h2><p>{patientName(active)} · {formatTime(active?.scheduled_at)}</p></header><section><h3><ScanLine size={16} />Năm đúng</h3>{[
+          ['Đúng bệnh nhân', active?.verified_patient_scan_at ? 'Khớp' : 'Cần quét'],
+          ['Đúng thuốc', active?.verified_medication_scan_at ? 'Khớp' : 'Cần quét'],
+          ['Đúng liều', active?.dose ? 'Theo y lệnh' : 'Cần xác minh'],
+          ['Đúng đường dùng', active?.route ? 'Theo y lệnh' : 'Cần xác minh'],
+          ['Đúng thời điểm', active?.scan_result === 'pass' || active?.is_due_now ? 'Trong khung' : 'Cần xác minh'],
+        ].map(([label, value]) => <div key={label} className="nurse-ip-right-check"><CheckCircle2 size={15} /><span>{label}</span><strong>{value}</strong></div>)}</section><section><h3>Không dùng thuốc</h3><div className="nurse-ip-action-grid"><button type="button" onClick={() => medicationAction('hold')}>Tạm hoãn</button><button type="button" onClick={() => medicationAction('refuse')}>Từ chối</button><button type="button" onClick={() => medicationAction('omit')}>Bỏ qua</button><button type="button" onClick={() => medicationAction('notify')}>Báo bác sĩ</button></div></section></aside>
       </section>
     </PageFrame>
   );
@@ -906,7 +932,7 @@ export function InpatientHandoverPage() {
   const [patientItem, setPatientItem] = useState(null);
   const [toast, setToast] = useState('');
   const [refresh, setRefresh] = useState(0);
-  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.listHandovers({ date: toLocalDateKey(), limit: 20 }), demoHandovers, [refresh]);
+  const { data, loading, isDemo, error } = useInpatientData(() => nurseInpatientApi.listHandovers({ date: toLocalDateKey(), limit: 20 }), emptyHandovers, [refresh]);
   const handovers = safeList(data.items);
   const active = selected || handovers[0];
   const activeItem = patientItem || safeList(active?.items)[0];
@@ -944,7 +970,7 @@ export function InpatientHandoverPage() {
     await runNurseAction({
       label: labels[action] || 'Cập nhật bàn giao',
       isDemo: isDemo || (needsId && !handoverId),
-      demoMessage: 'Dữ liệu mẫu hoặc thiếu mã bàn giao nên chưa gửi hệ thống.',
+      demoMessage: 'API/DB chưa sẵn sàng hoặc thiếu mã bàn giao nên chưa gửi hệ thống.',
       confirm: ['create', 'sign', 'ack', 'close'].includes(action)
         ? { title: labels[action] || 'Bàn giao nội trú', message: action === 'close' ? 'Đóng ca sau khi đã xác nhận đầy đủ?' : 'Xác nhận thực hiện thao tác này?' }
         : undefined,

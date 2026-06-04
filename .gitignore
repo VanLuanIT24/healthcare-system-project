@@ -6,6 +6,7 @@ backend/.env
 backend/.env.*
 !backend/.env.example
 !backend/.env.example.free-production
+backend/uploads/public/tom-tat-luot-kham-*.txt
 npm-debug.log*
 dist/
 web/.vite-dev*.log

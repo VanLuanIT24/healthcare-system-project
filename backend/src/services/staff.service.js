@@ -29,6 +29,7 @@ const {
   recordAuditLog,
 } = require('./core.service');
 const { PERMISSION, ROLE_CODE, ROLE_PRIORITY } = require('../constants/permissions');
+const { DOCTOR_PROFILE_STATUS } = require('../constants/statuses');
 const { STAFF_TRANSITIONS } = require('../constants/transitions');
 const { assertTransition } = require('../shared/utils/status-transition');
 
@@ -309,6 +310,20 @@ function validateStaffStatusTransition(currentStatus, nextStatus) {
   return assertTransition(STAFF_TRANSITIONS, currentStatus, nextStatus, 'staff');
 }
 
+function parseOptionalDate(value, fieldName) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw ApiError.validation(`${fieldName} không hợp lệ.`);
+  }
+  if (parsed > new Date()) {
+    throw ApiError.validation(`${fieldName} không được lớn hơn ngày hiện tại.`);
+  }
+  return parsed;
+}
+
 async function getStaffAccountDetail(userId, actor = {}) {
   const user = await User.findById(userId).lean();
   if (!user || user.is_deleted) {
@@ -329,6 +344,7 @@ async function getStaffAccountDetail(userId, actor = {}) {
       full_name: user.full_name,
       email: user.email,
       phone: user.phone,
+      date_of_birth: user.date_of_birth,
       employee_code: user.employee_code,
       department_id: user.department_id ? String(user.department_id) : null,
       department_name: department?.department_name || null,
@@ -533,7 +549,7 @@ async function updateStaffAccount(userId, payload, actor, requestMeta = {}) {
   if (payload.department_id !== undefined) {
     throw ApiError.forbidden('Không được đổi department qua API update staff. Hãy dùng transfer-department.');
   }
-  rejectUnknownFields(payload, ['full_name', 'email', 'phone', 'employee_code']);
+  rejectUnknownFields(payload, ['full_name', 'email', 'phone', 'employee_code', 'date_of_birth']);
 
   const user = await User.findById(userId);
   if (!user || user.is_deleted) {
@@ -545,6 +561,9 @@ async function updateStaffAccount(userId, payload, actor, requestMeta = {}) {
   const nextEmail = payload.email !== undefined ? normalizeLower(payload.email) || undefined : user.email;
   const nextPhone = payload.phone !== undefined ? normalizePhone(payload.phone) || undefined : user.phone;
   const nextEmployeeCode = payload.employee_code !== undefined ? payload.employee_code?.trim().toUpperCase() || undefined : user.employee_code;
+  const nextDateOfBirth = payload.date_of_birth !== undefined
+    ? parseOptionalDate(payload.date_of_birth, 'date_of_birth')
+    : user.date_of_birth;
 
   if (nextEmail && nextEmail !== user.email) {
     const existed = await User.findOne({ _id: { $ne: user._id }, email: nextEmail, is_deleted: false }).lean();
@@ -588,6 +607,7 @@ async function updateStaffAccount(userId, payload, actor, requestMeta = {}) {
   user.email = nextEmail;
   user.phone = nextPhone;
   user.employee_code = nextEmployeeCode;
+  user.date_of_birth = nextDateOfBirth || undefined;
   user.updated_by = actor.userId;
   await user.save();
 
@@ -866,10 +886,6 @@ async function getDoctorsList(query = {}) {
     status: 'active',
   };
 
-  if (query.department_id) {
-    filter.department_id = query.department_id;
-  }
-
   if (query.search) {
     const keyword = escapeRegex(query.search);
     filter.$or = [
@@ -878,18 +894,50 @@ async function getDoctorsList(query = {}) {
   }
 
   const users = await User.find(filter).sort({ full_name: 1 }).lean();
+  const userIdsForProfiles = users.map((user) => user._id);
+  const profiles = userIdsForProfiles.length
+    ? await DoctorProfile.find({
+        user_id: { $in: userIdsForProfiles },
+        is_deleted: false,
+        status: DOCTOR_PROFILE_STATUS.ACTIVE,
+      }).lean()
+    : [];
+  const profileMap = new Map(profiles.map((profile) => [String(profile.user_id), profile]));
+  const departmentScopedUsers = query.department_id
+    ? users.filter((user) => {
+        const profile = profileMap.get(String(user._id));
+        return String(user.department_id || '') === String(query.department_id)
+          || String(profile?.department_id || '') === String(query.department_id);
+      })
+    : users;
+
   const departments = await Department.find({
-    _id: { $in: users.map((item) => item.department_id).filter(Boolean) },
+    _id: {
+      $in: departmentScopedUsers
+        .flatMap((user) => {
+          const profile = profileMap.get(String(user._id));
+          return [user.department_id, profile?.department_id].filter(Boolean);
+        }),
+    },
   }).lean();
-  const departmentMap = new Map(departments.map((item) => [String(item._id), item.department_name]));
+  const departmentMap = new Map(departments.map((item) => [String(item._id), item]));
 
   return {
-    items: users.map((user) => ({
-      user_id: String(user._id),
-      full_name: user.full_name,
-      department_id: user.department_id ? String(user.department_id) : null,
-      department_name: user.department_id ? departmentMap.get(String(user.department_id)) || null : null,
-    })),
+    items: departmentScopedUsers.map((user) => {
+      const profile = profileMap.get(String(user._id));
+      const departmentId = profile?.department_id || user.department_id || null;
+      const department = departmentId ? departmentMap.get(String(departmentId)) : null;
+      return {
+        user_id: String(user._id),
+        full_name: user.full_name,
+        department_id: departmentId ? String(departmentId) : null,
+        department_name: department?.department_name || null,
+        department_code: department?.department_code || null,
+        specialty: profile?.specialty || null,
+        consultation_duration_minutes: profile?.consultation_duration_minutes || null,
+        doctor_profile_id: profile?._id ? String(profile._id) : null,
+      };
+    }),
   };
 }
 

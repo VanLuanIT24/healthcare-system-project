@@ -1,0 +1,518 @@
+.workspace-access-page {
+  --wa-ink: #0f172a;
+  --wa-muted: #64748b;
+  --wa-line: rgba(148, 163, 184, 0.24);
+  --wa-card: rgba(255, 255, 255, 0.88);
+  --wa-card-strong: rgba(255, 255, 255, 0.96);
+  --wa-blue: #2563eb;
+  --wa-cyan: #0891b2;
+  --wa-violet: #7c3aed;
+  --wa-red: #dc2626;
+  --wa-amber: #d97706;
+  --wa-green: #059669;
+  position: relative;
+  isolation: isolate;
+  padding: 14px clamp(14px, 1.8vw, 24px) 34px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 6% -8%, rgba(37, 99, 235, 0.18), transparent 36%),
+    radial-gradient(circle at 94% 0%, rgba(14, 165, 233, 0.16), transparent 34%),
+    linear-gradient(180deg, #f8fbff 0%, #f5f7fb 46%, #eef4ff 100%);
+}
+
+.workspace-access-page::before {
+  content: '';
+  position: absolute;
+  inset: 90px 10px auto;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.26), transparent);
+  z-index: -1;
+}
+
+.workspace-access-wow-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.55fr);
+  gap: 14px;
+  overflow: hidden;
+  min-height: 190px;
+  padding: clamp(18px, 2vw, 26px);
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 28px;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 64, 175, 0.90) 48%, rgba(8, 145, 178, 0.86)),
+    radial-gradient(circle at 84% 26%, rgba(125, 211, 252, 0.42), transparent 32%);
+  color: #f8fafc;
+  box-shadow: 0 32px 80px rgba(15, 23, 42, 0.24), inset 0 1px 0 rgba(255,255,255,0.14);
+}
+
+.workspace-access-wow-hero__aurora {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  right: -160px;
+  top: -190px;
+  border-radius: 999px;
+  background: conic-gradient(from 20deg, rgba(56, 189, 248, 0.56), rgba(167, 139, 250, 0.42), rgba(34, 197, 94, 0.26), rgba(56, 189, 248, 0.56));
+  filter: blur(20px);
+  opacity: 0.7;
+}
+
+.workspace-access-wow-hero__main,
+.workspace-access-wow-insights,
+.workspace-access-wow-status-strip {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace-access-wow-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.10);
+  color: #dbeafe;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(18px);
+}
+
+.workspace-access-wow-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  margin-top: 14px;
+  max-width: 820px;
+}
+
+.workspace-access-wow-hero__icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 17px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 18px 40px rgba(2, 6, 23, 0.18);
+}
+
+.workspace-access-wow-title-row h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(28px, 3.45vw, 44px);
+  line-height: 0.98;
+  letter-spacing: -0.065em;
+  font-weight: 950;
+}
+
+.workspace-access-wow-title-row p {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: rgba(226, 232, 240, 0.88);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.workspace-access-wow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.workspace-access-wow-actions .staff-button {
+  border-color: rgba(255,255,255,0.24);
+}
+
+.workspace-access-wow-actions .staff-button--ghost {
+  color: #f8fafc;
+  background: rgba(255,255,255,0.1);
+}
+
+.workspace-access-wow-actions .staff-button--primary {
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.3);
+}
+
+.workspace-access-wow-insights {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-self: center;
+}
+
+.workspace-access-wow-insights article {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 15px 13px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.13);
+  backdrop-filter: blur(22px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+}
+
+.workspace-access-wow-insights article::after {
+  content: '';
+  position: absolute;
+  inset: auto 14px 0;
+  height: 3px;
+  border-radius: 99px 99px 0 0;
+  background: linear-gradient(90deg, #38bdf8, #a78bfa);
+  opacity: 0.72;
+}
+
+.workspace-access-wow-insights article.is-hot::after {
+  background: linear-gradient(90deg, #fb7185, #fbbf24);
+}
+
+.workspace-access-wow-insights small {
+  display: block;
+  color: rgba(226,232,240,0.82);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workspace-access-wow-insights strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 28px;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: -0.05em;
+}
+
+.workspace-access-wow-insights span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  color: rgba(219, 234, 254, 0.88);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.workspace-access-wow-status-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 0;
+}
+
+.workspace-access-wow-status-strip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  color: rgba(226,232,240,0.88);
+  background: rgba(2,6,23,0.15);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.workspace-access-wow-tabs {
+  position: sticky;
+  top: 10px;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: 1.35fr 1.15fr 0.8fr;
+  gap: 10px;
+  margin: -18px 18px 24px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.20);
+  border-radius: 28px;
+  background: rgba(255,255,255,0.86);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.12);
+}
+
+.workspace-access-wow-tabs__group {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(248,250,252,0.98), rgba(241,245,249,0.72));
+  border: 1px solid rgba(226,232,240,0.72);
+}
+
+.workspace-access-wow-tabs__group > strong {
+  display: block;
+  margin: 0 0 8px 4px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-access-wow-tabs__group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.workspace-access-wow-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  color: #475569;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 850;
+  border: 1px solid transparent;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease, color .18s ease;
+}
+
+.workspace-access-wow-tabs a:hover {
+  transform: translateY(-1px);
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.workspace-access-wow-tabs a.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.26);
+}
+
+.workspace-access-panel {
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 28px !important;
+  background: var(--wa-card-strong) !important;
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.09) !important;
+  overflow: hidden;
+}
+
+.workspace-access-panel__head {
+  padding: 20px 22px !important;
+  background:
+    linear-gradient(90deg, rgba(37,99,235,0.08), transparent 58%),
+    linear-gradient(180deg, rgba(248,250,252,0.98), rgba(255,255,255,0.92));
+  border-bottom: 1px solid rgba(226,232,240,0.86);
+}
+
+.workspace-access-panel__head strong {
+  color: #0f172a !important;
+  font-size: 18px !important;
+  letter-spacing: -0.025em;
+}
+
+.workspace-access-panel__head span {
+  color: #2563eb !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.08em;
+}
+
+.workspace-access-metric {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.20) !important;
+  border-radius: 24px !important;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(248,250,252,0.84)),
+    radial-gradient(circle at 100% 0%, rgba(37,99,235,0.16), transparent 38%) !important;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.07) !important;
+}
+
+.workspace-access-metric::after {
+  content: '';
+  position: absolute;
+  inset: auto 16px 0;
+  height: 3px;
+  border-radius: 99px 99px 0 0;
+  background: linear-gradient(90deg, #2563eb, #06b6d4);
+  opacity: 0.7;
+}
+
+.workspace-access-metric__icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 16px !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+.workspace-access-metric strong {
+  font-size: 30px !important;
+  letter-spacing: -0.05em;
+}
+
+.workspace-access-registry__head,
+.workspace-access-user-table__head,
+.workspace-access-matrix__head {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  color: #64748b !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workspace-access-registry__row,
+.workspace-access-user-table__row,
+.workspace-access-matrix__row:not(.workspace-access-matrix__head),
+.workspace-access-policy-list article,
+.workspace-access-risk-list article,
+.workspace-access-diagnostics article,
+.workspace-access-audit-list article,
+.workspace-access-navigation-list article,
+.workspace-access-sidebar-grid article,
+.workspace-access-department-grid article,
+.workspace-access-actor-grid article {
+  border: 1px solid rgba(226,232,240,0.92) !important;
+  border-radius: 20px !important;
+  background: rgba(255,255,255,0.92) !important;
+  box-shadow: 0 10px 28px rgba(15,23,42,0.055) !important;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.workspace-access-registry__row:hover,
+.workspace-access-user-table__row:hover,
+.workspace-access-policy-list article:hover,
+.workspace-access-risk-list article:hover,
+.workspace-access-diagnostics article:hover,
+.workspace-access-audit-list article:hover,
+.workspace-access-navigation-list article:hover,
+.workspace-access-sidebar-grid article:hover,
+.workspace-access-department-grid article:hover,
+.workspace-access-actor-grid article:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37,99,235,0.26) !important;
+  box-shadow: 0 18px 44px rgba(37,99,235,0.12) !important;
+}
+
+.workspace-access-toolbar {
+  margin: 0 0 16px !important;
+  padding: 12px !important;
+  border: 1px solid rgba(226,232,240,0.9);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fff, #f8fafc);
+}
+
+.workspace-access-toolbar label {
+  min-height: 44px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(203,213,225,0.9) !important;
+  background: #fff !important;
+}
+
+.workspace-access-toolbar input,
+.workspace-access-policy-form input,
+.workspace-access-policy-form select,
+.workspace-access-policy-form textarea {
+  border-radius: 14px !important;
+  border-color: rgba(203,213,225,0.9) !important;
+  background: #fff !important;
+  box-shadow: inset 0 1px 0 rgba(15,23,42,0.03);
+}
+
+.workspace-access-chip {
+  border-radius: 999px !important;
+  font-weight: 900 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.workspace-access-severity {
+  border-radius: 999px !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.055em;
+}
+
+.workspace-access-policy-form {
+  padding: 4px;
+}
+
+.workspace-access-policy-form label span {
+  font-size: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.075em;
+  color: #475569 !important;
+  font-weight: 950 !important;
+}
+
+.workspace-access-policy-list--pro {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+}
+
+.workspace-access-matrix-wrap {
+  padding-bottom: 6px;
+}
+
+.workspace-access-matrix__row > span.is-allowed {
+  background: linear-gradient(135deg, #dcfce7, #ecfeff) !important;
+  color: #047857 !important;
+  border: 1px solid rgba(16,185,129,0.24) !important;
+}
+
+.workspace-access-matrix__row > span.is-denied {
+  background: #f8fafc !important;
+  color: #94a3b8 !important;
+}
+
+.workspace-access-decision {
+  border-radius: 20px !important;
+  padding: 16px !important;
+  font-size: 18px !important;
+  box-shadow: 0 18px 38px rgba(15,23,42,0.1);
+}
+
+.workspace-access-empty {
+  border: 1px dashed rgba(148,163,184,0.55) !important;
+  border-radius: 22px !important;
+  background: linear-gradient(135deg, rgba(248,250,252,0.92), rgba(239,246,255,0.74)) !important;
+}
+
+.workspace-access-banner {
+  border-radius: 18px !important;
+  box-shadow: 0 14px 32px rgba(15,23,42,0.07);
+}
+
+@media (max-width: 1180px) {
+  .workspace-access-wow-hero,
+  .workspace-access-wow-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-access-wow-insights {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace-access-page {
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .workspace-access-wow-hero {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .workspace-access-wow-title-row {
+    flex-direction: column;
+  }
+
+  .workspace-access-wow-insights {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-access-wow-tabs {
+    margin: -8px 4px 18px;
+    border-radius: 22px;
+  }
+}

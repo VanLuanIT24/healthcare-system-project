@@ -75,6 +75,10 @@ const RESULT_FINAL_STATUSES = [
   'signed',
 ];
 
+function safeArray(value) {
+  return Array.isArray(value) ? value.filter((item) => item !== null && item !== undefined) : [];
+}
+
 function toId(value) {
   return value ? String(value._id || value.id || value) : null;
 }
@@ -944,6 +948,237 @@ async function getCollaboration(query = {}, actor = {}) {
   };
 }
 
+async function getQueue(query = {}, actor = {}) {
+  const doctorId = ensureDoctorActor(actor);
+  const dayRange = asDateRange(query);
+  const limit = Math.min(Math.max(Number(query.limit || 60), 5), 120);
+  const view = String(query.view || 'waiting');
+  const statusFilter = view === 'all' ? {} : { status: { $in: ACTIVE_QUEUE_STATUSES } };
+
+  const rows = await QueueTicket.find({
+    doctor_id: doctorId,
+    queue_date: { $gte: dayRange.start, $lte: dayRange.end },
+    ...statusFilter,
+  })
+    .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
+    .populate('latest_vital_sign_id')
+    .sort({ ready_for_doctor_at: -1, checkin_time: 1, created_at: 1 })
+    .limit(limit)
+    .lean();
+
+  const items = rows.map(queueCompact);
+  return {
+    view,
+    items,
+    kpis: {
+      total: items.length,
+      waiting: items.filter((item) => [QUEUE_STATUS.WAITING, QUEUE_STATUS.CALLED, QUEUE_STATUS.RECALLED].includes(item.status)).length,
+      in_service: items.filter((item) => item.status === QUEUE_STATUS.IN_SERVICE).length,
+      missing_vitals: items.filter((item) => !item.latest_vital).length,
+      sla_risk: items.filter((item) => item.sla_due_at && new Date(item.sla_due_at) < new Date()).length,
+    },
+    backend_logic: [
+      'QueueTicket theo doctor_id + queue_date',
+      'populate Patient + latest VitalSign',
+      'lọc ACTIVE_QUEUE_STATUSES cho màn hình waiting',
+      'sort theo ready_for_doctor_at, checkin_time để bác sĩ biết khám ai tiếp theo',
+    ],
+  };
+}
+
+async function getTodaySchedule(query = {}, actor = {}) {
+  const doctorId = ensureDoctorActor(actor);
+  const dayRange = asDateRange(query);
+
+  const [appointments, queueTickets, encounters] = await Promise.all([
+    Appointment.find({
+      doctor_id: doctorId,
+      appointment_time: { $gte: dayRange.start, $lte: dayRange.end },
+      status: { $nin: [APPOINTMENT_STATUS.CANCELLED] },
+      is_deleted: false,
+    })
+      .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
+      .populate('department_id', 'department_code department_name status')
+      .sort({ appointment_time: 1 })
+      .lean(),
+    QueueTicket.find({ doctor_id: doctorId, queue_date: { $gte: dayRange.start, $lte: dayRange.end } })
+      .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
+      .sort({ checkin_time: 1, created_at: 1 })
+      .lean(),
+    Encounter.find({ attending_doctor_id: doctorId, start_time: { $gte: dayRange.start, $lte: dayRange.end } })
+      .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
+      .populate('department_id', 'department_code department_name status')
+      .sort({ start_time: 1 })
+      .lean(),
+  ]);
+
+  const queueByAppointment = new Map(queueTickets.filter((item) => item.appointment_id).map((item) => [toId(item.appointment_id), item]));
+  const encounterByAppointment = new Map(encounters.filter((item) => item.appointment_id).map((item) => [toId(item.appointment_id), item]));
+  const timeline = appointments.map((appointment) => {
+    const queueTicket = queueByAppointment.get(toId(appointment));
+    const encounter = encounterByAppointment.get(toId(appointment));
+    return {
+      ...appointmentCompact(appointment),
+      queue: queueTicket ? queueCompact(queueTicket) : null,
+      encounter: encounter ? encounterCompact(encounter) : null,
+      readiness: {
+        checked_in: Boolean(queueTicket || appointment.checked_in_at),
+        has_encounter: Boolean(encounter),
+        completed: encounter?.status === ENCOUNTER_STATUS.COMPLETED || appointment.status === APPOINTMENT_STATUS.COMPLETED,
+        no_show: Boolean(appointment.no_show_at),
+      },
+    };
+  });
+
+  return {
+    date: dayRange.start.toISOString(),
+    items: timeline,
+    unlinked_queue: queueTickets.filter((ticket) => !ticket.appointment_id).map(queueCompact),
+    kpis: {
+      total: appointments.length,
+      checked_in: timeline.filter((item) => item.readiness.checked_in).length,
+      in_progress: encounters.filter((item) => ACTIVE_ENCOUNTER_STATUSES.includes(item.status)).length,
+      completed: encounters.filter((item) => item.status === ENCOUNTER_STATUS.COMPLETED).length,
+      no_show: appointments.filter((item) => item.no_show_at || item.status === APPOINTMENT_STATUS.NO_SHOW).length,
+    },
+    backend_logic: [
+      'Appointment theo doctor_id + appointment_time trong ngày',
+      'join mềm QueueTicket và Encounter qua appointment_id',
+      'timeline thống nhất: lịch hẹn → check-in → queue → encounter → completed/no-show',
+    ],
+  };
+}
+
+async function getDoctorPatients(query = {}, actor = {}) {
+  const doctorId = ensureDoctorActor(actor);
+  const dayRange = asDateRange(query);
+  const view = String(query.view || 'waiting');
+  const limit = Math.min(Math.max(Number(query.limit || 60), 5), 120);
+
+  if (view === 'waiting') {
+    const queue = await getQueue({ ...query, limit }, actor);
+    return { view, items: queue.items.map((item) => ({ patient: item.patient, queue: item, status: item.status, source: 'queue' })), kpis: queue.kpis };
+  }
+
+  const encounterFilter = {
+    attending_doctor_id: doctorId,
+    ...(view === 'in-care' ? { status: { $in: ACTIVE_ENCOUNTER_STATUSES } } : {}),
+    ...(view === 'seen-today' ? { status: ENCOUNTER_STATUS.COMPLETED, end_time: { $gte: dayRange.start, $lte: dayRange.end } } : {}),
+    ...(view === 'history' ? {} : {}),
+  };
+
+  const encounters = await Encounter.find(encounterFilter)
+    .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
+    .populate('department_id', 'department_code department_name status')
+    .sort({ start_time: -1, end_time: -1 })
+    .limit(limit)
+    .lean();
+
+  let rows = encounters.map((encounter) => ({
+    patient: patientCompact(encounter.patient_id),
+    encounter: encounterCompact(encounter),
+    status: encounter.status,
+    source: 'encounter',
+  }));
+
+  if (view === 'follow-up') {
+    const overview = await getOverview(query, actor);
+    const taskPatients = safeTaskPatients(overview.tasks);
+    rows = [
+      ...taskPatients.map((patient) => ({ patient, status: 'follow_up_due', source: 'task' })),
+      ...rows.slice(0, Math.max(0, limit - taskPatients.length)),
+    ];
+  }
+
+  return {
+    view,
+    items: rows,
+    kpis: {
+      total: rows.length,
+      active: rows.filter((item) => ACTIVE_ENCOUNTER_STATUSES.includes(item.status)).length,
+      completed_today: rows.filter((item) => item.status === ENCOUNTER_STATUS.COMPLETED).length,
+      follow_up_due: rows.filter((item) => item.status === 'follow_up_due').length,
+    },
+    backend_logic: [
+      'Patient list được dựng từ QueueTicket và Encounter đang gán cho bác sĩ',
+      'waiting dùng QueueTicket, in-care/seen/history dùng Encounter',
+      'follow-up ưu tiên task/refill/result cần xử lý trong Doctor Workspace',
+    ],
+  };
+}
+
+function safeTaskPatients(tasks = []) {
+  const byId = new Map();
+  safeArray(tasks).forEach((task) => {
+    const patient = task.patient;
+    if (patient?.patient_id && !byId.has(patient.patient_id)) byId.set(patient.patient_id, patient);
+  });
+  return [...byId.values()];
+}
+
+async function getDoctorEncounters(query = {}, actor = {}) {
+  const doctorId = ensureDoctorActor(actor);
+  const dayRange = asDateRange(query);
+  const view = String(query.view || 'active');
+  const limit = Math.min(Math.max(Number(query.limit || 40), 5), 100);
+
+  if (view === 'start') {
+    const [queue, schedule] = await Promise.all([
+      getQueue({ ...query, limit }, actor),
+      getTodaySchedule(query, actor),
+    ]);
+    return {
+      view,
+      start_candidates: [
+        ...queue.items.filter((item) => !item.encounter_id).map((item) => ({ type: 'queue', patient: item.patient, queue: item })),
+        ...schedule.items.filter((item) => !item.encounter && !item.queue).map((item) => ({ type: 'appointment', patient: item.patient, appointment: item })),
+      ].slice(0, limit),
+      kpis: { queue_ready: queue.kpis.waiting, appointments_without_encounter: schedule.items.filter((item) => !item.encounter).length },
+      backend_logic: ['Bắt đầu encounter từ QueueTicket hoặc Appointment chưa có encounter', 'Tôn trọng patient_id, appointment_id, department_id, doctor_id hiện có'],
+    };
+  }
+
+  const encounters = await Encounter.find({
+    attending_doctor_id: doctorId,
+    ...(view === 'complete' ? { status: { $in: ACTIVE_ENCOUNTER_STATUSES } } : { status: { $in: ACTIVE_ENCOUNTER_STATUSES } }),
+  })
+    .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
+    .populate('department_id', 'department_code department_name status')
+    .populate('attending_doctor_id', 'full_name employee_code department_id status')
+    .sort({ started_at: -1, start_time: -1 })
+    .limit(limit)
+    .lean();
+
+  const encounterIds = encounters.map((item) => item._id);
+  const readinessByEncounter = await buildEncounterReadiness(encounterIds);
+  const rows = encounters.map((encounter) => encounterCompact(encounter, completionChecklistFromReadiness(encounter, readinessByEncounter.get(toId(encounter)) || {})));
+
+  const [notes, diagnoses, problems, carePlans, consultations] = await Promise.all([
+    view === 'note' ? ClinicalNote.find({ encounter_id: { $in: encounterIds }, status: { $nin: [CLINICAL_NOTE_STATUS.CANCELLED] } }).sort({ updated_at: -1 }).limit(limit).lean() : Promise.resolve([]),
+    view === 'diagnosis' ? Diagnosis.find({ encounter_id: { $in: encounterIds }, status: { $ne: DIAGNOSIS_STATUS.ENTERED_IN_ERROR } }).sort({ is_primary: -1, created_at: -1 }).limit(limit).lean() : Promise.resolve([]),
+    view === 'problem-list' ? ProblemList.find({ patient_id: { $in: rows.map((item) => item.patient?.patient_id).filter(Boolean) }, status: { $in: [PROBLEM_STATUS.ACTIVE, PROBLEM_STATUS.INACTIVE, PROBLEM_STATUS.RESOLVED] } }).sort({ updated_at: -1 }).limit(limit).lean() : Promise.resolve([]),
+    view === 'care-plan' ? CarePlan.find({ encounter_id: { $in: encounterIds }, status: { $ne: CARE_PLAN_STATUS.CANCELLED } }).sort({ updated_at: -1 }).limit(limit).lean() : Promise.resolve([]),
+    view === 'consultation' ? Consultation.find({ encounter_id: { $in: encounterIds }, status: { $ne: CONSULTATION_STATUS.CANCELLED } }).sort({ updated_at: -1 }).limit(limit).lean() : Promise.resolve([]),
+  ]);
+
+  return {
+    view,
+    items: rows,
+    clinical_payload: { notes, diagnoses, problems, care_plans: carePlans, consultations },
+    kpis: {
+      total: rows.length,
+      can_complete: rows.filter((item) => item.readiness?.can_complete).length,
+      missing_note: rows.filter((item) => item.readiness?.missing?.some((missing) => missing.includes('Clinical'))).length,
+      missing_diagnosis: rows.filter((item) => item.readiness?.missing?.some((missing) => missing.includes('chẩn đoán'))).length,
+    },
+    backend_logic: [
+      'Encounter theo attending_doctor_id + ACTIVE_ENCOUNTER_STATUSES',
+      'completionChecklistFromReadiness tính thiếu note/chẩn đoán/care plan/order/đơn thuốc/hội chẩn',
+      'subview note/diagnosis/problem-list/care-plan/consultation lấy collection nghiệp vụ tương ứng',
+    ],
+  };
+}
+
 module.exports = {
   getOverview,
   searchWorkspace,
@@ -951,4 +1186,8 @@ module.exports = {
   getResults,
   getPatientSummary,
   getCollaboration,
+  getQueue,
+  getTodaySchedule,
+  getDoctorPatients,
+  getDoctorEncounters,
 };

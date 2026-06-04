@@ -45,6 +45,7 @@ module.exports = {
   completeDoctorSchedule: wrap((req) => scheduleService.completeDoctorSchedule(req.params.scheduleId, req.auth, requestMeta(req)), 'Hoàn tất lịch làm việc thành công.'),
   duplicateDoctorSchedule: wrap((req) => scheduleService.duplicateDoctorSchedule(req.params.scheduleId, req.body, req.auth, requestMeta(req)), 'Sao chép lịch làm việc thành công.', 201),
   generateScheduleSlots: wrap((req) => scheduleService.generateScheduleSlots(req.params.scheduleId, req.auth, requestMeta(req)), 'Đồng bộ slot lịch làm việc thành công.'),
+  previewGenerateScheduleSlots: wrap((req) => scheduleService.previewGenerateScheduleSlots(req.params.scheduleId, req.body, req.auth), 'Preview generate slot thành công.'),
   getAvailableSlots: wrap((req) => scheduleService.getAvailableSlots(req.params.scheduleId, {
     publicView: !req.auth,
     actor: req.auth,

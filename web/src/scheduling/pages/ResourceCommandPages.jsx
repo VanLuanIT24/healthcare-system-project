@@ -57,24 +57,6 @@ const VIEW_CONFIG = {
   },
 };
 
-const demoDepartments = [
-  { id: 'dept-demo-1', name: 'Nội tổng quát', code: 'NOI', type: 'clinical', headName: 'BS. Nguyễn Văn A', schedules: 8, published: 7, unpublished: 1, totalSlots: 120, bookedSlots: 92, availableSlots: 28, queueWaiting: 18, queueLong: 4, appointments: 96, doctors: 6, rooms: 5, loadLevel: 'high', loadScore: 82, alerts: ['Lịch chưa publish', 'Queue chờ lâu'] },
-  { id: 'dept-demo-2', name: 'Tim mạch', code: 'TIM', type: 'clinical', headName: 'BS. Lê Minh Tuấn', schedules: 6, published: 6, unpublished: 0, totalSlots: 88, bookedSlots: 72, availableSlots: 16, queueWaiting: 11, queueLong: 1, appointments: 74, doctors: 5, rooms: 4, loadLevel: 'normal', loadScore: 68, alerts: [] },
-  { id: 'dept-demo-3', name: 'Nhi khoa', code: 'NHI', type: 'clinical', headName: 'BS. Nguyễn Thị Lan', schedules: 9, published: 8, unpublished: 1, totalSlots: 132, bookedSlots: 128, availableSlots: 4, queueWaiting: 28, queueLong: 8, appointments: 131, doctors: 7, rooms: 6, loadLevel: 'critical', loadScore: 96, alerts: ['Slot gần kín', 'Queue quá SLA'] },
-];
-
-const demoDoctors = [
-  { id: 'doc-demo-1', name: 'BS. Trần Thanh Hải', departmentName: 'Nội tổng quát', specialty: 'Nội khoa', avatar: '', status: 'active', schedules: 2, totalSlots: 32, bookedSlots: 26, availableSlots: 6, utilization: 81, appointments: 26, queueWaiting: 8, queueInService: 1, noShow: 2, loadLevel: 'high', alerts: ['Queue chờ lâu'] },
-  { id: 'doc-demo-2', name: 'BS. Lê Minh Tuấn', departmentName: 'Tim mạch', specialty: 'Tim mạch', avatar: '', status: 'active', schedules: 1, totalSlots: 22, bookedSlots: 22, availableSlots: 0, utilization: 100, appointments: 22, queueWaiting: 14, queueInService: 1, noShow: 1, loadLevel: 'critical', alerts: ['Kín slot', 'Quá tải'] },
-  { id: 'doc-demo-3', name: 'BS. Nguyễn Thị Lan', departmentName: 'Nhi khoa', specialty: 'Nhi', avatar: '', status: 'active', schedules: 2, totalSlots: 40, bookedSlots: 18, availableSlots: 22, utilization: 45, appointments: 18, queueWaiting: 3, queueInService: 0, noShow: 0, loadLevel: 'low', alerts: ['Còn nhiều slot'] },
-];
-
-const demoRooms = [
-  { id: 'room-demo-1', name: 'P. Khám 201', code: 'P201', type: 'clinic_room', departmentName: 'Nội tổng quát', building: 'Tòa A', floor: 'Tầng 2', capacity: 1, status: 'in_use', doctorName: 'BS. Trần Thanh Hải', queueWaiting: 8, appointmentsLeft: 12, nextFreeAt: '11:30', alerts: [] },
-  { id: 'room-demo-2', name: 'P. Khám 202', code: 'P202', type: 'clinic_room', departmentName: 'Tim mạch', building: 'Tòa A', floor: 'Tầng 2', capacity: 1, status: 'available', doctorName: 'Chưa gán', queueWaiting: 0, appointmentsLeft: 0, nextFreeAt: 'Sẵn sàng', alerts: ['Chưa gắn lịch'] },
-  { id: 'room-demo-3', name: 'Phòng siêu âm 01', code: 'SA01', type: 'imaging_room', departmentName: 'Chẩn đoán hình ảnh', building: 'Tòa B', floor: 'Tầng 1', capacity: 1, status: 'maintenance', doctorName: 'Bảo trì', queueWaiting: 0, appointmentsLeft: 0, nextFreeAt: 'Không rõ', alerts: ['Bảo trì'] },
-];
-
 function asArray(value) {
   if (Array.isArray(value)) return value;
   if (Array.isArray(value?.data)) return value.data;
@@ -190,6 +172,7 @@ function normalizeDoctor(item = {}, index = 0) {
     noShow: safeNumber(today.no_show_count ?? item.no_show_count),
     avgWait: safeNumber(item.queue?.avg_wait_minutes ?? item.avg_wait_minutes),
     maxWait: safeNumber(item.queue?.max_wait_minutes ?? item.max_wait_minutes),
+    hourlyLoad: item.hourly_load || item.hourlyLoad || {},
     loadScore: score,
     loadLevel: item.load?.level || item.risk_level || loadLevel(score),
     alerts: (item.alerts || item.warnings || []).map((alert) => alert.title || alert.type || alert.message || alert).slice(0, 4),
@@ -372,7 +355,7 @@ export function ResourceCommandPage({ view = 'departments' }) {
       state.systemSummary?.by_department,
       state.activeDepartments,
     );
-    return (source.length ? source.map(normalizeDepartment) : demoDepartments).map((item) => ({
+    return source.map(normalizeDepartment).map((item) => ({
       ...item,
       alerts: item.alerts.length ? item.alerts : item.loadLevel === 'critical' ? ['Quá tải'] : item.unpublished ? ['Lịch chưa publish'] : [],
     }));
@@ -388,7 +371,7 @@ export function ResourceCommandPage({ view = 'departments' }) {
       state.options?.doctors,
       state.doctorProfiles,
     );
-    return source.length ? source.map(normalizeDoctor) : demoDoctors;
+    return source.map(normalizeDoctor);
   }, [state.doctorLoad, state.doctorProfiles, state.doctors, state.options, state.resources, state.systemSummary]);
 
   const rooms = useMemo(() => {
@@ -401,7 +384,7 @@ export function ResourceCommandPage({ view = 'departments' }) {
       state.inpatientRooms,
       state.imagingRooms,
     );
-    return source.length ? source.map(normalizeRoom) : demoRooms;
+    return source.map(normalizeRoom);
   }, [state.facilityLocations, state.imagingRooms, state.inpatientRooms, state.resources, state.roomStatus, state.rooms]);
 
   const attention = useMemo(() => {
@@ -418,7 +401,7 @@ export function ResourceCommandPage({ view = 'departments' }) {
         raw: item,
       }));
     }
-    return buildAttention({ departments, doctors, rooms, scheduleSummary: state.systemSummary });
+    return [];
   }, [departments, doctors, rooms, state.attention, state.systemSummary]);
 
   const visible = useMemo(() => {
@@ -452,9 +435,6 @@ export function ResourceCommandPage({ view = 'departments' }) {
     const label = action === 'ack' ? 'acknowledge' : 'resolve';
     await runSchedulingAction({
       action: async () => {
-        if (!item.id || String(item.id).startsWith('dept-') || String(item.id).startsWith('doc-') || String(item.id).startsWith('room-') || String(item.id).startsWith('schedule-alert-')) {
-          return { local_only: true };
-        }
         if (action === 'ack') return schedulingApi.acknowledgeResourceAttention(item.id, {});
         if (action === 'resolve') return schedulingApi.resolveResourceAttention(item.id, {});
         throw new Error('Hành động tài nguyên chưa được hỗ trợ.');
@@ -652,7 +632,7 @@ function DoctorLoadMatrix({ items, loading, onSelect }) {
         <button type="button" key={item.id} onClick={() => onSelect(item)}>
           <strong>{item.name}<small>{item.departmentName}</small></strong>
           {hours.map((hour, hourIndex) => {
-            const value = Math.max(0, Math.min(110, item.utilization + ((hourIndex - 3) * 6) + (index % 2 ? 8 : -5)));
+            const value = Math.max(0, Math.min(110, safeNumber(item.hourlyLoad?.[hour], 0)));
             return <span className={`is-${loadLevel(value)}`} key={hour}>{Math.round(value)}%</span>;
           })}
           <em>{item.queueWaiting} chờ</em>

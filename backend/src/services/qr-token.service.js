@@ -144,11 +144,11 @@ async function verifyQrToken(tokenValue, actor = {}, requestMeta = {}) {
   const qr = await QrToken.findOne({ token }).lean();
   if (!qr) throw createError('QR token không tồn tại.', 404);
   const now = new Date();
-  const valid = !qr.revoked_at && (!qr.expires_at || qr.expires_at >= now);
+  const valid = !qr.revoked_at && !qr.used_at && (!qr.expires_at || qr.expires_at >= now);
   await recordAuditLog({ actor, action: 'qr_tokens.verify', targetType: 'qr_token', targetId: qr._id, status: valid ? 'success' : 'failure', message: 'Verify QR token.', requestMeta });
   return {
     valid,
-    reason: valid ? null : (qr.revoked_at ? 'revoked' : 'expired'),
+    reason: valid ? null : (qr.revoked_at ? 'revoked' : qr.used_at ? 'used' : 'expired'),
     token: sanitizeQrToken(qr, { includeMetadata: Boolean(actorContext.getActorType(actor)) }),
   };
 }

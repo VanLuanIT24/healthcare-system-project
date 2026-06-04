@@ -152,7 +152,7 @@ function normalizeTicket(item = {}, index = 0) {
     encounterId: item.encounter_id || item.encounter?.id || '',
     patientId: item.patient_id || item.patient?.id || '',
     patientCode: item.patient_code || item.patient?.code || `BN${String(index + 1001).padStart(6, '0')}`,
-    patientName: item.patient_name || item.patient?.name || ['Nguyễn Văn An', 'Trần Thị Bích', 'Lê Quốc Tuấn', 'Phạm Thu Hương'][index % 4],
+    patientName: item.patient_name || item.patient?.name || 'Chưa rõ bệnh nhân',
     doctorId: item.doctor_id || item.doctor?.id || '',
     doctorName: item.doctor_name || item.doctor?.name || 'Chưa phân bác sĩ',
     departmentId: item.department_id || item.department?.id || '',
@@ -188,35 +188,6 @@ function normalizeTicket(item = {}, index = 0) {
     appointmentTime: item.appointment_time || item.appointment?.appointment_time || '',
     appointmentType: item.appointment_type || item.appointment?.appointment_type || 'outpatient',
   };
-}
-
-function fallbackTickets(appointments = []) {
-  const seeds = appointments.length ? appointments.slice(0, 16) : Array.from({ length: 16 }, (_, index) => ({ index }));
-  const statuses = ['waiting', 'waiting', 'called', 'skipped', 'in_service', 'completed', 'no_show'];
-  const types = ['normal', 'priority', 'normal', 'vip'];
-
-  return seeds.map((appointment, index) => {
-    const status = statuses[index % statuses.length];
-    const minutes = 8 + index * 5;
-    const checkin = new Date(Date.now() - minutes * 60000).toISOString();
-    return normalizeTicket({
-      queue_ticket_id: `fallback-queue-${index}`,
-      appointment_id: appointment.appointment_id || appointment.id || '',
-      queue_number: `${index % 3 === 0 ? 'NTQ-P' : 'NTQ-N'}${String(index + 1).padStart(3, '0')}`,
-      queue_type: types[index % types.length],
-      status,
-      checkin_time: checkin,
-      called_time: ['called', 'skipped', 'in_service'].includes(status) ? new Date(Date.now() - Math.max(2, minutes - 4) * 60000).toISOString() : '',
-      service_start_time: status === 'in_service' ? new Date(Date.now() - 18 * 60000).toISOString() : '',
-      completed_time: status === 'completed' ? new Date(Date.now() - 6 * 60000).toISOString() : '',
-      patient_name: appointment.patient?.full_name || appointment.patient_name,
-      patient_code: appointment.patient_code,
-      doctor_name: appointment.doctor_name || appointment.doctor?.name || ['BS. Trần Thanh Hải', 'BS. Lê Minh Tuấn', 'BS. Nguyễn Thị Lan'][index % 3],
-      department_name: appointment.department_name || appointment.department?.name || ['Nội tổng quát', 'Tim mạch', 'Nhi khoa'][index % 3],
-      nursing_stage: index % 4 === 0 ? 'ready_for_doctor' : index % 4 === 1 ? 'vital_done' : 'waiting_nurse',
-      doctor_room_id: `P. Khám ${(index % 4) + 1}`,
-    }, index);
-  });
 }
 
 function buildSummary(tickets) {
@@ -258,7 +229,8 @@ function groupByColumns(tickets) {
 
 function useQueueCommandData() {
   const scheduling = useSchedulingData();
-  const [remote, setRemote] = useState({ board: null, tickets: [], summary: null, publicBoard: null, todayAppointments: [] });
+  const [filters, setFilters] = useState({ date: dateKey(), departmentId: '', doctorId: '', mode: 'board' });
+  const [remote, setRemote] = useState({ board: null, tickets: [], summary: null, publicBoard: null });
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState({ loading: false, ticket: null, timeline: [], nursing: null, actions: null });
   const [message, setMessage] = useState('');
@@ -270,13 +242,19 @@ function useQueueCommandData() {
 
     async function load() {
       setLoadingRemote(true);
-      const today = dateKey();
-      const [boardResult, queueResult, summaryResult, appointmentsResult, publicResult] = await Promise.allSettled([
-        schedulingApi.getOperationsQueueBoard({ date: today, include_patient: true, include_appointment: true, include_nursing: true }),
-        schedulingApi.listQueueTickets({ date: today, limit: 200 }),
-        schedulingApi.getQueueSummaryToday({ date: today }),
-        schedulingApi.getTodayAppointments({ date: today }),
-        schedulingApi.getPublicQueueBoard({ date: today }),
+      const params = {
+        date: filters.date || dateKey(),
+        department_id: filters.departmentId || undefined,
+        doctor_id: filters.doctorId || undefined,
+        include_patient: true,
+        include_appointment: true,
+        include_nursing: true,
+      };
+      const [boardResult, queueResult, summaryResult, publicResult] = await Promise.allSettled([
+        schedulingApi.getOperationsQueueBoard(params),
+        schedulingApi.listQueueTickets({ ...params, limit: 250 }),
+        schedulingApi.getQueueSummaryToday(params),
+        schedulingApi.getPublicQueueBoard(params),
       ]);
 
       if (!active) return;
@@ -284,7 +262,6 @@ function useQueueCommandData() {
         board: boardResult.status === 'fulfilled' ? boardResult.value : null,
         tickets: queueResult.status === 'fulfilled' ? safeArray(queueResult.value?.items) : [],
         summary: summaryResult.status === 'fulfilled' ? summaryResult.value : null,
-        todayAppointments: appointmentsResult.status === 'fulfilled' ? safeArray(appointmentsResult.value?.items || appointmentsResult.value) : [],
         publicBoard: publicResult.status === 'fulfilled' ? publicResult.value : null,
       });
       setLoadingRemote(false);
@@ -294,15 +271,15 @@ function useQueueCommandData() {
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [reloadKey, filters.date, filters.departmentId, filters.doctorId]);
 
   const tickets = useMemo(() => {
     const aggregateItems = remote.board?.lanes
       ? Object.values(remote.board.lanes).flatMap((items) => safeArray(items))
       : safeArray(remote.board?.items);
-    const source = aggregateItems.length ? aggregateItems : remote.tickets.length ? remote.tickets : fallbackTickets(remote.todayAppointments);
+    const source = aggregateItems.length ? aggregateItems : remote.tickets;
     return source.map(normalizeTicket);
-  }, [remote.board, remote.tickets, remote.todayAppointments]);
+  }, [remote.board, remote.tickets]);
 
   useEffect(() => {
     if (!selectedId && tickets[0]?.id) setSelectedId(tickets[0].id);
@@ -312,7 +289,7 @@ function useQueueCommandData() {
 
   useEffect(() => {
     let active = true;
-    if (!selectedTicket?.id || String(selectedTicket.id).startsWith('fallback')) return undefined;
+    if (!selectedTicket?.id) return undefined;
 
     async function loadDetail() {
       setDetail((current) => ({ ...current, loading: true }));
@@ -384,6 +361,8 @@ function useQueueCommandData() {
   return {
     ...scheduling,
     columns: groupByColumns(tickets),
+    filters,
+    setFilters,
     detail,
     loadingRemote,
     message,
@@ -409,18 +388,24 @@ function TypeBadge({ type }) {
 }
 
 function Header({ config, data }) {
+  const setFilter = (key, value) => data.setFilters((current) => ({ ...current, [key]: value }));
   return (
-    <section className="sched-queue-hero">
-      <div>
+    <section className="sched-queue-hero sched-queue-hero-pro">
+      <div className="sched-queue-hero__copy">
         <span><ListOrdered size={16} />{config.eyebrow}</span>
         <h1>{config.title}</h1>
         <p>{config.copy}</p>
+        <div className="sched-queue-hero__meta">
+          <i /> {data.loadingRemote ? 'Đang đồng bộ backend...' : 'Database-first · realtime/polling ready'}
+          <b>{data.summary.total} ticket</b>
+          <b>{data.summary.slaBreached} quá SLA</b>
+        </div>
       </div>
       <div className="sched-queue-hero__tools">
-        <label><span>Ngày</span><input type="date" defaultValue={dateKey()} /></label>
-        <label><span>Khoa</span><select defaultValue="all"><option value="all">Tất cả khoa</option>{data.departments.map((item) => <option key={item.id || item.name} value={item.id}>{item.name}</option>)}</select></label>
-        <label><span>Chế độ</span><select defaultValue="board"><option value="board">Board</option><option value="table">Table</option><option value="compact">Compact</option><option value="tv">TV Preview</option></select></label>
-        <button type="button" onClick={data.refresh}><RefreshCw size={16} />Làm mới</button>
+        <label><span>Ngày</span><input type="date" value={data.filters.date || dateKey()} onChange={(event) => setFilter('date', event.target.value)} /></label>
+        <label><span>Khoa</span><select value={data.filters.departmentId || ''} onChange={(event) => setFilter('departmentId', event.target.value)}><option value="">Tất cả khoa</option>{data.departments.map((item) => <option key={item.id || item.department_id || item.name} value={item.id || item.department_id || ''}>{item.name || item.department_name}</option>)}</select></label>
+        <label><span>Chế độ</span><select value={data.filters.mode || 'board'} onChange={(event) => setFilter('mode', event.target.value)}><option value="board">Command board</option><option value="table">Table audit</option><option value="compact">Compact</option><option value="tv">TV Preview</option></select></label>
+        <button type="button" onClick={data.refresh}><RefreshCw size={16} />Làm mới dữ liệu</button>
       </div>
     </section>
   );
@@ -429,7 +414,7 @@ function Header({ config, data }) {
 function QuickActions({ data }) {
   return (
     <section className="sched-queue-actions">
-      <button type="button" onClick={() => data.runAction('Đã gọi số tiếp theo.', () => schedulingApi.callNextQueue({}), {
+      <button type="button" onClick={() => data.runAction('Đã gọi số tiếp theo.', () => schedulingApi.callNextQueue({ date: data.filters.date || dateKey(), department_id: data.filters.departmentId || undefined }), {
         confirm: {
           title: 'Gọi số tiếp theo',
           body: 'Hệ thống sẽ chọn ticket phù hợp theo ưu tiên queue hiện tại.',
@@ -456,7 +441,7 @@ function QuickActions({ data }) {
         downloadJsonFile(`queue-${dateKey()}.json`, data.tickets);
         data.setMessage('Đã xuất danh sách queue hôm nay.');
       }}><Download size={16} />Xuất danh sách</button>
-      <span className={`sched-queue-sync ${data.backendConnected ? '' : 'is-demo'}`}><i />{data.backendConnected ? 'Realtime ready' : 'Demo/fallback data'}</span>
+      <span className={`sched-queue-sync ${data.backendConnected ? '' : 'is-demo'}`}><i />{data.backendConnected ? 'Database live' : 'Chưa kết nối API/DB'}</span>
     </section>
   );
 }
@@ -635,13 +620,24 @@ function QueueDrawer({ data }) {
 
   return (
     <aside className="sched-queue-drawer">
-      <header>
+      <header className="sched-queue-drawer__header">
         <div>
           <span>Queue ticket</span>
           <h2>{ticket.queueNumber}</h2>
           <p>{ticket.patientName} · {ticket.patientCode}</p>
         </div>
-        <StatusBadge status={ticket.status} />
+        <div className="sched-queue-drawer__headerActions">
+          <StatusBadge status={ticket.status} />
+          <button
+            type="button"
+            className="sched-queue-drawer__close"
+            onClick={() => data.setSelectedId?.('')}
+            aria-label="Đóng panel chi tiết"
+            title="Đóng"
+          >
+            <XCircle size={18} />
+          </button>
+        </div>
       </header>
       <section className="sched-queue-info">
         <div><span>Queue type</span><strong>{TYPE_META[ticket.queueType] || ticket.queueType}</strong></div>
@@ -745,7 +741,7 @@ function CallConsole({ data }) {
         <h2>{currentCalled?.patientName || 'Không có bệnh nhân đang được gọi'}</h2>
         <p>{currentCalled ? `${currentCalled.doctorName} · ${currentCalled.room}` : 'Bấm gọi số tiếp theo để bắt đầu.'}</p>
         <div>
-          <button type="button" className="is-primary" onClick={() => data.runAction('Đã gọi số tiếp theo.', () => schedulingApi.callNextQueue({}), {
+          <button type="button" className="is-primary" onClick={() => data.runAction('Đã gọi số tiếp theo.', () => schedulingApi.callNextQueue({ date: data.filters.date || dateKey(), department_id: data.filters.departmentId || undefined }), {
             confirm: { title: 'Gọi số tiếp theo', body: 'Gọi ticket tiếp theo theo thứ tự ưu tiên hiện tại.', confirmLabel: 'gọi số' },
           })}><Megaphone size={18} />Gọi số tiếp theo</button>
           <button type="button" disabled={!currentCalled} onClick={() => data.runAction('Đã gọi lại.', () => schedulingApi.recallQueueTicket(currentCalled.id), {

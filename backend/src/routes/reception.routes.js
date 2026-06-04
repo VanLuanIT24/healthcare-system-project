@@ -90,6 +90,7 @@ router.post('/worklist/:itemId/resolve', authorize({ anyPermissions: queueWriteP
 router.post('/worklist/:itemId/snooze', authorize({ anyPermissions: queueWritePermissions }), receptionController.snoozeWorklistItem);
 
 router.post('/checkin/quick', authorize({ anyPermissions: checkinPermissions }), receptionController.quickCheckin);
+router.post('/checkin/qr/preview', authorize({ anyPermissions: checkinPermissions }), receptionController.previewQrCheckin);
 router.post('/checkin/qr', authorize({ anyPermissions: checkinPermissions }), receptionController.qrCheckin);
 router.post('/walk-in-checkin', authorize({ anyPermissions: checkinPermissions }), receptionController.walkInCheckin);
 

@@ -1,3 +1,4 @@
+import '../../iam/iamControlPlanePro.css';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -107,6 +108,78 @@ function normalizePermissionData(matrix) {
   return { permissions, moduleKeys };
 }
 
+const ROLE_CODE_DOMAINS = [
+  { code: 'billing', label: 'Viện phí', prefix: 'fin', pattern: /(^|_)(billing|vien_phi|thu_phi|hoa_don|invoice|payment|revenue|cashier|charge)(_|$)/ },
+  { code: 'insurance', label: 'Bảo hiểm', prefix: 'fin', pattern: /(^|_)(insurance|bao_hiem|claim|coverage)(_|$)/ },
+  { code: 'pharmacy', label: 'Dược', prefix: 'rx', pattern: /(^|_)(pharmacy|duoc|thuoc|dispense|prescription)(_|$)/ },
+  { code: 'inventory', label: 'Kho', prefix: 'ops', pattern: /(^|_)(inventory|kho|stock|warehouse|supply)(_|$)/ },
+  { code: 'reception', label: 'Tiếp nhận', prefix: 'front', pattern: /(^|_)(reception|le_tan|tiep_nhan|front_desk|checkin)(_|$)/ },
+  { code: 'scheduling', label: 'Điều phối lịch', prefix: 'ops', pattern: /(^|_)(schedule|scheduling|lich|dat_lich|appointment|queue|hang_doi)(_|$)/ },
+  { code: 'clinical', label: 'Lâm sàng', prefix: 'care', pattern: /(^|_)(clinical|lam_sang|doctor|bac_si|encounter|diagnosis|consultation)(_|$)/ },
+  { code: 'nursing', label: 'Điều dưỡng', prefix: 'care', pattern: /(^|_)(nursing|dieu_duong|nurse|vitals)(_|$)/ },
+  { code: 'lab', label: 'Xét nghiệm', prefix: 'diag', pattern: /(^|_)(lab|xet_nghiem|specimen|test)(_|$)/ },
+  { code: 'imaging', label: 'CĐHA', prefix: 'diag', pattern: /(^|_)(imaging|radiology|chan_doan_hinh_anh|cdha|x_quang|sieu_am)(_|$)/ },
+  { code: 'records', label: 'Hồ sơ', prefix: 'med', pattern: /(^|_)(record|records|ho_so|medical_record|benh_an)(_|$)/ },
+  { code: 'workforce', label: 'Nhân sự', prefix: 'hr', pattern: /(^|_)(staff|nhan_su|workforce|employee|user)(_|$)/ },
+  { code: 'iam', label: 'Phân quyền', prefix: 'sec', pattern: /(^|_)(iam|role|permission|phan_quyen|vai_tro|access)(_|$)/ },
+  { code: 'reports', label: 'Báo cáo', prefix: 'data', pattern: /(^|_)(report|reports|bao_cao|analytics|dashboard)(_|$)/ },
+  { code: 'admin', label: 'Quản trị', prefix: 'sys', pattern: /(^|_)(admin|system|quan_tri|settings|audit)(_|$)/ },
+];
+
+const ROLE_CODE_CAPABILITIES = [
+  { code: 'coordinator', label: 'điều phối', pattern: /(^|_)(dieu_phoi|coordinate|coordinator|dispatcher)(_|$)/ },
+  { code: 'operator', label: 'vận hành', pattern: /(^|_)(operator|operation|ops|van_hanh|xu_ly|staff)(_|$)/ },
+  { code: 'manager', label: 'quản lý', pattern: /(^|_)(manager|quan_ly|manage|head|truong)(_|$)/ },
+  { code: 'lead', label: 'lead', pattern: /(^|_)(lead|leader|truong_nhom|senior)(_|$)/ },
+  { code: 'supervisor', label: 'giám sát', pattern: /(^|_)(supervisor|giam_sat|monitor|watch)(_|$)/ },
+  { code: 'approver', label: 'duyệt', pattern: /(^|_)(approve|approver|duyet|phe_duyet|review)(_|$)/ },
+  { code: 'auditor', label: 'audit', pattern: /(^|_)(audit|auditor|kiem_toan|evidence)(_|$)/ },
+  { code: 'viewer', label: 'chỉ xem', pattern: /(^|_)(viewer|read|xem|readonly|read_only)(_|$)/ },
+  { code: 'admin', label: 'quản trị', pattern: /(^|_)(admin|quan_tri)(_|$)/ },
+];
+
+const ROLE_CODE_LEVELS = [
+  { code: 'advanced', label: 'nâng cao', pattern: /(^|_)(advanced|nang_cao|cao_cap|chuyen_sau|senior)(_|$)/ },
+  { code: 'critical', label: 'nhạy cảm', pattern: /(^|_)(critical|nhay_cam|full_access|super)(_|$)/ },
+  { code: 'limited', label: 'giới hạn', pattern: /(^|_)(limited|gioi_han|read_only|readonly)(_|$)/ },
+];
+
+function pickRoleCodePart(text, items, fallback) {
+  return items.find((item) => item.pattern.test(text)) || fallback;
+}
+
+function pushRoleCodeCandidate(list, code) {
+  const normalized = buildRoleCode(code);
+  if (normalized && !list.includes(normalized)) list.push(normalized);
+}
+
+function buildRoleCodeSuggestions(name, roles = []) {
+  const base = buildRoleCode(name);
+  if (!base) return [];
+  const existingCodes = new Set((roles || []).map((role) => String(role.role_code || '').toLowerCase()));
+  const text = `_${base}_`;
+  const domain = pickRoleCodePart(text, ROLE_CODE_DOMAINS, { code: base.split('_')[0] || 'role', label: 'Nghiệp vụ', prefix: 'ops' });
+  const capability = pickRoleCodePart(text, ROLE_CODE_CAPABILITIES, { code: 'operator', label: 'vận hành' });
+  const level = pickRoleCodePart(text, ROLE_CODE_LEVELS, null);
+  const variants = [];
+
+  if (level) pushRoleCodeCandidate(variants, `${domain.code}_${level.code}_${capability.code}`);
+  pushRoleCodeCandidate(variants, `${domain.prefix}_${domain.code}_${capability.code}`);
+  pushRoleCodeCandidate(variants, `${domain.code}_${capability.code}`);
+  pushRoleCodeCandidate(variants, `${domain.code}_ops_${capability.code}`);
+  if (level) pushRoleCodeCandidate(variants, `${level.code}_${domain.code}_${capability.code}`);
+  pushRoleCodeCandidate(variants, `${base}_${capability.code}`);
+  pushRoleCodeCandidate(variants, base);
+
+  return variants
+    .filter((item) => !existingCodes.has(item))
+    .slice(0, 6)
+    .map((code) => ({
+      code,
+      label: [domain.label, capability.label, level?.label].filter(Boolean).join(' · '),
+    }));
+}
+
 function RoleFormPage({ mode }) {
   const { roleId } = useParams();
   const navigate = useNavigate();
@@ -162,6 +235,10 @@ function RoleFormPage({ mode }) {
 
   const { permissions, moduleKeys } = useMemo(() => normalizePermissionData(matrix), [matrix]);
   const summary = useMemo(() => summarizeSelection(permissions, selectedPermissions), [permissions, selectedPermissions]);
+  const roleCodeSuggestions = useMemo(
+    () => buildRoleCodeSuggestions(form.role_name, matrix?.roles || []),
+    [form.role_name, matrix?.roles],
+  );
 
   const filteredPermissions = useMemo(() => {
     const keyword = permissionSearch.trim().toLowerCase();
@@ -183,10 +260,14 @@ function RoleFormPage({ mode }) {
     [matrix?.roles, sourceRoleId],
   );
 
+  function buildPrimaryRoleCode(name) {
+    return buildRoleCodeSuggestions(name, matrix?.roles || [])[0]?.code || buildRoleCode(name);
+  }
+
   function updateField(name, value) {
     setForm((current) => {
       const next = { ...current, [name]: value };
-      if (name === 'role_name' && !isEdit && !current.role_code) next.role_code = buildRoleCode(value);
+      if (name === 'role_name' && !isEdit && !current.role_code) next.role_code = buildPrimaryRoleCode(value);
       return next;
     });
   }
@@ -286,9 +367,27 @@ function RoleFormPage({ mode }) {
                 <span>Tên vai trò</span>
                 <input value={form.role_name} onChange={(event) => updateField('role_name', event.target.value)} placeholder="Điều phối viện phí nâng cao" />
               </label>
-              <label>
+              <label className="role-create-pro-code-field">
                 <span>Mã vai trò</span>
-                <input value={form.role_code} disabled={isEdit} onChange={(event) => updateField('role_code', buildRoleCode(event.target.value))} placeholder="advanced_billing_operator" />
+                <div className="role-create-pro-code-input">
+                  <input value={form.role_code} disabled={isEdit} onChange={(event) => updateField('role_code', buildRoleCode(event.target.value))} placeholder="advanced_billing_operator" />
+                  {!isEdit && form.role_name ? (
+                    <button type="button" onClick={() => updateField('role_code', buildPrimaryRoleCode(form.role_name))} title="Tạo mã chuẩn từ tên vai trò">
+                      <Sparkles size={15} /> Tự tạo
+                    </button>
+                  ) : null}
+                </div>
+                {!isEdit && roleCodeSuggestions.length ? (
+                  <div className="role-create-pro-code-suggestions">
+                    <small>Gợi ý mã chuyên nghiệp</small>
+                    {roleCodeSuggestions.map((suggestion) => (
+                      <button key={suggestion.code} type="button" onClick={() => updateField('role_code', suggestion.code)}>
+                        <strong>{suggestion.code}</strong>
+                        <span>{suggestion.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </label>
               <label>
                 <span>Priority level</span>

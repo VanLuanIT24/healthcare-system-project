@@ -897,3 +897,46 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* V14 resource + alert command center polish */
+.sched-resource-page,
+.sched-alert-page {
+  display: grid;
+  gap: 18px;
+}
+.sched-resource-hero,
+.sched-alert-hero {
+  background: linear-gradient(135deg, rgba(240,253,250,.92), rgba(255,255,255,.98) 52%, rgba(239,246,255,.92));
+  border: 1px solid rgba(148,163,184,.22);
+  border-radius: 22px;
+  box-shadow: 0 24px 54px rgba(15,23,42,.08);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 430px);
+  padding: 22px;
+}
+.sched-resource-hero h1,
+.sched-alert-hero h1 { font-size: clamp(28px, 3vw, 46px); line-height: 1.04; margin: 6px 0 8px; color:#0f172a; }
+.sched-resource-hero p,
+.sched-alert-hero p { color:#475569; line-height:1.6; margin:0; }
+.sched-resource-hero__tools,
+.sched-alert-hero__tools { display:grid; gap:10px; align-content:start; }
+.sched-resource-hero__tools input,
+.sched-resource-hero__tools select,
+.sched-alert-hero__tools input,
+.sched-alert-hero__tools select { min-height:42px; border-radius:12px; border:1px solid #dbe4ef; padding:0 12px; background:#fff; font-weight:700; }
+.sched-resource-kpis,
+.sched-alert-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+.sched-resource-kpis > *,
+.sched-alert-kpis > * { background:#fff; border:1px solid rgba(203,213,225,.72); border-radius:18px; box-shadow:0 14px 32px rgba(15,23,42,.05); padding:16px; }
+.sched-resource-toolbar,
+.sched-alert-toolbar { align-items:center; display:flex; flex-wrap:wrap; gap:10px; background:#fff; border:1px solid rgba(203,213,225,.68); border-radius:18px; padding:12px; box-shadow:0 14px 32px rgba(15,23,42,.05); }
+.sched-resource-toolbar button,.sched-resource-toolbar a,.sched-alert-toolbar button,.sched-alert-toolbar a,
+.sched-alert-drawer__actions button,.sched-resource-drawer__actions button { align-items:center; background:#fff; border:1px solid #dbe4ef; border-radius:999px; color:#0f172a; cursor:pointer; display:inline-flex; font-weight:900; gap:8px; min-height:38px; padding:0 14px; text-decoration:none; }
+.sched-resource-toolbar button:first-child,.sched-alert-toolbar button:first-child { background:#0f172a; color:#fff; border-color:#0f172a; }
+.sched-resource-grid,.sched-alert-list,.sched-attention-board,.sched-alert-action-board { display:grid; gap:14px; }
+.sched-resource-grid { grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
+.sched-resource-grid > article,.sched-alert-list > article,.sched-attention-lane,.sched-alert-action-lane { background:#fff; border:1px solid rgba(203,213,225,.78); border-radius:18px; box-shadow:0 16px 34px rgba(15,23,42,.055); overflow:hidden; padding:16px; }
+.sched-alert-card__meta { color:#64748b; display:flex; flex-wrap:wrap; gap:8px; font-size:12px; font-weight:800; }
+.sched-resource-drawer,.sched-alert-drawer { top:max(86px,var(--scheduling-topbar-height,82px)) !important; max-height:calc(100vh - 110px) !important; overflow:auto !important; border-radius:22px 0 0 22px !important; box-shadow:-28px 0 70px rgba(15,23,42,.18) !important; }
+@media (max-width: 980px) { .sched-resource-hero,.sched-alert-hero { grid-template-columns:1fr; } }

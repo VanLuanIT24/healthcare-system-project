@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   CalendarDays,
@@ -11,8 +11,10 @@ import {
   Loader2,
   MoreHorizontal,
   Phone,
+  Plus,
   PlayCircle,
   Printer,
+  QrCode,
   RefreshCw,
   RotateCcw,
   Search,
@@ -21,10 +23,12 @@ import {
   SkipForward,
   Stethoscope,
   Timer,
+  UserPlus,
   Users,
   XCircle,
 } from 'lucide-react';
 import { AppLogo } from '../../app/AppLogo';
+import { RescheduleAppointmentModal } from '../components/RescheduleAppointmentModal';
 import { receptionQueueApi } from '../api/receptionQueueApi';
 
 const APPOINTMENT_STATUS_META = {
@@ -45,6 +49,7 @@ const QUEUE_STATUS_META = {
   in_service: { label: 'Đang phục vụ', tone: 'success' },
   completed: { label: 'Hoàn tất', tone: 'success' },
   skipped: { label: 'Bỏ qua', tone: 'danger' },
+  no_show: { label: 'No-show', tone: 'danger' },
   cancelled: { label: 'Đã hủy', tone: 'warning' },
 };
 
@@ -58,6 +63,22 @@ const CHECKIN_MODES = {
   quick: {
     title: 'Check-in nhanh',
     subtitle: 'Tìm bệnh nhân hoặc mã lịch để check-in trong vài giây tại quầy.',
+  },
+  qr: {
+    title: 'Check-in theo QR',
+    subtitle: 'Quét QR appointment_checkin để lấy thông tin bệnh nhân, check-in và tạo số thứ tự.',
+  },
+  walkin: {
+    title: 'Check-in vãng lai',
+    subtitle: 'Tiếp nhận bệnh nhân không có lịch, tạo queue ticket và in phiếu nếu cần.',
+  },
+  errors: {
+    title: 'Check-in lỗi / cần xử lý',
+    subtitle: 'Queue xử lý lỗi check-in từ backend, có retry và resolve.',
+  },
+  history: {
+    title: 'Lịch sử check-in',
+    subtitle: 'Tra cứu các lượt check-in gần đây và in lại số thứ tự khi cần.',
   },
   waiting: {
     title: 'Danh sách chờ check-in',
@@ -112,9 +133,46 @@ const QUEUE_MODES = {
     subtitle: 'Tra cứu ticket đã hủy để đối soát thao tác hàng đợi.',
     statuses: ['cancelled'],
   },
+  priority: {
+    title: 'Ưu tiên',
+    subtitle: 'Quản lý queue priority/VIP và lưu lý do đổi thứ tự bằng endpoint reorder-priority.',
+    statuses: ['waiting', 'skipped'],
+  },
+  public_board: {
+    title: 'Bảng queue công khai',
+    subtitle: 'Màn public display đọc từ /queue/public/board, không lộ thao tác staff.',
+  },
   transfer: {
     title: 'Chuyển hàng đợi',
     subtitle: 'Chuyển ticket sang khoa, bác sĩ hoặc luồng phục vụ khác khi backend cho phép.',
+  },
+};
+
+const ROUTING_DESTINATIONS = {
+  nursing: {
+    title: 'Chuyển sang Điều dưỡng',
+    subtitle: 'Đưa bệnh nhân vào nursing workflow, có thể yêu cầu triage hoặc đo sinh hiệu.',
+    destination: 'nursing',
+  },
+  doctor: {
+    title: 'Chuyển sang Bác sĩ',
+    subtitle: 'Chuyển queue sang bác sĩ/phòng khám sau khi đã sẵn sàng tiếp nhận.',
+    destination: 'doctor',
+  },
+  cashier: {
+    title: 'Chuyển sang Thu ngân',
+    subtitle: 'Kiểm tra hóa đơn còn nợ và tạo routing sang quầy thu ngân.',
+    destination: 'cashier',
+  },
+  clinical: {
+    title: 'Chuyển sang Cận lâm sàng',
+    subtitle: 'Gửi bệnh nhân sang lab/imaging/procedure; readiness hiện theo endpoint reception.',
+    destination: 'clinical',
+  },
+  pharmacy: {
+    title: 'Chuyển sang Nhà thuốc',
+    subtitle: 'Gửi bệnh nhân sang nhà thuốc; readiness hiện theo endpoint reception.',
+    destination: 'pharmacy',
   },
 };
 
@@ -206,6 +264,14 @@ function getAppointmentId(item) {
 
 function getQueueTicketId(item) {
   return item?.queue_ticket_id || item?.queue_ticket?.queue_ticket_id || item?.ticket_id || item?.id || item?._id || '';
+}
+
+function getPatientId(item) {
+  return item?.patient_id || item?.patient?.patient_id || item?.patient?.id || item?.patient?._id || '';
+}
+
+function getCheckinErrorId(item) {
+  return item?.checkin_error_id || item?.error_id || item?.id || item?._id || '';
 }
 
 function getStatusMeta(status, category = 'appointment') {
@@ -421,19 +487,29 @@ async function ensureQueueAfterCheckIn(appointmentId, checkInData) {
   return receptionQueueApi.getAppointmentDetail(appointmentId);
 }
 
-export function ReceptionCheckInQueuePanel({ mode = 'checkin-quick', onNavigate }) {
+export function ReceptionCheckInQueuePanel({ mode = 'checkin-quick', onNavigate, onSelectPatient }) {
   const checkinMode = mode.startsWith('checkin-') ? mode.replace('checkin-', '') : null;
   const queueMode = mode.startsWith('queue-') ? mode.replace('queue-', '') : null;
+  const transferMode = mode.startsWith('transfer-') ? mode.replace('transfer-', '') : null;
 
-  if (checkinMode === 'quick') return <QuickCheckInPanel onNavigate={onNavigate} />;
+  if (checkinMode === 'quick') return <QuickCheckInPanel onNavigate={onNavigate} onSelectPatient={onSelectPatient} />;
+  if (checkinMode === 'qr') return <QrCheckInPanel onNavigate={onNavigate} onSelectPatient={onSelectPatient} />;
+  if (checkinMode === 'walkin') return <WalkInCheckInPanel onNavigate={onNavigate} onSelectPatient={onSelectPatient} />;
+  if (checkinMode === 'errors') return <CheckInErrorsPanel onNavigate={onNavigate} onSelectPatient={onSelectPatient} />;
+  if (checkinMode === 'history') return <CheckInHistoryPanel onNavigate={onNavigate} onSelectPatient={onSelectPatient} />;
   if (checkinMode === 'waiting') return <WaitingCheckInPanel onNavigate={onNavigate} />;
   if (checkinMode === 'done') return <CheckedInPanel onNavigate={onNavigate} />;
   if (checkinMode === 'print') return <ReceiptPrintPanel onNavigate={onNavigate} />;
 
   if (queueMode === 'board') return <QueueBoardPanel onNavigate={onNavigate} />;
   if (queueMode === 'call') return <QueueCallNextPanel onNavigate={onNavigate} />;
+  if (queueMode === 'priority') return <QueuePriorityPanel onNavigate={onNavigate} />;
+  if (queueMode === 'public-board') return <PublicQueueBoardPanel onNavigate={onNavigate} />;
   if (queueMode === 'transfer') return <QueueTransferPanel onNavigate={onNavigate} />;
   if (queueMode) return <QueueStatusPanel mode={queueMode} onNavigate={onNavigate} />;
+
+  if (transferMode === 'history') return <RoutingHistoryPanel onNavigate={onNavigate} onSelectPatient={onSelectPatient} />;
+  if (transferMode) return <RoutingPanel mode={transferMode} onNavigate={onNavigate} onSelectPatient={onSelectPatient} />;
 
   return null;
 }
@@ -502,8 +578,11 @@ function QuickCheckInPanel({ onNavigate }) {
       if (!getCanCheckInFlag(canCheckIn)) {
         throw new Error(safeArray(canCheckIn?.reasons)[0] || 'Lịch hẹn chưa đủ điều kiện check-in.');
       }
-      const checkedIn = await receptionQueueApi.checkInAppointment(appointmentId);
-      const detail = await ensureQueueAfterCheckIn(appointmentId, checkedIn);
+      const detail = await receptionQueueApi.quickCheckin({
+        appointment_id: appointmentId,
+        create_queue: true,
+        print_ticket: false,
+      });
       setSuccess({
         appointment: extractAppointment(detail),
         queueTicket: detail?.queue_ticket,
@@ -602,6 +681,788 @@ function QuickCheckInPanel({ onNavigate }) {
           setState({ loading: false, error: '', items: [] });
         }}
       />
+    </section>
+  );
+}
+
+function extractQrTokenValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return String(parsed.token || parsed.qr_token || parsed.qrToken || parsed.value || raw).trim();
+    }
+  } catch (error) {
+    // QR payload is usually a plain token or URL; JSON parsing is best-effort.
+  }
+
+  try {
+    const url = new URL(raw);
+    return String(
+      url.searchParams.get('token')
+      || url.searchParams.get('qr_token')
+      || url.searchParams.get('qrToken')
+      || url.searchParams.get('t')
+      || url.pathname.split('/').filter(Boolean).pop()
+      || raw,
+    ).trim();
+  } catch (error) {
+    return raw;
+  }
+}
+
+function QrCheckInPanel({ onNavigate, onSelectPatient }) {
+  const config = CHECKIN_MODES.qr;
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const frameRef = useRef(0);
+  const scanLockRef = useRef(false);
+  const [token, setToken] = useState('');
+  const [autoCheckin, setAutoCheckin] = useState(true);
+  const [scanner, setScanner] = useState({ active: false, error: '' });
+  const [state, setState] = useState({ loading: false, error: '', preview: null, result: null, success: '' });
+
+  useEffect(() => () => stopScanner({ keepState: true }), []);
+
+  function stopScanner({ keepState = false } = {}) {
+    if (frameRef.current) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    scanLockRef.current = false;
+    if (!keepState) setScanner((current) => ({ ...current, active: false }));
+  }
+
+  async function startScanner() {
+    if (!window.BarcodeDetector) {
+      setScanner({ active: false, error: 'Trình duyệt này chưa hỗ trợ BarcodeDetector. Dán token QR vào ô bên dưới để check-in.' });
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScanner({ active: false, error: 'Không truy cập được camera từ trình duyệt hiện tại.' });
+      return;
+    }
+
+    stopScanner();
+    setScanner({ active: true, error: '' });
+    try {
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      const scanFrame = async () => {
+        if (!streamRef.current || !videoRef.current) return;
+        try {
+          if (!scanLockRef.current && videoRef.current.readyState >= 2) {
+            const codes = await detector.detect(videoRef.current);
+            const rawValue = codes?.[0]?.rawValue;
+            if (rawValue) {
+              scanLockRef.current = true;
+              stopScanner();
+              await previewQr(rawValue, { fromScan: true });
+              return;
+            }
+          }
+          frameRef.current = window.requestAnimationFrame(scanFrame);
+        } catch (error) {
+          stopScanner();
+          setScanner({ active: false, error: 'Không đọc được QR từ camera. Hãy thử quét lại hoặc nhập token thủ công.' });
+        }
+      };
+      frameRef.current = window.requestAnimationFrame(scanFrame);
+    } catch (error) {
+      stopScanner();
+      setScanner({ active: false, error: getErrorMessage(error, 'Không mở được camera để quét QR.') });
+    }
+  }
+
+  async function previewQr(rawValue = token, options = {}) {
+    const value = extractQrTokenValue(rawValue);
+    if (!value) {
+      setState({ loading: false, error: 'Vui lòng nhập hoặc quét QR token.', preview: null, result: null, success: '' });
+      return null;
+    }
+    setToken(value);
+    setState({ loading: true, error: '', preview: null, result: null, success: '' });
+    try {
+      const preview = await receptionQueueApi.previewQrCheckin({ token: value });
+      setState({ loading: false, error: '', preview, result: null, success: options.fromScan ? 'Đã đọc QR và lấy thông tin lịch hẹn.' : '' });
+      if (options.fromScan && autoCheckin && preview?.can_checkin) {
+        await runQrCheckin(value, preview);
+      }
+      return preview;
+    } catch (error) {
+      setState({ loading: false, error: getErrorMessage(error, 'Không preview được QR.'), preview: null, result: null, success: '' });
+      return null;
+    }
+  }
+
+  async function runQrCheckin(rawValue = token, existingPreview = state.preview) {
+    const value = extractQrTokenValue(rawValue);
+    if (!value) {
+      setState({ loading: false, error: 'Vui lòng nhập hoặc quét QR token.', preview: existingPreview, result: null, success: '' });
+      return;
+    }
+    setToken(value);
+    setState((current) => ({ ...current, loading: true, error: '', success: '' }));
+    try {
+      const data = await receptionQueueApi.qrCheckin({
+        token: value,
+        create_queue: true,
+        print_ticket: false,
+      });
+      setState({ loading: false, error: '', preview: existingPreview, result: data, success: 'Đã check-in QR và tạo số thứ tự.' });
+    } catch (error) {
+      setState((current) => ({ ...current, loading: false, error: getErrorMessage(error, 'Check-in QR thất bại.'), success: '' }));
+    }
+  }
+
+  async function submitQr(event) {
+    event.preventDefault();
+    await runQrCheckin(token);
+  }
+
+  const displayData = state.result || state.preview;
+  const appointment = extractAppointment(displayData);
+  const ticket = displayData?.queue_ticket || displayData?.queueTicket || null;
+  const currentQueue = state.result?.current_queue || state.preview?.current_queue || null;
+  const tokenType = displayData?.token_type || displayData?.entity?.type || '--';
+  const canCheckin = Boolean(state.preview?.can_checkin);
+  const patientId = appointment?.patient_id || ticket?.patient_id;
+
+  return (
+    <section className="reception-appointment-module">
+      <ModuleHero
+        title={config.title}
+        subtitle={config.subtitle}
+        eyebrow="QR check-in"
+        icon={QrCode}
+        actions={(
+          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onNavigate?.('checkin-quick')}>
+            <Search size={16} />
+            <span>Tra cứu thủ công</span>
+          </button>
+        )}
+      />
+
+      <div className="reception-print-layout">
+        <form className="reception-panel" onSubmit={submitQr}>
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Máy quét QR</h2>
+              <p>Quét QR appointment_checkin để lấy lịch hẹn, check-in và tạo queue ticket.</p>
+            </div>
+          </header>
+          <div className={`reception-qr-frame ${scanner.active ? 'is-active' : ''}`}>
+            <video ref={videoRef} muted playsInline aria-label="Camera quét QR" />
+            {!scanner.active ? (
+              <div className="reception-qr-frame__placeholder">
+                <QrCode size={72} />
+                <span>Đưa QR của bệnh nhân vào khung camera hoặc dán token thủ công.</span>
+              </div>
+            ) : null}
+          </div>
+          <InlineError message={scanner.error} />
+          <label className="reception-appointment-search">
+            <Search size={18} />
+            <input
+              value={token}
+              onChange={(event) => setToken(extractQrTokenValue(event.target.value))}
+              placeholder="Dán QR token, URL QR hoặc payload JSON"
+            />
+          </label>
+          <label className="reception-check-row reception-qr-auto-toggle">
+            <input type="checkbox" checked={autoCheckin} onChange={(event) => setAutoCheckin(event.target.checked)} />
+            <span>Tự check-in khi quét được QR hợp lệ</span>
+          </label>
+          <InlineError message={state.error} />
+          <InlineSuccess message={state.success} />
+          <footer className="reception-modal__actions">
+            <button type="button" className="reception-btn reception-btn--ghost" onClick={scanner.active ? () => stopScanner() : startScanner} disabled={state.loading}>
+              {scanner.active ? <XCircle size={16} /> : <PlayCircle size={16} />}
+              <span>{scanner.active ? 'Dừng quét' : 'Mở camera'}</span>
+            </button>
+            <button type="button" className="reception-btn reception-btn--ghost" onClick={() => previewQr(token)} disabled={state.loading || token.trim().length < 2}>
+              {state.loading ? <Loader2 size={16} /> : <Eye size={16} />}
+              <span>Preview QR</span>
+            </button>
+            <button type="submit" className="reception-btn reception-btn--primary" disabled={state.loading || token.trim().length < 2}>
+              {state.loading ? <Loader2 size={16} /> : <CheckCircle2 size={16} />}
+              <span>Check-in + tạo số</span>
+            </button>
+            <button type="button" className="reception-btn reception-btn--ghost" onClick={() => {
+              stopScanner();
+              setToken('');
+              setState({ loading: false, error: '', preview: null, result: null, success: '' });
+            }}>
+              <RotateCcw size={16} />
+              <span>Quét lại</span>
+            </button>
+          </footer>
+        </form>
+
+        <article className="reception-panel">
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Thông tin check-in</h2>
+              <p>Preview không consume token; check-in sẽ consume QR và cập nhật database.</p>
+            </div>
+          </header>
+          {displayData ? (
+            <>
+              <div className="reception-detail-grid">
+                <div><span>Token status</span><strong>{displayData.token_status || (state.result ? 'consumed' : 'valid')}</strong></div>
+                <div><span>Loại QR</span><strong>{tokenType}</strong></div>
+                <div><span>Bệnh nhân</span><strong>{appointment?.patient_name || appointment?.patient?.full_name || '--'}</strong></div>
+                <div><span>Mã lịch</span><strong>{getAppointmentId(appointment).slice(-10).toUpperCase() || '--'}</strong></div>
+                <div><span>Queue</span><strong>{ticket?.display_number || ticket?.queue_number || '--'}</strong></div>
+                <div><span>Vị trí chờ</span><strong>{currentQueue ? `${currentQueue.estimated_position || 0} / trước ${currentQueue.waiting_before || 0}` : '--'}</strong></div>
+                <div><span>Khoa</span><strong>{appointment?.department_name || ticket?.department_name || '--'}</strong></div>
+                <div><span>Bác sĩ</span><strong>{appointment?.doctor_name || ticket?.doctor_name || '--'}</strong></div>
+              </div>
+              {!canCheckin && state.preview && !state.result ? (
+                <div className="reception-flow-warning is-warning">
+                  <AlertCircle size={17} />
+                  <span>{safeArray(state.preview.reasons).join(' ') || 'QR này chưa đủ điều kiện check-in tự động.'}</span>
+                </div>
+              ) : null}
+              <div className="reception-detail-actions">
+                <button type="button" className="reception-btn reception-btn--primary" disabled={Boolean(state.result) || !canCheckin || state.loading} onClick={() => runQrCheckin(token, state.preview)}>
+                  <CheckCircle2 size={16} />
+                  <span>Check-in ngay</span>
+                </button>
+                <button type="button" className="reception-btn reception-btn--ghost" disabled={!ticket} onClick={() => onNavigate?.('checkin-print')}>
+                  <Printer size={16} />
+                  <span>In số thứ tự</span>
+                </button>
+                <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onNavigate?.('queue-board')}>
+                  <Users size={16} />
+                  <span>Mở queue</span>
+                </button>
+                <button
+                  type="button"
+                  className="reception-btn reception-btn--ghost"
+                  disabled={!patientId}
+                  onClick={() => onSelectPatient?.({
+                    patient_id: patientId,
+                    patient_code: appointment?.patient_code,
+                    full_name: appointment?.patient_name,
+                    phone: appointment?.patient_phone,
+                  })}
+                >
+                  <Users size={16} />
+                  <span>Mở hồ sơ BN</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="reception-empty-panel">Chưa có QR được quét hoặc preview.</div>
+          )}
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function WalkInCheckInPanel({ onNavigate, onSelectPatient }) {
+  const config = CHECKIN_MODES.walkin;
+  const refs = useReceptionRefs();
+  const [query, setQuery] = useState('');
+  const [patients, setPatients] = useState({ loading: false, error: '', items: [] });
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [form, setForm] = useState({
+    department_id: '',
+    doctor_id: '',
+    reason: '',
+    priority: 'normal',
+    create_queue_ticket: true,
+    create_encounter: false,
+    print_ticket: false,
+  });
+  const [submitState, setSubmitState] = useState({ loading: false, error: '', success: null });
+
+  async function searchPatients(event) {
+    event?.preventDefault?.();
+    const keyword = query.trim();
+    if (!keyword) {
+      setPatients({ loading: false, error: 'Nhập tên, SĐT, mã BN hoặc CCCD để tìm bệnh nhân.', items: [] });
+      return;
+    }
+    setPatients({ loading: true, error: '', items: [] });
+    try {
+      const data = await receptionQueueApi.searchReceptionPatients({ q: keyword, search: keyword, limit: 12 });
+      setPatients({
+        loading: false,
+        error: '',
+        items: safeArray(data?.items || data?.patients),
+      });
+    } catch (error) {
+      setPatients({ loading: false, error: getErrorMessage(error, 'Không tìm được bệnh nhân.'), items: [] });
+    }
+  }
+
+  function updateForm(key, value) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === 'department_id' ? { doctor_id: '' } : {}),
+    }));
+  }
+
+  async function submitWalkIn(event) {
+    event.preventDefault();
+    if (!selectedPatient) {
+      setSubmitState({ loading: false, error: 'Vui lòng chọn bệnh nhân.', success: null });
+      return;
+    }
+    if (!form.department_id || !form.doctor_id) {
+      setSubmitState({ loading: false, error: 'Vui lòng chọn khoa và bác sĩ.', success: null });
+      return;
+    }
+    setSubmitState({ loading: true, error: '', success: null });
+    try {
+      const data = await receptionQueueApi.walkInCheckin({
+        patient_id: getPatientId(selectedPatient) || selectedPatient.patient_id,
+        department_id: form.department_id,
+        doctor_id: form.doctor_id,
+        reason: form.reason,
+        priority: form.priority,
+        create_queue_ticket: form.create_queue_ticket,
+        create_encounter: form.create_encounter,
+        print_ticket: form.print_ticket,
+      });
+      setSubmitState({ loading: false, error: '', success: data });
+    } catch (error) {
+      setSubmitState({ loading: false, error: getErrorMessage(error, 'Check-in vãng lai thất bại.'), success: null });
+    }
+  }
+
+  const doctors = refs.doctors.filter((doctor) => !form.department_id || doctor.department_id === form.department_id);
+  const successTicket = submitState.success?.queue_ticket || submitState.success?.queueTicket;
+  const successQueue = submitState.success?.current_queue || submitState.success?.currentQueue;
+  const successRoute = submitState.success?.routing_hint || submitState.success?.routingHint;
+  const successQueueNumber = successQueue?.queue_number || successTicket?.display_number || successTicket?.queue_number || '--';
+  const successRouteLabel = {
+    doctor: 'Bác sĩ',
+    nursing: 'Điều dưỡng / queue tiếp nhận',
+    cashier: 'Thu ngân',
+    clinical: 'Cận lâm sàng',
+    pharmacy: 'Nhà thuốc',
+  }[successRoute?.destination] || (submitState.success?.next_step === 'send_to_doctor' ? 'Bác sĩ' : 'Điều dưỡng / queue tiếp nhận');
+
+  return (
+    <section className="reception-appointment-module">
+      <ModuleHero
+        title={config.title}
+        subtitle={config.subtitle}
+        eyebrow="Walk-in workflow"
+        icon={UserPlus}
+        actions={(
+          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onNavigate?.('patients-create')}>
+            <Plus size={16} />
+            <span>Tạo BN mới</span>
+          </button>
+        )}
+      />
+
+      <div className="reception-transfer-layout">
+        <article className="reception-panel">
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Chọn bệnh nhân</h2>
+              <p>Tìm bệnh nhân thật trước khi check-in vãng lai.</p>
+            </div>
+          </header>
+          <form className="reception-appointment-search" onSubmit={searchPatients}>
+            <Search size={18} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tên / SĐT / mã BN / CCCD" />
+          </form>
+          <InlineError message={patients.error} />
+          {patients.loading ? <LoadingBlock label="Đang tìm bệnh nhân..." /> : (
+            <div className="reception-receipt-results">
+              {patients.items.map((patient) => {
+                const patientId = getPatientId(patient) || patient.patient_id;
+                return (
+                  <button key={patientId} type="button" className={patientId === (getPatientId(selectedPatient) || selectedPatient?.patient_id) ? 'is-selected' : ''} onClick={() => setSelectedPatient(patient)}>
+                    <Users size={18} />
+                    <span>
+                      <strong>{patient.full_name || patient.patient_name || 'Bệnh nhân'}</strong>
+                      <small>{patient.patient_code || patient.code || patientId} · {patient.phone || patient.patient_phone || '--'}</small>
+                    </span>
+                  </button>
+                );
+              })}
+              {!patients.items.length ? <div className="reception-empty-panel reception-empty-panel--compact">Chưa có kết quả bệnh nhân.</div> : null}
+            </div>
+          )}
+        </article>
+
+        <form className="reception-panel" onSubmit={submitWalkIn}>
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Thông tin tiếp nhận</h2>
+              <p>Gửi payload trực tiếp vào /reception/walk-in-checkin.</p>
+            </div>
+          </header>
+          {selectedPatient ? (
+            <div className="reception-detail-grid">
+              <div><span>Bệnh nhân</span><strong>{selectedPatient.full_name || selectedPatient.patient_name || '--'}</strong></div>
+              <div><span>SĐT</span><strong>{selectedPatient.phone || selectedPatient.patient_phone || '--'}</strong></div>
+              <div><span>Mã BN</span><strong>{selectedPatient.patient_code || selectedPatient.code || '--'}</strong></div>
+              <div><span>Action</span><strong><button type="button" className="reception-inline-link" onClick={() => onSelectPatient?.(selectedPatient)}>Mở card</button></strong></div>
+            </div>
+          ) : (
+            <div className="reception-empty-panel reception-empty-panel--compact">Chọn bệnh nhân để tiếp tục.</div>
+          )}
+          <div className="reception-form-grid">
+            <label>
+              <span>Khoa</span>
+              <select value={form.department_id} onChange={(event) => updateForm('department_id', event.target.value)}>
+                <option value="">Chọn khoa</option>
+                {refs.departments.map((department) => (
+                  <option key={department.department_id} value={department.department_id}>{department.department_name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Bác sĩ</span>
+              <select value={form.doctor_id} onChange={(event) => updateForm('doctor_id', event.target.value)}>
+                <option value="">Chọn bác sĩ</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor.user_id} value={doctor.user_id}>{doctor.full_name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Ưu tiên</span>
+              <select value={form.priority} onChange={(event) => updateForm('priority', event.target.value)}>
+                <option value="normal">Thường</option>
+                <option value="priority">Ưu tiên</option>
+                <option value="vip">VIP / khẩn</option>
+              </select>
+            </label>
+            <label className="is-span-2">
+              <span>Lý do khám</span>
+              <textarea value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} placeholder="Lý do khám vãng lai..." />
+            </label>
+            <label className="reception-check-row">
+              <input type="checkbox" checked={form.create_queue_ticket} onChange={(event) => updateForm('create_queue_ticket', event.target.checked)} />
+              <span>Tạo queue ticket</span>
+            </label>
+            <label className="reception-check-row">
+              <input type="checkbox" checked={form.create_encounter} onChange={(event) => updateForm('create_encounter', event.target.checked)} />
+              <span>Tạo encounter ngay</span>
+            </label>
+            <label className="reception-check-row">
+              <input type="checkbox" checked={form.print_ticket} onChange={(event) => updateForm('print_ticket', event.target.checked)} />
+              <span>Yêu cầu print payload</span>
+            </label>
+          </div>
+          <InlineError message={submitState.error} />
+          {submitState.success ? (
+            <>
+              <InlineSuccess message={`Check-in vãng lai thành công. Queue: ${successQueueNumber}`} />
+              <div className="reception-detail-grid">
+                <div><span>Số thứ tự</span><strong>{successQueueNumber}</strong></div>
+                <div><span>Vị trí dự kiến</span><strong>{successQueue?.estimated_position ?? '--'}</strong></div>
+                <div><span>Đang chờ trước</span><strong>{successQueue?.waiting_before ?? '--'}</strong></div>
+                <div><span>Routing tiếp theo</span><strong>{successRouteLabel}</strong></div>
+              </div>
+            </>
+          ) : null}
+          <footer className="reception-modal__actions">
+            <button type="submit" className="reception-btn reception-btn--primary" disabled={submitState.loading}>
+              {submitState.loading ? <Loader2 size={16} /> : <CheckCircle2 size={16} />}
+              <span>Check-in vãng lai</span>
+            </button>
+            <button type="button" className="reception-btn reception-btn--ghost" disabled={!submitState.success} onClick={() => onNavigate?.('queue-board')}>
+              <Users size={16} />
+              <span>Mở queue</span>
+            </button>
+          </footer>
+        </form>
+      </div>
+    </section>
+  );
+}
+
+function CheckInErrorsPanel({ onNavigate, onSelectPatient }) {
+  const config = CHECKIN_MODES.errors;
+  const [filters, setFilters] = useState({ status: '', limit: 80 });
+  const [state, setState] = useState({ loading: true, error: '', items: [] });
+  const [busy, setBusy] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadData() {
+      setState((current) => ({ ...current, loading: true, error: '' }));
+      try {
+        const data = await receptionQueueApi.getCheckinErrors(filters);
+        if (!mounted) return;
+        setState({ loading: false, error: '', items: safeArray(data?.items || data?.errors) });
+      } catch (error) {
+        if (!mounted) return;
+        setState((current) => ({ ...current, loading: false, error: getErrorMessage(error, 'Không tải được lỗi check-in.') }));
+      }
+    }
+    loadData();
+    return () => {
+      mounted = false;
+    };
+  }, [filters.status, filters.limit, refreshToken]);
+
+  async function runErrorAction(type, item) {
+    const errorId = getCheckinErrorId(item);
+    if (!errorId) return;
+    setBusy(`${type}:${errorId}`);
+    try {
+      if (type === 'retry') await receptionQueueApi.retryCheckinError(errorId, {});
+      if (type === 'resolve') {
+        const note = window.prompt('Ghi chú xử lý lỗi:');
+        if (note === null) return;
+        await receptionQueueApi.resolveCheckinError(errorId, { resolution_note: note.trim() || 'Đã xử lý tại quầy lễ tân.' });
+      }
+      setRefreshToken((current) => current + 1);
+    } catch (error) {
+      window.alert(getErrorMessage(error, 'Không xử lý được lỗi check-in.'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const openCount = state.items.filter((item) => !['resolved', 'ignored'].includes(item.status)).length;
+
+  return (
+    <section className="reception-appointment-module">
+      <ModuleHero
+        title={config.title}
+        subtitle={config.subtitle}
+        eyebrow="Check-in exception queue"
+        icon={AlertCircle}
+        actions={(
+          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => setRefreshToken((current) => current + 1)}>
+            <RefreshCw size={16} />
+            <span>Làm mới</span>
+          </button>
+        )}
+      />
+      <div className="reception-flow-stats">
+        <SummaryCard label="Tổng lỗi" value={state.items.length} tone="warning" />
+        <SummaryCard label="Chưa xử lý" value={openCount} tone="danger" />
+        <SummaryCard label="Đã xử lý" value={state.items.length - openCount} tone="success" />
+      </div>
+      <article className="reception-panel">
+        <header className="reception-panel__header reception-panel__header--compact">
+          <div>
+            <h2>Bộ lọc lỗi</h2>
+            <p>Lọc theo trạng thái nếu backend trả status.</p>
+          </div>
+        </header>
+        <div className="reception-form-grid">
+          <label>
+            <span>Trạng thái</span>
+            <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+              <option value="">Tất cả</option>
+              <option value="open">Open</option>
+              <option value="retrying">Retrying</option>
+              <option value="resolved">Resolved</option>
+              <option value="ignored">Ignored</option>
+            </select>
+          </label>
+        </div>
+      </article>
+      <InlineError message={state.error} />
+      {state.loading ? <LoadingBlock /> : (
+        <article className="reception-panel">
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Danh sách lỗi</h2>
+              <p>Retry/resolve gọi endpoint thật; nếu backend hiện chỉ audit thì UI vẫn không giả lập.</p>
+            </div>
+          </header>
+          <div className="reception-data-table-wrap">
+            <table className="reception-data-table reception-flow-table">
+              <thead>
+                <tr>
+                  <th>Thời gian</th>
+                  <th>Bệnh nhân</th>
+                  <th>Lịch hẹn</th>
+                  <th>Loại lỗi</th>
+                  <th>Thông báo</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.items.map((item) => {
+                  const errorId = getCheckinErrorId(item);
+                  const itemBusy = busy.endsWith(`:${errorId}`);
+                  return (
+                    <tr key={errorId}>
+                      <td>{formatDateTime(item.created_at || item.time)}</td>
+                      <td>
+                        <button type="button" className="reception-inline-link" onClick={() => onSelectPatient?.({ patient_id: item.patient_id, full_name: item.patient_name })}>
+                          {item.patient_name || item.patient_id || '--'}
+                        </button>
+                      </td>
+                      <td>{item.appointment_code || item.appointment_id || '--'}</td>
+                      <td>{item.error_type || item.error_code || '--'}</td>
+                      <td>{item.error_message || item.message || '--'}</td>
+                      <td><StatusBadge status={item.status || 'open'} category="queue" /></td>
+                      <td>
+                        <div className="reception-row-actions">
+                          <button type="button" className="reception-btn reception-btn--ghost" disabled={itemBusy} onClick={() => runErrorAction('retry', item)}>Retry</button>
+                          <button type="button" className="reception-btn reception-btn--ghost" disabled={itemBusy} onClick={() => runErrorAction('resolve', item)}>Resolve</button>
+                          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onNavigate?.('checkin-quick')}>Xử lý thủ công</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {!state.items.length ? <div className="reception-empty-panel">Không có lỗi check-in phù hợp.</div> : null}
+        </article>
+      )}
+    </section>
+  );
+}
+
+function CheckInHistoryPanel({ onNavigate, onSelectPatient }) {
+  const config = CHECKIN_MODES.history;
+  const [filters, setFilters] = useState({ limit: 100, type: '' });
+  const [state, setState] = useState({ loading: true, error: '', items: [] });
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadData() {
+      setState((current) => ({ ...current, loading: true, error: '' }));
+      try {
+        const data = await receptionQueueApi.getCheckinHistory(filters).catch(() => receptionQueueApi.getRecentCheckins(filters));
+        if (!mounted) return;
+        setState({ loading: false, error: '', items: safeArray(data?.items || data?.checkins) });
+      } catch (error) {
+        if (!mounted) return;
+        setState((current) => ({ ...current, loading: false, error: getErrorMessage(error, 'Không tải được lịch sử check-in.') }));
+      }
+    }
+    loadData();
+    return () => {
+      mounted = false;
+    };
+  }, [filters.limit, filters.type, refreshToken]);
+
+  return (
+    <section className="reception-appointment-module">
+      <ModuleHero
+        title={config.title}
+        subtitle={config.subtitle}
+        eyebrow="Check-in audit"
+        icon={Clock3}
+        actions={(
+          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => setRefreshToken((current) => current + 1)}>
+            <RefreshCw size={16} />
+            <span>Làm mới</span>
+          </button>
+        )}
+      />
+      <article className="reception-panel">
+        <header className="reception-panel__header reception-panel__header--compact">
+          <div>
+            <h2>Bộ lọc lịch sử</h2>
+            <p>Đọc lịch sử từ reception checkins history/recent.</p>
+          </div>
+        </header>
+        <div className="reception-form-grid">
+          <label>
+            <span>Loại check-in</span>
+            <select value={filters.type} onChange={(event) => setFilters((current) => ({ ...current, type: event.target.value }))}>
+              <option value="">Tất cả</option>
+              <option value="appointment">Theo lịch</option>
+              <option value="qr">QR</option>
+              <option value="walk_in">Vãng lai</option>
+            </select>
+          </label>
+          <label>
+            <span>Giới hạn</span>
+            <select value={filters.limit} onChange={(event) => setFilters((current) => ({ ...current, limit: event.target.value }))}>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </label>
+        </div>
+      </article>
+      <InlineError message={state.error} />
+      {state.loading ? <LoadingBlock /> : (
+        <article className="reception-panel">
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Lượt check-in</h2>
+              <p>{formatInteger(state.items.length)} bản ghi trả về từ backend.</p>
+            </div>
+          </header>
+          <div className="reception-data-table-wrap">
+            <table className="reception-data-table reception-flow-table">
+              <thead>
+                <tr>
+                  <th>Thời gian</th>
+                  <th>Bệnh nhân</th>
+                  <th>Loại</th>
+                  <th>Lịch hẹn</th>
+                  <th>Queue</th>
+                  <th>Khoa</th>
+                  <th>Bác sĩ</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.items.map((item, index) => (
+                  <tr key={item.checkin_log_id || item.audit_log_id || `${item.appointment_id || item.queue_ticket_id || 'checkin'}:${index}`}>
+                    <td>{formatDateTime(item.created_at || item.checkin_time || item.checked_in_at)}</td>
+                    <td>
+                      <button type="button" className="reception-inline-link" onClick={() => onSelectPatient?.({ patient_id: item.patient_id, full_name: item.patient_name })}>
+                        {item.patient_name || item.patient_id || '--'}
+                      </button>
+                    </td>
+                    <td>{item.checkin_type || item.type || item.source || '--'}</td>
+                    <td>{item.appointment_code || item.appointment_id || '--'}</td>
+                    <td>{item.queue_number || item.queue_ticket_id || '--'}</td>
+                    <td>{item.department_name || '--'}</td>
+                    <td>{item.doctor_name || '--'}</td>
+                    <td><StatusBadge status={item.status || 'checked_in'} category="appointment" /></td>
+                    <td>
+                      <div className="reception-row-actions">
+                        <button type="button" className="reception-btn reception-btn--ghost" disabled={!item.queue_ticket_id} onClick={() => onNavigate?.('checkin-print')}>In lại</button>
+                        <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onNavigate?.('queue-board')}>Queue</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!state.items.length ? <div className="reception-empty-panel">Chưa có lịch sử check-in.</div> : null}
+        </article>
+      )}
     </section>
   );
 }
@@ -723,6 +1584,7 @@ function WaitingCheckInPanel({ onNavigate }) {
   const [state, setState] = useState({ loading: true, error: '', items: [], summary: null });
   const [busyId, setBusyId] = useState('');
   const [success, setSuccess] = useState(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
@@ -792,6 +1654,10 @@ function WaitingCheckInPanel({ onNavigate }) {
   async function runAppointmentAction(type, item) {
     const appointmentId = getAppointmentId(item);
     if (!appointmentId) return;
+    if (type === 'reschedule') {
+      setRescheduleTarget(item);
+      return;
+    }
     setBusyId(`${type}:${appointmentId}`);
     try {
       if (type === 'confirm') {
@@ -816,19 +1682,22 @@ function WaitingCheckInPanel({ onNavigate }) {
           reason: reason.trim() || 'Hủy từ danh sách chờ check-in.',
         });
       }
-      if (type === 'reschedule') {
-        const nextTime = window.prompt('Nhập thời gian mới theo định dạng YYYY-MM-DD HH:mm');
-        if (!nextTime) return;
-        const normalized = new Date(nextTime.replace(' ', 'T'));
-        if (Number.isNaN(normalized.getTime())) throw new Error('Thời gian mới không hợp lệ.');
-        await receptionQueueApi.rescheduleAppointment(appointmentId, {
-          appointment_time: normalized.toISOString(),
-          reason: 'Dời lịch từ màn chờ check-in.',
-        });
-      }
       setRefreshToken((current) => current + 1);
     } catch (error) {
       window.alert(getErrorMessage(error));
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  async function submitReschedule(payload) {
+    const appointmentId = getAppointmentId(rescheduleTarget);
+    if (!appointmentId) return;
+    setBusyId(`reschedule:${appointmentId}`);
+    try {
+      await receptionQueueApi.rescheduleAppointment(appointmentId, payload);
+      setRescheduleTarget(null);
+      setRefreshToken((current) => current + 1);
     } finally {
       setBusyId('');
     }
@@ -990,6 +1859,12 @@ function WaitingCheckInPanel({ onNavigate }) {
           setSuccess(null);
           onNavigate?.('checkin-quick');
         }}
+      />
+      <RescheduleAppointmentModal
+        appointment={rescheduleTarget}
+        sourceLabel="Màn chờ check-in"
+        onClose={() => setRescheduleTarget(null)}
+        onSubmit={submitReschedule}
       />
     </section>
   );
@@ -1172,6 +2047,7 @@ function ReceiptPrintPanel() {
   const [query, setQuery] = useState('');
   const [state, setState] = useState({ loading: false, error: '', appointments: [], tickets: [] });
   const [receipt, setReceipt] = useState(null);
+  const [printState, setPrintState] = useState({ loading: false, error: '', success: '' });
 
   async function runSearch(event) {
     event?.preventDefault?.();
@@ -1254,6 +2130,31 @@ function ReceiptPrintPanel() {
     }
   }
 
+  async function runPrint(action = 'print') {
+    if (!receipt) return;
+    const ticketId = getQueueTicketId(receipt.ticket);
+    const appointmentId = getAppointmentId(receipt.appointment);
+    setPrintState({ loading: true, error: '', success: '' });
+    try {
+      if (ticketId) {
+        await receptionQueueApi.printQueueTicket(ticketId, { action });
+      } else if (appointmentId) {
+        await receptionQueueApi.printAppointmentSlip(appointmentId, { action });
+      } else {
+        await receptionQueueApi.logPrint({
+          print_type: 'queue_ticket',
+          target_type: 'unknown',
+          status: 'skipped',
+          action,
+        });
+      }
+      setPrintState({ loading: false, error: '', success: action === 'download' ? 'Đã ghi log tải PDF.' : 'Đã ghi nhận lệnh in.' });
+      window.print();
+    } catch (error) {
+      setPrintState({ loading: false, error: getErrorMessage(error, 'Không ghi nhận được lệnh in.'), success: '' });
+    }
+  }
+
   return (
     <section className="reception-appointment-module">
       <ModuleHero
@@ -1323,16 +2224,18 @@ function ReceiptPrintPanel() {
             </div>
           </header>
           <ReceiptPreview receipt={receipt} />
+          <InlineError message={printState.error} />
+          <InlineSuccess message={printState.success} />
           <div className="reception-print-actions">
-            <button type="button" className="reception-btn reception-btn--primary" disabled={!receipt} onClick={() => window.print()}>
-              <Printer size={16} />
+            <button type="button" className="reception-btn reception-btn--primary" disabled={!receipt || printState.loading} onClick={() => runPrint('print')}>
+              {printState.loading ? <Loader2 size={16} /> : <Printer size={16} />}
               <span>In phiếu</span>
             </button>
-            <button type="button" className="reception-btn reception-btn--ghost" disabled={!receipt} onClick={() => window.print()}>
+            <button type="button" className="reception-btn reception-btn--ghost" disabled={!receipt || printState.loading} onClick={() => runPrint('download')}>
               <Download size={16} />
               <span>Tải PDF</span>
             </button>
-            <button type="button" className="reception-btn reception-btn--ghost" disabled={!receipt} onClick={() => window.print()}>
+            <button type="button" className="reception-btn reception-btn--ghost" disabled={!receipt || printState.loading} onClick={() => runPrint('reprint')}>
               <RotateCcw size={16} />
               <span>In lại</span>
             </button>
@@ -2190,6 +3093,642 @@ function QueueStatusPanel({ mode, onNavigate }) {
         }}
       />
       <QueueTimelineDrawer state={timeline} onClose={() => setTimeline({ loading: false, error: '', ticket: null, items: [] })} />
+    </section>
+  );
+}
+
+function QueuePriorityPanel({ onNavigate }) {
+  const config = QUEUE_MODES.priority;
+  const refs = useReceptionRefs();
+  const [filters, setFilters] = useState({ date: todayKey(), department_id: '', doctor_id: '' });
+  const [state, setState] = useState({ loading: true, error: '', items: [], summary: null });
+  const [priorityTicket, setPriorityTicket] = useState(null);
+  const [actionBusy, setActionBusy] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadData() {
+      setState((current) => ({ ...current, loading: true, error: '' }));
+      try {
+        const params = {
+          date: filters.date,
+          department_id: filters.department_id,
+          doctor_id: filters.doctor_id,
+        };
+        const [summary, items] = await Promise.all([
+          receptionQueueApi.getQueueSummaryToday(params).catch(() => null),
+          loadQueueTickets(params, config.statuses),
+        ]);
+        if (!mounted) return;
+        setState({
+          loading: false,
+          error: '',
+          items: items.sort((left, right) => {
+            const leftScore = left.queue_type === 'vip' ? 0 : left.queue_type === 'priority' ? 1 : 2;
+            const rightScore = right.queue_type === 'vip' ? 0 : right.queue_type === 'priority' ? 1 : 2;
+            return leftScore - rightScore || new Date(left.checkin_time || 0) - new Date(right.checkin_time || 0);
+          }),
+          summary,
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState((current) => ({ ...current, loading: false, error: getErrorMessage(error, 'Không tải được queue ưu tiên.') }));
+      }
+    }
+    loadData();
+    return () => {
+      mounted = false;
+    };
+  }, [filters.date, filters.department_id, filters.doctor_id, refreshToken]);
+
+  function updateFilter(key, value) {
+    setFilters((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === 'department_id' ? { doctor_id: '' } : {}),
+    }));
+  }
+
+  async function quickPromote(ticket, queueType) {
+    const ticketId = getQueueTicketId(ticket);
+    if (!ticketId) return;
+    const reason = window.prompt(queueType === 'normal' ? 'Lý do hạ ưu tiên:' : 'Lý do nâng ưu tiên:');
+    if (reason === null) return;
+    setActionBusy(`priority:${ticketId}`);
+    try {
+      await receptionQueueApi.reorderQueuePriority(ticketId, {
+        queue_type: queueType,
+        reason: reason.trim() || 'Điều chỉnh ưu tiên từ màn lễ tân.',
+      });
+      setRefreshToken((current) => current + 1);
+    } catch (error) {
+      window.alert(getErrorMessage(error, 'Không đổi được ưu tiên.'));
+    } finally {
+      setActionBusy('');
+    }
+  }
+
+  const priorityCount = state.items.filter((item) => item.queue_type === 'priority').length;
+  const vipCount = state.items.filter((item) => item.queue_type === 'vip').length;
+  const normalCount = state.items.filter((item) => !item.queue_type || item.queue_type === 'normal').length;
+
+  return (
+    <section className="reception-appointment-module">
+      <ModuleHero
+        title={config.title}
+        subtitle={config.subtitle}
+        eyebrow="Queue priority"
+        icon={Filter}
+        actions={(
+          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => setRefreshToken((current) => current + 1)}>
+            <RefreshCw size={16} />
+            <span>Làm mới</span>
+          </button>
+        )}
+      />
+      <QueueFilters refs={refs} filters={filters} onChange={updateFilter} />
+      <div className="reception-flow-stats">
+        <SummaryCard label="Có thể ưu tiên" value={state.items.length} tone="info" />
+        <SummaryCard label="VIP / khẩn" value={vipCount} tone="danger" />
+        <SummaryCard label="Ưu tiên" value={priorityCount} tone="warning" />
+        <SummaryCard label="Thường" value={normalCount} tone="success" />
+        <SummaryCard label="Đang chờ tổng" value={state.summary?.waiting || state.items.length} tone="teal" />
+      </div>
+      <InlineError message={state.error} />
+      {state.loading ? <LoadingBlock /> : (
+        <article className="reception-panel">
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Queue ưu tiên</h2>
+              <p>Đổi queue_type qua /queue/:ticketId/reorder-priority, bắt buộc ghi lý do.</p>
+            </div>
+          </header>
+          <div className="reception-data-table-wrap">
+            <table className="reception-data-table reception-flow-table">
+              <thead>
+                <tr>
+                  <th>Số queue</th>
+                  <th>Bệnh nhân</th>
+                  <th>Khoa</th>
+                  <th>Ưu tiên</th>
+                  <th>Lý do</th>
+                  <th>Thời gian chờ</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.items.map((ticket) => {
+                  const ticketId = getQueueTicketId(ticket);
+                  const busy = actionBusy.endsWith(`:${ticketId}`);
+                  return (
+                    <tr key={ticketId}>
+                      <td><strong>{ticket.queue_number || '--'}</strong></td>
+                      <td>{ticket.patient_name || '--'}</td>
+                      <td>{ticket.department_name || '--'}</td>
+                      <td><ToneBadge tone={getQueueTypeMeta(ticket.queue_type).tone}>{getQueueTypeMeta(ticket.queue_type).label}</ToneBadge></td>
+                      <td>{ticket.priority_reason || '--'}</td>
+                      <td>{formatMinutes(getQueueWaitState(ticket).minutes)}</td>
+                      <td>
+                        <div className="reception-row-actions">
+                          <button type="button" className="reception-btn reception-btn--ghost" disabled={busy} onClick={() => quickPromote(ticket, 'priority')}>Priority</button>
+                          <button type="button" className="reception-btn reception-btn--ghost" disabled={busy} onClick={() => quickPromote(ticket, 'vip')}>VIP</button>
+                          <button type="button" className="reception-btn reception-btn--ghost" disabled={busy} onClick={() => quickPromote(ticket, 'normal')}>Hạ ưu tiên</button>
+                          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => setPriorityTicket(ticket)}>Chi tiết</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {!state.items.length ? <div className="reception-empty-panel">Không có ticket đang chờ/bỏ qua.</div> : null}
+        </article>
+      )}
+      <PriorityModal
+        ticket={priorityTicket}
+        onClose={() => setPriorityTicket(null)}
+        onSaved={() => {
+          setPriorityTicket(null);
+          setRefreshToken((current) => current + 1);
+        }}
+      />
+    </section>
+  );
+}
+
+function PublicQueueBoardPanel() {
+  const config = QUEUE_MODES.public_board;
+  const [params, setParams] = useState({ department_id: '', board_code: '' });
+  const [state, setState] = useState({ loading: true, error: '', data: null });
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadBoard() {
+      setState((current) => ({ ...current, loading: true, error: '' }));
+      try {
+        const data = await receptionQueueApi.getPublicQueueBoard(params);
+        if (!mounted) return;
+        setState({ loading: false, error: '', data });
+      } catch (error) {
+        if (!mounted) return;
+        setState({ loading: false, error: getErrorMessage(error, 'Không tải được bảng queue công khai.'), data: null });
+      }
+    }
+    loadBoard();
+    return () => {
+      mounted = false;
+    };
+  }, [params.department_id, params.board_code, refreshToken]);
+
+  const called = safeArray(state.data?.called || state.data?.now_calling || state.data?.items?.called);
+  const waiting = safeArray(state.data?.waiting || state.data?.next || state.data?.items?.waiting);
+
+  return (
+    <section className="reception-appointment-module">
+      <ModuleHero
+        title={config.title}
+        subtitle={config.subtitle}
+        eyebrow="Public queue board"
+        icon={Users}
+        actions={(
+          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => setRefreshToken((current) => current + 1)}>
+            <RefreshCw size={16} />
+            <span>Làm mới</span>
+          </button>
+        )}
+      />
+      <article className="reception-panel">
+        <header className="reception-panel__header reception-panel__header--compact">
+          <div>
+            <h2>Cấu hình xem thử</h2>
+            <p>Public endpoint có thể lọc theo board code hoặc department nếu backend hỗ trợ.</p>
+          </div>
+        </header>
+        <div className="reception-form-grid">
+          <label>
+            <span>Board code</span>
+            <input value={params.board_code} onChange={(event) => setParams((current) => ({ ...current, board_code: event.target.value }))} placeholder="Ví dụ: OUTPATIENT-TV-01" />
+          </label>
+          <label>
+            <span>Department ID</span>
+            <input value={params.department_id} onChange={(event) => setParams((current) => ({ ...current, department_id: event.target.value }))} placeholder="ObjectId khoa nếu cần" />
+          </label>
+        </div>
+      </article>
+      <InlineError message={state.error} />
+      {state.loading ? <LoadingBlock /> : (
+        <div className="reception-call-layout">
+          <article className="reception-call-current">
+            <span>Đang gọi</span>
+            <strong>{called[0]?.queue_number || called[0]?.display_number || '--'}</strong>
+            <h3>{called[0]?.room_name || called[0]?.doctor_room_id || 'Phòng khám'}</h3>
+            <p>{called[0]?.department_name || state.data?.department_name || 'Vui lòng theo dõi bảng gọi số'}</p>
+          </article>
+          <article className="reception-panel">
+            <header className="reception-panel__header reception-panel__header--compact">
+              <div>
+                <h2>Sắp đến lượt</h2>
+                <p>Danh sách public board trả về từ database.</p>
+              </div>
+            </header>
+            <div className="reception-next-list">
+              {[...called.slice(1), ...waiting].slice(0, 12).map((ticket, index) => (
+                <div key={getQueueTicketId(ticket) || `${ticket.queue_number}:${index}`} className="reception-next-list__item">
+                  <strong>{ticket.queue_number || ticket.display_number || '--'}</strong>
+                  <span>{ticket.room_name || ticket.doctor_room_id || ticket.department_name || '--'}</span>
+                </div>
+              ))}
+              {!called.length && !waiting.length ? <div className="reception-empty-panel reception-empty-panel--compact">Public board chưa có ticket.</div> : null}
+            </div>
+          </article>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RoutingPanel({ mode, onNavigate, onSelectPatient }) {
+  const modeKey = mode === 'clinical-service' ? 'clinical' : mode;
+  const config = ROUTING_DESTINATIONS[modeKey] || ROUTING_DESTINATIONS.nursing;
+  const refs = useReceptionRefs();
+  const [query, setQuery] = useState('');
+  const [state, setState] = useState({ loading: true, error: '', items: [] });
+  const [selected, setSelected] = useState(null);
+  const [readiness, setReadiness] = useState({ loading: false, error: '', data: null });
+  const [form, setForm] = useState({ department_id: '', doctor_id: '', reason: '', note: '', priority: 'normal', triage_required: false, vital_required: false });
+  const [submitState, setSubmitState] = useState({ loading: false, error: '', success: null });
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadCandidates() {
+      setState((current) => ({ ...current, loading: true, error: '' }));
+      try {
+        const items = await loadQueueTickets({}, ['waiting', 'called', 'recalled', 'skipped', 'in_service']);
+        if (!mounted) return;
+        setState({ loading: false, error: '', items });
+      } catch (error) {
+        if (!mounted) return;
+        setState({ loading: false, error: getErrorMessage(error, 'Không tải được bệnh nhân có thể chuyển tuyến.'), items: [] });
+      }
+    }
+    loadCandidates();
+    return () => {
+      mounted = false;
+    };
+  }, [refreshToken]);
+
+  async function loadReadiness(ticket) {
+    const patientId = getPatientId(ticket);
+    if (!patientId || !['clinical', 'pharmacy'].includes(config.destination)) {
+      setReadiness({ loading: false, error: '', data: null });
+      return;
+    }
+    setReadiness({ loading: true, error: '', data: null });
+    try {
+      const data = config.destination === 'clinical'
+        ? await receptionQueueApi.getClinicalRoutingReadiness(patientId, { queue_ticket_id: getQueueTicketId(ticket) })
+        : await receptionQueueApi.getPharmacyRoutingReadiness(patientId, { queue_ticket_id: getQueueTicketId(ticket) });
+      setReadiness({ loading: false, error: '', data });
+    } catch (error) {
+      setReadiness({ loading: false, error: getErrorMessage(error, 'Không tải được readiness.'), data: null });
+    }
+  }
+
+  function selectTicket(ticket) {
+    setSelected(ticket);
+    setForm({
+      department_id: ticket.department_id || '',
+      doctor_id: ticket.doctor_id || '',
+      reason: '',
+      note: '',
+      priority: ticket.queue_type || 'normal',
+      triage_required: Boolean(ticket.triage_required),
+      vital_required: Boolean(ticket.vital_required),
+    });
+    setSubmitState({ loading: false, error: '', success: null });
+    loadReadiness(ticket);
+  }
+
+  function updateForm(key, value) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === 'department_id' ? { doctor_id: '' } : {}),
+    }));
+  }
+
+  async function submitRouting(event) {
+    event.preventDefault();
+    if (!selected) {
+      setSubmitState({ loading: false, error: 'Vui lòng chọn bệnh nhân/queue ticket.', success: null });
+      return;
+    }
+    if (!form.reason.trim()) {
+      setSubmitState({ loading: false, error: 'Vui lòng nhập lý do chuyển tuyến.', success: null });
+      return;
+    }
+    setSubmitState({ loading: true, error: '', success: null });
+    const payload = {
+      patient_id: getPatientId(selected),
+      queue_ticket_id: getQueueTicketId(selected),
+      destination: config.destination,
+      department_id: form.department_id || selected.department_id,
+      doctor_id: form.doctor_id || selected.doctor_id,
+      reason: form.reason,
+      note: form.note,
+      priority: form.priority,
+      triage_required: form.triage_required,
+      vital_required: form.vital_required,
+    };
+    try {
+      const routeFn = {
+        nursing: receptionQueueApi.routeToNursing,
+        doctor: receptionQueueApi.routeToDoctor,
+        cashier: receptionQueueApi.routeToCashier,
+        clinical: receptionQueueApi.routeToClinical,
+        pharmacy: receptionQueueApi.routeToPharmacy,
+      }[config.destination] || receptionQueueApi.routePatient;
+      const data = await routeFn(payload);
+      setSubmitState({ loading: false, error: '', success: data });
+      setRefreshToken((current) => current + 1);
+    } catch (error) {
+      setSubmitState({ loading: false, error: getErrorMessage(error, 'Chuyển tuyến thất bại.'), success: null });
+    }
+  }
+
+  const results = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    const source = state.items.filter((item) => item.status !== 'cancelled');
+    if (!keyword) return source.slice(0, 12);
+    return source.filter((item) => [
+      item.queue_number,
+      item.patient_name,
+      item.patient_phone,
+      item.patient_code,
+      item.department_name,
+    ].filter(Boolean).join(' ').toLowerCase().includes(keyword)).slice(0, 20);
+  }, [query, state.items]);
+
+  const doctors = refs.doctors.filter((doctor) => !form.department_id || doctor.department_id === form.department_id);
+  const readinessData = readiness.data || {};
+
+  return (
+    <section className="reception-appointment-module">
+      <ModuleHero
+        title={config.title}
+        subtitle={config.subtitle}
+        eyebrow="Internal routing"
+        icon={Shuffle}
+        actions={(
+          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => onNavigate?.('transfer-history')}>
+            <Clock3 size={16} />
+            <span>Lịch sử chuyển tuyến</span>
+          </button>
+        )}
+      />
+
+      <div className="reception-transfer-layout">
+        <article className="reception-panel">
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Bệnh nhân có thể chuyển</h2>
+              <p>Chọn queue ticket đang hoạt động.</p>
+            </div>
+          </header>
+          <label className="reception-appointment-search">
+            <Search size={18} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Số queue / tên / SĐT / mã BN" />
+          </label>
+          <InlineError message={state.error} />
+          {state.loading ? <LoadingBlock /> : (
+            <div className="reception-receipt-results">
+              {results.map((ticket) => (
+                <button key={getQueueTicketId(ticket)} type="button" className={getQueueTicketId(selected) === getQueueTicketId(ticket) ? 'is-selected' : ''} onClick={() => selectTicket(ticket)}>
+                  <FileText size={18} />
+                  <span>
+                    <strong>{ticket.queue_number || '--'} · {ticket.patient_name || 'Bệnh nhân'}</strong>
+                    <small>{ticket.department_name || '--'} · {getStatusMeta(ticket.status, 'queue').label}</small>
+                  </span>
+                </button>
+              ))}
+              {!results.length ? <div className="reception-empty-panel reception-empty-panel--compact">Không có ticket phù hợp.</div> : null}
+            </div>
+          )}
+        </article>
+
+        <form className="reception-panel" onSubmit={submitRouting}>
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Thông tin chuyển tuyến</h2>
+              <p>Ghi audit/routing qua reception route endpoint.</p>
+            </div>
+          </header>
+          {selected ? (
+            <div className="reception-detail-grid">
+              <div><span>Queue</span><strong>{selected.queue_number || '--'}</strong></div>
+              <div><span>Bệnh nhân</span><strong>{selected.patient_name || '--'}</strong></div>
+              <div><span>Khoa hiện tại</span><strong>{selected.department_name || '--'}</strong></div>
+              <div><span>Bác sĩ hiện tại</span><strong>{selected.doctor_name || '--'}</strong></div>
+              <div><span>Trạng thái</span><strong>{getStatusMeta(selected.status, 'queue').label}</strong></div>
+              <div><span>Patient card</span><strong><button type="button" className="reception-inline-link" onClick={() => onSelectPatient?.(selected)}>Mở nhanh</button></strong></div>
+            </div>
+          ) : (
+            <div className="reception-empty-panel reception-empty-panel--compact">Chọn ticket để chuyển tuyến.</div>
+          )}
+          {readiness.loading ? <LoadingBlock label="Đang kiểm tra readiness..." /> : null}
+          <InlineError message={readiness.error} />
+          {readinessData.ready !== undefined ? (
+            <div className="reception-detail-status">
+              <ToneBadge tone={readinessData.ready ? 'success' : 'danger'}>{readinessData.ready ? 'Ready' : 'Có blocker'}</ToneBadge>
+              {safeArray(readinessData.blockers).map((blocker) => (
+                <span key={blocker.code || blocker.message}>{blocker.message || blocker.code}</span>
+              ))}
+              {!safeArray(readinessData.blockers).length ? <span>Không có blocker backend trả về.</span> : null}
+            </div>
+          ) : null}
+          <div className="reception-form-grid">
+            <label>
+              <span>Khoa đích</span>
+              <select value={form.department_id} onChange={(event) => updateForm('department_id', event.target.value)}>
+                <option value="">Giữ khoa hiện tại / không áp dụng</option>
+                {refs.departments.map((department) => (
+                  <option key={department.department_id} value={department.department_id}>{department.department_name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Bác sĩ đích</span>
+              <select value={form.doctor_id} onChange={(event) => updateForm('doctor_id', event.target.value)}>
+                <option value="">Không chọn</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor.user_id} value={doctor.user_id}>{doctor.full_name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Ưu tiên</span>
+              <select value={form.priority} onChange={(event) => updateForm('priority', event.target.value)}>
+                <option value="normal">Thường</option>
+                <option value="priority">Ưu tiên</option>
+                <option value="vip">VIP / khẩn</option>
+              </select>
+            </label>
+            <label className="is-span-2">
+              <span>Lý do chuyển *</span>
+              <textarea value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} placeholder="Lý do chuyển tuyến..." />
+            </label>
+            <label className="is-span-2">
+              <span>Ghi chú lễ tân</span>
+              <textarea value={form.note} onChange={(event) => updateForm('note', event.target.value)} placeholder="Ghi chú kèm theo..." />
+            </label>
+            {config.destination === 'nursing' ? (
+              <>
+                <label className="reception-check-row">
+                  <input type="checkbox" checked={form.triage_required} onChange={(event) => updateForm('triage_required', event.target.checked)} />
+                  <span>Yêu cầu triage</span>
+                </label>
+                <label className="reception-check-row">
+                  <input type="checkbox" checked={form.vital_required} onChange={(event) => updateForm('vital_required', event.target.checked)} />
+                  <span>Yêu cầu đo sinh hiệu</span>
+                </label>
+              </>
+            ) : null}
+          </div>
+          <InlineError message={submitState.error} />
+          {submitState.success ? (
+            <InlineSuccess message={`Đã chuyển sang ${config.title.replace('Chuyển sang ', '')}. ${submitState.success.next_step ? `Next step: ${submitState.success.next_step}` : ''}`} />
+          ) : null}
+          <footer className="reception-modal__actions">
+            <button type="submit" className="reception-btn reception-btn--primary" disabled={submitState.loading || !selected}>
+              {submitState.loading ? <Loader2 size={16} /> : <Shuffle size={16} />}
+              <span>Chuyển tuyến</span>
+            </button>
+            <button type="button" className="reception-btn reception-btn--ghost" disabled={!submitState.success} onClick={() => onNavigate?.('queue-board')}>
+              <Users size={16} />
+              <span>Về queue</span>
+            </button>
+          </footer>
+        </form>
+      </div>
+    </section>
+  );
+}
+
+function RoutingHistoryPanel({ onSelectPatient }) {
+  const [filters, setFilters] = useState({ limit: 100, destination: '' });
+  const [state, setState] = useState({ loading: true, error: '', items: [] });
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadHistory() {
+      setState((current) => ({ ...current, loading: true, error: '' }));
+      try {
+        const data = await receptionQueueApi.getRoutingHistory(filters);
+        if (!mounted) return;
+        setState({ loading: false, error: '', items: safeArray(data?.items || data?.events) });
+      } catch (error) {
+        if (!mounted) return;
+        setState((current) => ({ ...current, loading: false, error: getErrorMessage(error, 'Không tải được lịch sử chuyển tuyến.') }));
+      }
+    }
+    loadHistory();
+    return () => {
+      mounted = false;
+    };
+  }, [filters.limit, filters.destination, refreshToken]);
+
+  return (
+    <section className="reception-appointment-module">
+      <ModuleHero
+        title="Lịch sử chuyển tuyến"
+        subtitle="Đọc từ /reception/routing-history, hiện backend gom AuditLog reception.route.* và queue.transfer."
+        eyebrow="Routing audit"
+        icon={Clock3}
+        actions={(
+          <button type="button" className="reception-btn reception-btn--ghost" onClick={() => setRefreshToken((current) => current + 1)}>
+            <RefreshCw size={16} />
+            <span>Làm mới</span>
+          </button>
+        )}
+      />
+      <article className="reception-panel">
+        <header className="reception-panel__header reception-panel__header--compact">
+          <div>
+            <h2>Bộ lọc lịch sử</h2>
+            <p>Lọc nhanh theo destination nếu backend trả action tương ứng.</p>
+          </div>
+        </header>
+        <div className="reception-form-grid">
+          <label>
+            <span>Destination</span>
+            <select value={filters.destination} onChange={(event) => setFilters((current) => ({ ...current, destination: event.target.value }))}>
+              <option value="">Tất cả</option>
+              <option value="nursing">Điều dưỡng</option>
+              <option value="doctor">Bác sĩ</option>
+              <option value="cashier">Thu ngân</option>
+              <option value="clinical">Cận lâm sàng</option>
+              <option value="pharmacy">Nhà thuốc</option>
+            </select>
+          </label>
+          <label>
+            <span>Giới hạn</span>
+            <select value={filters.limit} onChange={(event) => setFilters((current) => ({ ...current, limit: event.target.value }))}>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </label>
+        </div>
+      </article>
+      <InlineError message={state.error} />
+      {state.loading ? <LoadingBlock /> : (
+        <article className="reception-panel">
+          <header className="reception-panel__header reception-panel__header--compact">
+            <div>
+              <h2>Routing events</h2>
+              <p>{formatInteger(state.items.length)} event từ audit/routing backend.</p>
+            </div>
+          </header>
+          <div className="reception-data-table-wrap">
+            <table className="reception-data-table reception-flow-table">
+              <thead>
+                <tr>
+                  <th>Thời gian</th>
+                  <th>Bệnh nhân</th>
+                  <th>Queue</th>
+                  <th>Action</th>
+                  <th>Destination</th>
+                  <th>Người chuyển</th>
+                  <th>Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.items.map((item, index) => (
+                  <tr key={item.audit_log_id || item.routing_event_id || `${item.action}:${index}`}>
+                    <td>{formatDateTime(item.created_at || item.time)}</td>
+                    <td>
+                      <button type="button" className="reception-inline-link" onClick={() => onSelectPatient?.({ patient_id: item.patient_id, full_name: item.patient_name })}>
+                        {item.patient_name || item.patient_id || '--'}
+                      </button>
+                    </td>
+                    <td>{item.queue_number || item.queue_ticket_id || item.target_id || '--'}</td>
+                    <td>{item.action || item.event_type || '--'}</td>
+                    <td>{item.destination || item.to_workspace || item.metadata?.destination || '--'}</td>
+                    <td>{item.actor_label || item.actor_name || item.created_by || '--'}</td>
+                    <td>{item.message || item.note || item.reason || '--'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!state.items.length ? <div className="reception-empty-panel">Chưa có lịch sử chuyển tuyến.</div> : null}
+        </article>
+      )}
     </section>
   );
 }

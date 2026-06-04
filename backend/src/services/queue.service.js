@@ -286,6 +286,13 @@ function canSeeQueueClinicalLinks(actor = {}) {
   ]);
 }
 
+function queueWaitMinutes(ticket = {}) {
+  const start = new Date(ticket.checkin_time || ticket.created_at).getTime();
+  const end = ticket.service_start_time ? new Date(ticket.service_start_time).getTime() : Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+  return Math.round((end - start) / 60000);
+}
+
 function formatQueueTicket(ticket, actor = {}, related = {}, options = {}) {
   const includePatientData = options.includePatientData !== false && canSeeQueuePatientData(actor);
   const includeClinicalLinks = options.includeClinicalLinks !== false && canSeeQueueClinicalLinks(actor);
@@ -325,6 +332,25 @@ function formatQueueTicket(ticket, actor = {}, related = {}, options = {}) {
     dto.department_code = related.department.department_code || null;
   }
   return dto;
+}
+
+async function buildQueueReferenceMaps(items = []) {
+  const uniqueIds = (values) => [...new Set(values.filter(Boolean).map((value) => String(value)))];
+  const patientIds = uniqueIds(items.map((item) => item.patient_id));
+  const doctorIds = uniqueIds(items.map((item) => item.doctor_id));
+  const departmentIds = uniqueIds(items.map((item) => item.department_id));
+
+  const [patients, doctors, departments] = await Promise.all([
+    patientIds.length ? Patient.find({ _id: { $in: patientIds }, is_deleted: false }).select('patient_code full_name phone').lean() : [],
+    doctorIds.length ? User.find({ _id: { $in: doctorIds }, is_deleted: false }).select('full_name employee_code username').lean() : [],
+    departmentIds.length ? Department.find({ _id: { $in: departmentIds }, is_deleted: false }).select('department_name department_code').lean() : [],
+  ]);
+
+  return {
+    patients: new Map(patients.map((patient) => [String(patient._id), patient])),
+    doctors: new Map(doctors.map((doctor) => [String(doctor._id), doctor])),
+    departments: new Map(departments.map((department) => [String(department._id), department])),
+  };
 }
 
 function formatAuditTimelineItem(item) {
@@ -557,9 +583,14 @@ async function listQueueTickets(query = {}, actor = {}) {
     QueueTicket.find(filter).sort({ checkin_time: 1, queue_number: 1 }).skip(skip).limit(limit).lean(),
     QueueTicket.countDocuments(filter),
   ]);
+  const refs = await buildQueueReferenceMaps(items);
 
   return {
-    items: items.map((item) => formatQueueTicket(item, actor)),
+    items: items.map((item) => formatQueueTicket(item, actor, {
+      patient: refs.patients.get(String(item.patient_id)),
+      doctor: refs.doctors.get(String(item.doctor_id)),
+      department: refs.departments.get(String(item.department_id)),
+    })),
     pagination: buildPagination(page, limit, total),
   };
 }
@@ -1040,6 +1071,8 @@ async function getTodayQueueSummary(query = {}, actor = {}) {
     completed: items.filter((item) => item.status === 'completed').length,
     cancelled: items.filter((item) => item.status === 'cancelled').length,
     skipped: items.filter((item) => item.status === 'skipped').length,
+    no_show: items.filter((item) => item.status === 'no_show').length,
+    max_waiting_minutes: items.reduce((max, item) => Math.max(max, item.status === 'waiting' ? queueWaitMinutes(item) : 0), 0),
   };
 }
 

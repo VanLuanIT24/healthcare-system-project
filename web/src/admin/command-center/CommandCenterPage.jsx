@@ -2,6 +2,7 @@ import {
   Activity,
   AlertTriangle,
   Archive,
+  ArrowRight,
   BarChart3,
   BellRing,
   Building2,
@@ -20,7 +21,6 @@ import {
   HeartPulse,
   KeyRound,
   LockKeyhole,
-  LogOut,
   Map,
   Network,
   PlayCircle,
@@ -37,7 +37,9 @@ import {
   UserRound,
   UsersRound,
   Wifi,
+  X,
   XCircle,
+  Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -45,919 +47,358 @@ import { AdminActionConfirmDialog } from '../components/AdminActionConfirmDialog
 import { commandCenterGet, commandCenterPost } from './commandCenterApi';
 
 const VIEW_CONFIG = {
-  dashboard: {
-    title: 'Bảng điều khiển quản trị',
-    endpoint: '/dashboard',
-    icon: Command,
-  },
-  health: {
-    title: 'Sức khỏe hệ thống',
-    endpoint: '/health',
-    icon: Activity,
-  },
-  tasks: {
-    title: 'Việc cần xử lý',
-    endpoint: '/work-items',
-    icon: ClipboardCheck,
-  },
-  systemAlerts: {
-    title: 'Cảnh báo hệ thống',
-    endpoint: '/system-alerts',
-    icon: AlertTriangle,
-  },
-  securityAlerts: {
-    title: 'Cảnh báo bảo mật',
-    endpoint: '/security-alerts',
-    icon: ShieldAlert,
-  },
-  recentActivity: {
-    title: 'Hoạt động gần đây',
-    endpoint: '/recent-activities',
-    icon: FileClock,
-  },
-  sessions: {
-    title: 'Phiên đăng nhập thời gian thực',
-    endpoint: '/sessions',
-    icon: RadioTower,
-  },
-  workers: {
-    title: 'Tình trạng worker / hàng đợi',
-    endpoint: '/workers',
-    icon: ServerCog,
-  },
-  realtime: {
-    title: 'Tình trạng thời gian thực',
-    endpoint: '/realtime',
-    icon: Wifi,
-  },
-  workspaceMap: {
-    title: 'Bản đồ workspace',
-    endpoint: '/workspace-map',
-    icon: Map,
-  },
+  dashboard: { title: 'Command Center', subtitle: 'Bảng điều khiển tổng hợp sức khỏe hệ thống, bảo mật, realtime, worker và workspace.', endpoint: '/dashboard', icon: Command, path: '/admin/command-center' },
+  health: { title: 'Sức khỏe hệ thống', subtitle: 'Theo dõi API, database, worker, notification, file scan, webhook và security monitor.', endpoint: '/health', icon: Activity, path: '/admin/command-center/health' },
+  tasks: { title: 'Việc cần xử lý', subtitle: 'Hàng đợi tác vụ quản trị lấy trực tiếp từ DB: jobs lỗi, notification lỗi, outbox, bảo mật và vận hành.', endpoint: '/work-items', icon: ClipboardCheck, path: '/admin/command-center/tasks' },
+  systemAlerts: { title: 'Cảnh báo hệ thống', subtitle: 'Cảnh báo vận hành từ event outbox, notification delivery, worker, webhook, file scan và idempotency.', endpoint: '/system-alerts', icon: AlertTriangle, path: '/admin/command-center/system-alerts' },
+  securityAlerts: { title: 'Cảnh báo bảo mật', subtitle: 'Giám sát đăng nhập lỗi, tài khoản khóa, phiên rủi ro, quyền hệ thống và audit nhạy cảm.', endpoint: '/security-alerts', icon: ShieldAlert, path: '/admin/command-center/security-alerts' },
+  recentActivity: { title: 'Hoạt động gần đây', subtitle: 'Nhật ký audit mới nhất để truy vết thao tác, lỗi xác thực, thay đổi quyền và cấu hình.', endpoint: '/recent-activities', icon: FileClock, path: '/admin/command-center/recent-activity' },
+  sessions: { title: 'Phiên đăng nhập realtime', subtitle: 'Theo dõi session staff đang hoạt động, thiết bị, IP, socket và thu hồi phiên khi cần.', endpoint: '/sessions', icon: RadioTower, path: '/admin/command-center/sessions' },
+  workers: { title: 'Worker / Queue', subtitle: 'Quan sát job run logs, event outbox, notification delivery, idempotency, QR token và file scan.', endpoint: '/workers', icon: ServerCog, path: '/admin/command-center/workers' },
+  realtime: { title: 'Realtime Control', subtitle: 'Tình trạng Socket.IO, presence, rooms, event realtime gần nhất và broadcast test.', endpoint: '/realtime', icon: Wifi, path: '/admin/command-center/realtime' },
+  workspaceMap: { title: 'Bản đồ workspace', subtitle: 'Bản đồ liên kết workspace, role access, cảnh báo, pending tasks và phụ thuộc nghiệp vụ.', endpoint: '/workspace-map', icon: Map, path: '/admin/command-center/workspace-map' },
 };
 
-const UI_LABELS = {
-  healthy: 'Ổn định',
-  degraded: 'Suy giảm',
-  critical: 'Nghiêm trọng',
-  high: 'Cao',
-  medium: 'Trung bình',
-  low: 'Thấp',
-  info: 'Thông tin',
-  available: 'Khả dụng',
-  unavailable: 'Không khả dụng',
-  unknown: 'Không rõ',
-  new: 'Mới',
-  open: 'Đang mở',
-  acknowledged: 'Đã ghi nhận',
-  in_progress: 'Đang xử lý',
-  resolved: 'Đã xử lý',
-  pending: 'Chờ xử lý',
-  failed: 'Lỗi',
-  success: 'Thành công',
-  total: 'Tổng',
-  overdue: 'Quá hạn',
-  assigned_to_me: 'Gán cho tôi',
-  risk_score: 'Điểm rủi ro',
-  job_run_logs: 'Nhật ký chạy tác vụ',
-  event_outbox: 'Outbox sự kiện',
-  notification_delivery: 'Gửi thông báo',
-  idempotency_records: 'Bản ghi idempotency',
-  qr_tokens: 'QR token',
-  file_scans: 'Quét tệp',
-  job_name: 'Tên tác vụ',
-  queue_name: 'Hàng đợi',
-  status: 'Trạng thái',
-  started_at: 'Bắt đầu',
-  finished_at: 'Kết thúc',
-  duration_ms: 'Thời lượng',
-  records_processed: 'Bản ghi',
-  error_message: 'Lỗi',
-  event_type: 'Loại sự kiện',
-  aggregate_type: 'Aggregate',
-  retry_count: 'Số lần thử lại',
-  next_retry_at: 'Lần thử tiếp theo',
-  last_error: 'Lỗi gần nhất',
-  created_at: 'Tạo lúc',
-  channel: 'Kênh',
-  provider: 'Nhà cung cấp',
-  attempt_count: 'Lần thử',
-  method: 'Method',
-  route: 'Route',
-  status_code: 'Mã trạng thái',
-  expires_at: 'Hết hạn',
-  type: 'Loại',
-  target_type: 'Đối tượng',
-  used_at: 'Dùng lúc',
-  revoked_at: 'Thu hồi lúc',
-  file_name: 'Tên tệp',
-  scan_status: 'Trạng thái quét',
-  review_status: 'Trạng thái duyệt',
-  source: 'Nguồn',
-  room: 'Room',
-  connected_sockets: 'Socket kết nối',
-  last_activity_at: 'Hoạt động gần nhất',
-  allowed_actor_types: 'Loại actor được phép',
-  actor_type: 'Loại actor',
-  actor_id: 'Actor ID',
-  socket_count: 'Số socket',
-  last_seen_at: 'Thấy lần cuối',
-  rooms: 'Rooms',
-  workers: 'Worker',
-  events: 'Sự kiện',
-  notifications: 'Thông báo',
-  security: 'Bảo mật',
-  billing: 'Viện phí',
-  records: 'Hồ sơ',
+const NAV_ITEMS = Object.entries(VIEW_CONFIG).map(([key, value]) => ({ key, ...value }));
+
+const LABELS = {
+  healthy: 'Ổn định', degraded: 'Suy giảm', critical: 'Nghiêm trọng', available: 'Khả dụng', unavailable: 'Không khả dụng', unknown: 'Không rõ',
+  high: 'Cao', medium: 'Trung bình', low: 'Thấp', info: 'Thông tin', warning: 'Cảnh báo', success: 'Thành công', failed: 'Lỗi', pending: 'Chờ xử lý', queued: 'Trong hàng đợi',
+  open: 'Đang mở', new: 'Mới', acknowledged: 'Đã ghi nhận', in_progress: 'Đang xử lý', resolved: 'Đã xử lý', active: 'Hoạt động', online: 'Online',
+  api_health: 'API', database_health: 'Database', worker_health: 'Worker', notification_failed: 'Notification lỗi', dead_letter_events: 'Dead-letter', security_risk: 'Risk bảo mật', active_staff_sessions: 'Staff sessions', pending_admin_tasks: 'Việc chờ xử lý', locked_staff: 'Tài khoản khóa', appointments_today: 'Lịch hẹn hôm nay', unpaid_invoices: 'Hóa đơn chưa thu', revenue_today: 'Doanh thu hôm nay',
+  job_run_logs: 'Job logs', event_outbox: 'Event outbox', notification_delivery: 'Notification delivery', idempotency_records: 'Idempotency', qr_tokens: 'QR tokens', file_scans: 'File scans',
+  auth_session: 'Phiên đăng nhập', Authentication: 'Xác thực', 'Event Outbox': 'Event outbox', 'Notification Delivery': 'Notification delivery', 'Worker Queue': 'Worker queue', 'Payment Webhook': 'Webhook thanh toán', 'File Scan': 'Quét tệp', Idempotency: 'Idempotency',
+  admin: 'Quản trị', scheduling: 'Điều phối lịch', reception: 'Lễ tân', doctor: 'Bác sĩ', nursing: 'Điều dưỡng', lab: 'Cận lâm sàng', pharmacy: 'Nhà thuốc', billing: 'Viện phí', reports: 'Báo cáo', records: 'Hồ sơ', security: 'Bảo mật', notifications: 'Thông báo', workers: 'Worker', events: 'Sự kiện',
 };
 
-const TEXT_LABELS = {
-  'Worker / Queue': 'Worker / hàng đợi',
-  'Event Outbox': 'Outbox sự kiện',
-  'Notification Delivery': 'Gửi thông báo',
-  'Payment webhook': 'Webhook thanh toán',
-  'File scan': 'Quét tệp',
-  'Security monitor': 'Giám sát bảo mật',
-  'Failed Jobs 24h': 'Tác vụ lỗi 24h',
-  'Failed Notifications 24h': 'Thông báo lỗi 24h',
-  'Outbox Failed 24h': 'Outbox lỗi 24h',
-  'Api Error Audit 24h': 'Audit lỗi API 24h',
-  'Security Alert Count': 'Số cảnh báo bảo mật',
-  'API Health': 'Sức khỏe API',
-  'Database Health': 'Sức khỏe cơ sở dữ liệu',
-  'Worker Health': 'Sức khỏe worker',
-  'Notification Failed': 'Thông báo lỗi',
-  'Dead-letter Events': 'Sự kiện dead-letter',
-  'Security Risk': 'Rủi ro bảo mật',
-  'Active Staff Sessions': 'Phiên nhân sự đang hoạt động',
-  'Pending Admin Tasks': 'Việc quản trị chờ xử lý',
-  'Locked Staff': 'Nhân sự bị khóa',
-  'Appointments Today': 'Lịch hẹn hôm nay',
-  'Unpaid Invoices': 'Hóa đơn chưa thanh toán',
-  'Revenue Today': 'Doanh thu hôm nay',
-  'Failed': 'Lỗi',
-  'Pending': 'Chờ xử lý',
-  'Latency': 'Độ trễ',
+const STATUS_TONE = {
+  healthy: 'success', available: 'success', success: 'success', active: 'success', online: 'success', resolved: 'success',
+  degraded: 'warning', warning: 'warning', medium: 'warning', pending: 'warning', queued: 'warning', acknowledged: 'warning', in_progress: 'warning',
+  critical: 'danger', high: 'danger', failed: 'danger', unavailable: 'danger', locked: 'danger',
+  low: 'info', info: 'info', new: 'info', open: 'info', unknown: 'neutral',
 };
 
-const CARD_ICONS = {
-  api_health: Activity,
-  database_health: Database,
-  worker_health: ServerCog,
-  notification_failed: BellRing,
-  dead_letter_events: Archive,
-  security_risk: ShieldAlert,
-  active_staff_sessions: UsersRound,
-  pending_admin_tasks: ClipboardCheck,
-  locked_staff: LockKeyhole,
-  appointments_today: Clock3,
-  unpaid_invoices: BarChart3,
-  revenue_today: Gauge,
-};
+const WORKSPACE_ICONS = { admin: ShieldCheck, scheduling: Clock3, reception: ClipboardCheck, doctor: Stethoscope, nursing: HeartPulse, lab: TestTube2, pharmacy: BellRing, billing: BarChart3, reports: TableProperties };
+const CARD_ICONS = { api_health: Activity, database_health: Database, worker_health: ServerCog, notification_failed: BellRing, dead_letter_events: Archive, security_risk: ShieldAlert, active_staff_sessions: UsersRound, pending_admin_tasks: ClipboardCheck, locked_staff: LockKeyhole, appointments_today: Clock3, unpaid_invoices: BarChart3, revenue_today: Gauge };
+const WORKER_TABS = ['job_run_logs', 'event_outbox', 'notification_delivery', 'idempotency_records', 'qr_tokens', 'file_scans'];
 
-const WORKSPACE_ICONS = {
-  admin: ShieldCheck,
-  scheduling: Clock3,
-  reception: ClipboardCheck,
-  doctor: Stethoscope,
-  nursing: HeartPulse,
-  lab: TestTube2,
-  pharmacy: BellRing,
-  billing: BarChart3,
-  reports: TableProperties,
-};
-
-const TABLE_COLUMNS = {
-  job_run_logs: ['job_name', 'queue_name', 'status', 'started_at', 'finished_at', 'duration_ms', 'records_processed', 'error_message'],
-  event_outbox: ['event_type', 'aggregate_type', 'status', 'retry_count', 'next_retry_at', 'last_error', 'created_at'],
-  notification_delivery: ['channel', 'provider', 'status', 'attempt_count', 'next_attempt_at', 'last_error', 'created_at'],
-  idempotency_records: ['method', 'route', 'status', 'status_code', 'expires_at', 'created_at'],
-  qr_tokens: ['type', 'target_type', 'expires_at', 'used_at', 'revoked_at', 'created_at'],
-  file_scans: ['file_name', 'scan_status', 'review_status', 'source', 'created_at'],
-};
-
-function formatNumber(value) {
-  return new Intl.NumberFormat('vi-VN').format(Number(value || 0));
-}
-
-function formatCurrency(value) {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
-}
-
-function formatDateTime(value) {
+function arr(value) { return Array.isArray(value) ? value : []; }
+function obj(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+function label(value) { const raw = String(value ?? ''); return LABELS[raw] || LABELS[raw.toLowerCase()] || raw.replace(/_/g, ' '); }
+function tone(value) { return STATUS_TONE[String(value || '').toLowerCase()] || 'neutral'; }
+function number(value) { return new Intl.NumberFormat('vi-VN').format(Number(value || 0)); }
+function currency(value) { return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value || 0)); }
+function dateTime(value) {
   if (!value) return 'Chưa có';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-  }).format(date);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
 }
-
-function compactValue(card) {
-  if (card?.key === 'revenue_today') return formatCurrency(card.value);
-  return formatNumber(card?.value);
+function shortDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }).format(d);
 }
+function metricValue(card) { return card?.key === 'revenue_today' ? currency(card.value) : number(card?.value); }
+function initials(name = '') { return String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase() || '?'; }
+function pct(value, max = 100) { return Math.max(0, Math.min(100, Number(value || 0) / Number(max || 100) * 100)); }
 
-function readableLabel(value) {
-  const raw = String(value || '');
-  const normalized = raw.toLowerCase();
-  return UI_LABELS[normalized] || TEXT_LABELS[raw] || raw.replace(/_/g, ' ');
+function Badge({ value, children, className = '' }) {
+  const v = value || children;
+  return <span className={`cc-badge cc-badge--${tone(v)} ${className}`}>{children || label(v)}</span>;
 }
+function Severity({ value }) { return <span className={`cc-severity cc-severity--${String(value || 'info').toLowerCase()}`}>{label(value || 'info')}</span>; }
+function IconShell({ icon: Icon = Command, toneName = 'info' }) { return <span className={`cc-icon-shell cc-icon-shell--${toneName}`}><Icon size={19} strokeWidth={2.25} /></span>; }
+function Empty({ title = 'Chưa có dữ liệu', desc = 'Backend chưa trả bản ghi phù hợp với bộ lọc hiện tại.' }) { return <div className="cc-empty"><CheckCircle2 size={24} /><strong>{title}</strong><span>{desc}</span></div>; }
+function Loading() { return <div className="cc-loading"><RefreshCw size={24} className="cc-spin" />Đang đồng bộ dữ liệu Command Center...</div>; }
 
-function statusLabel(status) {
-  return readableLabel(status || 'unknown');
-}
-
-function actionTargetLabel(item = {}) {
-  return item.title
-    || item.full_name
-    || item.device_name
-    || item.event_type
-    || item.job_name
-    || item.id
-    || item.session_id
-    || item.source_id
-    || 'Bản ghi đã chọn';
-}
-
-function getCommandActionCopy(action, item = {}, view = '') {
-  const copies = {
-    retry_event: ['Thử lại sự kiện?', 'Sự kiện sẽ được đưa vào luồng xử lý lại. Chỉ nên thực hiện khi đã kiểm tra nguyên nhân lỗi.', 'Thử lại sự kiện', 'warning', false],
-    retry_notification: ['Thử gửi lại thông báo?', 'Thông báo sẽ được đưa vào hàng đợi gửi lại với trạng thái hiện tại.', 'Thử gửi lại', 'warning', false],
-    revoke_session: ['Thu hồi phiên đăng nhập?', 'Phiên người dùng sẽ bị đăng xuất ngay và thao tác được ghi audit.', 'Thu hồi phiên', 'danger', true],
-    ack_work_item: ['Ghi nhận việc cần xử lý?', 'Việc này sẽ được đánh dấu đã ghi nhận bởi quản trị viên.', 'Ghi nhận', 'success', false],
-    resolve_alert: ['Xử lý cảnh báo?', 'Cảnh báo sẽ được chuyển khỏi hàng đợi đang mở sau khi xác nhận.', 'Xác nhận xử lý', 'success', false],
-    test_realtime: ['Gửi broadcast thử?', 'Hệ thống sẽ gửi một sự kiện thử nghiệm đến phiên hiện tại của bạn.', 'Gửi thử', 'warning', false],
-  };
-  const copy = copies[action];
-  if (!copy) return null;
-  const [title, description, confirmLabel, tone, reasonRequired] = copy;
-  return {
-    title,
-    description,
-    confirmLabel,
-    tone,
-    reasonRequired,
-    details: [
-      { label: 'Khu vực', value: VIEW_CONFIG[view]?.title || 'Command Center' },
-      { label: 'Đối tượng', value: actionTargetLabel(item) },
-      { label: 'ID', value: item.session_id || item.source_id || item.id || item._id || '-' },
-    ],
-  };
-}
-
-function StatusBadge({ status }) {
-  return <span className={`cc-status cc-status--${status || 'neutral'}`}>{statusLabel(status)}</span>;
-}
-
-function SeverityBadge({ severity }) {
-  return <span className={`cc-severity cc-severity--${severity || 'info'}`}>{readableLabel(severity || 'info')}</span>;
-}
-
-function ActionButton({ icon: Icon = Eye, label, onClick, variant = 'ghost', disabled }) {
+function CommandTabs({ current }) {
   return (
-    <button type="button" className={`cc-action-button cc-action-button--${variant}`} onClick={onClick} disabled={disabled} title={label}>
-      <Icon size={16} strokeWidth={2.25} aria-hidden="true" />
-      <span>{label}</span>
-    </button>
+    <nav className="cc-nav" aria-label="Command Center navigation">
+      {NAV_ITEMS.map(({ key, title, path, icon: Icon }) => (
+        <Link key={key} to={path} className={`cc-nav__item${current === key ? ' is-active' : ''}`}>
+          <Icon size={17} strokeWidth={2.25} />
+          <span>{title}</span>
+        </Link>
+      ))}
+    </nav>
   );
 }
 
-function IconButton({ icon: Icon, label, onClick, disabled }) {
-  return (
-    <button type="button" className="cc-icon-button" onClick={onClick} disabled={disabled} title={label} aria-label={label}>
-      <Icon size={17} strokeWidth={2.25} aria-hidden="true" />
-    </button>
+function StatCard({ item, icon: OverrideIcon, title, value, helper, status, to }) {
+  const key = item?.key;
+  const Icon = OverrideIcon || CARD_ICONS[key] || Gauge;
+  const content = (
+    <article className={`cc-stat cc-stat--${tone(item?.status || status)}`}>
+      <div className="cc-stat__top"><IconShell icon={Icon} toneName={tone(item?.status || status)} /><Badge value={item?.status || status || 'healthy'} /></div>
+      <p>{label(item?.label || title || key)}</p>
+      <strong>{item ? metricValue(item) : value}</strong>
+      <small>{label(item?.helper || helper || '')}</small>
+    </article>
   );
+  if (item?.route || to) return <Link to={item?.route || to} className="cc-stat-link">{content}</Link>;
+  return content;
 }
 
-function SectionHeader({ icon: Icon, title, meta, action }) {
-  return (
-    <div className="cc-section-head">
-      <div>
-        {Icon ? <Icon size={18} strokeWidth={2.25} aria-hidden="true" /> : null}
-        <h2>{title}</h2>
-      </div>
-      <span>{meta}</span>
-      {action}
-    </div>
-  );
+function Progress({ label: title, value, max = 100, status = 'healthy' }) {
+  return <div className="cc-progress"><div><span>{title}</span><strong>{number(value)}</strong></div><i><b className={`cc-progress__bar cc-progress__bar--${tone(status)}`} style={{ width: `${pct(value, max)}%` }} /></i></div>;
 }
 
-function EmptyState({ title = 'Chưa có dữ liệu' }) {
+function FilterBar({ filters, setFilters, onApply, onReset, modules = [], loading }) {
   return (
-    <div className="cc-empty">
-      <CheckCircle2 size={22} strokeWidth={2.25} aria-hidden="true" />
-      <span>{title}</span>
-    </div>
-  );
-}
-
-function MiniKpi({ item }) {
-  const Icon = CARD_ICONS[item.key] || Gauge;
-  return (
-    <Link to={item.route || '#'} className={`cc-kpi cc-kpi--${item.status || 'healthy'}`}>
-      <span className="cc-kpi__icon"><Icon size={18} strokeWidth={2.25} aria-hidden="true" /></span>
-      <span>{readableLabel(item.label)}</span>
-      <strong>{compactValue(item)}</strong>
-      <small>{readableLabel(item.helper)}</small>
-    </Link>
-  );
-}
-
-function CriticalStrip({ alerts = [], onAction }) {
-  return (
-    <section className="cc-critical-strip">
-      <SectionHeader icon={AlertTriangle} title="Dải cảnh báo nghiêm trọng" meta={`${alerts.length} tín hiệu ưu tiên`} />
-      {alerts.length ? (
-        <div className="cc-alert-ribbon">
-          {alerts.slice(0, 8).map((alert) => (
-            <button key={alert.id} type="button" className={`cc-alert-pill cc-alert-pill--${alert.severity}`} onClick={() => onAction?.('inspect', alert)}>
-              <SeverityBadge severity={alert.severity} />
-              <span>{readableLabel(alert.title)}</span>
-              <strong>{formatNumber(alert.count || 1)}</strong>
-            </button>
-          ))}
-        </div>
-      ) : <EmptyState title="Không có cảnh báo ưu tiên" />}
+    <section className="cc-filterbar">
+      <label className="cc-filterbar__search"><Search size={17} /><input value={filters.search || ''} onChange={(e) => setFilters((s) => ({ ...s, search: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && onApply()} placeholder="Tìm theo tiêu đề, mô tả, action, request id..." /></label>
+      <select value={filters.severity || ''} onChange={(e) => setFilters((s) => ({ ...s, severity: e.target.value }))}><option value="">Mức độ</option><option value="critical">Nghiêm trọng</option><option value="high">Cao</option><option value="medium">Trung bình</option><option value="low">Thấp</option></select>
+      <select value={filters.status || ''} onChange={(e) => setFilters((s) => ({ ...s, status: e.target.value }))}><option value="">Trạng thái</option><option value="new">Mới</option><option value="open">Đang mở</option><option value="pending">Chờ xử lý</option><option value="failed">Lỗi</option><option value="resolved">Đã xử lý</option></select>
+      {modules.length ? <select value={filters.module || ''} onChange={(e) => setFilters((s) => ({ ...s, module: e.target.value }))}><option value="">Module</option>{modules.map((m) => <option key={m} value={m}>{label(m)}</option>)}</select> : null}
+      <button type="button" className="cc-btn cc-btn--primary" onClick={onApply} disabled={loading}><Search size={16} />Áp dụng</button>
+      <button type="button" className="cc-btn" onClick={onReset} disabled={loading}><Filter size={16} />Reset</button>
     </section>
   );
 }
 
-function WorkspaceTile({ workspace }) {
-  const Icon = WORKSPACE_ICONS[workspace.code] || Building2;
+function WorkItemCard({ item, onAction }) {
   return (
-    <article className={`cc-workspace-tile cc-workspace-tile--${workspace.status}`}>
-      <div className="cc-workspace-tile__top">
-        <span><Icon size={18} strokeWidth={2.25} aria-hidden="true" /></span>
-        <StatusBadge status={workspace.status} />
+    <article className={`cc-work-card cc-work-card--${item.severity || 'info'}`}>
+      <div className="cc-work-card__head"><Severity value={item.severity} /><Badge value={item.status || 'open'} /><span>{label(item.workspace_code || item.source_module)}</span></div>
+      <h3>{label(item.title)}</h3>
+      <p>{item.description || 'Không có mô tả chi tiết.'}</p>
+      <div className="cc-work-card__meta"><span>{label(item.source_module)}</span><span>{item.sla_due_at ? `SLA ${shortDate(item.sla_due_at)}` : shortDate(item.created_at)}</span><span>{item.source_type || 'virtual'}</span></div>
+      <div className="cc-card-actions">
+        {arr(item.actions).some((a) => a.includes('retry_event')) ? <button type="button" onClick={() => onAction('retry_event', item)}><RefreshCw size={15} />Retry event</button> : null}
+        {arr(item.actions).some((a) => a.includes('notification')) ? <button type="button" onClick={() => onAction('retry_notification', item)}><BellRing size={15} />Retry notify</button> : null}
+        <button type="button" onClick={() => onAction('ack_work_item', item)}><CheckCircle2 size={15} />Ghi nhận</button>
       </div>
-      <strong>{workspace.name}</strong>
-      <small>{workspace.route}</small>
-      <div className="cc-workspace-tile__metrics">
-        <span><b>{formatNumber(workspace.pending_tasks)}</b> việc</span>
-        <span><b>{formatNumber(workspace.alerts)}</b> cảnh báo</span>
-        <span><b>{formatNumber(workspace.online_users)}</b> online</span>
-      </div>
-      <Link to={workspace.route || '#'} className="cc-row-link">
-        <ExternalLink size={15} strokeWidth={2.25} aria-hidden="true" />
-        <span>Mở workspace</span>
-      </Link>
     </article>
   );
 }
 
-function WorkItemList({ items = [], onAction, compact = false }) {
-  if (!items.length) return <EmptyState title="Không có việc cần xử lý" />;
+function AlertCard({ item, onAction }) {
   return (
-    <div className={compact ? 'cc-work-list cc-work-list--compact' : 'cc-work-list'}>
-      {items.map((item) => (
-        <article key={item.id} className={`cc-work-item cc-work-item--${item.severity}`}>
-          <div className="cc-work-item__main">
-            <SeverityBadge severity={item.severity} />
-            <div>
-              <strong>{readableLabel(item.title)}</strong>
-              <span>{item.description}</span>
-            </div>
-          </div>
-          <div className="cc-work-item__meta">
-            <span>{readableLabel(item.source_module)}</span>
-            <span>{item.sla_due_at ? `SLA ${formatDateTime(item.sla_due_at)}` : formatDateTime(item.created_at)}</span>
-          </div>
-          <div className="cc-work-item__actions">
-            {item.actions?.includes('retry_event') ? (
-              <IconButton icon={RefreshCw} label="Thử lại sự kiện" onClick={() => onAction('retry_event', item)} />
-            ) : null}
-            {item.actions?.some((action) => action.includes('notification')) ? (
-              <IconButton icon={BellRing} label="Thử gửi lại thông báo" onClick={() => onAction('retry_notification', item)} />
-            ) : null}
-            <IconButton icon={CheckCircle2} label="Ghi nhận" onClick={() => onAction('ack_work_item', item)} />
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function AlertInbox({ alerts = [], onAction, selectedId, onSelect }) {
-  if (!alerts.length) return <EmptyState title="Không có cảnh báo đang mở" />;
-  return (
-    <div className="cc-alert-table">
-      <div className="cc-alert-table__head">
-        <span>Mức độ</span>
-        <span>Thành phần</span>
-        <span>Cảnh báo</span>
-        <span>Số lượng</span>
-        <span>Thấy lần cuối</span>
-        <span>Thao tác</span>
+    <article className={`cc-alert-card cc-alert-card--${item.severity || 'info'}`}>
+      <div className="cc-alert-card__rail" />
+      <div className="cc-alert-card__main">
+        <div className="cc-alert-card__top"><Severity value={item.severity} /><Badge value={item.status || 'open'} /><span>{label(item.component)}</span></div>
+        <h3>{label(item.title)}</h3>
+        <p>{item.message || 'Không có message.'}</p>
+        <div className="cc-alert-card__meta"><span>Count: {number(item.count || 1)}</span><span>Last: {shortDate(item.last_seen_at || item.created_at)}</span><span>{item.source_type || item.alert_type || 'summary'}</span></div>
       </div>
-      {alerts.map((alert) => (
-        <button
-          type="button"
-          key={alert.id}
-          className={`cc-alert-row${selectedId === alert.id ? ' is-selected' : ''}`}
-          onClick={() => onSelect(alert)}
-        >
-          <SeverityBadge severity={alert.severity} />
-          <span>{readableLabel(alert.component)}</span>
-          <strong>{readableLabel(alert.title)}</strong>
-          <span>{formatNumber(alert.count || 1)}</span>
-          <span>{formatDateTime(alert.last_seen_at || alert.created_at)}</span>
-          <span className="cc-alert-row__actions">
-            {alert.actions?.includes('retry_event') ? (
-              <IconButton icon={RefreshCw} label="Thử lại sự kiện" onClick={(event) => { event.stopPropagation(); onAction('retry_event', alert); }} />
-            ) : null}
-            {alert.actions?.some((action) => action.includes('notification')) ? (
-              <IconButton icon={BellRing} label="Thử gửi lại thông báo" onClick={(event) => { event.stopPropagation(); onAction('retry_notification', alert); }} />
-            ) : null}
-            <IconButton icon={CheckCircle2} label="Xử lý" onClick={(event) => { event.stopPropagation(); onAction('resolve_alert', alert); }} />
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function AlertDetail({ alert }) {
-  if (!alert) return <EmptyState title="Chọn một cảnh báo" />;
-  return (
-    <aside className="cc-detail-pane">
-      <div className="cc-detail-pane__head">
-        <SeverityBadge severity={alert.severity} />
-        <strong>{readableLabel(alert.title)}</strong>
-        <span>{readableLabel(alert.component)}</span>
+      <div className="cc-card-actions cc-card-actions--vertical">
+        {arr(item.actions).some((a) => a.includes('retry_event')) && item.source_id ? <button type="button" onClick={() => onAction('retry_event', item)}><RefreshCw size={15} />Retry</button> : null}
+        {arr(item.actions).some((a) => a.includes('notification')) && item.source_id ? <button type="button" onClick={() => onAction('retry_notification', item)}><BellRing size={15} />Notify</button> : null}
+        <button type="button" onClick={() => onAction('resolve_alert', item)}><CheckCircle2 size={15} />Xử lý</button>
       </div>
-      <p>{alert.message}</p>
-      <dl>
-        <div><dt>Nguồn</dt><dd>{alert.source_type || alert.alert_type}</dd></div>
-        <div><dt>Bản ghi</dt><dd>{alert.source_id || alert.id}</dd></div>
-        <div><dt>Trạng thái</dt><dd>{readableLabel(alert.status)}</dd></div>
-        <div><dt>Thấy lần cuối</dt><dd>{formatDateTime(alert.last_seen_at || alert.created_at)}</dd></div>
-      </dl>
-    </aside>
+    </article>
   );
 }
 
-function TimelineFeed({ items = [] }) {
-  if (!items.length) return <EmptyState title="Chưa có hoạt động gần đây" />;
+function ActivityRow({ item }) {
+  const ok = !['failed', 'critical', 'high'].includes(String(item.status || item.severity || '').toLowerCase());
   return (
-    <div className="cc-timeline">
-      {items.map((item) => (
-        <article key={item._id || item.id || `${item.action}-${item.created_at}`} className={`cc-timeline-item cc-timeline-item--${item.status || 'success'}`}>
-          <span className="cc-timeline-item__dot" />
-          <div>
-            <strong>{item.message || item.action}</strong>
-            <span>{item.module_key || item.target_type || 'system'} • {formatDateTime(item.created_at)} • {item.request_id || 'không có request id'}</span>
-          </div>
-          <SeverityBadge severity={item.severity || 'info'} />
-        </article>
-      ))}
-    </div>
+    <article className="cc-activity-row">
+      <span className={`cc-activity-row__dot${ok ? '' : ' is-danger'}`} />
+      <div><strong>{label(item.message || item.action || 'Audit event')}</strong><small>{label(item.module_key || item.target_type || 'system')} · {item.request_id || item.target_id || 'no request id'}</small></div>
+      <div><Badge value={item.status || item.severity || 'info'} /><small>{shortDate(item.created_at)}</small></div>
+    </article>
   );
 }
 
-function SessionTable({ sessions = [], onAction }) {
-  if (!sessions.length) return <EmptyState title="Không có phiên nhân sự đang hoạt động" />;
+function DataTable({ rows = [], columns = [], onAction, actionType }) {
+  const normalizedRows = arr(rows);
+  const cols = columns.length ? columns : Object.keys(obj(normalizedRows[0])).slice(0, 7);
+  if (!normalizedRows.length) return <Empty title="Không có bản ghi" />;
   return (
-    <div className="cc-data-table cc-session-table">
-      <div className="cc-data-table__head">
-        <span>Người dùng</span>
-        <span>Vai trò</span>
-        <span>Device/IP</span>
-        <span>Thấy lần cuối</span>
-        <span>Rủi ro</span>
-        <span>Thao tác</span>
-      </div>
-      {sessions.map((session) => (
-        <div key={session.session_id} className="cc-data-table__row">
-          <span>
-            <strong>{session.full_name}</strong>
-            <small>{session.department_name}</small>
-          </span>
-          <span>{(session.roles || []).slice(0, 2).join(', ') || 'staff'}</span>
-          <span>
-            <strong>{session.device_name}</strong>
-            <small>{session.ip || 'IP không rõ'}</small>
-          </span>
-          <span>{formatDateTime(session.last_seen_at)}</span>
-          <span className={`cc-risk cc-risk--${session.risk_score >= 50 ? 'critical' : session.risk_score >= 20 ? 'high' : 'low'}`}>{session.risk_score}</span>
-          <span className="cc-data-table__actions">
-            <IconButton icon={LogOut} label="Thu hồi phiên" onClick={() => onAction('revoke_session', session)} />
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function GenericTable({ rows = [], columns = [] }) {
-  if (!rows.length) return <EmptyState title="Không có bản ghi" />;
-  return (
-    <div className="cc-generic-table" style={{ '--cc-table-cols': columns.length }}>
-      <div className="cc-generic-table__head">
-        {columns.map((column) => <span key={column}>{readableLabel(column)}</span>)}
-      </div>
-      {rows.map((row) => (
-        <div className="cc-generic-table__row" key={row._id || row.id || JSON.stringify(row).slice(0, 40)}>
-          {columns.map((column) => (
-            <span key={column} title={String(row[column] || '')}>
-              {column.includes('_at') ? formatDateTime(row[column]) : typeof row[column] === 'object' ? JSON.stringify(row[column]) : String(row[column] ?? '—')}
-            </span>
+    <div className="cc-table-wrap">
+      <table className="cc-table">
+        <thead><tr>{cols.map((c) => <th key={c}>{label(c)}</th>)}{onAction ? <th>Thao tác</th> : null}</tr></thead>
+        <tbody>
+          {normalizedRows.map((row, idx) => (
+            <tr key={row._id || row.id || row.session_id || idx}>
+              {cols.map((c) => <td key={c}>{renderCell(row[c], c)}</td>)}
+              {onAction ? <td><button type="button" className="cc-mini-btn" onClick={() => onAction(actionType, row)}>{actionType === 'revoke_session' ? 'Thu hồi' : 'Thao tác'}</button></td> : null}
+            </tr>
           ))}
-        </div>
-      ))}
+        </tbody>
+      </table>
     </div>
   );
 }
-
-function BarSet({ items = [] }) {
-  const max = Math.max(...items.map((item) => Number(item.value || 0)), 1);
-  return (
-    <div className="cc-bars">
-      {items.map((item) => (
-        <div key={item.label}>
-          <span style={{ height: `${Math.max((Number(item.value || 0) / max) * 100, item.value > 0 ? 8 : 0)}%` }} />
-          <strong>{readableLabel(item.label)}</strong>
-          <small>{formatNumber(item.value)}</small>
-        </div>
-      ))}
-    </div>
-  );
+function renderCell(value, key) {
+  if (value === null || value === undefined || value === '') return <span className="cc-muted">—</span>;
+  if (key?.includes('status') || key === 'severity') return <Badge value={value} />;
+  if (key?.includes('_at') || key === 'login_at' || key === 'expires_at') return shortDate(value);
+  if (Array.isArray(value)) return <span className="cc-chipline">{value.slice(0, 3).map((x) => <i key={String(x)}>{label(x)}</i>)}{value.length > 3 ? <i>+{value.length - 3}</i> : null}</span>;
+  if (typeof value === 'object') return <code>{JSON.stringify(value).slice(0, 90)}</code>;
+  return String(value).length > 120 ? `${String(value).slice(0, 120)}...` : String(value);
 }
 
 function DashboardView({ data, onAction }) {
+  const summaryCards = arr(data.summary_cards);
+  const critical = arr(data.critical_alerts);
+  const workItems = arr(data.work_items);
+  const workspaces = arr(data.workspace_health);
+  const security = obj(data.security_snapshot);
+  const ops = obj(data.ops_snapshot);
+  const billing = obj(data.billing_snapshot);
   return (
-    <>
-      <div className="cc-kpi-grid">
-        {(data.summary_cards || []).slice(0, 12).map((item) => <MiniKpi key={item.key} item={item} />)}
-      </div>
-      <CriticalStrip alerts={data.critical_alerts || []} onAction={onAction} />
-      <section className="cc-grid cc-grid--workspace">
-        <div className="cc-panel cc-panel--wide">
-          <SectionHeader icon={Map} title="Bản đồ sức khỏe workspace" meta={`${data.workspace_health?.length || 0} workspace`} />
-          <div className="cc-workspace-grid">
-            {(data.workspace_health || []).map((workspace) => <WorkspaceTile key={workspace.code} workspace={workspace} />)}
-          </div>
-        </div>
-        <div className="cc-panel">
-          <SectionHeader icon={ClipboardCheck} title="Hàng đợi công việc" meta={`${data.work_item_summary?.total || 0} việc`} />
-          <WorkItemList items={(data.work_items || []).slice(0, 8)} onAction={onAction} compact />
-        </div>
+    <div className="cc-page-grid">
+      <section className="cc-hero-panel cc-hero-panel--wide">
+        <div><span className="cc-eyebrow">Live control plane</span><h2>Điều phối toàn hệ thống từ một màn hình</h2><p>Toàn bộ số liệu được lấy trực tiếp từ backend Command Center: staff sessions, worker queue, event outbox, notification delivery, audit, billing và workspace health.</p></div>
+        <div className="cc-hero-orbit"><strong>{number(arr(data.active_sessions).length)}</strong><span>active sessions</span><i /></div>
       </section>
-      <section className="cc-grid cc-grid--two">
-        <div className="cc-panel">
-          <SectionHeader icon={FileClock} title="Hoạt động gần đây" meta={`${data.recent_activities?.length || 0} dòng`} />
-          <TimelineFeed items={(data.recent_activities || []).slice(0, 8)} />
-        </div>
-        <div className="cc-panel">
-          <SectionHeader icon={RadioTower} title="Phiên thời gian thực" meta={`${data.active_sessions?.length || 0} phiên`} />
-          <SessionTable sessions={(data.active_sessions || []).slice(0, 6)} onAction={onAction} />
-        </div>
-      </section>
-      <section className="cc-grid cc-grid--three">
-        <div className="cc-panel">
-          <SectionHeader icon={Archive} title="Outbox sự kiện" meta="trạng thái" />
-          <BarSet items={Object.entries(data.ops_snapshot?.outbox || {}).map(([label, value]) => ({ label, value }))} />
-        </div>
-        <div className="cc-panel">
-          <SectionHeader icon={BellRing} title="Gửi thông báo" meta="trạng thái" />
-          <BarSet items={Object.entries(data.ops_snapshot?.notification_delivery || {}).map(([label, value]) => ({ label, value }))} />
-        </div>
-        <div className="cc-panel">
-          <SectionHeader icon={ShieldAlert} title="Rủi ro bảo mật" meta={`${data.security_snapshot?.risk_score || 0}/100`} />
-          <div className="cc-risk-dial">
-            <strong>{data.security_snapshot?.risk_score || 0}</strong>
-            <span>điểm rủi ro</span>
-          </div>
-        </div>
-      </section>
-    </>
+      <section className="cc-stat-grid cc-stat-grid--dashboard">{summaryCards.slice(0, 12).map((item) => <StatCard key={item.key} item={item} />)}</section>
+      <section className="cc-panel cc-panel--span-7"><PanelHead icon={AlertTriangle} title="Cảnh báo ưu tiên" meta={`${critical.length} tín hiệu`} /><div className="cc-stack">{critical.length ? critical.slice(0, 6).map((x) => <AlertCard key={x.id} item={x} onAction={onAction} />) : <Empty title="Không có cảnh báo nghiêm trọng" />}</div></section>
+      <section className="cc-panel cc-panel--span-5"><PanelHead icon={Gauge} title="Risk radar" meta="24h" /><Progress label="Security risk" value={security.risk_score || 0} status={security.status} /><Progress label="Failed jobs" value={ops.failed_jobs_24h || 0} max={20} status={ops.status} /><Progress label="Failed notification" value={(ops.notification_delivery?.failed || 0) + (ops.notifications?.failed || 0)} max={20} status="degraded" /><Progress label="Unpaid invoices" value={billing.unpaid_invoices || 0} max={100} status="warning" /></section>
+      <section className="cc-panel cc-panel--span-7"><PanelHead icon={ClipboardCheck} title="Việc cần xử lý" meta={`${workItems.length} việc`} action={<Link to="/admin/command-center/tasks">Mở tất cả <ArrowRight size={14} /></Link>} /><div className="cc-work-grid cc-work-grid--compact">{workItems.length ? workItems.slice(0, 6).map((x) => <WorkItemCard key={x.id} item={x} onAction={onAction} />) : <Empty title="Không có việc tồn" />}</div></section>
+      <section className="cc-panel cc-panel--span-5"><PanelHead icon={Map} title="Workspace health" meta={`${workspaces.length} workspace`} /><div className="cc-workspace-mini">{workspaces.slice(0, 8).map((w) => <WorkspaceMini key={w.code} item={w} />)}</div></section>
+    </div>
   );
 }
 
 function HealthView({ data, onRefresh }) {
+  const components = arr(data.components);
+  const trends = obj(data.trends);
   return (
-    <>
-      <section className="cc-health-hero">
-        <div>
-          <span>Sức khỏe tổng thể</span>
-          <strong>{statusLabel(data.overall_status)}</strong>
-          <small>Kiểm tra lần cuối {formatDateTime(data.checked_at)}</small>
-        </div>
-        <ActionButton icon={PlayCircle} label="Chạy kiểm tra sức khỏe" onClick={onRefresh} variant="primary" />
+    <div className="cc-page-grid">
+      <section className="cc-stat-grid cc-stat-grid--four">
+        <StatCard title="Trạng thái tổng" value={label(data.overall_status)} helper="Tổng hợp API + DB + worker + security" status={data.overall_status} icon={Activity} />
+        <StatCard title="Failed jobs 24h" value={number(trends.failed_jobs_24h)} helper="JobRunLog failed" status={trends.failed_jobs_24h ? 'degraded' : 'healthy'} icon={ServerCog} />
+        <StatCard title="Outbox lỗi 24h" value={number(trends.outbox_failed_24h)} helper="EventOutbox failed/dead-letter" status={trends.outbox_failed_24h ? 'critical' : 'healthy'} icon={Archive} />
+        <StatCard title="Security events" value={number(trends.security_alert_count)} helper="Audit nhạy cảm" status={trends.security_alert_count ? 'degraded' : 'healthy'} icon={ShieldAlert} />
       </section>
-      <div className="cc-component-grid">
-        {(data.components || []).map((component) => (
-          <article key={component.key} className={`cc-component cc-component--${component.status}`}>
-            <div>
-              <StatusBadge status={component.status} />
-              <strong>{readableLabel(component.name)}</strong>
-              <span>{readableLabel(component.owner_module)}</span>
-            </div>
-            <dl>
-              <div><dt>Lỗi</dt><dd>{formatNumber(component.failed || component.dead_letter || 0)}</dd></div>
-              <div><dt>Chờ xử lý</dt><dd>{formatNumber(component.pending || 0)}</dd></div>
-              <div><dt>Độ trễ</dt><dd>{component.latency_ms ?? '—'}</dd></div>
-            </dl>
-          </article>
-        ))}
-      </div>
-      <section className="cc-panel">
-        <SectionHeader icon={Gauge} title="Xu hướng lỗi" meta="24h" />
-        <BarSet items={Object.entries(data.trends || {}).map(([label, value]) => ({ label: readableLabel(label), value }))} />
-      </section>
-    </>
+      <section className="cc-panel cc-panel--span-8"><PanelHead icon={Activity} title="Service health matrix" meta={`${components.length} thành phần`} action={<button type="button" onClick={onRefresh}>Refresh</button>} /><div className="cc-service-grid">{components.map((c) => <ServiceCard key={c.key} item={c} />)}</div></section>
+      <section className="cc-panel cc-panel--span-4"><PanelHead icon={BarChart3} title="Trend 24h" meta="DB counters" />{Object.entries(trends).map(([k, v]) => <Progress key={k} label={label(k)} value={v} max={Math.max(10, Number(v) * 1.4)} status={v ? 'warning' : 'healthy'} />)}</section>
+    </div>
   );
 }
 
 function TasksView({ data, filters, setFilters, onApplyFilters, onResetFilters, filterLoading, onAction }) {
-  const items = data.items || [];
-  const summary = data.summary || {};
+  const items = arr(data.items);
+  const summary = obj(data.summary);
+  const modules = Object.keys(obj(summary.by_module));
   return (
-    <>
-      <div className="cc-summary-strip">
-        {['total', 'critical', 'high', 'medium', 'low', 'overdue', 'assigned_to_me'].map((key) => (
-          <article key={key}>
-            <span>{readableLabel(key)}</span>
-            <strong>{formatNumber(summary[key])}</strong>
-          </article>
-        ))}
-      </div>
-      <FilterBar
-        filters={filters}
-        setFilters={setFilters}
-        modules={['security', 'iam', 'ops', 'billing', 'clinical', 'pharmacy', 'portal', 'support']}
-        onApply={onApplyFilters}
-        onReset={onResetFilters}
-        loading={filterLoading}
-      />
-      <section className="cc-panel">
-        <SectionHeader icon={ClipboardCheck} title="Hàng đợi công việc quản trị" meta={`${items.length} bản ghi`} />
-        <WorkItemList items={items} onAction={onAction} />
-      </section>
-    </>
+    <div className="cc-page-grid">
+      <section className="cc-panel cc-panel--full"><FilterBar filters={filters} setFilters={setFilters} onApply={onApplyFilters} onReset={onResetFilters} modules={modules} loading={filterLoading} /></section>
+      <section className="cc-stat-grid cc-stat-grid--six cc-panel--full"><MiniMetric title="Tổng việc" value={summary.total} /><MiniMetric title="Critical" value={summary.critical} toneName="danger" /><MiniMetric title="High" value={summary.high} toneName="danger" /><MiniMetric title="Quá SLA" value={summary.overdue} toneName="warning" /><MiniMetric title="Gán cho tôi" value={summary.assigned_to_me} toneName="info" /><MiniMetric title="Module" value={modules.length} /></section>
+      <section className="cc-panel cc-panel--full"><PanelHead icon={ClipboardCheck} title="Action queue" meta={`${items.length} bản ghi`} /><div className="cc-work-grid">{items.length ? items.map((x) => <WorkItemCard key={x.id} item={x} onAction={onAction} />) : <Empty title="Không có việc cần xử lý" />}</div></section>
+    </div>
   );
 }
 
 function AlertsView({ data, filters, setFilters, onApplyFilters, onResetFilters, filterLoading, onAction, mode }) {
-  const [selected, setSelected] = useState(null);
-  const alerts = data.items || [];
-  const summary = data.summary || {};
-  const Icon = mode === 'security' ? ShieldAlert : AlertTriangle;
+  const items = arr(data.items);
+  const summary = obj(data.summary);
+  const modules = [...new Set(items.map((x) => x.component || x.workspace_code).filter(Boolean))];
   return (
-    <>
-      <div className="cc-summary-strip">
-        {['total', 'critical', 'high', 'medium', 'low'].map((key) => (
-          <article key={key}>
-            <span>{readableLabel(key)}</span>
-            <strong>{formatNumber(summary[key])}</strong>
-          </article>
-        ))}
-        {mode === 'security' ? (
-          <article>
-            <span>Điểm rủi ro</span>
-            <strong>{formatNumber(summary.risk_score)}</strong>
-          </article>
-        ) : null}
-      </div>
-      <FilterBar
-        filters={filters}
-        setFilters={setFilters}
-        modules={[]}
-        onApply={onApplyFilters}
-        onReset={onResetFilters}
-        loading={filterLoading}
-      />
-      <section className="cc-alert-layout">
-        <div className="cc-panel cc-panel--wide">
-          <SectionHeader icon={Icon} title={mode === 'security' ? 'Bảng cảnh báo bảo mật' : 'Hộp cảnh báo'} meta={`${alerts.length} cảnh báo`} />
-          <AlertInbox alerts={alerts} onAction={onAction} selectedId={selected?.id} onSelect={setSelected} />
-        </div>
-        <AlertDetail alert={selected || alerts[0]} />
+    <div className="cc-page-grid">
+      <section className="cc-panel cc-panel--full"><FilterBar filters={filters} setFilters={setFilters} onApply={onApplyFilters} onReset={onResetFilters} modules={modules} loading={filterLoading} /></section>
+      <section className="cc-alert-summary cc-panel--full">
+        <MiniMetric title="Tổng cảnh báo" value={summary.total || items.length} />
+        <MiniMetric title="Critical" value={summary.critical} toneName="danger" />
+        <MiniMetric title="High" value={summary.high} toneName="danger" />
+        <MiniMetric title="Medium" value={summary.medium} toneName="warning" />
+        <MiniMetric title="Low" value={summary.low} toneName="info" />
+        <MiniMetric title={mode === 'security' ? 'Security feed' : 'System feed'} value={items.length} />
       </section>
-    </>
+      <section className="cc-panel cc-panel--full"><PanelHead icon={mode === 'security' ? ShieldAlert : AlertTriangle} title={mode === 'security' ? 'Security alert inbox' : 'System alert inbox'} meta={`${items.length} bản ghi`} /><div className="cc-alert-list">{items.length ? items.map((x) => <AlertCard key={x.id} item={x} onAction={onAction} />) : <Empty title="Không có cảnh báo đang mở" />}</div></section>
+    </div>
   );
 }
 
 function RecentActivityView({ data, filters, setFilters, onApplyFilters, onResetFilters, filterLoading }) {
+  const items = arr(data.items);
+  const summary = obj(data.summary);
+  const modules = [...new Set(items.map((x) => x.module_key).filter(Boolean))];
   return (
-    <>
-      <FilterBar
-        filters={filters}
-        setFilters={setFilters}
-        modules={['auth', 'users', 'roles', 'permissions', 'settings', 'billing', 'security']}
-        onApply={onApplyFilters}
-        onReset={onResetFilters}
-        loading={filterLoading}
-      />
-      <section className="cc-panel">
-        <SectionHeader icon={FileClock} title="Luồng hoạt động" meta={`${data.items?.length || 0} dòng`} />
-        <TimelineFeed items={data.items || []} />
-      </section>
-    </>
+    <div className="cc-page-grid">
+      <section className="cc-panel cc-panel--full"><FilterBar filters={filters} setFilters={setFilters} onApply={onApplyFilters} onReset={onResetFilters} modules={modules} loading={filterLoading} /></section>
+      <section className="cc-stat-grid cc-stat-grid--three cc-panel--full"><MiniMetric title="Đã tải" value={summary.total_loaded || items.length} /><MiniMetric title="Failed" value={summary.failed} toneName="danger" /><MiniMetric title="High severity" value={summary.high_severity} toneName="warning" /></section>
+      <section className="cc-panel cc-panel--full"><PanelHead icon={FileClock} title="Audit timeline" meta={`${items.length} hoạt động`} /><div className="cc-timeline">{items.length ? items.map((x) => <ActivityRow key={x._id || x.id} item={x} />) : <Empty title="Chưa có audit log" />}</div></section>
+    </div>
   );
 }
 
 function SessionsView({ data, onAction }) {
-  const sessions = data.sessions || [];
-  const byRole = sessions.reduce((acc, item) => {
-    (item.roles || ['staff']).forEach((role) => { acc[role] = (acc[role] || 0) + 1; });
-    return acc;
-  }, {});
-  const byDepartment = sessions.reduce((acc, item) => {
-    acc[item.department_name || 'Chưa gán'] = (acc[item.department_name || 'Chưa gán'] || 0) + 1;
-    return acc;
-  }, {});
+  const sessions = arr(data.sessions);
+  const summary = obj(data.summary);
   return (
-    <>
-      <div className="cc-summary-strip">
-        {Object.entries(data.summary || {}).map(([key, value]) => (
-          <article key={key}><span>{readableLabel(key)}</span><strong>{formatNumber(value)}</strong></article>
-        ))}
-      </div>
-      <section className="cc-grid cc-grid--two">
-        <div className="cc-panel">
-          <SectionHeader icon={UsersRound} title="Online theo vai trò" meta={`${Object.keys(byRole).length} vai trò`} />
-          <BarSet items={Object.entries(byRole).map(([label, value]) => ({ label, value }))} />
-        </div>
-        <div className="cc-panel">
-          <SectionHeader icon={Building2} title="Online theo khoa/phòng" meta={`${Object.keys(byDepartment).length} nhóm`} />
-          <BarSet items={Object.entries(byDepartment).map(([label, value]) => ({ label, value }))} />
-        </div>
-      </section>
-      <section className="cc-panel">
-        <SectionHeader icon={RadioTower} title="Bảng phiên đăng nhập" meta={`${sessions.length} phiên`} />
-        <SessionTable sessions={sessions} onAction={onAction} />
-      </section>
-    </>
+    <div className="cc-page-grid">
+      <section className="cc-stat-grid cc-stat-grid--three cc-panel--full"><MiniMetric title="Active staff sessions" value={summary.active_staff_sessions} /><MiniMetric title="Suspicious" value={summary.suspicious_sessions} toneName="danger" /><MiniMetric title="Revoked 24h" value={summary.revoked_today} toneName="warning" /></section>
+      <section className="cc-panel cc-panel--full"><PanelHead icon={RadioTower} title="Phiên đăng nhập đang hoạt động" meta={`${sessions.length} phiên trả về`} /><div className="cc-session-grid">{sessions.length ? sessions.map((s) => <SessionCard key={s.session_id} item={s} onRevoke={() => onAction('revoke_session', s)} />) : <Empty title="Không có phiên active" />}</div></section>
+    </div>
   );
 }
 
 function WorkersView({ data, onAction }) {
   const [tab, setTab] = useState('job_run_logs');
-  const tabs = data.tabs || {};
-  const summary = data.summary || {};
-  const summaryCards = [
-    ['Outbox chờ xử lý', summary.outbox?.pending],
-    ['Outbox lỗi', summary.outbox?.failed],
-    ['Dead-letter', summary.outbox?.dead_letter],
-    ['Gửi thông báo chờ xử lý', summary.notification_delivery?.pending],
-    ['Gửi thông báo lỗi', summary.notification_delivery?.failed],
-    ['Tác vụ lỗi 24h', summary.failed_jobs_24h],
-  ];
+  const tabs = obj(data.tabs);
+  const rows = arr(tabs[tab]);
+  const summary = obj(data.summary);
+  const columns = {
+    job_run_logs: ['job_name', 'queue_name', 'status', 'started_at', 'finished_at', 'duration_ms', 'records_processed', 'error_message'],
+    event_outbox: ['event_type', 'aggregate_type', 'status', 'retry_count', 'next_retry_at', 'last_error', 'created_at'],
+    notification_delivery: ['channel', 'provider', 'status', 'attempt_count', 'next_attempt_at', 'last_error', 'created_at'],
+    idempotency_records: ['method', 'route', 'status', 'status_code', 'expires_at', 'created_at'],
+    qr_tokens: ['type', 'target_type', 'expires_at', 'used_at', 'revoked_at', 'created_at'],
+    file_scans: ['file_name', 'scan_status', 'review_status', 'source', 'created_at'],
+  }[tab] || [];
   return (
-    <>
-      <div className="cc-summary-strip">
-        {summaryCards.map(([label, value]) => <article key={label}><span>{label}</span><strong>{formatNumber(value)}</strong></article>)}
-      </div>
-      <section className="cc-panel">
-        <SectionHeader icon={ServerCog} title="Bảng worker" meta={readableLabel(tab)} />
-        <div className="cc-tabs">
-          {Object.keys(tabs).map((key) => (
-            <button key={key} type="button" className={tab === key ? 'is-active' : ''} onClick={() => setTab(key)}>{readableLabel(key)}</button>
-          ))}
-        </div>
-        <GenericTable rows={tabs[tab] || []} columns={TABLE_COLUMNS[tab] || []} />
-        {tab === 'event_outbox' ? (
-          <div className="cc-panel-actions">
-            <ActionButton icon={RefreshCw} label="Thử lại từ từng dòng" onClick={() => onAction('noop')} />
-          </div>
-        ) : null}
-      </section>
-    </>
+    <div className="cc-page-grid">
+      <section className="cc-stat-grid cc-stat-grid--four cc-panel--full"><MiniMetric title="Failed jobs 24h" value={summary.failed_jobs_24h} toneName="danger" /><MiniMetric title="File scan lỗi" value={summary.failed_file_scans_24h} toneName="warning" /><MiniMetric title="Idempotency lỗi" value={summary.failed_idempotency_24h} toneName="warning" /><MiniMetric title="QR hết hạn" value={summary.expired_qr_tokens_24h} /></section>
+      <section className="cc-panel cc-panel--full"><PanelHead icon={ServerCog} title="Worker data browser" meta={`${rows.length} bản ghi`} /><div className="cc-subtabs">{WORKER_TABS.map((t) => <button key={t} type="button" className={tab === t ? 'is-active' : ''} onClick={() => setTab(t)}>{label(t)} <b>{arr(tabs[t]).length}</b></button>)}</div><DataTable rows={rows} columns={columns} onAction={tab === 'event_outbox' ? onAction : null} actionType="retry_event" /></section>
+    </div>
   );
 }
 
 function RealtimeView({ data, onAction }) {
+  const cards = arr(data.cards);
   return (
-    <>
-      <section className="cc-health-hero">
-        <div>
-          <span>Trạng thái socket</span>
-          <strong>{statusLabel(data.socket_status)}</strong>
-          <small>{formatNumber(data.connected_clients)} client đang kết nối</small>
-        </div>
-        <ActionButton icon={RadioTower} label="Gửi broadcast thử cho tôi" onClick={() => onAction('test_realtime')} variant="primary" />
-      </section>
-      <div className="cc-kpi-grid cc-kpi-grid--compact">
-        {(data.cards || []).map((item) => <MiniKpi key={item.key} item={{ ...item, helper: statusLabel(item.status) }} />)}
-      </div>
-      <section className="cc-grid cc-grid--two">
-        <div className="cc-panel">
-          <SectionHeader icon={Network} title="Theo dõi room" meta={`${data.rooms?.length || 0} room`} />
-          <GenericTable rows={data.rooms || []} columns={['room', 'type', 'connected_sockets', 'last_activity_at', 'allowed_actor_types']} />
-        </div>
-        <div className="cc-panel">
-          <SectionHeader icon={UserRound} title="Hiện diện" meta={`${data.presence?.length || 0} actor`} />
-          <GenericTable rows={data.presence || []} columns={['actor_type', 'actor_id', 'socket_count', 'last_seen_at', 'rooms']} />
-        </div>
-      </section>
-      <section className="cc-panel">
-        <SectionHeader icon={Activity} title="Theo dõi sự kiện" meta={`${data.events_recent?.length || 0} sự kiện`} />
-        <GenericTable rows={data.events_recent || []} columns={['event_type', 'aggregate_type', 'status', 'occurred_at', 'created_at']} />
-      </section>
-    </>
+    <div className="cc-page-grid">
+      <section className="cc-stat-grid cc-stat-grid--six cc-panel--full">{cards.map((c) => <StatCard key={c.key} item={c} />)}</section>
+      <section className="cc-panel cc-panel--span-5"><PanelHead icon={Wifi} title="Socket status" meta={label(data.socket_status)} action={<button type="button" onClick={() => onAction('test_realtime', data)}><PlayCircle size={15} />Test self</button>} /><div className="cc-realtime-core"><strong>{number(data.connected_clients)}</strong><span>connected clients</span><p>Online staff: {number(data.online_staff)} · Online patients: {number(data.online_patients)} · Active rooms: {number(data.active_rooms)}</p></div>{data.last_event_emitted ? <ActivityRow item={data.last_event_emitted} /> : <Empty title="Chưa có realtime event" />}</section>
+      <section className="cc-panel cc-panel--span-7"><PanelHead icon={Network} title="Active rooms" meta={`${arr(data.rooms).length} rooms`} /><DataTable rows={arr(data.rooms)} columns={['room', 'type', 'connected_sockets', 'last_activity_at', 'allowed_actor_types']} /></section>
+      <section className="cc-panel cc-panel--full"><PanelHead icon={UserRound} title="Presence" meta={`${arr(data.presence).length} actor online`} /><DataTable rows={arr(data.presence)} columns={['actor_type', 'actor_id', 'socket_count', 'last_seen_at', 'rooms']} /></section>
+    </div>
   );
 }
 
 function WorkspaceMapView({ data }) {
+  const summary = obj(data.summary);
+  const workspaces = arr(data.workspaces);
+  const dependencies = arr(data.dependencies);
+  const matrix = arr(data.access_matrix);
   return (
-    <>
-      <div className="cc-summary-strip">
-        {Object.entries(data.summary || {}).map(([key, value]) => <article key={key}><span>{readableLabel(key)}</span><strong>{formatNumber(value)}</strong></article>)}
-      </div>
-      <section className="cc-panel">
-        <SectionHeader icon={Map} title="Lưới workspace" meta={`${data.workspaces?.length || 0} workspace`} />
-        <div className="cc-workspace-grid cc-workspace-grid--large">
-          {(data.workspaces || []).map((workspace) => <WorkspaceTile key={workspace.code} workspace={workspace} />)}
-        </div>
-      </section>
-      <section className="cc-grid cc-grid--two">
-        <div className="cc-panel">
-          <SectionHeader icon={Network} title="Bản đồ phụ thuộc workspace" meta={`${data.dependencies?.length || 0} phụ thuộc`} />
-          <div className="cc-dependency-map">
-            {(data.dependencies || []).map((edge) => (
-              <div key={`${edge.from}-${edge.to}`}>
-                <strong>{edge.from}</strong>
-                <span>{edge.label}</span>
-                <strong>{edge.to}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="cc-panel">
-          <SectionHeader icon={TableProperties} title="Xem trước ma trận truy cập" meta={`${data.access_matrix?.length || 0} dòng`} />
-          <div className="cc-access-matrix">
-            {(data.access_matrix || []).slice(0, 8).map((row) => (
-              <article key={row.workspace_code}>
-                <strong>{row.workspace_name}</strong>
-                <div>
-                  {(row.roles || []).slice(0, 8).map((role) => (
-                    <span key={`${row.workspace_code}-${role.role_code}`} className={role.access === 'allowed' ? 'is-allowed' : ''}>{role.role_code}</span>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-    </>
+    <div className="cc-page-grid">
+      <section className="cc-stat-grid cc-stat-grid--five cc-panel--full"><MiniMetric title="Workspace" value={summary.total_workspaces} /><MiniMetric title="Tôi truy cập" value={summary.available_to_me} /><MiniMetric title="Có cảnh báo" value={summary.with_alerts} toneName="warning" /><MiniMetric title="Degraded" value={summary.degraded} toneName="warning" /><MiniMetric title="Critical" value={summary.critical} toneName="danger" /></section>
+      <section className="cc-panel cc-panel--span-8"><PanelHead icon={Map} title="Workspace topology" meta="Xâu chuỗi nghiệp vụ" /><div className="cc-workspace-grid">{workspaces.map((w) => <WorkspaceTile key={w.code} item={w} />)}</div></section>
+      <section className="cc-panel cc-panel--span-4"><PanelHead icon={Network} title="Luồng phụ thuộc" meta={`${dependencies.length} link`} /><div className="cc-dependency-list">{dependencies.map((d) => <article key={`${d.from}-${d.to}`}><strong>{label(d.from)}</strong><ArrowRight size={15} /><strong>{label(d.to)}</strong><span>{d.label}</span></article>)}</div></section>
+      <section className="cc-panel cc-panel--full"><PanelHead icon={KeyRound} title="Access matrix preview" meta={`${matrix.length} workspace`} /><div className="cc-matrix">{matrix.slice(0, 8).map((m) => <article key={m.workspace_code}><h3>{m.workspace_name}</h3><div>{arr(m.roles).slice(0, 8).map((r) => <span key={r.role_code} className={r.access === 'allowed' ? 'is-allowed' : ''}>{r.role_code}</span>)}</div></article>)}</div></section>
+    </div>
   );
 }
 
-function FilterBar({ filters, setFilters, modules = [], onApply, onReset, loading = false }) {
-  return (
-    <section className="cc-filterbar">
-      <label>
-        <Search size={16} strokeWidth={2.25} aria-hidden="true" />
-        <input
-          value={filters.search || ''}
-          onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') onApply?.();
-          }}
-          placeholder="Tìm kiếm"
-        />
-      </label>
-      <select value={filters.severity || ''} onChange={(event) => setFilters((current) => ({ ...current, severity: event.target.value }))}>
-        <option value="">Mức độ</option>
-        <option value="critical">Nghiêm trọng</option>
-        <option value="high">Cao</option>
-        <option value="medium">Trung bình</option>
-        <option value="low">Thấp</option>
-      </select>
-      {modules.length ? (
-        <select value={filters.module || ''} onChange={(event) => setFilters((current) => ({ ...current, module: event.target.value }))}>
-          <option value="">Module</option>
-          {modules.map((module) => <option key={module} value={module}>{readableLabel(module)}</option>)}
-        </select>
-      ) : null}
-      <select value={filters.status || ''} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
-        <option value="">Trạng thái</option>
-        <option value="new">Mới</option>
-        <option value="open">Đang mở</option>
-        <option value="acknowledged">Đã ghi nhận</option>
-        <option value="in_progress">Đang xử lý</option>
-        <option value="resolved">Đã xử lý</option>
-      </select>
-      <button type="button" onClick={onApply} disabled={loading}>
-        <Search size={16} strokeWidth={2.25} aria-hidden="true" />
-        <span>Áp dụng</span>
-      </button>
-      <button type="button" onClick={onReset} disabled={loading}>
-        <Filter size={16} strokeWidth={2.25} aria-hidden="true" />
-        <span>Xóa lọc</span>
-      </button>
-    </section>
-  );
+function PanelHead({ icon: Icon = Command, title, meta, action }) { return <div className="cc-panel-head"><div><Icon size={19} /><h2>{title}</h2></div><span>{meta}</span>{action ? <div className="cc-panel-head__action">{action}</div> : null}</div>; }
+function MiniMetric({ title, value, toneName = 'neutral' }) { return <article className={`cc-mini-metric cc-mini-metric--${toneName}`}><span>{title}</span><strong>{number(value)}</strong></article>; }
+function ServiceCard({ item }) { return <article className={`cc-service-card cc-service-card--${tone(item.status)}`}><div><IconShell icon={item.key === 'database' ? Database : item.key === 'security' ? ShieldAlert : item.key === 'worker' ? ServerCog : Activity} toneName={tone(item.status)} /><Badge value={item.status} /></div><h3>{label(item.name || item.key)}</h3><p>Owner: {label(item.owner_module || 'system')}</p><small>Failed: {number(item.failed || item.failed_login_24h || 0)} · {shortDate(item.last_checked_at)}</small></article>; }
+function WorkspaceMini({ item }) { const Icon = WORKSPACE_ICONS[item.code] || Building2; return <Link to={item.route || '#'} className={`cc-workspace-mini__item cc-workspace-mini__item--${tone(item.status)}`}><Icon size={16} /><span>{item.name}</span><b>{number(item.pending_tasks)}</b><Badge value={item.status} /></Link>; }
+function SessionCard({ item, onRevoke }) { return <article className={`cc-session-card cc-session-card--${item.risk_score >= 20 ? 'danger' : 'success'}`}><div className="cc-session-card__avatar">{initials(item.full_name)}</div><div className="cc-session-card__body"><h3>{item.full_name}</h3><p>{item.email || item.username}</p><div><Badge value={item.status} /><span>{item.department_name}</span><span>{item.device_name}</span><span>{item.ip || 'no ip'}</span></div><small>Login {shortDate(item.login_at)} · Last seen {shortDate(item.last_seen_at)} · Risk {number(item.risk_score)}</small></div><button type="button" onClick={onRevoke}><LogOutIcon /> Thu hồi</button></article>; }
+function LogOutIcon() { return <XCircle size={15} />; }
+function WorkspaceTile({ item }) { const Icon = WORKSPACE_ICONS[item.code] || Building2; return <article className={`cc-workspace-tile cc-workspace-tile--${tone(item.status)}`}><div><IconShell icon={Icon} toneName={tone(item.status)} /><Badge value={item.status} /></div><h3>{item.name}</h3><p>{item.description || item.route}</p><div className="cc-workspace-tile__metrics"><span><b>{number(item.pending_tasks)}</b> việc</span><span><b>{number(item.alerts)}</b> cảnh báo</span><span><b>{number(item.online_users)}</b> online</span></div><small>{item.allowed ? 'Được phép truy cập' : 'Giới hạn quyền'} · {shortDate(item.last_activity)}</small>{item.route ? <Link to={item.route}>Mở workspace <ExternalLink size={14} /></Link> : null}</article>; }
+
+function getActionCopy(action, item = {}, view = '') {
+  const target = item.title || item.full_name || item.event_type || item.job_name || item.id || item.session_id || item.source_id || 'Bản ghi đã chọn';
+  const map = {
+    retry_event: ['Thử lại event outbox?', 'Sự kiện sẽ được đưa về trạng thái pending để worker xử lý lại. Chỉ thao tác khi đã kiểm tra nguyên nhân lỗi.', 'Thử lại event', 'warning', false],
+    retry_notification: ['Thử gửi lại notification?', 'Notification/delivery sẽ được đưa vào hàng đợi gửi lại.', 'Thử gửi lại', 'warning', false],
+    revoke_session: ['Thu hồi phiên đăng nhập?', 'Người dùng sẽ bị đăng xuất khỏi phiên này. Thao tác được ghi audit và phát realtime event.', 'Thu hồi phiên', 'danger', true],
+    ack_work_item: ['Ghi nhận việc cần xử lý?', 'Command Center sẽ ghi audit rằng quản trị viên đã tiếp nhận việc này.', 'Ghi nhận', 'success', false],
+    resolve_alert: ['Đánh dấu cảnh báo đã xử lý?', 'Cảnh báo ảo sẽ được ghi audit trạng thái resolved. Dữ liệu nguồn vẫn giữ nguyên để truy vết.', 'Xác nhận xử lý', 'success', false],
+    test_realtime: ['Gửi realtime test?', 'Backend sẽ phát event command_center.test_self đến phiên hiện tại.', 'Gửi test', 'warning', false],
+  };
+  const copy = map[action];
+  if (!copy) return null;
+  return { action, item, title: copy[0], description: copy[1], confirmLabel: copy[2], tone: copy[3], reasonRequired: copy[4], details: [{ label: 'Màn hình', value: VIEW_CONFIG[view]?.title || 'Command Center' }, { label: 'Đối tượng', value: target }, { label: 'ID', value: item.session_id || item.source_id || item.id || item._id || '-' }] };
 }
 
 export function CommandCenterPage({ view = 'dashboard' }) {
@@ -969,115 +410,74 @@ export function CommandCenterPage({ view = 'dashboard' }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [confirmAction, setConfirmAction] = useState(null);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
-    Object.entries(appliedFilters).forEach(([key, value]) => {
-      if (value) params.set(key, value);
-    });
-    const serialized = params.toString();
-    return serialized ? `?${serialized}` : '';
+    Object.entries(appliedFilters).forEach(([key, value]) => { if (value) params.set(key, value); });
+    const s = params.toString();
+    return s ? `?${s}` : '';
   }, [appliedFilters]);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
-      const [bootstrapPayload, detailPayload] = await Promise.all([
-        commandCenterGet('/bootstrap'),
-        commandCenterGet(`${config.endpoint}${queryString}`),
-      ]);
-      setBootstrap(bootstrapPayload);
-      setDetail(detailPayload);
-    } catch (loadError) {
-      setError(loadError.message);
-    } finally {
-      setLoading(false);
-    }
+      const [boot, det] = await Promise.all([commandCenterGet('/bootstrap'), commandCenterGet(`${config.endpoint}${queryString}`)]);
+      setBootstrap(boot); setDetail(det);
+    } catch (e) { setError(e.message || 'Không thể tải Command Center.'); }
+    finally { setLoading(false); }
   }, [config.endpoint, queryString]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  function applyFilters() {
-    setAppliedFilters(filters);
-  }
-
-  function resetFilters() {
-    setFilters({});
-    setAppliedFilters({});
-  }
-
-  async function handleExportSnapshot() {
-    setActionLoading(true);
-    try {
-      const snapshot = await commandCenterPost('/export-snapshot');
-      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `command-center-snapshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (actionError) {
-      setError(actionError.message);
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  function handleAction(action, item = {}) {
-    if (action === 'noop' || action === 'inspect') return;
-    const copy = getCommandActionCopy(action, item, view);
-    if (copy) {
-      setConfirmAction({ action, item, ...copy });
-      return;
-    }
-    executeAction(action, item).catch((actionError) => setError(actionError.message));
-  }
-
-  async function executeAction(action, item = {}, reason = '') {
-    setActionLoading(true);
-    setError('');
-    try {
-      if (action === 'retry_event' && item.source_id) {
-        await commandCenterPost(`/events/${item.source_id}/retry`);
-      } else if (action === 'retry_notification' && item.source_id) {
-        await commandCenterPost(`/notifications/${item.source_id}/retry`);
-      } else if (action === 'revoke_session') {
-        await commandCenterPost(`/sessions/${item.session_id || item.source_id}/revoke`, { reason: reason || 'Thu hồi từ giao diện trung tâm điều phối' });
-      } else if (action === 'ack_work_item') {
-        await commandCenterPost(`/work-items/${encodeURIComponent(item.id)}/acknowledge`);
-      } else if (action === 'resolve_alert') {
-        const segment = view === 'securityAlerts' ? 'security-alerts' : 'system-alerts';
-        await commandCenterPost(`/${segment}/${encodeURIComponent(item.id)}/resolve`);
-      } else if (action === 'test_realtime') {
-        await commandCenterPost('/realtime/test-self');
-      }
-      setConfirmAction(null);
-      await load();
-    } catch (actionError) {
-      setError(actionError.message);
-    } finally {
-      setActionLoading(false);
-    }
-  }
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setFilters({}); setAppliedFilters({}); setNotice(''); }, [view]);
 
   const data = detail || bootstrap || {};
   const headerData = bootstrap || data;
   const Icon = config.icon;
 
+  async function handleExportSnapshot() {
+    setActionLoading(true); setError('');
+    try {
+      const snapshot = await commandCenterPost('/export-snapshot');
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `command-center-snapshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`; a.click(); URL.revokeObjectURL(url);
+      setNotice('Đã xuất snapshot Command Center thành công.');
+    } catch (e) { setError(e.message || 'Không thể xuất snapshot.'); }
+    finally { setActionLoading(false); }
+  }
+
+  function handleAction(action, item = {}) {
+    const copy = getActionCopy(action, item, view);
+    if (copy) return setConfirmAction(copy);
+    executeAction(action, item).catch((e) => setError(e.message));
+  }
+
+  async function executeAction(action, item = {}, reason = '') {
+    setActionLoading(true); setError(''); setNotice('');
+    try {
+      if (action === 'retry_event') await commandCenterPost(`/events/${item.source_id || item._id}/retry`);
+      else if (action === 'retry_notification') await commandCenterPost(`/notifications/${item.source_id || item._id}/retry`);
+      else if (action === 'revoke_session') await commandCenterPost(`/sessions/${item.session_id || item.source_id}/revoke`, { reason: reason || 'Thu hồi từ Command Center' });
+      else if (action === 'ack_work_item') await commandCenterPost(`/work-items/${encodeURIComponent(item.id)}/acknowledge`);
+      else if (action === 'resolve_alert') await commandCenterPost(`/${view === 'securityAlerts' ? 'security-alerts' : 'system-alerts'}/${encodeURIComponent(item.id)}/resolve`);
+      else if (action === 'test_realtime') await commandCenterPost('/realtime/test-self');
+      setConfirmAction(null);
+      setNotice('Thao tác đã xử lý thành công và được ghi audit.');
+      await load();
+    } catch (e) { setError(e.message || 'Thao tác thất bại.'); }
+    finally { setActionLoading(false); }
+  }
+
   function renderView() {
-    if (loading && !bootstrap && !detail) {
-      return <div className="cc-loading"><RefreshCw size={22} strokeWidth={2.25} aria-hidden="true" />Đang tải trung tâm điều phối</div>;
-    }
+    if (loading && !detail && !bootstrap) return <Loading />;
     if (view === 'health') return <HealthView data={data} onRefresh={load} />;
-    if (view === 'tasks') return <TasksView data={data} filters={filters} setFilters={setFilters} onApplyFilters={applyFilters} onResetFilters={resetFilters} filterLoading={loading} onAction={handleAction} />;
-    if (view === 'systemAlerts') return <AlertsView data={data} filters={filters} setFilters={setFilters} onApplyFilters={applyFilters} onResetFilters={resetFilters} filterLoading={loading} onAction={handleAction} mode="system" />;
-    if (view === 'securityAlerts') return <AlertsView data={data} filters={filters} setFilters={setFilters} onApplyFilters={applyFilters} onResetFilters={resetFilters} filterLoading={loading} onAction={handleAction} mode="security" />;
-    if (view === 'recentActivity') return <RecentActivityView data={data} filters={filters} setFilters={setFilters} onApplyFilters={applyFilters} onResetFilters={resetFilters} filterLoading={loading} />;
+    if (view === 'tasks') return <TasksView data={data} filters={filters} setFilters={setFilters} onApplyFilters={() => setAppliedFilters(filters)} onResetFilters={() => { setFilters({}); setAppliedFilters({}); }} filterLoading={loading} onAction={handleAction} />;
+    if (view === 'systemAlerts') return <AlertsView data={data} filters={filters} setFilters={setFilters} onApplyFilters={() => setAppliedFilters(filters)} onResetFilters={() => { setFilters({}); setAppliedFilters({}); }} filterLoading={loading} onAction={handleAction} mode="system" />;
+    if (view === 'securityAlerts') return <AlertsView data={data} filters={filters} setFilters={setFilters} onApplyFilters={() => setAppliedFilters(filters)} onResetFilters={() => { setFilters({}); setAppliedFilters({}); }} filterLoading={loading} onAction={handleAction} mode="security" />;
+    if (view === 'recentActivity') return <RecentActivityView data={data} filters={filters} setFilters={setFilters} onApplyFilters={() => setAppliedFilters(filters)} onResetFilters={() => { setFilters({}); setAppliedFilters({}); }} filterLoading={loading} />;
     if (view === 'sessions') return <SessionsView data={data} onAction={handleAction} />;
     if (view === 'workers') return <WorkersView data={data} onAction={handleAction} />;
     if (view === 'realtime') return <RealtimeView data={data} onAction={handleAction} />;
@@ -1086,57 +486,25 @@ export function CommandCenterPage({ view = 'dashboard' }) {
   }
 
   return (
-    <div className="cc-shell">
-      <header className="cc-header">
-        <div className="cc-header__title">
-          <span><Icon size={22} strokeWidth={2.35} aria-hidden="true" /></span>
-          <div>
-            <small>Trung tâm điều phối</small>
-            <h1>{config.title}</h1>
-          </div>
-          <StatusBadge status={headerData.overall_status || data.overall_status || data.overall_worker_status || data.socket_status || 'healthy'} />
+    <div className="cc-shell cc-shell--pro">
+      <header className="cc-command-header">
+        <div className="cc-command-header__main">
+          <IconShell icon={Icon} toneName={tone(headerData.overall_status || data.overall_status || data.overall_worker_status || data.socket_status || 'healthy')} />
+          <div><span className="cc-eyebrow">System Control Plane</span><h1>{config.title}</h1><p>{config.subtitle}</p></div>
         </div>
-        <div className="cc-header__meta">
-          <span>Kiểm tra lần cuối {formatDateTime(headerData.checked_at || data.checked_at)}</span>
-          {error ? <strong className="cc-error"><XCircle size={16} strokeWidth={2.25} aria-hidden="true" />{error}</strong> : null}
-        </div>
-        <div className="cc-header__actions">
-          <ActionButton icon={RefreshCw} label="Làm mới" onClick={load} disabled={loading || actionLoading} />
-          <Link to="/admin/command-center/health" className="cc-link-button">
-            <Activity size={16} strokeWidth={2.25} aria-hidden="true" />
-            <span>Mở chẩn đoán</span>
-          </Link>
-          <ActionButton icon={Download} label="Xuất snapshot" onClick={handleExportSnapshot} disabled={actionLoading} />
-          {headerData.permissions?.can_enable_maintenance ? (
-            <ActionButton icon={KeyRound} label="Chế độ bảo trì" onClick={() => handleAction('noop')} />
-          ) : null}
+        <div className="cc-command-header__right">
+          <Badge value={headerData.overall_status || data.overall_status || data.overall_worker_status || data.socket_status || 'healthy'} />
+          <span>Checked {shortDate(headerData.checked_at || data.checked_at)}</span>
+          <button type="button" className="cc-btn" onClick={load} disabled={loading || actionLoading}><RefreshCw size={16} className={loading ? 'cc-spin' : ''} />Làm mới</button>
+          <button type="button" className="cc-btn cc-btn--primary" onClick={handleExportSnapshot} disabled={actionLoading}><Download size={16} />Snapshot</button>
         </div>
       </header>
-
-      {view !== 'dashboard' && bootstrap?.summary_cards?.length ? (
-        <div className="cc-mini-strip">
-          {bootstrap.summary_cards.slice(0, 8).map((item) => (
-            <span key={item.key} className={`cc-mini-strip__item cc-mini-strip__item--${item.status}`}>
-              {item.label}
-              <strong>{compactValue(item)}</strong>
-            </span>
-          ))}
-        </div>
-      ) : null}
-
+      <CommandTabs current={view} />
+      {error ? <div className="cc-message cc-message--error"><XCircle size={17} />{error}<button type="button" onClick={() => setError('')}><X size={15} /></button></div> : null}
+      {notice ? <div className="cc-message cc-message--success"><CheckCircle2 size={17} />{notice}<button type="button" onClick={() => setNotice('')}><X size={15} /></button></div> : null}
+      {view !== 'dashboard' && arr(bootstrap?.summary_cards).length ? <section className="cc-mini-strip">{bootstrap.summary_cards.slice(0, 8).map((item) => <Link key={item.key} to={item.route || '#'} className={`cc-mini-strip__item cc-mini-strip__item--${tone(item.status)}`}><span>{label(item.label)}</span><strong>{metricValue(item)}</strong></Link>)}</section> : null}
       {renderView()}
-      <AdminActionConfirmDialog
-        open={Boolean(confirmAction)}
-        title={confirmAction?.title}
-        description={confirmAction?.description}
-        tone={confirmAction?.tone}
-        confirmLabel={confirmAction?.confirmLabel}
-        details={confirmAction?.details}
-        reasonRequired={confirmAction?.reasonRequired}
-        submitting={actionLoading}
-        onCancel={() => setConfirmAction(null)}
-        onConfirm={(reason) => executeAction(confirmAction.action, confirmAction.item, reason)}
-      />
+      <AdminActionConfirmDialog open={Boolean(confirmAction)} title={confirmAction?.title} description={confirmAction?.description} tone={confirmAction?.tone} confirmLabel={confirmAction?.confirmLabel} details={confirmAction?.details || []} reasonRequired={confirmAction?.reasonRequired} submitting={actionLoading} onCancel={() => setConfirmAction(null)} onConfirm={(reason) => executeAction(confirmAction.action, confirmAction.item, reason)} />
     </div>
   );
 }

@@ -15,7 +15,14 @@ router.param('sessionId', validateObjectIdParam);
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));
 
-router.get('/doctors', authorize({ permissions: [PERMISSION.USERS.READ_LIMITED] }), staffController.getDoctorsList);
+router.get('/doctors', authorize({
+  anyPermissions: [
+    PERMISSION.USERS.READ_LIMITED,
+    PERMISSION.APPOINTMENTS.READ,
+    PERMISSION.APPOINTMENTS.CREATE,
+    PERMISSION.SCHEDULES.READ,
+  ],
+}), staffController.getDoctorsList);
 router.get('/assignable-roles', authorize({ permissions: [PERMISSION.USERS.ASSIGN_ROLES] }), staffController.getAssignableStaffRoles);
 router.get('/summary', authorize({ anyPermissions: [PERMISSION.USERS.READ, PERMISSION.USERS.READ_DEPARTMENT] }), staffController.getStaffSummary);
 router.get('/roles/:roleId/users', authorize({ anyPermissions: [PERMISSION.USERS.READ, PERMISSION.ROLES.READ] }), staffController.getUsersByRole);

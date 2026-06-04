@@ -1,4 +1,4 @@
-import { request, unwrapData } from '../utils/api';
+import { getApiErrorStatus, request, unwrapData } from '../utils/api';
 
 function listOf(value) {
   if (Array.isArray(value)) return value;
@@ -30,6 +30,142 @@ function sanitizeClinicalContextBody(body = {}) {
     throw new Error('Chưa có lượt khám, số hàng đợi hoặc lịch hẹn hợp lệ từ hệ thống.');
   }
   return next;
+}
+
+function dateRangeParams(params = {}) {
+  const next = { ...params };
+  if (next.date && !next.date_from && !next.date_to) {
+    next.date_from = `${next.date}T00:00:00.000`;
+    next.date_to = `${next.date}T23:59:59.999`;
+  }
+  delete next.date;
+  delete next.shift;
+  return next;
+}
+
+function vitalSeverityOf(vital = {}) {
+  return vital.overall_severity || vital.severity || 'normal';
+}
+
+function normalizeVitalHistoryPayload(payload = {}, params = {}) {
+  const rawItems = listOf(payload.items);
+  const items = rawItems.map((entry) => {
+    if (entry?.vital_sign || entry?.latest_vital || entry?.latest_vital_sign) return entry;
+    return {
+      vital_sign: entry,
+      vital_sign_id: entry?._id || entry?.id || entry?.vital_sign_id,
+      patient: payload.patient || entry?.patient_id,
+      patient_id: payload.patient?._id || payload.patient?.id || entry?.patient_id,
+      encounter_id: payload.encounter_id || entry?.encounter_id,
+      recorded_by_user: entry?.recorded_by,
+      severity: vitalSeverityOf(entry),
+      status: entry?.status,
+    };
+  });
+  const summary = payload.summary || {};
+  return {
+    meta: {
+      ...(payload.meta || {}),
+      date: params.date,
+      shift: params.shift,
+      generated_at: new Date().toISOString(),
+    },
+    patient: payload.patient || items[0]?.patient || null,
+    summary: {
+      total_records: summary.total_records ?? summary.total ?? items.length,
+      abnormal_records: summary.abnormal_records ?? items.filter((item) => vitalSeverityOf(item.vital_sign || item) !== 'normal').length,
+      critical_records: summary.critical_records ?? items.filter((item) => vitalSeverityOf(item.vital_sign || item) === 'critical').length,
+      amended_records: summary.amended_records ?? items.filter((item) => (item.vital_sign || item).status === 'amended').length,
+      entered_in_error_records: summary.entered_in_error_records ?? items.filter((item) => (item.vital_sign || item).status === 'entered_in_error').length,
+    },
+    items,
+  };
+}
+
+function emptyVitalHistoryPayload(params = {}) {
+  return normalizeVitalHistoryPayload({ items: [] }, params);
+}
+
+let nursingVitalHistoryRouteUnavailable = false;
+let nursingVitalNotesRouteUnavailable = false;
+
+function isRouteUnavailable(error) {
+  return getApiErrorStatus(error) === 404 || /Route not found/i.test(String(error?.message || ''));
+}
+
+async function getLegacyVitalHistory(params = {}) {
+  const fallbackParams = dateRangeParams(params);
+  try {
+    if (params.encounter_id) {
+      const payload = unwrapData(await request(`/clinical/encounters/${encodeURIComponent(requireMongoId(params.encounter_id, 'encounter_id'))}/vital-signs`, { params: fallbackParams }));
+      return normalizeVitalHistoryPayload(payload, params);
+    }
+    if (params.patient_id) {
+      const payload = unwrapData(await request(`/clinical/patients/${encodeURIComponent(requireMongoId(params.patient_id, 'patient_id'))}/vital-signs`, { params: fallbackParams }));
+      return normalizeVitalHistoryPayload(payload, params);
+    }
+    if (params.queue_ticket_id) {
+      const context = unwrapData(await request(`/nursing/intake/queue/${encodeURIComponent(requireMongoId(params.queue_ticket_id, 'queue_ticket_id'))}/context`));
+      const vital = context.latest_vital || context.latest_vital_sign || context.vital_sign;
+      return normalizeVitalHistoryPayload({
+        patient: context.patient,
+        items: vital ? [{ vital_sign: vital, patient: context.patient, queue_ticket_id: params.queue_ticket_id }] : [],
+      }, params);
+    }
+  } catch (error) {
+    if (!isRouteUnavailable(error)) throw error;
+  }
+  return emptyVitalHistoryPayload(params);
+}
+
+function normalizeNursingVitalNotesPayload(payload = {}, params = {}) {
+  const rawItems = listOf(payload.items);
+  const dateKey = params.date || '';
+  const items = rawItems
+    .filter((note) => {
+      if (!note || typeof note !== 'object') return false;
+      const tags = Array.isArray(note.tags) ? note.tags : [];
+      const nursingLike = String(note.note_type || '').toLowerCase().startsWith('nursing')
+        || tags.some((tag) => ['nursing', 'vital_sign', 'abnormal_vital'].includes(String(tag).toLowerCase()))
+        || (Array.isArray(note.linked_vital_sign_ids) && note.linked_vital_sign_ids.length);
+      if (!nursingLike) return false;
+      if (params.status && params.status !== 'all' && note.status !== params.status) return false;
+      if (!dateKey) return true;
+      const createdAt = note.created_at ? new Date(note.created_at) : null;
+      if (!createdAt || Number.isNaN(createdAt.getTime())) return true;
+      return createdAt.toISOString().slice(0, 10) === dateKey;
+    });
+  const summary = payload.summary || {};
+  return {
+    meta: {
+      ...(payload.meta || {}),
+      date: params.date,
+      shift: params.shift,
+      generated_at: new Date().toISOString(),
+    },
+    summary: {
+      total: summary.total ?? items.length,
+      draft: summary.draft ?? items.filter((item) => item.status === 'draft').length,
+      unsigned: summary.unsigned ?? items.filter((item) => ['draft', 'in_progress'].includes(item.status)).length,
+      abnormal: summary.abnormal ?? items.filter((item) => String(item.note_type || '').includes('abnormal')).length,
+      doctor_notified: summary.doctor_notified ?? items.filter((item) => item.notified_doctor_id || item.doctor_notified_at).length,
+      linked_vitals: summary.linked_vitals ?? items.filter((item) => Array.isArray(item.linked_vital_sign_ids) && item.linked_vital_sign_ids.length).length,
+    },
+    items,
+  };
+}
+
+async function getLegacyNursingVitalNotes(params = {}) {
+  const fallbackParams = {};
+  if (params.encounter_id) fallbackParams.encounter_id = requireMongoId(params.encounter_id, 'encounter_id');
+  if (params.status && params.status !== 'all') fallbackParams.status = params.status;
+  try {
+    const payload = unwrapData(await request('/clinical/notes', { params: fallbackParams }));
+    return normalizeNursingVitalNotesPayload(payload, params);
+  } catch (error) {
+    if (isRouteUnavailable(error)) return normalizeNursingVitalNotesPayload({ items: [] }, params);
+    throw error;
+  }
 }
 
 function normalizeQueueBoardPayload(payload = {}) {
@@ -115,6 +251,70 @@ async function getQueueBoardPayload(params = {}) {
   return unwrapData(await request('/nursing/queue/board', { params }));
 }
 
+function normalizeIntakeDashboardPayload(payload = {}) {
+  const fallback = normalizeQueueBoardPayload(payload);
+  return {
+    ...fallback,
+    ...payload,
+    meta: payload.meta || fallback.meta || {},
+    intake: {
+      ...(fallback.intake || {}),
+      ...(payload.intake || {}),
+      summary: {
+        ...(fallback.intake?.summary || {}),
+        ...(payload.intake?.summary || {}),
+      },
+      checked_in_items: listOf(payload.intake?.checked_in_items).length
+        ? listOf(payload.intake.checked_in_items)
+        : fallback.intake.checked_in_items,
+      ready_items: listOf(payload.intake?.ready_items).length
+        ? listOf(payload.intake.ready_items)
+        : fallback.intake.ready_items,
+      triage_items: listOf(payload.intake?.triage_items).length
+        ? listOf(payload.intake.triage_items)
+        : fallback.intake.triage_items,
+      priority_lane: payload.intake?.priority_lane || fallback.intake.priority_lane,
+    },
+    queue: {
+      ...(fallback.queue || {}),
+      ...(payload.queue || {}),
+      table: listOf(payload.queue?.table).length
+        ? listOf(payload.queue.table)
+        : listOf(payload.queue?.items).length
+          ? listOf(payload.queue.items)
+          : fallback.queue.table,
+    },
+    vitals: {
+      ...(fallback.vitals || {}),
+      ...(payload.vitals || {}),
+    },
+    triage: {
+      ...(fallback.triage || {}),
+      ...(payload.triage || {}),
+    },
+    activity_feed: listOf(payload.activity_feed),
+    priority_alerts: listOf(payload.priority_alerts),
+  };
+}
+
+function normalizeIntakeWorklistPayload(payload = {}) {
+  const dashboard = normalizeIntakeDashboardPayload(payload);
+  const items = listOf(payload.items).length ? listOf(payload.items) : dashboard.intake.checked_in_items;
+  const lanes = payload.lanes || {};
+  return {
+    meta: payload.meta || dashboard.meta,
+    summary: payload.summary || dashboard.intake.summary,
+    items,
+    lanes: {
+      waiting_nurse: listOf(lanes.waiting_nurse),
+      in_progress: listOf(lanes.in_progress),
+      vital_pending: listOf(lanes.vital_pending),
+      triage_pending: listOf(lanes.triage_pending),
+      ready_for_doctor: listOf(lanes.ready_for_doctor),
+    },
+  };
+}
+
 export const nurseDashboardApi = {
   getOverview: async (params = {}) =>
     unwrapData(await request('/nursing/dashboard/overview', { params })),
@@ -143,11 +343,13 @@ export const nurseTopbarApi = {
 
 export const nurseOperationsApi = {
   getIntakeDashboard: async (params = {}) =>
-    normalizeQueueBoardPayload(await getQueueBoardPayload(params)),
+    normalizeIntakeDashboardPayload(unwrapData(await request('/nursing/intake/dashboard', { params }))),
   getIntakeWorklist: async (params = {}) =>
-    buildIntakeWorklist(await getQueueBoardPayload(params)),
+    normalizeIntakeWorklistPayload(unwrapData(await request('/nursing/intake/worklist', { params }))),
   getQueueContext: async (ticketId) =>
     unwrapData(await request(`/nursing/intake/queue/${encodeURIComponent(ticketId)}/context`)),
+  addIntakeNote: async (ticketId, body = {}) =>
+    unwrapData(await request(`/nursing/intake/${encodeURIComponent(ticketId)}/note`, { method: 'POST', body })),
   claimIntake: async (ticketId) =>
     unwrapData(await request(`/nursing/intake/${encodeURIComponent(ticketId)}/claim`, { method: 'POST', body: {} })),
   releaseIntake: async (ticketId) =>
@@ -201,11 +403,11 @@ export const nurseOperationsApi = {
   transferQueue: async (ticketId, body = {}) =>
     unwrapData(await request(`/queue/${encodeURIComponent(ticketId)}/transfer`, { method: 'POST', body })),
   getTriageWorklist: async (params = {}) => {
-    const payload = unwrapData(await request('/nursing/triage/pending', { params }));
+    const payload = unwrapData(await request('/nursing/triage/worklist', { params }));
     return {
       meta: payload.meta || {},
       summary: payload.summary || payload,
-      items: payload.items || payload.pending_items || [],
+      items: payload.items || payload.pending_items || payload.triage?.pending_items || [],
     };
   },
   createTriage: async (body = {}) =>
@@ -216,25 +418,12 @@ export const nurseOperationsApi = {
     unwrapData(await request(`/nursing/triage/${encodeURIComponent(triageId)}/start`, { method: 'POST', body: {} })),
   completeTriage: async (triageId, body = {}) =>
     unwrapData(await request(`/nursing/triage/${encodeURIComponent(triageId)}/complete`, { method: 'POST', body })),
-  getReadyForDoctor: async (params = {}) => {
-    const dashboard = normalizeQueueBoardPayload(await getQueueBoardPayload(params));
-    const items = dashboard.intake.ready_items.length
-      ? dashboard.intake.ready_items
-      : dashboard.intake.checked_in_items.filter((item) => ['called', 'waiting', 'recalled'].includes(item?.status));
-    return {
-      meta: dashboard.meta,
-      summary: {
-        total: items.length,
-        priority: items.filter((item) => ['priority', 'vip'].includes(item?.queue_type)).length,
-        called: items.filter((item) => item?.status === 'called').length,
-        in_service: items.filter((item) => item?.status === 'in_service').length,
-        waiting_after_ready: items.filter((item) => (item?.waiting_minutes || 0) >= 10).length,
-      },
-      items,
-    };
-  },
+  getReadyForDoctor: async (params = {}) =>
+    unwrapData(await request('/nursing/ready-for-doctor', { params })),
   markReadyForDoctor: async (ticketId) =>
     unwrapData(await request(`/nursing/queue/${encodeURIComponent(ticketId)}/mark-ready-for-doctor`, { method: 'POST', body: {} })),
+  markEncounterReadyForDoctor: async (encounterId) =>
+    unwrapData(await request(`/nursing/encounters/${encodeURIComponent(requireMongoId(encounterId, 'encounter_id'))}/mark-ready-for-doctor`, { method: 'POST', body: {} })),
   unmarkReadyForDoctor: async (ticketId) =>
     unwrapData(await request(`/nursing/queue/${encodeURIComponent(ticketId)}/unmark-ready-for-doctor`, { method: 'POST', body: {} })),
   notifyDoctor: async (ticketId, body = {}) =>
@@ -248,10 +437,38 @@ export const nurseVitalsApi = {
     unwrapData(await request('/nursing/vitals/pending', { params })),
   getAbnormalVitals: async (params = {}) =>
     unwrapData(await request('/nursing/vitals/abnormal', { params })),
+  getVitalHistory: async (params = {}) => {
+    if (!nursingVitalHistoryRouteUnavailable) {
+      try {
+        return unwrapData(await request('/nursing/vitals/history', { params }));
+      } catch (error) {
+        if (!isRouteUnavailable(error)) throw error;
+        nursingVitalHistoryRouteUnavailable = true;
+      }
+    }
+    return getLegacyVitalHistory(params);
+  },
+  getNursingVitalNotes: async (params = {}) => {
+    if (!nursingVitalNotesRouteUnavailable) {
+      try {
+        return unwrapData(await request('/nursing/vitals/nursing-notes', { params }));
+      } catch (error) {
+        if (!isRouteUnavailable(error)) throw error;
+        nursingVitalNotesRouteUnavailable = true;
+      }
+    }
+    return getLegacyNursingVitalNotes(params);
+  },
   acknowledgeVital: async (vitalSignId) =>
     unwrapData(await request(`/nursing/vitals/${encodeURIComponent(requireMongoId(vitalSignId, 'vital_sign_id'))}/acknowledge`, { method: 'POST', body: {} })),
   notifyDoctorOfVital: async (vitalSignId) =>
     unwrapData(await request(`/nursing/vitals/${encodeURIComponent(requireMongoId(vitalSignId, 'vital_sign_id'))}/notify-doctor`, { method: 'POST', body: {} })),
+  requestVitalRecheck: async (vitalSignId, body = {}) =>
+    unwrapData(await request(`/nursing/vitals/${encodeURIComponent(requireMongoId(vitalSignId, 'vital_sign_id'))}/request-recheck`, { method: 'POST', body })),
+  createVitalNursingNote: async (vitalSignId, body = {}) =>
+    unwrapData(await request(`/nursing/vitals/${encodeURIComponent(requireMongoId(vitalSignId, 'vital_sign_id'))}/nursing-note`, { method: 'POST', body })),
+  escalateVital: async (vitalSignId, body = {}) =>
+    unwrapData(await request(`/nursing/vitals/${encodeURIComponent(requireMongoId(vitalSignId, 'vital_sign_id'))}/escalate`, { method: 'POST', body })),
   previewVitalSigns: async (body = {}) =>
     unwrapData(await request('/clinical/vital-signs/preview', { method: 'POST', body: sanitizeClinicalContextBody(body) })),
   recordVitalSigns: async (body = {}) =>
@@ -281,9 +498,9 @@ export const nurseVitalsApi = {
   getNursingNotes: async (encounterId, params = {}) =>
     unwrapData(await request(`/clinical/encounters/${encodeURIComponent(requireMongoId(encounterId, 'encounter_id'))}/notes`, { params })),
   updateNursingNote: async (noteId, body = {}) =>
-    unwrapData(await request(`/clinical/notes/${encodeURIComponent(noteId)}`, { method: 'PATCH', body })),
+    unwrapData(await request(`/clinical/notes/${encodeURIComponent(requireMongoId(noteId, 'clinical_note_id'))}`, { method: 'PATCH', body })),
   signNursingNote: async (noteId) =>
-    unwrapData(await request(`/clinical/notes/${encodeURIComponent(noteId)}/sign`, { method: 'POST', body: {} })),
+    unwrapData(await request(`/clinical/notes/${encodeURIComponent(requireMongoId(noteId, 'clinical_note_id'))}/sign`, { method: 'POST', body: {} })),
   getCorrections: async (params = {}) =>
     unwrapData(await request('/nursing/vital-corrections', { params })),
   approveCorrection: async (requestId, body = {}) =>

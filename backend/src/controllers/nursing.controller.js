@@ -464,6 +464,11 @@ module.exports = {
     (req) => nursingDashboardService.completeQueueIntake(req.params.ticketId, req.body, req.auth, requestMeta(req)),
     'Hoàn tất tiếp nhận bệnh nhân thành công.',
   ),
+  addQueueIntakeNote: wrap(
+    (req) => nursingDashboardService.addQueueIntakeNote(req.params.ticketId, req.body, req.auth, requestMeta(req)),
+    'Thêm ghi chú tiếp nhận điều dưỡng thành công.',
+    201,
+  ),
   assignWorkItemToMe: wrap(
     (req) => nursingDashboardService.assignWorkItemToMe(req.params.workItemId, req.auth, requestMeta(req)),
     'Nhận xử lý work item thành công.',
@@ -479,6 +484,14 @@ module.exports = {
   getAbnormalVitals: wrap(
     (req) => nursingDashboardService.getAbnormalVitals(req.query, req.auth),
     'Lấy danh sách sinh hiệu bất thường thành công.',
+  ),
+  getVitalHistory: wrap(
+    (req) => nursingDashboardService.getVitalHistory(req.query, req.auth),
+    'Lấy lịch sử sinh hiệu điều dưỡng thành công.',
+  ),
+  getNursingVitalNotes: wrap(
+    (req) => nursingDashboardService.getNursingVitalNotes(req.query, req.auth),
+    'Lấy ghi chú điều dưỡng liên quan sinh hiệu thành công.',
   ),
   getPendingTriage: wrap(
     (req) => nursingDashboardService.getPendingTriage(req.query, req.auth),
@@ -553,6 +566,20 @@ module.exports = {
   notifyDoctorOfVital: wrap(
     (req) => nursingDashboardService.notifyDoctorOfVital(req.params.vitalSignId, req.auth, requestMeta(req)),
     'Báo bác sĩ về sinh hiệu bất thường thành công.',
+  ),
+  requestVitalRecheck: wrap(
+    (req) => nursingDashboardService.requestVitalRecheck(req.params.vitalSignId, req.body, req.auth, requestMeta(req)),
+    'Tạo việc đo lại sinh hiệu thành công.',
+    201,
+  ),
+  createVitalNursingNote: wrap(
+    (req) => nursingDashboardService.createVitalNursingNote(req.params.vitalSignId, req.body, req.auth, requestMeta(req)),
+    'Tạo ghi chú điều dưỡng từ sinh hiệu thành công.',
+    201,
+  ),
+  escalateVitalAlert: wrap(
+    (req) => nursingDashboardService.escalateVitalAlert(req.params.vitalSignId, req.body, req.auth, requestMeta(req)),
+    'Báo khẩn sinh hiệu bất thường thành công.',
   ),
   listVitalCorrections: wrap(
     (req) => vitalCorrectionService.listCorrections(req.query, req.auth),

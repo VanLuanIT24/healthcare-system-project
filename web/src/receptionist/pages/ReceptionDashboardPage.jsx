@@ -40,7 +40,7 @@ import { ReceptionPatientsPanel } from './ReceptionPatientsPanel';
 import { ReceptionPaymentsPanel } from './ReceptionPaymentsPanel';
 import { ReceptionReportsPanel } from './ReceptionReportsPanel';
 import { ReceptionSettingsPanel } from './ReceptionSettingsPanel';
-import { SupportCommunicationPage } from '../../admin/support-communication/SupportCommunicationPage';
+import { ReceptionSupportPanel } from './ReceptionSupportPanel';
 import {
   PatientQuickDrawer,
   ReceptionGlobalSearch,
@@ -222,47 +222,50 @@ const APPOINTMENT_MENU_MODES = {
   'appointments-confirm': 'confirm',
   'appointments-reschedule': 'reschedule',
   'appointments-cancelled': 'cancelled',
-  'appointments-waitlist': 'upcoming',
-  'appointments-slot-check': 'upcoming',
-  'appointments-conflict-check': 'reschedule',
+  'appointments-waitlist': 'waitlist',
+  'appointments-slot-check': 'slot-check',
+  'appointments-conflict-check': 'conflict-check',
 };
 
 const WORKFLOW_MENU_MODE_ALIASES = {
   'overview-waiting-patients': 'queue-waiting',
   'overview-queue-counter': 'queue-board',
   'checkin-appointment': 'checkin-waiting',
-  'checkin-qr': 'checkin-quick',
-  'checkin-walkin': 'checkin-quick',
-  'checkin-errors': 'checkin-waiting',
-  'checkin-history': 'checkin-done',
+  'checkin-qr': 'checkin-qr',
+  'checkin-walkin': 'checkin-walkin',
+  'checkin-errors': 'checkin-errors',
+  'checkin-history': 'checkin-history',
   'queue-current': 'queue-board',
   'queue-recall': 'queue-called',
   'queue-missed': 'queue-skipped',
-  'queue-priority': 'queue-waiting',
+  'queue-priority': 'queue-priority',
   'queue-cancel': 'queue-cancelled',
-  'queue-public-board': 'queue-board',
-  'transfer-nursing': 'queue-transfer',
-  'transfer-doctor': 'queue-transfer',
-  'transfer-cashier': 'queue-transfer',
-  'transfer-clinical-service': 'queue-transfer',
-  'transfer-pharmacy': 'queue-transfer',
-  'transfer-history': 'queue-transfer',
+  'queue-public-board': 'queue-public-board',
+  'transfer-nursing': 'transfer-nursing',
+  'transfer-doctor': 'transfer-doctor',
+  'transfer-cashier': 'transfer-cashier',
+  'transfer-clinical-service': 'transfer-clinical-service',
+  'transfer-pharmacy': 'transfer-pharmacy',
+  'transfer-history': 'transfer-history',
 };
 
 const PAYMENT_MENU_MODE_ALIASES = {
-  'payments-status': 'payments-complete',
-  'payments-qr-guide': 'payments-collect',
-  'payments-confirmation': 'payments-pending',
-  'payments-transfer-cashier': 'payments-collect',
+  'payments-status': 'payments-status',
+  'payments-qr-guide': 'payments-qr-guide',
+  'payments-confirmation': 'payments-confirmation',
+  'payments-transfer-cashier': 'payments-transfer-cashier',
 };
 
-const NOTIFICATION_MENU_MODE_ALIASES = {
-  'support-tickets': 'notifications-system',
-  'support-send-notification': 'notifications-all',
-  'support-portal-guide': 'notifications-system',
-  'support-booking-guide': 'notifications-appointments',
-  'support-complaints': 'notifications-unread',
-};
+const SUPPORT_MENU_MODES = new Set([
+  'support-tickets',
+  'support-patient-messages',
+  'support-send-notification',
+  'support-portal-guide',
+  'support-booking-guide',
+  'support-complaints',
+]);
+
+const NOTIFICATION_MENU_MODE_ALIASES = {};
 
 const REPORT_MENU_MODE_ALIASES = {
   'reports-reception-volume': 'reports-daily',
@@ -1011,6 +1014,7 @@ export function ReceptionDashboardPage() {
   const [activeMenu, setActiveMenu] = useState(menuFromQuery || 'overview-dashboard');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quickPatient, setQuickPatient] = useState(null);
+  const [sidebarQuery, setSidebarQuery] = useState('');
   const [authContext, setAuthContext] = useState({
     loading: true,
     error: '',
@@ -1427,28 +1431,45 @@ export function ReceptionDashboardPage() {
   )
     ? PAYMENT_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const supportConversationMode = activeMenu === 'support-patient-messages';
-  const notificationMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !supportConversationMode && (
+  const supportMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && SUPPORT_MENU_MODES.has(activeMenu)
+    ? activeMenu
+    : null;
+  const notificationMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !supportMode && (
     NOTIFICATION_MENU_MODE_ALIASES[activeMenu]
     || (activeMenu.startsWith('notifications-') ? activeMenu : '')
   )
     ? NOTIFICATION_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const reportMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !notificationMode && (
+  const reportMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !supportMode && !notificationMode && (
     REPORT_MENU_MODE_ALIASES[activeMenu]
     || (activeMenu.startsWith('reports-') ? activeMenu : '')
   )
     ? REPORT_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const settingMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !notificationMode && !reportMode && (
+  const settingMode = !appointmentMode && !workflowMode && !patientMode && !doctorMode && !paymentMode && !supportMode && !notificationMode && !reportMode && (
     SETTING_MENU_MODE_ALIASES[activeMenu]
     || (activeMenu.startsWith('settings-') ? activeMenu : '')
   )
     ? SETTING_MENU_MODE_ALIASES[activeMenu] || activeMenu
     : null;
-  const hasSpecializedPanel = Boolean(appointmentMode || workflowMode || patientMode || doctorMode || paymentMode || supportConversationMode || notificationMode || reportMode || settingMode);
+  const hasSpecializedPanel = Boolean(appointmentMode || workflowMode || patientMode || doctorMode || paymentMode || supportMode || notificationMode || reportMode || settingMode);
   const workspacePageMode = !hasSpecializedPanel && RECEPTION_WORKSPACE_PAGE_KEYS.has(activeMenu) ? activeMenu : null;
   const isSidebarCollapsed = collapsedSidebar && !mobileSidebarOpen;
+  const currentSection = SIDEBAR_SECTIONS.find((section) => section.children?.some((child) => child.key === activeMenu));
+  const currentChild = currentSection?.children?.find((child) => child.key === activeMenu);
+  const visibleSidebarSections = useMemo(() => {
+    const keyword = sidebarQuery.trim().toLowerCase();
+    if (!keyword) return SIDEBAR_SECTIONS;
+    return SIDEBAR_SECTIONS
+      .map((section) => {
+        const sectionMatch = section.label.toLowerCase().includes(keyword);
+        const children = safeArray(section.children).filter((child) => (
+          sectionMatch || child.label.toLowerCase().includes(keyword) || child.key.toLowerCase().includes(keyword)
+        ));
+        return children.length ? { ...section, children } : null;
+      })
+      .filter(Boolean);
+  }, [sidebarQuery]);
 
   function handleToggleMenu(key) {
     setOpenMenus((current) => ({
@@ -1514,8 +1535,42 @@ export function ReceptionDashboardPage() {
           </button>
         </div>
 
+        {!isSidebarCollapsed ? (
+          <label className="reception-sidebar__search">
+            <Search size={16} />
+            <input
+              type="search"
+              value={sidebarQuery}
+              onChange={(event) => setSidebarQuery(event.target.value)}
+              placeholder="Tìm menu, queue, check-in..."
+            />
+            {sidebarQuery ? (
+              <button type="button" aria-label="Xóa tìm kiếm menu" onClick={() => setSidebarQuery('')}>
+                <X size={14} />
+              </button>
+            ) : null}
+          </label>
+        ) : null}
+
+        {!isSidebarCollapsed ? (
+          <div className="reception-sidebar__ops-strip" aria-label="Tình trạng vận hành nhanh">
+            <button type="button" onClick={() => handleActivateMenu('overview-waiting-patients')}>
+              <span>{formatInteger(data?.scopedDashboard?.kpis?.queue_waiting || 0)}</span>
+              <small>Đang chờ</small>
+            </button>
+            <button type="button" onClick={() => handleActivateMenu('patients-missing-documents')}>
+              <span>{formatInteger(data?.scopedDashboard?.kpis?.missing_profile || 0)}</span>
+              <small>Thiếu HS</small>
+            </button>
+            <button type="button" onClick={() => handleActivateMenu('payments-confirmation')}>
+              <span>{formatInteger(data?.scopedDashboard?.kpis?.payment_reviews || 0)}</span>
+              <small>Payment</small>
+            </button>
+          </div>
+        ) : null}
+
         <nav className="reception-sidebar__nav">
-          {SIDEBAR_SECTIONS.map((item) => {
+          {visibleSidebarSections.map((item) => {
             const resolvedItem = item.key === 'patient-support'
               ? { ...item, badge: unreadCount === '0' ? '' : unreadCount }
               : item;
@@ -1571,7 +1626,8 @@ export function ReceptionDashboardPage() {
           </button>
 
           <div className="reception-header__heading">
-            <h1>Lễ tân & Tiếp đón</h1>
+            <span className="reception-header__eyebrow">{currentSection?.label || 'Không gian tiếp nhận'}</span>
+            <h1>{currentChild?.label || 'Lễ tân & Tiếp đón'}</h1>
             <p>{departmentName} · {formatInteger(permissionCount)} quyền khả dụng</p>
           </div>
 
@@ -1581,6 +1637,10 @@ export function ReceptionDashboardPage() {
           />
 
           <div className="reception-header__filters">
+            <button type="button" className="reception-toolbar-pill" onClick={() => loadDashboard()} title="Làm mới dữ liệu dashboard">
+              <RefreshCw size={16} className={dashboardState.loading ? 'is-spinning' : ''} />
+              <span>Realtime</span>
+            </button>
             <button type="button" className="reception-toolbar-pill">
               <CalendarDays size={16} />
               <span>{todayLabel}</span>
@@ -1589,10 +1649,14 @@ export function ReceptionDashboardPage() {
               <MapPin size={16} />
               <span>{actorDepartmentId ? 'Theo khoa phụ trách' : 'Toàn hệ thống'}</span>
             </button>
+            <Link className="reception-toolbar-pill reception-toolbar-pill--workspace" to="/staff/select-workspace">
+              <LayoutGrid size={16} />
+              <span>Đổi không gian</span>
+            </Link>
           </div>
 
           <div className="reception-header__profile">
-            <button type="button" className="reception-header__alert" aria-label="Thông báo chưa đọc">
+            <button type="button" className="reception-header__alert" aria-label="Thông báo chưa đọc" onClick={() => handleActivateMenu('notifications-all')}>
               <Bell size={18} />
               <span>{formatInteger(data?.metrics?.find((item) => item.key === 'notifications')?.value || 0)}</span>
             </button>
@@ -1664,6 +1728,25 @@ export function ReceptionDashboardPage() {
                     </div>
                   ) : null}
 
+                  <div className="reception-topbar-profile__actions" aria-label="Thao tác tài khoản nhanh">
+                    <button type="button" onClick={() => handleActivateMenu('settings-account')}>
+                      <UserSquare2 size={16} />
+                      <span>Tài khoản</span>
+                    </button>
+                    <button type="button" onClick={() => handleActivateMenu('settings-notifications')}>
+                      <Bell size={16} />
+                      <span>Thông báo</span>
+                    </button>
+                    <Link to="/staff/select-workspace" onClick={() => setIsProfileOpen(false)}>
+                      <LayoutGrid size={16} />
+                      <span>Đổi không gian</span>
+                    </Link>
+                    <button type="button" onClick={() => handleActivateMenu('settings-ui')}>
+                      <Settings size={16} />
+                      <span>Cài đặt UI</span>
+                    </button>
+                  </div>
+
                   <button type="button" className="reception-topbar-profile__logout" onClick={handleLogout}>
                     <LogOut size={16} />
                     <span>Đăng xuất</span>
@@ -1683,17 +1766,17 @@ export function ReceptionDashboardPage() {
             onRefresh={loadDashboard}
           />
         ) : appointmentMode ? (
-          <ReceptionAppointmentsPanel mode={appointmentMode} onNavigate={handleActivateMenu} />
+          <ReceptionAppointmentsPanel mode={appointmentMode} onNavigate={handleActivateMenu} onSelectPatient={setQuickPatient} />
         ) : workflowMode ? (
-          <ReceptionCheckInQueuePanel mode={workflowMode} onNavigate={handleActivateMenu} />
+          <ReceptionCheckInQueuePanel mode={workflowMode} onNavigate={handleActivateMenu} onSelectPatient={setQuickPatient} />
         ) : patientMode ? (
-          <ReceptionPatientsPanel mode={patientMode} onNavigate={handleActivateMenu} />
+          <ReceptionPatientsPanel mode={patientMode} onNavigate={handleActivateMenu} onSelectPatient={setQuickPatient} />
         ) : doctorMode ? (
           <ReceptionDoctorsPanel mode={doctorMode} />
         ) : paymentMode ? (
-          <ReceptionPaymentsPanel mode={paymentMode} />
-        ) : supportConversationMode ? (
-          <SupportCommunicationPage view="conversations" />
+          <ReceptionPaymentsPanel mode={paymentMode} onSelectPatient={setQuickPatient} />
+        ) : supportMode ? (
+          <ReceptionSupportPanel mode={supportMode} onNavigate={handleActivateMenu} onSelectPatient={setQuickPatient} />
         ) : notificationMode ? (
           <ReceptionNotificationsPanel mode={notificationMode} />
         ) : reportMode ? (

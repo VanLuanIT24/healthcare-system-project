@@ -30,6 +30,8 @@ module.exports = {
   checkAppointmentConflictForPatient: wrap((req) => appointmentService.checkAppointmentConflictForPatient(req.body, req.auth), 'Kiểm tra xung đột lịch phía bệnh nhân thành công.'),
   updateAppointment: wrap((req) => appointmentService.updateAppointment(req.params.appointmentId, req.body, req.auth, requestMeta(req)), 'Cập nhật lịch hẹn thành công.'),
   confirmAppointment: wrap((req) => appointmentService.confirmAppointment(req.params.appointmentId, req.auth, requestMeta(req)), 'Xác nhận lịch hẹn thành công.'),
+  sendAppointmentReminder: wrap((req) => appointmentService.sendAppointmentReminder(req.params.appointmentId, req.body, req.auth, requestMeta(req)), 'Gửi nhắc lịch hẹn thành công.'),
+  logAppointmentCall: wrap((req) => appointmentService.logAppointmentCall(req.params.appointmentId, req.body, req.auth, requestMeta(req)), 'Ghi nhận cuộc gọi lịch hẹn thành công.'),
   bulkConfirmAppointments: wrap((req) => appointmentService.bulkConfirmAppointments(req.body.appointment_ids, req.auth, requestMeta(req)), 'Xác nhận hàng loạt lịch hẹn thành công.'),
   cancelAppointment: wrap((req) => appointmentService.cancelAppointment(req.params.appointmentId, req.body, req.auth, requestMeta(req)), 'Hủy lịch hẹn thành công.'),
   bulkCancelAppointments: wrap(

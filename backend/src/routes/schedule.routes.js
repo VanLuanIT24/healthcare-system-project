@@ -17,10 +17,24 @@ router.get('/public/date-range', scheduleController.listPublicSchedulesByDateRan
 router.use(authenticate);
 router.use(authorize({ actorTypes: ['staff'] }));
 
-router.get('/', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.SCHEDULES.READ_OWN, PERMISSION.APPOINTMENTS.READ] }), scheduleController.listDoctorSchedules);
+router.get('/', authorize({ anyPermissions: [PERMISSION.SCHEDULES.READ, PERMISSION.SCHEDULES.READ_DEPARTMENT, PERMISSION.SCHEDULES.READ_OWN, PERMISSION.APPOINTMENTS.READ, PERMISSION.APPOINTMENTS.CREATE] }), scheduleController.listDoctorSchedules);
 router.post('/', authorize({ permissions: [PERMISSION.SCHEDULES.CREATE] }), scheduleController.createDoctorSchedule);
-router.get('/options', authorize({ anyPermissions: [PERMISSION.SCHEDULES.CREATE, PERMISSION.SCHEDULES.READ] }), scheduleController.getSchedulingCreateOptions);
-router.get('/resources/options', authorize({ anyPermissions: [PERMISSION.SCHEDULES.CREATE, PERMISSION.SCHEDULES.READ] }), scheduleController.getSchedulingCreateOptions);
+router.get('/options', authorize({
+  anyPermissions: [
+    PERMISSION.SCHEDULES.CREATE,
+    PERMISSION.SCHEDULES.READ,
+    PERMISSION.APPOINTMENTS.CREATE,
+    PERMISSION.APPOINTMENTS.READ,
+  ],
+}), scheduleController.getSchedulingCreateOptions);
+router.get('/resources/options', authorize({
+  anyPermissions: [
+    PERMISSION.SCHEDULES.CREATE,
+    PERMISSION.SCHEDULES.READ,
+    PERMISSION.APPOINTMENTS.CREATE,
+    PERMISSION.APPOINTMENTS.READ,
+  ],
+}), scheduleController.getSchedulingCreateOptions);
 router.post('/preview', authorize({ permissions: [PERMISSION.SCHEDULES.CREATE] }), scheduleController.previewCreateDoctorSchedule);
 router.post('/preview-create', authorize({ permissions: [PERMISSION.SCHEDULES.CREATE] }), scheduleController.previewCreateDoctorSchedule);
 router.post('/bulk', authorize({ permissions: [PERMISSION.SCHEDULES.BULK_CREATE] }), scheduleController.bulkCreateDoctorSchedules);
@@ -51,9 +65,10 @@ router.post('/:scheduleId/publish', authorize({ permissions: [PERMISSION.SCHEDUL
 router.post('/:scheduleId/cancel', authorize({ permissions: [PERMISSION.SCHEDULES.CANCEL] }), scheduleController.cancelDoctorSchedule);
 router.post('/:scheduleId/complete', authorize({ permissions: [PERMISSION.SCHEDULES.COMPLETE] }), scheduleController.completeDoctorSchedule);
 router.post('/:scheduleId/duplicate', authorize({ permissions: [PERMISSION.SCHEDULES.DUPLICATE] }), scheduleController.duplicateDoctorSchedule);
+router.post('/:scheduleId/slots/preview-generate', authorize({ anyPermissions: [PERMISSION.SCHEDULE_SLOTS.GENERATE, PERMISSION.SCHEDULE_SLOTS.READ, PERMISSION.SCHEDULES.READ] }), scheduleController.previewGenerateScheduleSlots);
 router.post('/:scheduleId/slots/generate', authorize({ permissions: [PERMISSION.SCHEDULE_SLOTS.GENERATE] }), scheduleController.generateScheduleSlots);
-router.get('/:scheduleId/slots', authorize({ anyPermissions: [PERMISSION.SCHEDULE_SLOTS.READ, PERMISSION.SCHEDULES.READ] }), scheduleController.getAvailableSlots);
-router.get('/:scheduleId/slots/available', authorize({ anyPermissions: [PERMISSION.SCHEDULE_SLOTS.READ, PERMISSION.SCHEDULES.READ] }), scheduleController.getAvailableSlots);
+router.get('/:scheduleId/slots', authorize({ anyPermissions: [PERMISSION.SCHEDULE_SLOTS.READ, PERMISSION.SCHEDULES.READ, PERMISSION.APPOINTMENTS.CREATE] }), scheduleController.getAvailableSlots);
+router.get('/:scheduleId/slots/available', authorize({ anyPermissions: [PERMISSION.SCHEDULE_SLOTS.READ, PERMISSION.SCHEDULES.READ, PERMISSION.APPOINTMENTS.CREATE] }), scheduleController.getAvailableSlots);
 router.get('/:scheduleId/slots/booked', authorize({ anyPermissions: [PERMISSION.SCHEDULE_SLOTS.READ, PERMISSION.APPOINTMENTS.READ] }), scheduleController.getBookedSlots);
 router.get('/:scheduleId/booked-slots', authorize({ anyPermissions: [PERMISSION.SCHEDULE_SLOTS.READ, PERMISSION.APPOINTMENTS.READ] }), scheduleController.getBookedSlots);
 router.post('/:scheduleId/block-slot', authorize({ permissions: [PERMISSION.SCHEDULE_SLOTS.BLOCK] }), scheduleController.blockScheduleSlot);

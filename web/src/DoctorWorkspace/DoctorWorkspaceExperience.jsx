@@ -239,7 +239,7 @@ function todayString() {
 }
 
 function safeArray(value) {
-  return Array.isArray(value) ? value : []
+  return Array.isArray(value) ? value.filter((item) => item !== null && item !== undefined) : []
 }
 
 function numberValue(value) {
@@ -386,19 +386,67 @@ function EmptyState({ label = 'Chưa có dữ liệu phù hợp.' }) {
   )
 }
 
-function Sidebar({ groups, activeGroupId, activeItemKey, expanded, onToggle, onNavigate, collapsed, onToggleCollapsed, onLogout }) {
+function SidebarBadge({ value, tone = 'neutral' }) {
+  if (!Number(value)) return null
+  return <span className={`dw2-sidebar-badge dw2-tone-${tone}`}>{value > 99 ? '99+' : value}</span>
+}
+
+function getGroupBadge(groupId, overview) {
+  const kpis = overview?.kpis || {}
+  const map = {
+    overview: numberValue(kpis.pending_tasks) + numberValue(kpis.critical_unhandled),
+    patients: numberValue(kpis.waiting_patients),
+    encounter: numberValue(kpis.active_encounters),
+    orders: numberValue(kpis.pending_orders),
+    results: numberValue(kpis.new_results) + numberValue(kpis.critical_unhandled),
+    prescriptions: numberValue(kpis.draft_prescriptions),
+    communication: safeArray(overview?.notifications).length,
+  }
+  return map[groupId] || 0
+}
+
+function Sidebar({ groups, activeGroupId, activeItemKey, expanded, onToggle, onNavigate, collapsed, onToggleCollapsed, onLogout, overview }) {
+  const kpis = overview?.kpis || {}
+  const criticalCount = numberValue(kpis.critical_unhandled)
+  const waitingCount = numberValue(kpis.waiting_patients)
+  const activeEncounterCount = numberValue(kpis.active_encounters)
+
   return (
     <aside className={`dw2-sidebar ${collapsed ? 'is-collapsed' : ''}`} aria-label="Menu workspace bác sĩ">
       <div className="dw2-sidebar__brand">
         <span className="dw2-sidebar__brand-mark" aria-hidden="true">
           <AppLogo variant="mark" alt="" />
         </span>
-        <div>
+        <div className="dw2-sidebar__brand-copy">
           <p>{APP_BRAND_NAME}</p>
           <strong>Doctor Workspace</strong>
+          <small>Clinical command center</small>
         </div>
-        <button type="button" className="dw2-icon-button dw2-sidebar__toggle" onClick={onToggleCollapsed} aria-label="Thu gọn sidebar">
+        <button type="button" className="dw2-icon-button dw2-sidebar__toggle" onClick={onToggleCollapsed} aria-label={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}>
           <Menu size={18} />
+        </button>
+      </div>
+
+      <div className="dw2-sidebar__mission">
+        <span className="dw2-live-dot" />
+        <div>
+          <strong>Phiên khám đang hoạt động</strong>
+          <small>{waitingCount} chờ khám · {activeEncounterCount} encounter mở</small>
+        </div>
+      </div>
+
+      <div className="dw2-sidebar__quickstats" aria-label="Chỉ số nhanh workspace bác sĩ">
+        <button type="button" onClick={() => onNavigate('/doctor/queue?view=waiting')}>
+          <strong>{waitingCount}</strong>
+          <span>Chờ</span>
+        </button>
+        <button type="button" onClick={() => onNavigate('/doctor/encounters?view=active')}>
+          <strong>{activeEncounterCount}</strong>
+          <span>Đang khám</span>
+        </button>
+        <button type="button" className={criticalCount ? 'is-danger' : ''} onClick={() => onNavigate('/doctor/results?view=critical')}>
+          <strong>{criticalCount}</strong>
+          <span>Critical</span>
         </button>
       </div>
 
@@ -407,11 +455,13 @@ function Sidebar({ groups, activeGroupId, activeItemKey, expanded, onToggle, onN
           const Icon = group.icon || ClipboardList
           const isOpen = expanded[group.id]
           const isGroupActive = activeGroupId === group.id
+          const badgeValue = getGroupBadge(group.id, overview)
           return (
             <div className={`dw2-nav-group ${isGroupActive ? 'is-active' : ''}`} key={group.id}>
-              <button type="button" className="dw2-nav-group__button" onClick={() => onToggle(group.id)}>
+              <button type="button" className="dw2-nav-group__button" onClick={() => onToggle(group.id)} title={group.label}>
                 <span className="dw2-nav-group__icon" aria-hidden="true"><Icon size={18} /></span>
                 <span className="dw2-nav-group__label">{group.label}</span>
+                <SidebarBadge value={badgeValue} tone={criticalCount && ['overview', 'results'].includes(group.id) ? 'critical' : 'neutral'} />
                 {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               </button>
               <div className={`dw2-nav-group__items ${isOpen ? 'is-open' : ''}`}>
@@ -420,10 +470,11 @@ function Sidebar({ groups, activeGroupId, activeItemKey, expanded, onToggle, onN
                     type="button"
                     className={`dw2-nav-item ${activeItemKey === item.key ? 'is-current' : ''}`}
                     key={item.key}
-                    title={item.label}
+                    title={item.description || item.label}
                     onClick={() => onNavigate(item.path)}
                   >
                     <span>{item.label}</span>
+                    {activeItemKey === item.key ? <small>Đang mở</small> : null}
                   </button>
                 ))}
               </div>
@@ -437,8 +488,18 @@ function Sidebar({ groups, activeGroupId, activeItemKey, expanded, onToggle, onN
           <ShieldCheck size={17} />
           <span>
             <strong>Truy cập lâm sàng</strong>
-            <small>Workspace bác sĩ</small>
+            <small>Workspace bác sĩ · audit enabled</small>
           </span>
+        </div>
+        <div className="dw2-sidebar__footer-actions">
+          <button type="button" onClick={() => onNavigate('/doctor/orders?view=create')}>
+            <PlusCircle size={16} />
+            <span>Chỉ định</span>
+          </button>
+          <button type="button" onClick={() => onNavigate('/doctor/prescriptions?view=create')}>
+            <Pill size={16} />
+            <span>Kê đơn</span>
+          </button>
         </div>
         <button type="button" className="dw2-sidebar__logout" onClick={onLogout}>
           <LogOut size={17} />
@@ -450,76 +511,134 @@ function Sidebar({ groups, activeGroupId, activeItemKey, expanded, onToggle, onN
 }
 
 function Topbar({ user, overview, searchTerm, onSearchTerm, searchState, onNavigate, onLogout, onNavigateHome, onOpenSidebar }) {
+  const [accountOpen, setAccountOpen] = useState(false)
+  const [notifyOpen, setNotifyOpen] = useState(false)
   const doctor = overview.doctor || user
   const activePatient = getActivePatient(overview)
   const criticalCount = numberValue(overview.kpis?.critical_unhandled)
+  const notificationRows = safeArray(overview.notifications)
+
+  function navigateAndClose(path) {
+    setAccountOpen(false)
+    setNotifyOpen(false)
+    onNavigate(path)
+  }
 
   return (
     <header className="dw2-topbar">
-      <button type="button" className="dw2-icon-button dw2-mobile-menu" onClick={onOpenSidebar} aria-label="Mở menu bác sĩ">
-        <Menu size={18} />
-      </button>
+      <div className="dw2-topbar__left">
+        <button type="button" className="dw2-icon-button dw2-mobile-menu" onClick={onOpenSidebar} aria-label="Mở menu bác sĩ">
+          <Menu size={18} />
+        </button>
 
-      <div className="dw2-search">
-        <Search size={18} />
-        <input
-          value={searchTerm}
-          onChange={(event) => onSearchTerm(event.target.value)}
-          placeholder="Tìm bệnh nhân, encounter, order, kết quả, đơn thuốc..."
-        />
-        {searchTerm ? (
-          <button type="button" onClick={() => onSearchTerm('')} aria-label="Xóa tìm kiếm">
-            <X size={16} />
-          </button>
-        ) : null}
-        {searchTerm.length >= 2 ? (
-          <div className="dw2-search__dropdown">
-            {searchState.loading ? <EmptyState label="Đang tìm kiếm..." /> : null}
-            {!searchState.loading && searchState.error ? <EmptyState label={searchState.error} /> : null}
-            {!searchState.loading && !searchState.error && !safeArray(searchState.groups).length ? <EmptyState label="Không tìm thấy kết quả phù hợp." /> : null}
-            {safeArray(searchState.groups).map((group) => (
-              <div className="dw2-search-group" key={group.id}>
-                <p>{group.label}</p>
-                {safeArray(group.items).map((item) => (
-                  <button type="button" key={`${group.id}-${item.id}`} onClick={() => onNavigate(item.path)}>
-                    <strong>{item.title}</strong>
-                    <span>{item.meta}</span>
-                  </button>
-                ))}
+        <div className="dw2-search">
+          <Search size={18} />
+          <input
+            value={searchTerm}
+            onChange={(event) => onSearchTerm(event.target.value)}
+            placeholder="Tìm bệnh nhân, mã BA, encounter, order, kết quả..."
+          />
+          <kbd>Ctrl K</kbd>
+          {searchTerm ? (
+            <button type="button" onClick={() => onSearchTerm('')} aria-label="Xóa tìm kiếm">
+              <X size={16} />
+            </button>
+          ) : null}
+          {searchTerm.length >= 2 ? (
+            <div className="dw2-search__dropdown">
+              <div className="dw2-search__head">
+                <strong>Clinical search</strong>
+                <span>{searchState.loading ? 'Đang tìm...' : `${safeArray(searchState.groups).length} nhóm kết quả`}</span>
               </div>
-            ))}
+              {searchState.loading ? <EmptyState label="Đang tìm kiếm..." /> : null}
+              {!searchState.loading && searchState.error ? <EmptyState label={searchState.error} /> : null}
+              {!searchState.loading && !searchState.error && !safeArray(searchState.groups).length ? <EmptyState label="Không tìm thấy kết quả phù hợp." /> : null}
+              {safeArray(searchState.groups).map((group) => (
+                <div className="dw2-search-group" key={group.id}>
+                  <p>{group.label}</p>
+                  {safeArray(group.items).map((item) => (
+                    <button type="button" key={`${group.id}-${item.id}`} onClick={() => navigateAndClose(item.path)}>
+                      <strong>{item.title}</strong>
+                      <span>{item.meta}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="dw2-topbar__center">
+        <button type="button" className="dw2-active-patient" onClick={() => navigateAndClose('/doctor/clinical-records?view=summary')}>
+          <UserRound size={18} />
+          <div>
+            <span>Bệnh nhân active</span>
+            <strong>{patientLabel(activePatient)}</strong>
           </div>
-        ) : null}
+        </button>
+        <button type="button" className={`dw2-alert-button ${criticalCount ? 'has-critical' : ''}`} onClick={() => navigateAndClose('/doctor/results?view=critical')}>
+          <AlertTriangle size={18} />
+          <span>{criticalCount} critical</span>
+        </button>
       </div>
 
-      <div className="dw2-active-patient">
-        <UserRound size={18} />
-        <div>
-          <span>Bệnh nhân active</span>
-          <strong>{patientLabel(activePatient)}</strong>
+      <div className="dw2-topbar__right">
+        <button type="button" className="dw2-primary-action" onClick={() => navigateAndClose('/doctor/encounters?view=start')}>
+          <PlusCircle size={18} />
+          <span>Bắt đầu khám</span>
+        </button>
+
+        <div className="dw2-topbar-popover">
+          <button type="button" className={`dw2-icon-button dw2-bell-button ${notificationRows.length ? 'has-unread' : ''}`} onClick={() => setNotifyOpen((value) => !value)} aria-label="Thông báo">
+            <Bell size={18} />
+          </button>
+          {notifyOpen ? (
+            <div className="dw2-popover-panel dw2-notify-menu">
+              <div className="dw2-popover-panel__head">
+                <strong>Thông báo lâm sàng</strong>
+                <button type="button" onClick={() => navigateAndClose('/doctor/communication?view=messages')}>Xem tất cả</button>
+              </div>
+              {!notificationRows.length ? <EmptyState label="Chưa có thông báo mới." /> : notificationRows.slice(0, 5).map((notification) => (
+                <button type="button" key={notification.notification_id || notification.id || notification.title} onClick={() => navigateAndClose(notification.path || '/doctor/communication?view=messages')}>
+                  <span className="dw2-notify-dot" />
+                  <span>
+                    <strong>{notification.title || 'Thông báo'}</strong>
+                    <small>{notification.message || notification.body || 'Mở để xem chi tiết'}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="dw2-account">
+          <button type="button" className="dw2-user-chip" onClick={() => setAccountOpen((value) => !value)} aria-expanded={accountOpen}>
+            <span>{getInitials(doctor?.full_name || user?.full_name)}</span>
+            <div>
+              <strong>{doctor?.full_name || user?.full_name || 'Bác sĩ'}</strong>
+              <small>{overview.doctor?.department?.department_name || user?.department_name || 'Workspace bác sĩ'}</small>
+            </div>
+            <ChevronDown size={16} />
+          </button>
+          {accountOpen ? (
+            <div className="dw2-popover-panel dw2-account-menu">
+              <div className="dw2-account-menu__profile">
+                <span>{getInitials(doctor?.full_name || user?.full_name)}</span>
+                <div>
+                  <strong>{doctor?.full_name || user?.full_name || 'Bác sĩ'}</strong>
+                  <small>{overview.doctor?.department?.department_name || user?.department_name || 'General Medicine'}</small>
+                </div>
+              </div>
+              <button type="button" onClick={onNavigateHome}><Home size={16} />Không gian khác</button>
+              <button type="button" onClick={() => navigateAndClose('/doctor/dashboard?panel=tasks')}><ListChecks size={16} />Việc cần hoàn tất</button>
+              <button type="button" onClick={() => navigateAndClose('/doctor/communication?view=messages')}><MessageSquare size={16} />Tin nhắn & thông báo</button>
+              <button type="button" onClick={() => navigateAndClose('/doctor/clinical-records?view=consent-access')}><ShieldCheck size={16} />Quyền truy cập hồ sơ</button>
+              <button type="button" className="is-danger" onClick={onLogout}><LogOut size={16} />Đăng xuất</button>
+            </div>
+          ) : null}
         </div>
       </div>
-
-      <button type="button" className={`dw2-alert-button ${criticalCount ? 'has-critical' : ''}`} onClick={() => onNavigate('/doctor/results?view=critical')}>
-        <AlertTriangle size={18} />
-        <span>{criticalCount} critical</span>
-      </button>
-
-      <button type="button" className="dw2-icon-button" onClick={() => onNavigate('/doctor/communication?view=messages')} aria-label="Thông báo">
-        <Bell size={18} />
-      </button>
-
-      <button type="button" className="dw2-user-chip" onClick={onNavigateHome}>
-        <span>{getInitials(doctor?.full_name || user?.full_name)}</span>
-        <div>
-          <strong>{doctor?.full_name || user?.full_name || 'Bác sĩ'}</strong>
-          <small>{overview.doctor?.department?.department_name || user?.department_name || 'Workspace bác sĩ'}</small>
-        </div>
-      </button>
-
-      <button type="button" className="dw2-icon-button" onClick={onLogout} aria-label="Đăng xuất">
-        <LogOut size={18} />
-      </button>
     </header>
   )
 }
@@ -751,6 +870,289 @@ function DashboardView({ overview, onNavigate }) {
   )
 }
 
+
+function OverviewSubPage({ item, overview, onNavigate }) {
+  if (item.key === 'waiting-for-me') {
+    return (
+      <>
+        <PatientContextBar overview={overview} onNavigate={onNavigate} />
+        <div className="dw2-workspace-layout">
+          <div className="dw2-workspace-layout__main">
+            <QueuePanel queue={overview.queue} onNavigate={onNavigate} />
+            <EncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} />
+          </div>
+          <aside className="dw2-workspace-layout__side">
+            <Panel title="Logic backend áp dụng" subtitle="Màn hình này không dùng dữ liệu giả.">
+              <div className="dw2-backend-logic">
+                <span>QueueTicket.find theo doctor_id + queue_date hôm nay.</span>
+                <span>Populate Patient và latest VitalSign.</span>
+                <span>Ưu tiên ready_for_doctor_at, checkin_time, SLA và status.</span>
+              </div>
+            </Panel>
+            <ActionPanel mode={GROUP_MODES.patients} onNavigate={onNavigate} />
+          </aside>
+        </div>
+      </>
+    )
+  }
+
+  if (item.key === 'today-schedule') {
+    return (
+      <div className="dw2-workspace-layout">
+        <div className="dw2-workspace-layout__main">
+          <AppointmentPanel appointments={overview.appointments} onNavigate={onNavigate} />
+          <QueuePanel queue={overview.queue} onNavigate={onNavigate} />
+        </div>
+        <aside className="dw2-workspace-layout__side">
+          <Panel title="Timeline chuẩn khám" subtitle="Lịch hẹn → check-in → queue → encounter.">
+            <div className="dw2-focus-list">
+              <div><CheckCircle2 size={16} /><span>Hiển thị lịch theo giờ khám.</span></div>
+              <div><CheckCircle2 size={16} /><span>Gắn trạng thái check-in/no-show nếu backend có dữ liệu.</span></div>
+              <div><CheckCircle2 size={16} /><span>Mở nhanh encounter hoặc gọi bệnh nhân.</span></div>
+            </div>
+          </Panel>
+          <TaskPanel tasks={overview.tasks} onNavigate={onNavigate} />
+        </aside>
+      </div>
+    )
+  }
+
+  if (item.key === 'open-encounters') {
+    return <DoctorEncounterFlowPage item={{ ...item, key: 'encounter-active' }} overview={overview} onNavigate={onNavigate} />
+  }
+
+  if (item.key === 'new-results') {
+    return (
+      <div className="dw2-workspace-layout">
+        <div className="dw2-workspace-layout__main">
+          <ResultPanel results={overview.results} criticalResults={overview.critical_results} onNavigate={onNavigate} />
+          <TaskPanel tasks={overview.tasks} onNavigate={onNavigate} />
+        </div>
+        <aside className="dw2-workspace-layout__side">
+          <Panel title="Result safety" subtitle="Critical phải được acknowledge và có action note.">
+            <div className="dw2-backend-logic">
+              <span>LabResult, ImagingReport, ProcedureResult đã release/final.</span>
+              <span>Lọc theo order hoặc encounter của bác sĩ.</span>
+              <span>Đếm unread bằng doctor_viewed_at, critical bằng critical_acknowledged_at.</span>
+            </div>
+          </Panel>
+        </aside>
+      </div>
+    )
+  }
+
+  if (item.key === 'pending-work') {
+    return (
+      <div className="dw2-workspace-layout">
+        <div className="dw2-workspace-layout__main">
+          <TaskPanel tasks={overview.tasks} onNavigate={onNavigate} />
+          <EncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} />
+        </div>
+        <aside className="dw2-workspace-layout__side">
+          <Panel title="Task inbox được tính từ backend" subtitle="Không phải menu tĩnh.">
+            <div className="dw2-backend-logic">
+              <span>Encounter thiếu note/chẩn đoán/care plan.</span>
+              <span>Critical result chưa xử lý.</span>
+              <span>Order đang chờ, đơn thuốc draft, refill request.</span>
+            </div>
+          </Panel>
+          <OrderPrescriptionPanel overview={overview} onNavigate={onNavigate} />
+        </aside>
+      </div>
+    )
+  }
+
+  return <DashboardView overview={overview} onNavigate={onNavigate} />
+}
+
+function DoctorPatientFlowPage({ item, overview, onNavigate }) {
+  const queueRows = safeArray(overview.queue).map((ticket) => ({
+    id: ticket.queue_ticket_id,
+    patient: ticket.patient,
+    status: ticket.status,
+    primary: ticket.display_number || ticket.queue_number,
+    meta: `Check-in ${formatTime(ticket.checkin_time)} · ${ticket.latest_vital ? `SpO2 ${ticket.latest_vital.spo2 || '--'}%` : 'Thiếu sinh hiệu'}`,
+    action: '/doctor/encounters?view=start',
+  }))
+  const encounterRows = safeArray(overview.active_encounters).map((encounter) => ({
+    id: encounter.encounter_id,
+    patient: encounter.patient,
+    status: encounter.status,
+    primary: encounter.encounter_code,
+    meta: `${encounter.readiness?.score || 0}% hoàn tất · ${safeArray(encounter.readiness?.missing).slice(0, 2).join(' · ') || 'Sẵn sàng hoàn tất'}`,
+    action: `/doctor/encounters?view=active&encounterId=${encounter.encounter_id}`,
+  }))
+  const taskRows = safeArray(overview.tasks).filter((task) => task.patient).map((task) => ({
+    id: task.task_id,
+    patient: task.patient,
+    status: task.priority,
+    primary: task.title,
+    meta: task.description,
+    action: task.action_path || '/doctor/dashboard?panel=tasks',
+  }))
+  const historyRows = [
+    ...safeArray(overview.appointments).map((appointment) => ({
+      id: appointment.appointment_id,
+      patient: appointment.patient,
+      status: appointment.status,
+      primary: formatDateTime(appointment.appointment_time),
+      meta: appointment.reason || 'Lịch khám',
+      action: '/doctor/schedules/today',
+    })),
+    ...safeArray(overview.results).map((result) => ({
+      id: result.result_id,
+      patient: result.patient,
+      status: result.is_critical ? 'critical' : result.status,
+      primary: result.title,
+      meta: result.summary || formatDateTime(result.reported_at),
+      action: `/doctor/results?view=new&resultId=${result.result_id}`,
+    })),
+  ]
+
+  const rowsByKey = {
+    'patients-waiting': queueRows,
+    'patients-in-care': encounterRows,
+    'patients-seen-today': safeArray(overview.appointments).filter((item) => ['completed', 'done'].includes(item.status)).map((appointment) => ({
+      id: appointment.appointment_id,
+      patient: appointment.patient,
+      status: appointment.status,
+      primary: formatDateTime(appointment.appointment_time),
+      meta: appointment.reason || 'Đã hoàn tất lịch khám hôm nay',
+      action: '/doctor/schedules/today',
+    })),
+    'follow-up-due': taskRows,
+    'patient-history': historyRows,
+  }
+  const rows = rowsByKey[item.key] || queueRows
+
+  return (
+    <>
+      <PatientContextBar overview={overview} onNavigate={onNavigate} />
+      <div className="dw2-workspace-layout">
+        <div className="dw2-workspace-layout__main">
+          <Panel title={item.label} subtitle={item.description}>
+            <div className="dw2-patient-flow-list">
+              {!rows.length ? <EmptyState label="Chưa có bệnh nhân phù hợp với bộ lọc này." /> : rows.map((row) => (
+                <button type="button" className="dw2-flow-card" key={row.id} onClick={() => onNavigate(row.action)}>
+                  <span className="dw2-flow-card__avatar">{getInitials(row.patient?.full_name)}</span>
+                  <span className="dw2-flow-card__body">
+                    <strong>{row.patient?.full_name || 'Bệnh nhân'}</strong>
+                    <small>{[row.patient?.patient_code, row.patient?.gender, row.patient?.age ? `${row.patient.age} tuổi` : null].filter(Boolean).join(' · ')}</small>
+                    <em>{row.meta}</em>
+                  </span>
+                  <span className="dw2-flow-card__side">
+                    <StatusPill tone={statusTone(row.status, row.status)}>{statusLabel(row.status)}</StatusPill>
+                    <small>{row.primary}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Panel>
+          <TaskPanel tasks={overview.tasks} onNavigate={onNavigate} />
+        </div>
+        <aside className="dw2-workspace-layout__side">
+          <Panel title="Backend logic" subtitle="Mapping đúng từng tab bệnh nhân.">
+            <div className="dw2-backend-logic">
+              <span>Chờ khám: QueueTicket active + latest VitalSign.</span>
+              <span>Đang khám: Encounter active/on-hold.</span>
+              <span>Đã khám: Encounter/Appointment completed trong ngày.</span>
+              <span>Follow-up: Task/refill/result cần xem lại.</span>
+              <span>History: Encounter, result, prescription, appointment timeline.</span>
+            </div>
+          </Panel>
+          <ActionPanel mode={GROUP_MODES.patients} onNavigate={onNavigate} />
+        </aside>
+      </div>
+    </>
+  )
+}
+
+function DoctorEncounterFlowPage({ item, overview, onNavigate }) {
+  const activeEncounters = safeArray(overview.active_encounters)
+  const queueCandidates = safeArray(overview.queue).filter((ticket) => !ticket.encounter_id)
+  const subview = item.key
+
+  if (subview === 'encounter-start') {
+    return (
+      <div className="dw2-workspace-layout">
+        <div className="dw2-workspace-layout__main">
+          <Panel title="Tạo / bắt đầu encounter" subtitle="Chọn bệnh nhân từ queue hoặc lịch hẹn đã check-in.">
+            <div className="dw2-patient-flow-list">
+              {!queueCandidates.length ? <EmptyState label="Không có bệnh nhân mới để bắt đầu encounter." /> : queueCandidates.map((ticket) => (
+                <button type="button" className="dw2-flow-card" key={ticket.queue_ticket_id} onClick={() => onNavigate(`/doctor/encounters?view=note&patientId=${ticket.patient?.patient_id || ''}`)}>
+                  <span className="dw2-flow-card__avatar">{getInitials(ticket.patient?.full_name)}</span>
+                  <span className="dw2-flow-card__body">
+                    <strong>{ticket.patient?.full_name || 'Bệnh nhân'}</strong>
+                    <small>{[ticket.patient?.patient_code, ticket.patient?.gender, ticket.patient?.age ? `${ticket.patient.age} tuổi` : null].filter(Boolean).join(' · ')}</small>
+                    <em>{ticket.latest_vital ? `Sinh hiệu đã có · SpO2 ${ticket.latest_vital.spo2 || '--'}%` : 'Cần kiểm tra sinh hiệu trước khi khám'}</em>
+                  </span>
+                  <span className="dw2-flow-card__side"><StatusPill>Bắt đầu</StatusPill><small>STT {ticket.display_number || ticket.queue_number}</small></span>
+                </button>
+              ))}
+            </div>
+          </Panel>
+        </div>
+        <aside className="dw2-workspace-layout__side"><EncounterSafetyPanel /></aside>
+      </div>
+    )
+  }
+
+  const editorCopy = {
+    'clinical-note': ['SOAP note', 'Autosave draft', 'Ký note', 'Chèn vitals/result vào note'],
+    diagnosis: ['Chẩn đoán chính', 'Chẩn đoán phụ', 'ICD code', 'Chẩn đoán phân biệt'],
+    'problem-list': ['Problem active', 'Resolved', 'Bệnh mạn', 'Risk factor'],
+    'care-plan': ['Kế hoạch điều trị', 'Dặn dò', 'Tái khám', 'Theo dõi tại nhà'],
+    consultation: ['Tạo hội chẩn', 'Gửi bác sĩ/khoa khác', 'Nhận recommendation', 'Chèn vào note'],
+    'complete-encounter': ['Pre-submit review', 'Clinical note signed', 'Diagnosis chính', 'Không còn draft/order chờ'],
+  }[subview]
+
+  return (
+    <>
+      <PatientContextBar overview={overview} onNavigate={onNavigate} />
+      <div className="dw2-workspace-layout">
+        <div className="dw2-workspace-layout__main">
+          <EncounterPanel encounters={activeEncounters} onNavigate={onNavigate} />
+          {editorCopy ? (
+            <Panel title={item.label} subtitle={item.description}>
+              <div className="dw2-encounter-editor-grid">
+                {editorCopy.map((entry, index) => (
+                  <button type="button" key={entry} onClick={() => onNavigate(index < 2 ? '/doctor/encounters?view=note' : '/doctor/encounters?view=complete')}>
+                    {index === 0 ? <FileSignature size={18} /> : index === 1 ? <ClipboardCheck size={18} /> : index === 2 ? <ShieldCheck size={18} /> : <Send size={18} />}
+                    <span>{entry}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="dw2-blueprint-grid">
+                <div><h4>Data đọc từ DB</h4><p>Encounter, ClinicalNote, Diagnosis, ProblemList, CarePlan, Consultation, Order, Prescription.</p></div>
+                <div><h4>Write API nên dùng</h4><p>Các controller hiện có: encounter, clinical, order, prescription. Backend patch kèm thêm endpoint tổng hợp read theo view.</p></div>
+                <div><h4>Chuẩn an toàn</h4><p>Không cho hoàn tất nếu thiếu note ký, chẩn đoán chính, care plan hoặc còn draft/order chưa xử lý.</p></div>
+              </div>
+            </Panel>
+          ) : null}
+          <TaskPanel tasks={overview.tasks} onNavigate={onNavigate} />
+        </div>
+        <aside className="dw2-workspace-layout__side">
+          <EncounterSafetyPanel />
+          <FocusPanel mode={GROUP_MODES.encounter} />
+        </aside>
+      </div>
+    </>
+  )
+}
+
+function EncounterSafetyPanel() {
+  return (
+    <Panel title="Safety gate" subtitle="Điều kiện tối thiểu trước khi kết thúc khám.">
+      <div className="dw2-focus-list">
+        <div><CheckCircle2 size={16} /><span>Clinical note đã ký.</span></div>
+        <div><CheckCircle2 size={16} /><span>Có chẩn đoán chính.</span></div>
+        <div><CheckCircle2 size={16} /><span>Có care plan / dặn dò.</span></div>
+        <div><CheckCircle2 size={16} /><span>Không còn đơn thuốc draft hoặc order đang treo.</span></div>
+      </div>
+    </Panel>
+  )
+}
+
 function FocusPanel({ mode }) {
   return (
     <Panel title="Checklist nghiệp vụ" subtitle="Các điểm UI phải trả lời rõ trước khi bác sĩ thao tác.">
@@ -781,24 +1183,51 @@ function ActionPanel({ mode, onNavigate }) {
   )
 }
 
-function GenericWorkspacePage({ group, item, mode, overview, onNavigate }) {
+function GenericWorkspacePage({ group, item, mode, overview, onNavigate, onRefresh }) {
   const isResults = group.id === 'results'
   const isOrders = group.id === 'orders'
   const isPrescriptions = group.id === 'prescriptions'
   const isEncounter = group.id === 'encounter'
   const isPatients = group.id === 'patients'
+  const isClinicalRecords = group.id === 'clinical-records'
+  const isOverview = group.id === 'overview'
+
+  if (isOverview) {
+    return <OverviewSubPage item={item} overview={overview} onNavigate={onNavigate} />
+  }
+
+  if (isPatients) {
+    return <DoctorPatientFlowPage item={item} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
+  }
+
+  if (isEncounter) {
+    return <DoctorEncounterFlowPage item={item} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
+  }
+
+  if (isClinicalRecords) {
+    return (
+      <>
+        <PatientContextBar overview={overview} onNavigate={onNavigate} />
+        <Panel title={item.label} subtitle={item.description}>
+          <div className="dw2-blueprint-grid">
+            <div><h4>Backend đọc</h4><p>/doctor-workspace/patients/:patientId/summary đang tổng hợp allergy, problem, vitals, encounter, diagnosis, prescription, lab result, attachment và consent.</p></div>
+            <div><h4>UI nên có</h4><p>Patient summary, timeline, allergy banner, vital trends, documents, consent/access và release status.</p></div>
+            <div><h4>Thao tác</h4><p>Chèn vào note, yêu cầu đo lại, tạo follow-up, export/release hồ sơ nếu có quyền.</p></div>
+          </div>
+        </Panel>
+      </>
+    )
+  }
 
   return (
     <>
       <PatientContextBar overview={overview} onNavigate={onNavigate} />
       <div className="dw2-workspace-layout">
         <div className="dw2-workspace-layout__main">
-          {isPatients ? <QueuePanel queue={overview.queue} onNavigate={onNavigate} /> : null}
-          {isEncounter ? <EncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} /> : null}
           {isOrders ? <OrderPrescriptionPanel overview={overview} onNavigate={onNavigate} /> : null}
           {isResults ? <ResultPanel results={overview.results} criticalResults={item.key === 'critical-results' ? overview.critical_results : []} onNavigate={onNavigate} /> : null}
           {isPrescriptions ? <OrderPrescriptionPanel overview={overview} onNavigate={onNavigate} /> : null}
-          {!isPatients && !isEncounter && !isOrders && !isResults && !isPrescriptions ? (
+          {!isOrders && !isResults && !isPrescriptions ? (
             <Panel title={item.label} subtitle={item.description}>
               <div className="dw2-blueprint-grid">
                 <div>
@@ -931,6 +1360,7 @@ export function DoctorWorkspaceExperience({ user, onLogout, onNavigateHome }) {
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
         onLogout={onLogout}
+        overview={overview}
       />
       <div className="dw2-app">
         <Topbar
@@ -957,7 +1387,7 @@ export function DoctorWorkspaceExperience({ user, onLogout, onNavigateHome }) {
           {(active.item?.key === 'dashboard' || routeSignature(location) === '/doctor/dashboard') ? (
             <DashboardView overview={overview} onNavigate={handleNavigate} />
           ) : (
-            <GenericWorkspacePage group={active.group} item={active.item} mode={mode} overview={overview} onNavigate={handleNavigate} />
+            <GenericWorkspacePage group={active.group} item={active.item} mode={mode} overview={overview} onNavigate={handleNavigate} onRefresh={loadOverview} />
           )}
         </main>
       </div>

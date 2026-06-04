@@ -144,6 +144,7 @@ export const patientAPI = {
   encountersHistory: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/encounters/history`, { params }),
   prescriptionsHistory: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/prescriptions/history`, { params }),
   canBookAppointment: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/can-book-appointment`, { params }),
+  authorizations: (patientId, params) => request(`/patients/${encodeURIComponent(patientId)}/authorizations`, { params }),
 }
 
 export const recordsAPI = {
@@ -155,6 +156,34 @@ export const recordsAPI = {
   getMyDocumentTimeline: (params) => request('/records/me/document-timeline', { params }),
   getMyAttachmentDownloadMetadata: (attachmentId) =>
     request(`/records/me/attachments/${encodeURIComponent(attachmentId)}/download`),
+  listMedicalRecords: (params) => request('/records/medical-records', { params }),
+  listPatientMedicalRecords: (patientId, params) => request(`/records/patients/${encodeURIComponent(patientId)}/medical-records`, { params }),
+  getEncounterMedicalRecord: (encounterId) => request(`/records/encounters/${encodeURIComponent(encounterId)}/medical-record`),
+  createMedicalRecordFromEncounter: (encounterId, body = {}) =>
+    request(`/records/encounters/${encodeURIComponent(encounterId)}/medical-record`, { method: 'POST', body }),
+  getMedicalRecordDetail: (recordId) => request(`/records/medical-records/${encodeURIComponent(recordId)}`),
+  updateMedicalRecord: (recordId, body = {}) => request(`/records/medical-records/${encodeURIComponent(recordId)}`, { method: 'PATCH', body }),
+  finalizeMedicalRecord: (recordId, body = {}) => request(`/records/medical-records/${encodeURIComponent(recordId)}/finalize`, { method: 'POST', body }),
+  sealMedicalRecord: (recordId, body = {}) => request(`/records/medical-records/${encodeURIComponent(recordId)}/seal`, { method: 'POST', body }),
+  archiveMedicalRecord: (recordId, body = {}) => request(`/records/medical-records/${encodeURIComponent(recordId)}/archive`, { method: 'POST', body }),
+  voidMedicalRecord: (recordId, body = {}) => request(`/records/medical-records/${encodeURIComponent(recordId)}/void`, { method: 'POST', body }),
+  releaseMedicalRecordToPatient: (recordId, body = {}) =>
+    request(`/records/medical-records/${encodeURIComponent(recordId)}/release-to-patient`, { method: 'POST', body }),
+  exportMedicalRecord: (recordId, params) => request(`/records/medical-records/${encodeURIComponent(recordId)}/export`, { params }),
+  listPatientAttachments: (patientId, params) => request(`/records/patients/${encodeURIComponent(patientId)}/attachments`, { params }),
+  listMedicalRecordAttachments: (recordId, params) => request(`/records/medical-records/${encodeURIComponent(recordId)}/attachments`, { params }),
+  listAttachmentsByEntity: (entityType, entityId, params) =>
+    request(`/records/attachments/by-entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, { params }),
+  getAttachmentDetail: (attachmentId) => request(`/records/attachments/${encodeURIComponent(attachmentId)}`),
+  downloadAttachment: (attachmentId) => request(`/records/attachments/${encodeURIComponent(attachmentId)}/download`),
+  archiveAttachment: (attachmentId, body = {}) => request(`/records/attachments/${encodeURIComponent(attachmentId)}/archive`, { method: 'POST', body }),
+  restoreAttachment: (attachmentId, body = {}) => request(`/records/attachments/${encodeURIComponent(attachmentId)}/restore`, { method: 'POST', body }),
+  releaseAttachmentToPatient: (attachmentId, body = {}) =>
+    request(`/records/attachments/${encodeURIComponent(attachmentId)}/release-to-patient`, { method: 'POST', body }),
+  revokeAttachmentRelease: (attachmentId, body = {}) =>
+    request(`/records/attachments/${encodeURIComponent(attachmentId)}/revoke-release`, { method: 'POST', body }),
+  deleteAttachmentSoft: (attachmentId, body = {}) => request(`/records/attachments/${encodeURIComponent(attachmentId)}`, { method: 'DELETE', body }),
+  getPatientDocumentTimeline: (patientId, params) => request(`/records/patients/${encodeURIComponent(patientId)}/document-timeline`, { params }),
 }
 
 export const portalAPI = {
@@ -712,6 +741,7 @@ export const inpatientMedicationAPI = {
 export const encounterAPI = {
   list: (params) => request('/encounters', { params }),
   search: (params) => request('/encounters/search', { params }),
+  create: (body) => request('/encounters', { method: 'POST', body }),
   listToday: (params) => request('/encounters/today', { params }),
   listByDoctor: (doctorId, params) => request(`/encounters/doctor/${encodeURIComponent(doctorId)}`, { params }),
   listActiveByDoctor: (doctorId, params) => request(`/encounters/doctor/${encodeURIComponent(doctorId)}/active`, { params }),
@@ -724,6 +754,8 @@ export const encounterAPI = {
   hasSignedConsultation: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/has-signed-consultation`),
   hasActivePrescription: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/has-active-prescription`),
   createFromAppointment: (appointmentId) => request(`/encounters/appointment/${encodeURIComponent(appointmentId)}`, { method: 'POST', body: {} }),
+  createFromQueue: (ticketId) => request(`/encounters/queue/${encodeURIComponent(ticketId)}`, { method: 'POST', body: {} }),
+  update: (encounterId, body = {}) => request(`/encounters/${encodeURIComponent(encounterId)}`, { method: 'PATCH', body }),
   arrive: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/arrive`, { method: 'POST', body: {} }),
   start: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/start`, { method: 'POST', body: {} }),
   hold: (encounterId) => request(`/encounters/${encodeURIComponent(encounterId)}/hold`, { method: 'POST', body: {} }),
@@ -774,8 +806,12 @@ export const clinicalAPI = {
   setPrimaryDiagnosis: (diagnosisId) => request(`/clinical/diagnoses/${encodeURIComponent(diagnosisId)}/set-primary`, { method: 'POST', body: {} }),
   resolveDiagnosis: (diagnosisId) => request(`/clinical/diagnoses/${encodeURIComponent(diagnosisId)}/resolve`, { method: 'POST', body: {} }),
   removeDiagnosis: (diagnosisId) => request(`/clinical/diagnoses/${encodeURIComponent(diagnosisId)}/remove`, { method: 'POST', body: {} }),
+  listPatientVitalSigns: (patientId, params) => request(`/clinical/patients/${encodeURIComponent(patientId)}/vital-signs`, { params }),
+  patientVitalTrends: (patientId, params) => request(`/clinical/patients/${encodeURIComponent(patientId)}/vital-signs/trends`, { params }),
   listVitalSigns: (encounterId) => request(`/clinical/encounters/${encodeURIComponent(encounterId)}/vital-signs`),
+  listEncounterVitalTrends: (encounterId, params) => request(`/clinical/encounters/${encodeURIComponent(encounterId)}/vital-signs/trends`, { params }),
   latestVitalSigns: (encounterId) => request(`/clinical/encounters/${encodeURIComponent(encounterId)}/vital-signs/latest`),
+  previewVitalSigns: (body) => request('/clinical/vital-signs/preview', { method: 'POST', body }),
   createVitalSigns: (body) => request('/clinical/vital-signs', { method: 'POST', body }),
   updateVitalSigns: (vitalSignId, body) => request(`/clinical/vital-signs/${encodeURIComponent(vitalSignId)}`, { method: 'PATCH', body }),
   removeVitalSigns: (vitalSignId) => request(`/clinical/vital-signs/${encodeURIComponent(vitalSignId)}/remove`, { method: 'POST', body: {} }),
@@ -787,6 +823,24 @@ export const clinicalAPI = {
   signNote: (noteId) => request(`/clinical/notes/${encodeURIComponent(noteId)}/sign`, { method: 'POST', body: {} }),
   amendNote: (noteId, body = {}) => request(`/clinical/notes/${encodeURIComponent(noteId)}/amend`, { method: 'POST', body }),
   cancelNote: (noteId) => request(`/clinical/notes/${encodeURIComponent(noteId)}/cancel`, { method: 'POST', body: {} }),
+  listPatientAllergies: (patientId, params) => request(`/clinical/patients/${encodeURIComponent(patientId)}/allergies`, { params }),
+  createPatientAllergy: (patientId, body = {}) => request(`/clinical/patients/${encodeURIComponent(patientId)}/allergies`, { method: 'POST', body }),
+  updateAllergy: (allergyId, body = {}) => request(`/clinical/allergies/${encodeURIComponent(allergyId)}`, { method: 'PATCH', body }),
+  resolveAllergy: (allergyId, body = {}) => request(`/clinical/allergies/${encodeURIComponent(allergyId)}/resolve`, { method: 'POST', body }),
+  markAllergyEnteredInError: (allergyId, body = {}) =>
+    request(`/clinical/allergies/${encodeURIComponent(allergyId)}/entered-in-error`, { method: 'POST', body }),
+  listPatientProblems: (patientId, params) => request(`/clinical/patients/${encodeURIComponent(patientId)}/problems`, { params }),
+  createPatientProblem: (patientId, body = {}) => request(`/clinical/patients/${encodeURIComponent(patientId)}/problems`, { method: 'POST', body }),
+  updateProblem: (problemId, body = {}) => request(`/clinical/problems/${encodeURIComponent(problemId)}`, { method: 'PATCH', body }),
+  resolveProblem: (problemId, body = {}) => request(`/clinical/problems/${encodeURIComponent(problemId)}/resolve`, { method: 'POST', body }),
+  markProblemEnteredInError: (problemId, body = {}) =>
+    request(`/clinical/problems/${encodeURIComponent(problemId)}/entered-in-error`, { method: 'POST', body }),
+  listCarePlans: (params) => request('/clinical/care-plans', { params }),
+  createCarePlan: (body = {}) => request('/clinical/care-plans', { method: 'POST', body }),
+  getCarePlan: (carePlanId) => request(`/clinical/care-plans/${encodeURIComponent(carePlanId)}`),
+  updateCarePlan: (carePlanId, body = {}) => request(`/clinical/care-plans/${encodeURIComponent(carePlanId)}`, { method: 'PATCH', body }),
+  completeCarePlan: (carePlanId, body = {}) => request(`/clinical/care-plans/${encodeURIComponent(carePlanId)}/complete`, { method: 'POST', body }),
+  cancelCarePlan: (carePlanId, body = {}) => request(`/clinical/care-plans/${encodeURIComponent(carePlanId)}/cancel`, { method: 'POST', body }),
 }
 
 export const prescriptionAPI = {

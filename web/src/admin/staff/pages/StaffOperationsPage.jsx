@@ -38,6 +38,7 @@ import {
   getStatusLabel,
   getStatusTone,
 } from '../staffUi';
+import '../staffWorkforcePro.css';
 
 const MODE_COPY = {
   transfer: {

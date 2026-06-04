@@ -76,8 +76,9 @@ import {
   Vault,
   Webhook,
   Wifi,
+  X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppLogo, APP_BRAND_NAME, APP_BRAND_SUBTITLE } from '../../app/AppLogo';
 import { clearStoredAuth, readStoredAuth } from '../../lib/storage';
@@ -94,6 +95,7 @@ const CONTROL_PLANE_SECTIONS = [
     icon: Command,
     tone: 'cyan',
     items: [
+      { label: 'Tổng quan hệ thống', icon: Gauge, to: '/admin/overview', exact: true },
       { label: 'Bảng điều khiển quản trị', icon: LayoutDashboard, to: '/admin/command-center', exact: true },
       { label: 'Sức khỏe hệ thống', icon: Activity, to: '/admin/command-center/health', badge: 'OK', badgeTone: 'success' },
       { label: 'Việc cần xử lý', icon: ClipboardCheck, to: '/admin/command-center/tasks', badge: 'Trực tiếp', badgeTone: 'warning' },
@@ -351,6 +353,7 @@ const CONTROL_PLANE_SECTIONS = [
     tone: 'rose',
     items: [
       { label: 'Bảng điều khiển cổng bệnh nhân', icon: LayoutDashboard, to: '/admin/patient-portal', exact: true, badge: 'Trực tiếp', badgeTone: 'info' },
+      { label: 'Tất cả bệnh nhân', icon: UsersRound, to: '/admin/patients', badge: 'Hồ sơ', badgeTone: 'success' },
       { label: 'Tài khoản bệnh nhân', icon: UserRound, to: '/admin/patient-portal/accounts' },
       { label: 'Người thân bệnh nhân', icon: UsersRound, to: '/admin/patient-portal/relatives' },
       { label: 'Ủy quyền người thân', icon: ShieldCheck, to: '/admin/patient-portal/authorizations' },
@@ -412,9 +415,24 @@ function GitBranchIcon(props) {
 }
 
 const FOOTER_ITEMS = [
-  { label: 'Hồ sơ của tôi', icon: UserRound, to: '/admin/profile' },
-  { label: 'Nhật ký audit', icon: FileClock, to: '/admin/logs/audit' },
-  { label: 'Cấu hình', icon: Settings, to: '/admin/settings', badge: 'Lõi', badgeTone: 'info' },
+  { label: 'Hàng đợi xử lý', description: 'Mở command queue và các việc ưu tiên', icon: ClipboardCheck, to: '/admin/command-center/tasks', badge: '18', tone: 'warning' },
+  { label: 'Hồ sơ của tôi', description: 'Thông tin cá nhân, vai trò, quyền hiệu lực', icon: UserRound, to: '/admin/profile', tone: 'blue' },
+  { label: 'Nhật ký audit', description: 'Tra cứu dấu vết thao tác quản trị', icon: FileClock, to: '/admin/logs/audit', tone: 'slate' },
+  { label: 'Cấu hình', description: 'Bảo mật, thông báo, file, portal', icon: Settings, to: '/admin/settings', badge: 'Lõi', tone: 'indigo' },
+];
+
+const ACCOUNT_PRIMARY_ACTIONS = [
+  { label: 'Hồ sơ của tôi', description: 'Xem và cập nhật hồ sơ quản trị viên', icon: UserRound, to: '/admin/profile', tone: 'blue' },
+  { label: 'Đổi mật khẩu', description: 'Cập nhật mật khẩu và kiểm tra độ mạnh', icon: KeyRound, to: '/admin/security/change-password', tone: 'indigo' },
+  { label: 'Thiết bị & phiên đăng nhập', description: 'Xem phiên hiện tại, thu hồi thiết bị lạ', icon: MonitorCheck, to: '/admin/security/sessions', tone: 'cyan' },
+];
+
+const ACCOUNT_OPERATION_ACTIONS = [
+  { label: 'Command Center', description: 'Về trung tâm điều phối hệ thống', icon: LayoutDashboard, to: '/admin/command-center', tone: 'blue' },
+  { label: 'IAM & phân quyền', description: 'Quản lý vai trò, quyền và policy', icon: ShieldCheck, to: '/admin/iam/overview', tone: 'indigo' },
+  { label: 'Lịch sử đăng nhập', description: 'Dòng thời gian đăng nhập của tài khoản', icon: History, to: '/admin/logs/login-history', tone: 'amber' },
+  { label: 'Nhật ký audit', description: 'Kiểm tra hoạt động quản trị gần đây', icon: FileClock, to: '/admin/logs/audit', tone: 'slate' },
+  { label: 'Cấu hình tài khoản', description: 'Thiết lập bảo mật và tuỳ chọn quản trị', icon: Settings, to: '/admin/settings?tab=security', tone: 'violet' },
 ];
 
 function getInitials(name) {
@@ -537,10 +555,947 @@ function UtilityLink({ item, location }) {
   );
 }
 
+function AccountActionLink({ item, onNavigate }) {
+  const Icon = item.icon;
+
+  return (
+    <Link to={item.to} className={`scp-account-action scp-account-action--${item.tone || 'blue'}`} role="menuitem" onClick={onNavigate}>
+      <span className="scp-account-action__icon" aria-hidden="true">
+        <Icon size={17} strokeWidth={2.35} />
+      </span>
+      <span className="scp-account-action__body">
+        <strong>{item.label}</strong>
+        <small>{item.description}</small>
+      </span>
+      <ChevronRight size={16} strokeWidth={2.35} aria-hidden="true" />
+    </Link>
+  );
+}
+
+function SidebarDockLink({ item, onNavigate }) {
+  const Icon = item.icon;
+
+  return (
+    <Link to={item.to} className={`scp-dock-action scp-dock-action--${item.tone || 'blue'}`} onClick={onNavigate}>
+      <span className="scp-dock-action__icon" aria-hidden="true">
+        <Icon size={16} strokeWidth={2.35} />
+      </span>
+      <span className="scp-dock-action__body">
+        <strong>{item.label}</strong>
+        <small>{item.description}</small>
+      </span>
+      {item.badge ? <b>{item.badge}</b> : <ChevronRight size={15} strokeWidth={2.35} aria-hidden="true" />}
+    </Link>
+  );
+}
+
+
+const ADMIN_LAYOUT_STABILITY_CSS = `
+/* AdminLayout hard guard: keeps sidebar/topbar stable across IAM, Settings, Config and all admin pages. */
+.scp-shell {
+  --scp-sidebar-width: 306px;
+  --scp-sidebar-collapsed-width: 78px;
+  display: flex !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+  background: #f4f8fc;
+}
+.scp-sidebar {
+  flex: 0 0 var(--scp-sidebar-width) !important;
+  width: var(--scp-sidebar-width) !important;
+  min-width: var(--scp-sidebar-width) !important;
+  max-width: var(--scp-sidebar-width) !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.scp-shell.is-collapsed .scp-sidebar {
+  flex-basis: var(--scp-sidebar-collapsed-width) !important;
+  width: var(--scp-sidebar-collapsed-width) !important;
+  min-width: var(--scp-sidebar-collapsed-width) !important;
+  max-width: var(--scp-sidebar-collapsed-width) !important;
+}
+.scp-stage {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  position: relative !important;
+}
+.scp-stage > * {
+  flex: 0 0 auto;
+}
+.scp-sidebar__brand,
+.scp-sidebar__search {
+  flex: 0 0 auto !important;
+}
+.scp-sidebar__main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 4px !important;
+  overscroll-behavior: contain !important;
+}
+.scp-sidebar__main::-webkit-scrollbar { width: 6px !important; }
+.scp-sidebar__main::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, .2) !important;
+  border-radius: 999px !important;
+}
+.scp-sidebar__footer {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 8px 0 0 !important;
+  margin: 6px 0 0 !important;
+  border-top: 1px solid rgba(148, 163, 184, .18) !important;
+  background: linear-gradient(180deg, rgba(248,250,252,.74), rgba(255,255,255,.98)) !important;
+  overflow: visible !important;
+  z-index: 50 !important;
+}
+.scp-sidebar__alert,
+.scp-sidebar__utilities,
+.scp-sidebar__logout {
+  display: none !important;
+}
+.scp-sidebar__dock-trigger {
+  appearance: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  border: 1px solid rgba(245, 158, 11, .3) !important;
+  border-radius: 15px !important;
+  background: linear-gradient(135deg, #fffbeb, #fff7ed) !important;
+  color: #92400e !important;
+  display: grid !important;
+  grid-template-columns: 28px minmax(0, 1fr) 18px !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 6px 9px !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  box-shadow: 0 10px 24px rgba(245, 158, 11, .1) !important;
+  overflow: hidden !important;
+}
+.scp-sidebar__dock-trigger > svg:first-child {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 6px !important;
+  border-radius: 11px !important;
+  background: rgba(245, 158, 11, .13) !important;
+  color: #b45309 !important;
+}
+.scp-sidebar__dock-trigger span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+.scp-sidebar__dock-trigger strong {
+  display: block !important;
+  max-width: 100% !important;
+  font-size: 12.5px !important;
+  line-height: 1.1 !important;
+  font-weight: 950 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.scp-sidebar__dock-trigger small { display: none !important; }
+.scp-sidebar__footer.is-open .scp-sidebar__dock-trigger > svg:last-child {
+  transform: rotate(180deg) !important;
+}
+.scp-sidebar__dock-menu {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: calc(100% + 10px) !important;
+  z-index: 2000 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  max-height: min(58vh, 430px) !important;
+  overflow-y: auto !important;
+  padding: 10px !important;
+  border: 1px solid rgba(148, 163, 184, .24) !important;
+  border-radius: 20px !important;
+  background: rgba(255, 255, 255, .98) !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .2) !important;
+  backdrop-filter: blur(18px) !important;
+}
+.scp-sidebar__dock-menu a,
+.scp-sidebar__dock-menu button {
+  appearance: none !important;
+  width: 100% !important;
+  min-height: 38px !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  color: #334155 !important;
+  display: grid !important;
+  grid-template-columns: 22px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 9px 10px !important;
+  font-weight: 850 !important;
+  font-size: 13px !important;
+  text-decoration: none !important;
+  text-align: left !important;
+  cursor: pointer !important;
+}
+.scp-sidebar__dock-menu a:hover,
+.scp-sidebar__dock-menu button:hover {
+  background: #eef4ff !important;
+  color: #1d4ed8 !important;
+}
+.scp-sidebar__dock-menu span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.scp-sidebar__dock-menu b {
+  padding: 3px 7px !important;
+  border-radius: 999px !important;
+  background: #eff6ff !important;
+  color: #2563eb !important;
+  font-size: 11px !important;
+}
+.scp-sidebar__collapse {
+  width: 100% !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  border-radius: 15px !important;
+  margin: 0 !important;
+}
+.scp-shell.is-collapsed .scp-sidebar__dock-trigger {
+  grid-template-columns: 1fr !important;
+  justify-items: center !important;
+  padding: 6px !important;
+}
+.scp-shell.is-collapsed .scp-sidebar__dock-trigger span,
+.scp-shell.is-collapsed .scp-sidebar__dock-trigger > svg:last-child,
+.scp-shell.is-collapsed .scp-sidebar__dock-menu,
+.scp-shell.is-collapsed .scp-sidebar__collapse span,
+.scp-shell.is-collapsed .scp-sidebar__collapse > svg:last-child {
+  display: none !important;
+}
+.scp-topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 500 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px clamp(12px, 1.2vw, 20px) !important;
+  overflow: visible !important;
+  isolation: isolate !important;
+}
+.scp-topbar__context {
+  flex: 0 1 214px !important;
+  min-width: 148px !important;
+  max-width: 214px !important;
+  overflow: hidden !important;
+}
+.scp-topbar__context strong,
+.scp-topbar__context small,
+.scp-topbar__eyebrow {
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.scp-search {
+  flex: 1 1 260px !important;
+  min-width: 180px !important;
+  max-width: 430px !important;
+  width: auto !important;
+}
+.scp-topbar__meta {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin-left: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+.scp-health-strip { display: none !important; }
+.scp-topbar__actions {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+.scp-command-button {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 142px !important;
+  max-width: 154px !important;
+  height: 46px !important;
+  padding-inline: 13px !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+.scp-command-button span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.scp-icon-button {
+  flex: 0 0 44px !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  position: relative !important;
+  z-index: 2 !important;
+}
+.scp-topbar__account {
+  flex: 0 0 auto !important;
+  display: block !important;
+  position: relative !important;
+  z-index: 800 !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+.scp-topbar__profile {
+  appearance: none !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  width: 186px !important;
+  min-width: 186px !important;
+  max-width: 186px !important;
+  height: 46px !important;
+  padding: 5px 7px 5px 11px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(148, 163, 184, .24) !important;
+  background: rgba(255,255,255,.92) !important;
+  box-shadow: 0 10px 24px rgba(15,23,42,.08) !important;
+  overflow: hidden !important;
+  text-align: left !important;
+  cursor: pointer !important;
+}
+.scp-topbar__profile > div:first-child {
+  display: block !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+.scp-topbar__profile strong,
+.scp-topbar__profile span {
+  display: block !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.scp-topbar__profile > svg {
+  display: block !important;
+  flex: 0 0 auto !important;
+}
+.scp-topbar__avatar {
+  flex: 0 0 36px !important;
+  width: 36px !important;
+  height: 36px !important;
+}
+.scp-account-menu {
+  position: fixed !important;
+  top: 82px !important;
+  right: clamp(12px, 2vw, 30px) !important;
+  width: min(430px, calc(100vw - 24px)) !important;
+  max-height: calc(100vh - 104px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  z-index: 4000 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 14px !important;
+  border: 1px solid rgba(148, 163, 184, .24) !important;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, .98) !important;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .22) !important;
+  backdrop-filter: blur(20px) !important;
+  color: #0f172a !important;
+  white-space: normal !important;
+  text-align: left !important;
+}
+.scp-account-menu,
+.scp-account-menu * {
+  box-sizing: border-box !important;
+}
+.scp-account-menu::before {
+  content: '' !important;
+  position: fixed !important;
+  top: 75px !important;
+  right: clamp(46px, 4vw, 74px) !important;
+  width: 14px !important;
+  height: 14px !important;
+  transform: rotate(45deg) !important;
+  border-left: 1px solid rgba(148, 163, 184, .24) !important;
+  border-top: 1px solid rgba(148, 163, 184, .24) !important;
+  background: rgba(255, 255, 255, .98) !important;
+}
+.scp-account-menu__head {
+  position: relative !important;
+  z-index: 1 !important;
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) 34px !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(135deg, #f8fbff, #eef6ff) !important;
+  border: 1px solid rgba(219, 234, 254, .9) !important;
+}
+.scp-account-menu__head .scp-topbar__avatar {
+  width: 44px !important;
+  height: 44px !important;
+  flex-basis: 44px !important;
+  border-radius: 15px !important;
+}
+.scp-account-menu__head strong,
+.scp-account-menu__head span {
+  display: block !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.scp-account-menu__head strong {
+  font-size: 14px !important;
+  font-weight: 950 !important;
+  color: #0f172a !important;
+  line-height: 1.2 !important;
+}
+.scp-account-menu__head span {
+  margin-top: 3px !important;
+  font-size: 12.5px !important;
+  font-weight: 750 !important;
+  color: #64748b !important;
+}
+.scp-account-menu__close {
+  appearance: none !important;
+  width: 34px !important;
+  height: 34px !important;
+  border: 1px solid #dbe3ef !important;
+  border-radius: 13px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, .96) !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+}
+.scp-account-menu__close:hover {
+  background: #eff6ff !important;
+  border-color: rgba(37, 99, 235, .22) !important;
+  color: #2563eb !important;
+}
+.scp-account-menu__close svg {
+  width: 16px !important;
+  height: 16px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: currentColor !important;
+}
+.scp-account-menu__meta {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+.scp-account-menu__meta span {
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  padding: 9px 10px !important;
+  border-radius: 15px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #334155 !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.scp-account-menu__meta b {
+  color: #64748b !important;
+  font-size: 10.5px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+}
+.scp-account-menu__section,
+.scp-account-menu__danger {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid #eef2f7 !important;
+}
+.scp-account-menu__section small {
+  display: block !important;
+  margin: 0 0 4px !important;
+  padding: 0 5px !important;
+  color: #94a3b8 !important;
+  font-size: 11px !important;
+  font-weight: 950 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .08em !important;
+  white-space: nowrap !important;
+}
+.scp-account-menu__section a,
+.scp-account-menu__danger button {
+  appearance: none !important;
+  width: 100% !important;
+  min-height: 42px !important;
+  display: grid !important;
+  grid-template-columns: 26px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 9px !important;
+  padding: 10px 11px !important;
+  border: 0 !important;
+  border-radius: 15px !important;
+  background: transparent !important;
+  color: #334155 !important;
+  text-decoration: none !important;
+  text-align: left !important;
+  font-size: 13.5px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  cursor: pointer !important;
+  white-space: normal !important;
+}
+.scp-account-menu__section a svg,
+.scp-account-menu__danger button svg {
+  width: 26px !important;
+  height: 26px !important;
+  padding: 5px !important;
+  border-radius: 10px !important;
+  background: #eef4ff !important;
+  color: #2563eb !important;
+}
+.scp-account-menu__section a span,
+.scp-account-menu__danger button span {
+  min-width: 0 !important;
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.scp-account-menu__section a:hover {
+  background: #eef4ff !important;
+  color: #1d4ed8 !important;
+}
+.scp-account-menu__danger button {
+  color: #b91c1c !important;
+  background: #fff5f5 !important;
+}
+.scp-account-menu__danger button svg {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+.scp-account-menu__danger button:hover {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.scp-dock-menu__head {
+  display: grid !important;
+  grid-template-columns: 36px minmax(0, 1fr) !important;
+  gap: 10px !important;
+  align-items: center !important;
+  padding: 8px 8px 10px !important;
+  border-bottom: 1px solid #eef2f7 !important;
+}
+.scp-dock-menu__mark {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px rgba(37,99,235,.24) !important;
+}
+.scp-dock-menu__head strong {
+  display: block !important;
+  color: #0f172a !important;
+  font-size: 13.5px !important;
+  font-weight: 950 !important;
+  line-height: 1.15 !important;
+}
+.scp-dock-menu__head small {
+  display: block !important;
+  margin-top: 3px !important;
+  color: #64748b !important;
+  font-size: 11.5px !important;
+  font-weight: 750 !important;
+  line-height: 1.35 !important;
+}
+.scp-dock-menu__grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 7px !important;
+}
+.scp-dock-action {
+  appearance: none !important;
+  width: 100% !important;
+  min-height: 58px !important;
+  border: 1px solid transparent !important;
+  border-radius: 16px !important;
+  display: grid !important;
+  grid-template-columns: 36px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 9px 10px !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  text-decoration: none !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease !important;
+}
+.scp-dock-action:hover {
+  transform: translateY(-1px) !important;
+  border-color: rgba(37,99,235,.22) !important;
+  background: #eef4ff !important;
+  box-shadow: 0 12px 28px rgba(15,23,42,.1) !important;
+}
+.scp-dock-action__icon,
+.scp-account-action__icon {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 13px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #eef4ff !important;
+  color: #2563eb !important;
+}
+.scp-dock-action__body,
+.scp-account-action__body {
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+}
+.scp-dock-action__body strong,
+.scp-account-action__body strong {
+  display: block !important;
+  color: #0f172a !important;
+  font-size: 13.5px !important;
+  font-weight: 950 !important;
+  line-height: 1.16 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.scp-dock-action__body small,
+.scp-account-action__body small {
+  display: block !important;
+  color: #64748b !important;
+  font-size: 11.5px !important;
+  font-weight: 750 !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+}
+.scp-dock-action b {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 26px !important;
+  height: 26px !important;
+  padding: 0 7px !important;
+  border-radius: 999px !important;
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+}
+.scp-dock-action--warning .scp-dock-action__icon { background: #fef3c7 !important; color: #b45309 !important; }
+.scp-dock-action--indigo .scp-dock-action__icon { background: #e0e7ff !important; color: #4338ca !important; }
+.scp-dock-action--slate .scp-dock-action__icon { background: #e2e8f0 !important; color: #334155 !important; }
+.scp-dock-action--danger { background: #fff5f5 !important; color: #991b1b !important; border-color: rgba(239,68,68,.16) !important; }
+.scp-dock-action--danger .scp-dock-action__icon { background: #fee2e2 !important; color: #dc2626 !important; }
+.scp-dock-action--danger:hover { background: #fee2e2 !important; border-color: rgba(220,38,38,.28) !important; }
+.scp-account-action {
+  appearance: none !important;
+  width: 100% !important;
+  min-height: 62px !important;
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) 18px !important;
+  align-items: center !important;
+  gap: 11px !important;
+  padding: 10px 11px !important;
+  border: 1px solid transparent !important;
+  border-radius: 17px !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  text-decoration: none !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease !important;
+}
+.scp-account-action:hover {
+  transform: translateY(-1px) !important;
+  border-color: rgba(37,99,235,.22) !important;
+  background: #eef4ff !important;
+  box-shadow: 0 14px 30px rgba(15,23,42,.1) !important;
+}
+.scp-account-action--cyan .scp-account-action__icon { background: #cffafe !important; color: #0891b2 !important; }
+.scp-account-action--indigo .scp-account-action__icon { background: #e0e7ff !important; color: #4338ca !important; }
+.scp-account-action--amber .scp-account-action__icon { background: #fef3c7 !important; color: #b45309 !important; }
+.scp-account-action--slate .scp-account-action__icon { background: #e2e8f0 !important; color: #334155 !important; }
+.scp-account-action--violet .scp-account-action__icon { background: #ede9fe !important; color: #7c3aed !important; }
+.scp-account-action--danger {
+  background: #fff5f5 !important;
+  border-color: rgba(239,68,68,.18) !important;
+  color: #991b1b !important;
+}
+.scp-account-action--danger .scp-account-action__icon { background: #fee2e2 !important; color: #dc2626 !important; }
+.scp-account-action--danger:hover { background: #fee2e2 !important; border-color: rgba(220,38,38,.3) !important; }
+.scp-account-menu__section a.scp-account-action,
+.scp-account-menu__danger button.scp-account-action {
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) 18px !important;
+  min-height: 62px !important;
+  padding: 10px 11px !important;
+  white-space: normal !important;
+}
+.scp-account-menu__section a.scp-account-action svg,
+.scp-account-menu__danger button.scp-account-action svg {
+  width: 17px !important;
+  height: 17px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: currentColor !important;
+}
+.scp-account-menu__section a.scp-account-action > svg,
+.scp-account-menu__danger button.scp-account-action > svg {
+  color: #94a3b8 !important;
+}
+.scp-account-menu__section a.scp-account-action span,
+.scp-account-menu__danger button.scp-account-action span {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+.scp-account-menu__danger {
+  gap: 8px !important;
+}
+
+.scp-account-menu__section a.scp-account-action,
+.scp-account-menu__danger button.scp-account-action {
+  grid-template-columns: 42px minmax(0, 1fr) 18px !important;
+  gap: 12px !important;
+  align-items: center !important;
+  min-height: 64px !important;
+}
+.scp-account-menu__section a.scp-account-action .scp-account-action__icon,
+.scp-account-menu__danger button.scp-account-action .scp-account-action__icon {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  border-radius: 15px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+}
+.scp-account-menu__section a.scp-account-action .scp-account-action__icon svg,
+.scp-account-menu__danger button.scp-account-action .scp-account-action__icon svg {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: currentColor !important;
+}
+.scp-account-menu__section a.scp-account-action > svg,
+.scp-account-menu__danger button.scp-account-action > svg {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #94a3b8 !important;
+  justify-self: end !important;
+}
+.scp-account-menu__section a.scp-account-action:hover > svg,
+.scp-account-menu__danger button.scp-account-action:hover > svg {
+  color: #2563eb !important;
+}
+.scp-account-menu__danger button.scp-account-action:hover > svg {
+  color: #dc2626 !important;
+}
+.scp-account-menu__section a.scp-account-action .scp-account-action__body,
+.scp-account-menu__danger button.scp-account-action .scp-account-action__body {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+.scp-account-menu__section a.scp-account-action .scp-account-action__body strong,
+.scp-account-menu__danger button.scp-account-action .scp-account-action__body strong {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.scp-account-menu__section a.scp-account-action .scp-account-action__body small,
+.scp-account-menu__danger button.scp-account-action .scp-account-action__body small {
+  overflow: hidden !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+}
+
+.scp-logout-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 6000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  background: rgba(15, 23, 42, .34) !important;
+  backdrop-filter: blur(10px) !important;
+}
+.scp-logout-modal__panel {
+  width: min(460px, 100%) !important;
+  border-radius: 26px !important;
+  border: 1px solid rgba(148,163,184,.26) !important;
+  background: rgba(255,255,255,.98) !important;
+  box-shadow: 0 30px 90px rgba(15,23,42,.28) !important;
+  padding: 20px !important;
+  display: grid !important;
+  grid-template-columns: 52px minmax(0, 1fr) !important;
+  gap: 14px !important;
+}
+.scp-logout-modal__icon {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+.scp-logout-modal__copy strong {
+  display: block !important;
+  color: #0f172a !important;
+  font-size: 18px !important;
+  font-weight: 950 !important;
+  line-height: 1.2 !important;
+}
+.scp-logout-modal__copy span {
+  display: block !important;
+  margin-top: 6px !important;
+  color: #64748b !important;
+  font-size: 13px !important;
+  font-weight: 750 !important;
+  line-height: 1.45 !important;
+}
+.scp-logout-modal__actions {
+  grid-column: 1 / -1 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  padding-top: 8px !important;
+}
+.scp-logout-modal__actions button {
+  min-height: 42px !important;
+  border-radius: 14px !important;
+  border: 1px solid #dbe3ef !important;
+  background: #fff !important;
+  color: #334155 !important;
+  padding: 0 16px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+}
+.scp-logout-modal__actions button:hover { background: #f8fafc !important; }
+.scp-logout-modal__actions button.is-danger {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #fff !important;
+  box-shadow: 0 14px 30px rgba(220,38,38,.22) !important;
+}
+
+@media (max-width: 1600px) {
+  .scp-topbar__context { flex-basis: 196px !important; min-width: 130px !important; max-width: 196px !important; }
+  .scp-search { flex-basis: 220px !important; min-width: 150px !important; max-width: 360px !important; }
+  .scp-topbar__actions .scp-icon-button:nth-of-type(n+3) { display: none !important; }
+}
+@media (max-width: 1380px) {
+  .scp-topbar__context { flex-basis: 170px !important; min-width: 112px !important; max-width: 170px !important; }
+  .scp-search { flex-basis: 180px !important; min-width: 130px !important; max-width: 300px !important; }
+  .scp-command-button { min-width: 46px !important; width: 46px !important; max-width: 46px !important; padding-inline: 0 !important; }
+  .scp-command-button span { display: none !important; }
+  .scp-topbar__actions .scp-icon-button:nth-of-type(n+2) { display: none !important; }
+  .scp-topbar__profile { width: 160px !important; min-width: 160px !important; max-width: 160px !important; }
+}
+@media (max-width: 1120px) {
+  .scp-topbar { flex-wrap: wrap !important; }
+  .scp-search { order: 3 !important; flex: 1 0 100% !important; max-width: none !important; }
+  .scp-topbar__meta { margin-left: auto !important; }
+}
+@media (max-width: 760px) {
+  .scp-topbar__profile { width: 46px !important; min-width: 46px !important; max-width: 46px !important; padding: 5px !important; justify-content: center !important; }
+  .scp-topbar__profile > div:first-child,
+  .scp-topbar__profile > svg { display: none !important; }
+  .scp-topbar__actions .scp-icon-button:nth-of-type(n+2) { display: none !important; }
+  .scp-account-menu { top: 76px !important; right: 8px !important; width: calc(100vw - 16px) !important; max-height: calc(100vh - 92px) !important; }
+}
+`;
+
 export function AdminLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [sidebarSearchTerm, setSidebarSearchTerm] = useState('');
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   const [openSectionIds, setOpenSectionIds] = useState(() => new Set(['command-center', 'organization', 'iam']));
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isSidebarDockOpen, setIsSidebarDockOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const accountMenuRef = useRef(null);
+  const sidebarDockRef = useRef(null);
   const auth = readStoredAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -549,7 +1504,7 @@ export function AdminLayout() {
   const activeTrail = useMemo(() => resolveActiveTrail(location), [location.pathname, location.search]);
 
   const visibleSections = useMemo(() => {
-    const query = normalizeText(searchTerm);
+    const query = normalizeText(sidebarSearchTerm);
 
     if (!query) return CONTROL_PLANE_SECTIONS;
 
@@ -559,9 +1514,15 @@ export function AdminLayout() {
         normalizeText(`${section.title} ${section.subtitle} ${item.label}`).includes(query),
       ),
     })).filter((section) => section.items.length > 0);
-  }, [searchTerm]);
+  }, [sidebarSearchTerm]);
 
   function handleLogout() {
+    setIsProfileMenuOpen(false);
+    setIsSidebarDockOpen(false);
+    setIsLogoutConfirmOpen(true);
+  }
+
+  function confirmLogout() {
     clearStoredAuth();
     navigate('/staff/login', { replace: true });
   }
@@ -578,8 +1539,49 @@ export function AdminLayout() {
     });
   }
 
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+    setIsSidebarDockOpen(false);
+    setGlobalSearchTerm('');
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setIsProfileMenuOpen(false);
+        setIsSidebarDockOpen(false);
+        setIsLogoutConfirmOpen(false);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      const target = event.target;
+
+      if (isProfileMenuOpen && accountMenuRef.current && !accountMenuRef.current.contains(target)) {
+        setIsProfileMenuOpen(false);
+      }
+
+      if (isSidebarDockOpen && sidebarDockRef.current && !sidebarDockRef.current.contains(target)) {
+        setIsSidebarDockOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [isProfileMenuOpen, isSidebarDockOpen]);
+
   return (
     <main className={`scp-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+      <style>{ADMIN_LAYOUT_STABILITY_CSS}</style>
       <aside className="scp-sidebar" aria-label="Bảng điều khiển hệ thống">
         <div className="scp-sidebar__brand">
           <Link to="/admin/command-center" className="scp-brand-mark" aria-label="Bảng điều khiển hệ thống">
@@ -600,8 +1602,8 @@ export function AdminLayout() {
           <input
             id="admin-sidebar-search"
             type="search"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            value={sidebarSearchTerm}
+            onChange={(event) => setSidebarSearchTerm(event.target.value)}
             placeholder="Tìm module, quyền, audit..."
           />
         </label>
@@ -612,7 +1614,7 @@ export function AdminLayout() {
               visibleSections.map((section) => {
                 const SectionIcon = section.icon;
                 const isActiveSection = activeTrail.section?.id === section.id;
-                const isOpen = Boolean(searchTerm) || openSectionIds.has(section.id) || isActiveSection;
+                const isOpen = Boolean(sidebarSearchTerm) || openSectionIds.has(section.id) || isActiveSection;
 
                 return (
                   <section
@@ -658,25 +1660,54 @@ export function AdminLayout() {
           </nav>
         </div>
 
-        <div className="scp-sidebar__footer">
-          <Link to="/admin/command-center/tasks" className="scp-sidebar__alert">
+        <div ref={sidebarDockRef} className={`scp-sidebar__footer${isSidebarDockOpen ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            className="scp-sidebar__dock-trigger"
+            aria-expanded={isSidebarDockOpen}
+            onClick={() => setIsSidebarDockOpen((current) => !current)}
+            title="Mở trung tâm xử lý nhanh"
+          >
             <AlertTriangle size={17} strokeWidth={2.25} aria-hidden="true" />
             <span>
-              <strong>18 việc cần xử lý</strong>
-              <small>Ưu tiên hệ thống & bảo mật</small>
+              <strong>Tác vụ nhanh · 18</strong>
+              <small>Mở hàng đợi xử lý</small>
             </span>
-          </Link>
-
-          <div className="scp-sidebar__utilities">
-            {FOOTER_ITEMS.map((item) => (
-              <UtilityLink key={item.label} item={item} location={location} />
-            ))}
-          </div>
-
-          <button type="button" className="scp-sidebar__logout" onClick={handleLogout} title="Đăng xuất">
-            <LogOut size={16} strokeWidth={2.35} aria-hidden="true" />
-            <span>Đăng xuất</span>
+            <ChevronDown size={15} strokeWidth={2.35} aria-hidden="true" />
           </button>
+
+          {isSidebarDockOpen ? (
+            <div className="scp-sidebar__dock-menu" aria-label="Tác vụ nhanh quản trị">
+              <div className="scp-dock-menu__head">
+                <span className="scp-dock-menu__mark"><Command size={16} strokeWidth={2.35} /></span>
+                <div>
+                  <strong>Trung tâm tác vụ nhanh</strong>
+                  <small>Điều hướng nhanh đến các màn hình xử lý thường dùng</small>
+                </div>
+              </div>
+
+              <div className="scp-dock-menu__grid">
+                {FOOTER_ITEMS.map((item) => (
+                  <SidebarDockLink
+                    key={item.label}
+                    item={item}
+                    onNavigate={() => setIsSidebarDockOpen(false)}
+                  />
+                ))}
+              </div>
+
+              <button type="button" className="scp-dock-action scp-dock-action--danger" onClick={handleLogout}>
+                <span className="scp-dock-action__icon" aria-hidden="true">
+                  <LogOut size={16} strokeWidth={2.35} />
+                </span>
+                <span className="scp-dock-action__body">
+                  <strong>Đăng xuất an toàn</strong>
+                  <small>Đóng phiên hiện tại và quay về đăng nhập</small>
+                </span>
+                <ChevronRight size={15} strokeWidth={2.35} aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
 
           <button
             type="button"
@@ -709,8 +1740,11 @@ export function AdminLayout() {
             <input
               id="admin-global-search"
               type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              value={globalSearchTerm}
+              onChange={(event) => setGlobalSearchTerm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setGlobalSearchTerm('');
+              }}
               placeholder="Tìm menu, quyền, audit, workspace..."
             />
           </label>
@@ -741,19 +1775,101 @@ export function AdminLayout() {
               </Link>
             </div>
 
-            <div className="scp-topbar__profile">
-              <div>
-                <strong>{user?.full_name || user?.username || 'Quản trị hệ thống'}</strong>
-                <span>QUẢN TRỊ HỆ THỐNG</span>
-              </div>
-              <div className="scp-topbar__avatar">{getInitials(user?.full_name || user?.username)}</div>
-            </div>
+            <div ref={accountMenuRef} className={`scp-topbar__account${isProfileMenuOpen ? ' is-open' : ''}`}>
+              <button
+                type="button"
+                className="scp-topbar__profile"
+                aria-haspopup="menu"
+                aria-expanded={isProfileMenuOpen}
+                onClick={() => setIsProfileMenuOpen((current) => !current)}
+              >
+                <div>
+                  <strong>{user?.full_name || user?.username || 'Quản trị hệ thống'}</strong>
+                  <span>{user?.username || 'SUPERADMIN'} · Admin</span>
+                </div>
+                <div className="scp-topbar__avatar">{getInitials(user?.full_name || user?.username)}</div>
+                <ChevronDown size={14} strokeWidth={2.4} aria-hidden="true" />
+              </button>
 
-            <button type="button" className="scp-topbar__logout" onClick={handleLogout}>
-              Đăng xuất
-            </button>
+              {isProfileMenuOpen ? (
+                <div className="scp-account-menu" role="menu">
+                  <div className="scp-account-menu__head">
+                    <div className="scp-topbar__avatar">{getInitials(user?.full_name || user?.username)}</div>
+                    <div>
+                      <strong>{user?.full_name || user?.username || 'Quản trị hệ thống'}</strong>
+                      <span>{user?.email || 'system-admin@healthcare.local'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="scp-account-menu__close"
+                      aria-label="Đóng menu tài khoản"
+                      onClick={() => setIsProfileMenuOpen(false)}
+                    >
+                      <X size={16} strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div className="scp-account-menu__meta" aria-label="Trạng thái phiên">
+                    <span><b>Vai trò</b> Super Admin</span>
+                    <span><b>Workspace</b> System Control</span>
+                    <span><b>Phiên</b> Realtime</span>
+                  </div>
+
+                  <div className="scp-account-menu__section">
+                    <small>Tài khoản cá nhân</small>
+                    {ACCOUNT_PRIMARY_ACTIONS.map((item) => (
+                      <AccountActionLink
+                        key={item.label}
+                        item={item}
+                        onNavigate={() => { setIsProfileMenuOpen(false); setGlobalSearchTerm(''); }}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="scp-account-menu__section">
+                    <small>Điều hành nhanh</small>
+                    {ACCOUNT_OPERATION_ACTIONS.map((item) => (
+                      <AccountActionLink
+                        key={item.label}
+                        item={item}
+                        onNavigate={() => { setIsProfileMenuOpen(false); setGlobalSearchTerm(''); }}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="scp-account-menu__danger">
+                    <button type="button" role="menuitem" className="scp-account-action scp-account-action--danger" onClick={handleLogout}>
+                      <span className="scp-account-action__icon" aria-hidden="true">
+                        <LogOut size={17} strokeWidth={2.35} />
+                      </span>
+                      <span className="scp-account-action__body">
+                        <strong>Đăng xuất an toàn</strong>
+                        <small>Đóng phiên trên trình duyệt này và quay lại màn đăng nhập</small>
+                      </span>
+                      <ChevronRight size={16} strokeWidth={2.35} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
+
+        {isLogoutConfirmOpen ? (
+          <div className="scp-logout-modal" role="dialog" aria-modal="true" aria-label="Xác nhận đăng xuất">
+            <div className="scp-logout-modal__panel">
+              <span className="scp-logout-modal__icon"><LogOut size={22} strokeWidth={2.35} /></span>
+              <div className="scp-logout-modal__copy">
+                <strong>Đăng xuất khỏi Control Plane?</strong>
+                <span>Hệ thống sẽ đóng phiên quản trị hiện tại. Các thao tác chưa lưu trên form sẽ không được gửi.</span>
+              </div>
+              <div className="scp-logout-modal__actions">
+                <button type="button" onClick={() => setIsLogoutConfirmOpen(false)}>Ở lại</button>
+                <button type="button" className="is-danger" onClick={confirmLogout}>Đăng xuất</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <Outlet />
       </section>

@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { getDepartments, getStaffAccountDetail, updateStaffAccount, updateStaffStatus } from '../staffApi';
+import { getDepartments, getStaffAccountDetail, transferStaffDepartment, updateStaffAccount, updateStaffStatus } from '../staffApi';
 import { formatDateTime, getInitials } from '../staffUi';
+
+function toDateInputValue(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+}
 
 export function StaffEditPage() {
   const { staffId } = useParams();
@@ -42,7 +49,7 @@ export function StaffEditPage() {
           employee_code: user?.employee_code || '',
           note: '',
           status: user?.status || 'active',
-          date_of_birth: '',
+          date_of_birth: toDateInputValue(user?.date_of_birth),
         });
       } catch (loadError) {
         if (!active) return;
@@ -67,7 +74,8 @@ export function StaffEditPage() {
       form.phone !== (currentUser.phone || '') ||
       form.department_id !== (currentUser.department_id || '') ||
       form.employee_code !== (currentUser.employee_code || '') ||
-      form.status !== (currentUser.status || '')
+      form.status !== (currentUser.status || '') ||
+      form.date_of_birth !== toDateInputValue(currentUser.date_of_birth)
     );
   }, [currentUser, form]);
 
@@ -86,9 +94,16 @@ export function StaffEditPage() {
         full_name: form.full_name,
         email: form.email,
         phone: form.phone,
-        department_id: form.department_id || null,
         employee_code: form.employee_code,
+        date_of_birth: form.date_of_birth || null,
       });
+
+      if (form.department_id !== (currentUser.department_id || '')) {
+        if (!form.department_id) {
+          throw new Error('Vui lòng chọn khoa/phòng đích để chuyển nhân sự.');
+        }
+        await transferStaffDepartment(staffId, { department_id: form.department_id });
+      }
 
       if (form.status !== currentUser.status) {
         await updateStaffStatus(staffId, form.status);

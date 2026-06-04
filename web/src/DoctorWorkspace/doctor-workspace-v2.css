@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap");
 .dw2-shell {
   --dw2-sidebar-bg: #102a43;
   --dw2-sidebar-bg-2: #12395b;
@@ -904,6 +905,326 @@
   }
 }
 
+.dw2-command-page {
+  display: grid;
+  gap: 14px;
+}
+
+.dw2-command-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dw2-command-kpi {
+  display: grid;
+  gap: 4px;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dw2-command-kpi span,
+.dw2-command-kpi small {
+  color: var(--dw2-muted);
+}
+
+.dw2-command-kpi strong {
+  color: var(--dw2-ink);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.dw2-command-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.dw2-command-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dw2-command-search input,
+.dw2-command-field input,
+.dw2-command-field select,
+.dw2-command-field textarea {
+  width: 100%;
+  border: 0;
+  outline: none;
+  color: var(--dw2-ink);
+  background: transparent;
+  font: inherit;
+}
+
+.dw2-command-field input,
+.dw2-command-field select,
+.dw2-command-field textarea {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dw2-command-field textarea {
+  resize: vertical;
+}
+
+.dw2-command-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dw2-command-field {
+  display: grid;
+  gap: 5px;
+  color: var(--dw2-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dw2-command-field:has(textarea),
+.dw2-command-form .dw2-command-button {
+  grid-column: 1 / -1;
+}
+
+.dw2-command-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--dw2-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dw2-command-button:hover:not(:disabled) {
+  border-color: rgba(15, 124, 128, 0.36);
+  background: #f0fbfb;
+}
+
+.dw2-command-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.dw2-command-button.is-success {
+  border-color: rgba(4, 120, 87, 0.24);
+  color: var(--dw2-success);
+  background: #f0fdf8;
+}
+
+.dw2-command-button.is-critical {
+  border-color: rgba(180, 35, 24, 0.24);
+  color: var(--dw2-critical);
+  background: #fff7f6;
+}
+
+.dw2-command-notice {
+  padding: 11px 13px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 700;
+}
+
+.dw2-command-notice.is-error {
+  border-color: rgba(180, 35, 24, 0.3);
+  color: var(--dw2-critical);
+  background: #fff7f6;
+}
+
+.dw2-command-notice.is-success {
+  border-color: rgba(4, 120, 87, 0.22);
+  color: var(--dw2-success);
+  background: #f0fdf8;
+}
+
+.dw2-command-table {
+  display: grid;
+  gap: 8px;
+}
+
+.dw2-command-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(120px, 0.75fr) minmax(180px, 1fr) minmax(110px, 0.65fr) minmax(170px, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  padding: 10px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dw2-command-row.is-head {
+  min-height: 36px;
+  color: var(--dw2-muted);
+  background: var(--dw2-soft);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dw2-command-row button:not(.dw2-command-button) {
+  border: 0;
+  background: transparent;
+  color: var(--dw2-ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.dw2-command-row strong,
+.dw2-command-row small {
+  display: block;
+}
+
+.dw2-command-row small,
+.dw2-command-row span {
+  color: var(--dw2-muted);
+  font-size: 13px;
+}
+
+.dw2-command-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.dw2-command-actions.is-wide {
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
+.dw2-command-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.dw2-clinical-360,
+.dw2-command-lists {
+  display: grid;
+  gap: 12px;
+}
+
+.dw2-clinical-360__header {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+}
+
+.dw2-clinical-360__header strong,
+.dw2-clinical-360__header p {
+  margin: 0;
+}
+
+.dw2-clinical-360__header p {
+  color: var(--dw2-muted);
+  font-size: 13px;
+}
+
+.dw2-clinical-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, var(--dw2-accent), var(--dw2-accent-2));
+  font-weight: 800;
+}
+
+.dw2-blueprint-grid--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dw2-command-timeline {
+  display: grid;
+  gap: 9px;
+}
+
+.dw2-command-timeline div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: var(--dw2-soft);
+}
+
+.dw2-command-timeline time,
+.dw2-command-timeline span {
+  color: var(--dw2-muted);
+  font-size: 12px;
+}
+
+.dw2-command-patient-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dw2-command-patient-results button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--dw2-ink);
+  cursor: pointer;
+  font: inherit;
+}
+
+.dw2-command-patient-results small {
+  margin-left: 6px;
+  color: var(--dw2-muted);
+}
+
+.dw2-encounter-card.is-selected {
+  border-color: rgba(15, 124, 128, 0.42);
+  background: #f0fbfb;
+}
+
+@media (max-width: 980px) {
+  .dw2-command-kpis,
+  .dw2-command-toolbar,
+  .dw2-command-form,
+  .dw2-blueprint-grid--compact {
+    grid-template-columns: 1fr;
+  }
+
+  .dw2-command-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dw2-command-actions {
+    justify-content: flex-start;
+  }
+}
+
 /* Professional shell refresh aligned with the nurse workspace chrome. */
 .dw2-shell {
   --dw2-sidebar-width: 292px;
@@ -1354,5 +1675,2027 @@
 
   .dw2-alert-button span {
     display: none;
+  }
+}
+
+/* =========================================================
+   Doctor Workspace Chrome — premium sidebar + topbar refresh
+   Drop-in override for DoctorWorkspaceExperience.jsx
+   ========================================================= */
+.dw2-shell {
+  --dw2-sidebar-width: 318px;
+  --dw2-sidebar-collapsed-width: 86px;
+  --dw2-sidebar-bg: #062629;
+  --dw2-sidebar-bg-2: #0b3540;
+  --dw2-sidebar-text: #f0fffc;
+  --dw2-sidebar-muted: #b4cbc9;
+  --dw2-accent: #0891b2;
+  --dw2-accent-2: #14b8a6;
+  --dw2-command: #0f766e;
+  --dw2-ink: #0f2538;
+  --dw2-muted: #65758a;
+  --dw2-border: #dbe7ef;
+  --dw2-surface: #ffffff;
+  --dw2-soft: #f5f9fc;
+  --dw2-warning: #b45309;
+  --dw2-critical: #b42318;
+  --dw2-success: #047857;
+  grid-template-columns: var(--dw2-sidebar-width) minmax(0, 1fr);
+  background:
+    radial-gradient(circle at 84% 8%, rgba(20, 184, 166, 0.08), transparent 30%),
+    linear-gradient(180deg, #f8fbfd 0%, #eef5f8 100%);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.dw2-shell.is-sidebar-collapsed {
+  grid-template-columns: var(--dw2-sidebar-collapsed-width) minmax(0, 1fr);
+}
+
+.dw2-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 14% 2%, rgba(45, 212, 191, 0.2), transparent 30%),
+    radial-gradient(circle at 92% 16%, rgba(56, 189, 248, 0.16), transparent 34%),
+    linear-gradient(180deg, #062629 0%, #0a3038 48%, #0b2b35 100%);
+  border-right: 1px solid rgba(191, 219, 254, 0.16);
+  box-shadow: 18px 0 48px rgba(15, 23, 42, 0.17);
+}
+
+.dw2-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, #000, transparent 86%);
+}
+
+.dw2-sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dw2-sidebar__brand {
+  min-height: 76px;
+  grid-template-columns: 48px minmax(0, 1fr) 40px;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(226, 247, 244, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 16px 34px rgba(3, 18, 26, 0.22);
+}
+
+.dw2-sidebar__brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #e9fbf7);
+  box-shadow: 0 12px 24px rgba(8, 145, 178, 0.24);
+}
+
+.dw2-sidebar__brand-mark img,
+.dw2-sidebar__brand-mark svg {
+  width: 30px;
+  height: 30px;
+}
+
+.dw2-sidebar__brand-copy {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+}
+
+.dw2-sidebar__brand p {
+  margin: 0;
+  color: #9ee7dd;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dw2-sidebar__brand strong {
+  margin-top: 1px;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+}
+
+.dw2-sidebar__brand small {
+  margin-top: 3px;
+  color: var(--dw2-sidebar-muted);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.dw2-sidebar__toggle {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  color: #dffdfa;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(226, 247, 244, 0.18);
+}
+
+.dw2-sidebar__mission {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(226, 247, 244, 0.13);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.13), rgba(14, 165, 233, 0.09));
+  color: #ecfeff;
+}
+
+.dw2-live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #34d399;
+  box-shadow: 0 0 0 5px rgba(52, 211, 153, 0.13), 0 0 20px rgba(52, 211, 153, 0.5);
+}
+
+.dw2-sidebar__mission div {
+  display: grid;
+  min-width: 0;
+}
+
+.dw2-sidebar__mission strong {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dw2-sidebar__mission small {
+  overflow: hidden;
+  color: #a7d4d0;
+  font-size: 0.74rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dw2-sidebar__quickstats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dw2-sidebar__quickstats button {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  min-width: 0;
+  padding: 10px 6px;
+  border: 1px solid rgba(226, 247, 244, 0.14);
+  border-radius: 18px;
+  color: #eafffc;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+}
+
+.dw2-sidebar__quickstats button:hover {
+  background: rgba(255, 255, 255, 0.13);
+  transform: translateY(-1px);
+}
+
+.dw2-sidebar__quickstats button.is-danger {
+  border-color: rgba(252, 165, 165, 0.24);
+  background: rgba(180, 35, 24, 0.17);
+}
+
+.dw2-sidebar__quickstats strong {
+  font-size: 1.08rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.dw2-sidebar__quickstats span {
+  overflow: hidden;
+  max-width: 100%;
+  color: #a7d4d0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dw2-sidebar__nav {
+  flex: 1 1 auto;
+  height: auto;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  padding: 2px 3px 2px 0;
+  overflow-y: auto;
+}
+
+.dw2-sidebar__nav::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dw2-sidebar__nav::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: padding-box;
+}
+
+.dw2-nav-group__button {
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto 16px;
+  gap: 9px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 17px;
+  color: #dff7f4;
+  font-size: 0.91rem;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+
+.dw2-nav-group__button:hover,
+.dw2-nav-group.is-active > .dw2-nav-group__button {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(226, 247, 244, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.dw2-nav-group.is-active > .dw2-nav-group__button {
+  color: #ffffff;
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.22), rgba(14, 165, 233, 0.14));
+}
+
+.dw2-nav-group__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 14px;
+  color: #bffbf2;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dw2-nav-group.is-active .dw2-nav-group__icon {
+  color: #05292c;
+  background: linear-gradient(135deg, #99f6e4, #67e8f9);
+}
+
+.dw2-nav-group__items {
+  display: grid;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 220ms ease;
+}
+
+.dw2-nav-group__items.is-open {
+  max-height: 540px;
+  padding: 5px 0 9px 44px;
+}
+
+.dw2-nav-item {
+  position: relative;
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 13px;
+  border-left: 1px solid rgba(148, 233, 222, 0.18);
+  border-radius: 0 14px 14px 0;
+  color: #a9c5c3;
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.dw2-nav-item::before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(148, 233, 222, 0.22);
+  transform: translateY(-50%);
+}
+
+.dw2-nav-item:hover,
+.dw2-nav-item.is-current {
+  color: #ffffff;
+  border-left-color: #5eead4;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dw2-nav-item.is-current::before {
+  background: #5eead4;
+  box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.13);
+}
+
+.dw2-nav-item small {
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #062629;
+  background: #99f6e4;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+.dw2-sidebar-badge {
+  min-width: 24px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: #083344;
+  background: #ccfbf1;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.dw2-sidebar-badge.dw2-tone-critical {
+  color: #fff;
+  background: #dc2626;
+}
+
+.dw2-sidebar__footer {
+  gap: 9px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(226, 247, 244, 0.13);
+}
+
+.dw2-sidebar__access,
+.dw2-sidebar__logout {
+  min-height: 46px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(226, 247, 244, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dw2-sidebar__access > svg,
+.dw2-sidebar__logout > svg {
+  justify-self: center;
+  color: #bffbf2;
+}
+
+.dw2-sidebar__footer-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dw2-sidebar__footer-actions button {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid rgba(226, 247, 244, 0.14);
+  border-radius: 15px;
+  color: #eafffc;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.dw2-sidebar__footer-actions button:hover {
+  background: rgba(20, 184, 166, 0.18);
+}
+
+.dw2-sidebar__logout:hover {
+  border-color: rgba(252, 165, 165, 0.28);
+  background: rgba(180, 35, 24, 0.2);
+}
+
+.dw2-sidebar.is-collapsed {
+  width: var(--dw2-sidebar-collapsed-width);
+  padding: 12px 10px;
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__brand {
+  min-height: auto;
+  grid-template-columns: 48px;
+  justify-content: center;
+  padding: 10px;
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__brand-copy,
+.dw2-sidebar.is-collapsed .dw2-sidebar__toggle,
+.dw2-sidebar.is-collapsed .dw2-sidebar__mission,
+.dw2-sidebar.is-collapsed .dw2-sidebar__quickstats,
+.dw2-sidebar.is-collapsed .dw2-sidebar-badge,
+.dw2-sidebar.is-collapsed .dw2-nav-group__label,
+.dw2-sidebar.is-collapsed .dw2-nav-group__button > svg,
+.dw2-sidebar.is-collapsed .dw2-nav-group__items,
+.dw2-sidebar.is-collapsed .dw2-sidebar__access span,
+.dw2-sidebar.is-collapsed .dw2-sidebar__logout span,
+.dw2-sidebar.is-collapsed .dw2-sidebar__footer-actions span {
+  display: none;
+}
+
+.dw2-sidebar.is-collapsed .dw2-nav-group__button,
+.dw2-sidebar.is-collapsed .dw2-sidebar__access,
+.dw2-sidebar.is-collapsed .dw2-sidebar__logout,
+.dw2-sidebar.is-collapsed .dw2-sidebar__footer-actions button {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.dw2-sidebar.is-collapsed .dw2-nav-group__button .dw2-nav-group__icon {
+  display: inline-flex;
+}
+
+.dw2-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: minmax(360px, 1.35fr) minmax(360px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin: 14px 18px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(219, 231, 239, 0.96);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(248, 252, 253, 0.9)),
+    radial-gradient(circle at 2% 0%, rgba(20, 184, 166, 0.12), transparent 36%);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.dw2-topbar__left,
+.dw2-topbar__center,
+.dw2-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dw2-topbar__left {
+  flex: 1 1 auto;
+}
+
+.dw2-topbar__center {
+  justify-content: flex-end;
+}
+
+.dw2-topbar__right {
+  justify-content: flex-end;
+}
+
+.dw2-search,
+.dw2-active-patient,
+.dw2-user-chip,
+.dw2-alert-button,
+.dw2-icon-button,
+.dw2-primary-action {
+  min-height: 48px;
+  border: 1px solid rgba(219, 231, 239, 0.95);
+  border-radius: 18px;
+  background: #ffffff;
+  color: var(--dw2-ink);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045);
+}
+
+.dw2-search {
+  flex: 1 1 auto;
+  height: 50px;
+  padding: 0 13px;
+  gap: 10px;
+}
+
+.dw2-search svg {
+  color: #64748b;
+}
+
+.dw2-search:focus-within {
+  border-color: rgba(8, 145, 178, 0.55);
+  box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.1), 0 14px 28px rgba(15, 23, 42, 0.055);
+}
+
+.dw2-search input {
+  font-size: 0.93rem;
+  font-weight: 650;
+}
+
+.dw2-search kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.dw2-search__dropdown,
+.dw2-popover-panel {
+  border: 1px solid rgba(219, 231, 239, 0.98);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+}
+
+.dw2-search__dropdown {
+  z-index: 60;
+  top: calc(100% + 12px);
+  padding: 12px;
+}
+
+.dw2-search__head,
+.dw2-popover-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 10px;
+  border-bottom: 1px solid #eef2f7;
+  margin-bottom: 8px;
+}
+
+.dw2-search__head strong,
+.dw2-popover-panel__head strong {
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.dw2-search__head span,
+.dw2-popover-panel__head button {
+  color: var(--dw2-accent);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.dw2-search-group p {
+  color: #64748b;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.dw2-search-group button {
+  border-radius: 16px;
+}
+
+.dw2-search-group button:hover {
+  background: #f1f8f8;
+}
+
+.dw2-active-patient {
+  flex: 1 1 230px;
+  min-width: 210px;
+  max-width: 380px;
+  padding: 0 13px;
+  cursor: pointer;
+}
+
+.dw2-active-patient:hover,
+.dw2-user-chip:hover,
+.dw2-alert-button:hover,
+.dw2-icon-button:hover,
+.dw2-primary-action:hover {
+  border-color: rgba(8, 145, 178, 0.34);
+  background: #f8fdfd;
+  transform: translateY(-1px);
+}
+
+.dw2-active-patient span,
+.dw2-user-chip small {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.dw2-active-patient strong,
+.dw2-user-chip strong {
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.dw2-alert-button {
+  padding: 0 13px;
+  font-weight: 900;
+}
+
+.dw2-alert-button.has-critical {
+  border-color: rgba(180, 35, 24, 0.32);
+  color: #b42318;
+  background: linear-gradient(180deg, #fff7f6, #fff);
+}
+
+.dw2-icon-button {
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+}
+
+.dw2-primary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 16px;
+  color: #ffffff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #0f766e, #0891b2);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.dw2-primary-action:hover {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0d9488, #0284c7);
+}
+
+.dw2-bell-button {
+  position: relative;
+}
+
+.dw2-bell-button.has-unread::after {
+  content: '';
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #ef4444;
+}
+
+.dw2-account,
+.dw2-topbar-popover {
+  position: relative;
+}
+
+.dw2-user-chip {
+  min-width: 225px;
+  max-width: 280px;
+  padding: 0 12px 0 7px;
+}
+
+.dw2-user-chip > span,
+.dw2-account-menu__profile > span,
+.dw2-patient-context__identity > span {
+  width: 36px;
+  height: 36px;
+  border-radius: 15px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0284c7, #0f766e);
+  box-shadow: 0 10px 22px rgba(2, 132, 199, 0.22);
+}
+
+.dw2-user-chip > svg {
+  color: #64748b;
+}
+
+.dw2-popover-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 70;
+  width: min(360px, 92vw);
+  padding: 12px;
+}
+
+.dw2-popover-panel__head button {
+  border: 0;
+  cursor: pointer;
+  background: transparent;
+  font: inherit;
+}
+
+.dw2-notify-menu > button,
+.dw2-account-menu > button {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--dw2-ink);
+  cursor: pointer;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.dw2-notify-menu > button {
+  grid-template-columns: 10px minmax(0, 1fr);
+  padding: 10px;
+}
+
+.dw2-account-menu > button {
+  grid-template-columns: 20px minmax(0, 1fr);
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+.dw2-notify-menu > button:hover,
+.dw2-account-menu > button:hover {
+  background: #f4f9fb;
+}
+
+.dw2-account-menu > button.is-danger {
+  color: #b42318;
+}
+
+.dw2-notify-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #0f766e;
+}
+
+.dw2-notify-menu strong,
+.dw2-notify-menu small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dw2-notify-menu strong {
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.dw2-notify-menu small {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.dw2-account-menu__profile {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f0fdfa, #f0f9ff);
+}
+
+.dw2-account-menu__profile div {
+  display: grid;
+  min-width: 0;
+}
+
+.dw2-account-menu__profile strong,
+.dw2-account-menu__profile small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dw2-account-menu__profile strong {
+  font-size: 0.92rem;
+  font-weight: 950;
+}
+
+.dw2-account-menu__profile small {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.dw2-content {
+  padding: 18px;
+}
+
+@media (max-width: 1380px) {
+  .dw2-topbar {
+    grid-template-columns: minmax(320px, 1.1fr) auto auto;
+  }
+
+  .dw2-active-patient {
+    max-width: 300px;
+  }
+
+  .dw2-primary-action span {
+    display: none;
+  }
+
+  .dw2-primary-action {
+    width: 48px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 1180px) {
+  .dw2-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .dw2-topbar__center {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .dw2-shell,
+  .dw2-shell.is-sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .dw2-sidebar,
+  .dw2-sidebar.is-collapsed {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 80;
+    width: min(88vw, 334px);
+    height: 100vh;
+    transform: translateX(-105%);
+  }
+
+  .dw2-shell.is-mobile-sidebar-open .dw2-sidebar {
+    transform: translateX(0);
+  }
+
+  .dw2-sidebar.is-collapsed .dw2-sidebar__brand {
+    grid-template-columns: 48px minmax(0, 1fr) 40px;
+    justify-content: initial;
+  }
+
+  .dw2-sidebar.is-collapsed .dw2-sidebar__brand-copy,
+  .dw2-sidebar.is-collapsed .dw2-sidebar__toggle,
+  .dw2-sidebar.is-collapsed .dw2-sidebar__mission,
+  .dw2-sidebar.is-collapsed .dw2-sidebar__quickstats,
+  .dw2-sidebar.is-collapsed .dw2-nav-group__label,
+  .dw2-sidebar.is-collapsed .dw2-nav-group__button > svg,
+  .dw2-sidebar.is-collapsed .dw2-nav-group__items.is-open,
+  .dw2-sidebar.is-collapsed .dw2-sidebar__access span,
+  .dw2-sidebar.is-collapsed .dw2-sidebar__logout span,
+  .dw2-sidebar.is-collapsed .dw2-sidebar__footer-actions span {
+    display: grid;
+  }
+
+  .dw2-sidebar.is-collapsed .dw2-sidebar-badge {
+    display: inline-flex;
+  }
+
+  .dw2-sidebar.is-collapsed .dw2-nav-group__button {
+    grid-template-columns: 34px minmax(0, 1fr) auto 16px;
+    justify-items: stretch;
+  }
+
+  .dw2-sidebar.is-collapsed .dw2-sidebar__access,
+  .dw2-sidebar.is-collapsed .dw2-sidebar__logout {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .dw2-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    margin: 0;
+    border-radius: 0 0 22px 22px;
+    border-inline: 0;
+    border-top: 0;
+  }
+
+  .dw2-mobile-menu {
+    display: inline-flex;
+  }
+
+  .dw2-user-chip {
+    min-width: auto;
+    width: 48px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .dw2-user-chip div,
+  .dw2-user-chip > svg {
+    display: none;
+  }
+
+  .dw2-search kbd,
+  .dw2-primary-action {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .dw2-topbar {
+    padding: 10px;
+  }
+
+  .dw2-topbar__right .dw2-icon-button {
+    display: none;
+  }
+
+  .dw2-search input {
+    font-size: 0.84rem;
+  }
+}
+
+
+/* === FIX V3: collapsed sidebar reopen control must not overlap logo === */
+.dw2-sidebar__brand {
+  position: relative;
+  overflow: visible;
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__brand {
+  position: relative;
+  overflow: visible;
+  padding: 10px 10px 44px;
+  margin-bottom: 4px;
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__toggle {
+  display: inline-flex !important;
+  position: absolute;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 9px;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: 46px;
+  min-width: 46px;
+  height: 30px;
+  border-radius: 999px;
+  align-items: center;
+  justify-content: center;
+  color: #e6fffb;
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.98), rgba(15, 118, 110, 0.98));
+  border: 1px solid rgba(226, 247, 244, 0.42);
+  box-shadow: 0 10px 22px rgba(3, 18, 26, 0.28), 0 0 0 3px rgba(8, 145, 178, 0.11);
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__toggle:hover {
+  transform: translateX(-50%) translateY(-1px);
+  background: linear-gradient(135deg, rgba(6, 182, 212, 1), rgba(13, 148, 136, 1));
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__toggle svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__brand-mark {
+  pointer-events: auto;
+}
+
+@media (max-width: 980px) {
+  .dw2-sidebar.is-collapsed .dw2-sidebar__brand {
+    padding-bottom: 10px;
+  }
+
+  .dw2-sidebar.is-collapsed .dw2-sidebar__toggle {
+    left: auto;
+    right: 10px;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+
+  .dw2-sidebar.is-collapsed .dw2-sidebar__toggle:hover {
+    transform: translateY(-50%) scale(1.04);
+  }
+}
+
+/* === Doctor page refresh V4: real page layouts for overview/patient/encounter groups === */
+.dw2-backend-logic {
+  display: grid;
+  gap: 10px;
+}
+
+.dw2-backend-logic span {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(15, 118, 110, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.8), rgba(255, 255, 255, 0.92));
+  color: #334155;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.dw2-backend-logic span::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  flex: 0 0 8px;
+  background: #0f766e;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.1);
+}
+
+.dw2-patient-flow-list {
+  display: grid;
+  gap: 12px;
+}
+
+.dw2-flow-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dw2-flow-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 118, 110, 0.28);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.09);
+}
+
+.dw2-flow-card__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0891b2, #0f766e);
+  color: white;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.dw2-flow-card__body {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.dw2-flow-card__body strong {
+  font-size: 0.98rem;
+  color: #0f172a;
+}
+
+.dw2-flow-card__body small,
+.dw2-flow-card__side small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.dw2-flow-card__body em {
+  color: #334155;
+  font-style: normal;
+  font-size: 0.84rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dw2-flow-card__side {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  min-width: 130px;
+}
+
+.dw2-encounter-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dw2-encounter-editor-grid button {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-height: 94px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  background: linear-gradient(135deg, rgba(240, 253, 250, 0.95), rgba(255, 255, 255, 0.98));
+  color: #0f172a;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dw2-encounter-editor-grid button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(15, 118, 110, 0.12);
+}
+
+.dw2-encounter-editor-grid svg {
+  color: #0f766e;
+}
+
+@media (max-width: 1180px) {
+  .dw2-encounter-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .dw2-flow-card {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .dw2-flow-card__side {
+    grid-column: 2;
+    justify-items: start;
+    min-width: 0;
+  }
+
+  .dw2-encounter-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* =========================================================
+   V6 PREMIUM CLINICAL POLISH
+   Mục tiêu: bỏ cảm giác serif/cổ điển, làm workspace bác sĩ
+   gọn, hiện đại, dễ đọc tiếng Việt, ít viền nặng và cân đối hơn.
+   Chỉ override CSS, giữ nguyên JSX + backend logic hiện tại.
+   ========================================================= */
+.dw2-shell,
+.dw2-shell * {
+  font-family: "Be Vietnam Pro", Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  letter-spacing: normal;
+  box-sizing: border-box;
+}
+
+.dw2-shell {
+  --dw2-sidebar-width: 300px;
+  --dw2-sidebar-collapsed-width: 86px;
+  --dw2-sidebar-bg: #06282d;
+  --dw2-sidebar-bg-2: #073640;
+  --dw2-sidebar-text: #ecfeff;
+  --dw2-sidebar-muted: #9ec5c4;
+  --dw2-accent: #078b95;
+  --dw2-accent-2: #12b8a6;
+  --dw2-command: #047c80;
+  --dw2-ink: #102033;
+  --dw2-muted: #64748b;
+  --dw2-border: #dbe7ef;
+  --dw2-surface: #ffffff;
+  --dw2-soft: #f6fafc;
+  grid-template-columns: var(--dw2-sidebar-width) minmax(0, 1fr);
+  background: linear-gradient(180deg, #f8fbfd 0%, #eef6f8 100%);
+  color: var(--dw2-ink);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.dw2-shell.is-sidebar-collapsed {
+  grid-template-columns: var(--dw2-sidebar-collapsed-width) minmax(0, 1fr);
+}
+
+.dw2-sidebar {
+  padding: 14px 12px;
+  background:
+    radial-gradient(circle at 16px 16px, rgba(45, 212, 191, 0.18), transparent 26%),
+    linear-gradient(180deg, #06282d 0%, #07333b 54%, #082b35 100%);
+  border-right: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 14px 0 34px rgba(15, 23, 42, 0.14);
+}
+
+.dw2-sidebar::before {
+  opacity: .42;
+  background-size: 30px 30px;
+}
+
+.dw2-sidebar__brand {
+  min-height: 72px;
+  grid-template-columns: 46px minmax(0, 1fr) 42px;
+  padding: 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.085);
+  border: 1px solid rgba(226, 247, 244, 0.14);
+  box-shadow: none;
+}
+
+.dw2-sidebar__brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.dw2-sidebar__brand p {
+  margin: 0 0 3px;
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #80efe2;
+  text-transform: uppercase;
+}
+
+.dw2-sidebar__brand strong {
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 800;
+  color: #f8fffe;
+}
+
+.dw2-sidebar__brand small {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: rgba(226, 247, 244, 0.72);
+}
+
+.dw2-sidebar__toggle {
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  color: #063238;
+  background: #ffffff;
+  border: 1px solid rgba(255,255,255,.72);
+  box-shadow: 0 14px 28px rgba(2, 8, 23, .20);
+}
+
+.dw2-sidebar__nav {
+  padding: 2px 0 8px;
+  gap: 7px;
+}
+
+.dw2-nav-group {
+  margin-bottom: 6px;
+}
+
+.dw2-nav-group__head {
+  min-height: 46px;
+  padding: 7px 10px;
+  border-radius: 16px;
+  color: rgba(236, 254, 255, .90);
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.dw2-nav-group__head:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(226, 247, 244, .12);
+}
+
+.dw2-nav-group.is-open > .dw2-nav-group__head,
+.dw2-nav-group__head.is-active,
+.dw2-nav-group__head[aria-expanded="true"] {
+  background: linear-gradient(135deg, rgba(8,145,178,.38), rgba(20,184,166,.20));
+  border-color: rgba(94, 234, 212, .20);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.dw2-nav-group__icon,
+.dw2-sidebar__rail-icon,
+.dw2-nav-link__dot {
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(226, 247, 244, .10);
+}
+
+.dw2-nav-group__head span,
+.dw2-sidebar__foot strong,
+.dw2-sidebar__action,
+.dw2-sidebar__logout {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dw2-nav-group__children {
+  margin: 5px 0 6px 21px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(148, 213, 212, .25);
+  gap: 4px;
+}
+
+.dw2-nav-link {
+  min-height: 34px;
+  padding: 7px 10px 7px 0;
+  border-radius: 12px;
+  color: rgba(236, 254, 255, .74);
+  font-size: 12.5px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.dw2-nav-link:hover {
+  color: #ffffff;
+  background: rgba(255,255,255,.055);
+}
+
+.dw2-nav-link.is-active {
+  color: #ffffff;
+  background: rgba(255,255,255,.10);
+}
+
+.dw2-nav-link__badge {
+  min-width: 50px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #063238;
+  background: #b8fff5;
+  box-shadow: none;
+}
+
+.dw2-sidebar__metrics,
+.dw2-sidebar__session,
+.dw2-sidebar__foot-card,
+.dw2-sidebar__action,
+.dw2-sidebar__logout {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .075);
+  border: 1px solid rgba(226, 247, 244, .12);
+  box-shadow: none;
+}
+
+.dw2-sidebar__metric strong {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.dw2-sidebar__metric span,
+.dw2-sidebar__session small,
+.dw2-sidebar__foot small {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(226,247,244,.68);
+}
+
+.dw2-sidebar__quick-actions {
+  gap: 8px;
+}
+
+.dw2-sidebar__action,
+.dw2-sidebar__logout {
+  min-height: 42px;
+}
+
+.dw2-main {
+  min-width: 0;
+  background: transparent;
+}
+
+.dw2-topbar {
+  margin: 14px 20px 0;
+  min-height: 78px;
+  padding: 12px 18px;
+  border-radius: 26px;
+  background: rgba(255,255,255,.86);
+  border: 1px solid rgba(203, 213, 225, .82);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, .07);
+  backdrop-filter: blur(16px);
+}
+
+.dw2-search {
+  height: 48px;
+  border-radius: 17px;
+  background: #ffffff;
+  border: 1px solid #dbe7ef;
+  box-shadow: none;
+}
+
+.dw2-search input {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.dw2-search input::placeholder {
+  color: #7b8798;
+  font-weight: 500;
+}
+
+.dw2-hotkey {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f3f7fb;
+  color: #64748b;
+  border: 1px solid #dbe7ef;
+}
+
+.dw2-topbar__patient,
+.dw2-topbar__critical,
+.dw2-icon-btn,
+.dw2-account {
+  height: 48px;
+  border-radius: 17px;
+  border: 1px solid #dbe7ef;
+  box-shadow: none;
+}
+
+.dw2-topbar__patient {
+  min-width: 238px;
+  padding: 7px 14px;
+}
+
+.dw2-topbar__patient label,
+.dw2-account__meta small {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #718096;
+}
+
+.dw2-topbar__patient strong,
+.dw2-topbar__critical strong,
+.dw2-account__meta strong {
+  font-size: 13.5px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #172033;
+}
+
+.dw2-topbar__start {
+  min-height: 48px;
+  border-radius: 17px;
+  padding: 0 18px;
+  background: linear-gradient(135deg, #078b95, #047c80);
+  border: 0;
+  box-shadow: 0 12px 24px rgba(4, 124, 128, .22);
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.dw2-account {
+  min-width: 236px;
+  padding: 5px 11px;
+}
+
+.dw2-account__avatar,
+.dw2-active-patient__avatar {
+  font-weight: 800;
+  background: linear-gradient(135deg, #0284c7, #0f766e);
+}
+
+.dw2-content {
+  padding: 20px 20px 36px;
+}
+
+.dw2-page-hero,
+.dw2-panel,
+.dw2-command-card,
+.dw2-active-patient,
+.dw2-schedule-item,
+.dw2-result-card,
+.dw2-task-card,
+.dw2-patient-card,
+.dw2-encounter-card,
+.dw2-editor-card,
+.dw2-editor-side,
+.dw2-empty {
+  border-radius: 20px;
+  border: 1px solid #dbe7ef;
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .045);
+}
+
+.dw2-page-hero {
+  padding: 24px 28px;
+  margin-bottom: 18px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,252,253,.92)),
+    radial-gradient(circle at 92% 4%, rgba(20,184,166,.12), transparent 30%);
+}
+
+.dw2-page-hero__eyebrow,
+.dw2-section-eyebrow {
+  font-size: 10.5px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  color: #078b95;
+}
+
+.dw2-page-hero h1 {
+  margin-top: 6px;
+  font-size: clamp(26px, 2.3vw, 38px);
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: #102033;
+}
+
+.dw2-page-hero p,
+.dw2-panel__subtitle,
+.dw2-section-subtitle,
+.dw2-empty p,
+.dw2-card-muted {
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.dw2-stat-card {
+  min-height: 78px;
+  padding: 15px 16px;
+  border-radius: 17px;
+  border: 1px solid #dbe7ef;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.dw2-stat-card strong {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 800;
+  color: #102033;
+}
+
+.dw2-stat-card span {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.dw2-command-grid,
+.dw2-dashboard-grid,
+.dw2-page-grid {
+  gap: 14px;
+}
+
+.dw2-command-card {
+  min-height: 142px;
+  padding: 18px;
+}
+
+.dw2-command-card__icon,
+.dw2-panel-icon {
+  border-radius: 15px;
+  background: #f1f8fb;
+  color: #078b95;
+}
+
+.dw2-command-card strong,
+.dw2-panel__title,
+.dw2-section-title,
+.dw2-card-title {
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: #102033;
+}
+
+.dw2-command-card span,
+.dw2-command-card p {
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.dw2-active-patient {
+  padding: 14px 18px;
+  border-left: 4px solid #078b95;
+}
+
+.dw2-active-patient h3,
+.dw2-active-patient strong {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.dw2-pill,
+.dw2-status-pill,
+.dw2-tag,
+.dw2-chip {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+  border: 1px solid #dbe7ef;
+  background: #f7fafc;
+  color: #475569;
+}
+
+.dw2-action-btn,
+.dw2-btn,
+.dw2-ghost-btn,
+.dw2-panel-action,
+.dw2-card-action {
+  min-height: 38px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #dbe7ef;
+  background: #ffffff;
+  color: #102033;
+  box-shadow: none;
+}
+
+.dw2-action-btn:hover,
+.dw2-btn:hover,
+.dw2-ghost-btn:hover,
+.dw2-panel-action:hover,
+.dw2-card-action:hover {
+  transform: translateY(-1px);
+  border-color: #b8d7df;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, .06);
+}
+
+.dw2-btn--primary,
+.dw2-action-btn--primary {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #078b95, #047c80);
+  box-shadow: 0 10px 20px rgba(4,124,128,.18);
+}
+
+.dw2-panel {
+  padding: 18px;
+}
+
+.dw2-panel__header {
+  margin-bottom: 12px;
+}
+
+.dw2-empty {
+  min-height: 78px;
+  padding: 18px;
+  background: #f8fbfd;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.dw2-empty svg {
+  color: #7891a5;
+}
+
+.dw2-safety-list,
+.dw2-logic-list,
+.dw2-check-list {
+  gap: 9px;
+}
+
+.dw2-safety-item,
+.dw2-logic-item,
+.dw2-check-item {
+  border-radius: 14px;
+  padding: 12px 13px;
+  background: #f8fbfd;
+  border: 1px solid #dbe7ef;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: #334155;
+}
+
+.dw2-dropdown,
+.dw2-search-popover,
+.dw2-notification-popover {
+  border-radius: 18px;
+  border: 1px solid #dbe7ef;
+  box-shadow: 0 24px 54px rgba(15, 23, 42, .16);
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__brand {
+  grid-template-columns: 46px;
+  justify-content: center;
+  padding: 10px;
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__toggle {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 8px;
+  transform: translateX(-50%);
+}
+
+.dw2-sidebar.is-collapsed .dw2-sidebar__nav {
+  align-items: center;
+}
+
+.dw2-sidebar.is-collapsed .dw2-nav-group__head {
+  width: 54px;
+  height: 54px;
+  justify-content: center;
+  padding: 0;
+  border-radius: 18px;
+}
+
+.dw2-sidebar.is-collapsed .dw2-nav-group__icon {
+  width: 34px;
+  height: 34px;
+}
+
+@media (max-width: 1280px) {
+  .dw2-topbar {
+    grid-template-columns: minmax(260px, 1fr) auto auto;
+    gap: 10px;
+  }
+  .dw2-account__meta,
+  .dw2-topbar__patient label {
+    display: none;
+  }
+  .dw2-account,
+  .dw2-topbar__patient {
+    min-width: auto;
+  }
+}
+
+@media (max-width: 980px) {
+  .dw2-shell {
+    grid-template-columns: 1fr;
+  }
+  .dw2-sidebar {
+    position: fixed;
+    z-index: 50;
+    width: min(300px, calc(100vw - 28px));
+    transform: translateX(-104%);
+  }
+  .dw2-shell.is-mobile-sidebar-open .dw2-sidebar {
+    transform: translateX(0);
+  }
+  .dw2-topbar {
+    margin: 10px;
+    grid-template-columns: 44px 1fr auto;
+    border-radius: 20px;
+  }
+  .dw2-content {
+    padding: 14px 10px 28px;
+  }
+  .dw2-page-hero {
+    padding: 20px;
+  }
+}
+
+/* =========================================================
+   V7 MEDICAL TYPOGRAPHY
+   Đồng bộ kiểu chữ Doctor Workspace theo hướng clinical SaaS:
+   sans-serif rõ nét, cấp chữ ổn định, số liệu tabular dễ quét.
+   ========================================================= */
+.dw2-shell,
+.dw2-shell * {
+  font-family: var(--doctor-font-family, "Be Vietnam Pro", Inter, "Segoe UI", Arial, sans-serif) !important;
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dw2-shell {
+  --dw2-type-heading: var(--doctor-heading-font-family, "Be Vietnam Pro", Inter, "Segoe UI", Arial, sans-serif);
+  --dw2-type-body: var(--doctor-font-family, "Be Vietnam Pro", Inter, "Segoe UI", Arial, sans-serif);
+  --dw2-type-number: var(--doctor-number-font-family, Inter, "Be Vietnam Pro", "Segoe UI", Arial, sans-serif);
+  color: #132536;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.dw2-shell :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  .dw2-page-hero h1,
+  .dw2-section-title,
+  .dw2-panel__title,
+  .dw2-card-title,
+  .dw2-command-card strong,
+  .dw2-active-patient h3,
+  .dw2-active-patient strong,
+  .dw2-sidebar__brand strong,
+  .dw2-account__meta strong,
+  .dw2-topbar__patient strong
+) {
+  font-family: var(--dw2-type-heading) !important;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #132536;
+}
+
+.dw2-page-hero h1 {
+  max-width: 760px;
+  margin: 7px 0 8px;
+  font-size: 34px;
+  line-height: 1.16;
+  font-weight: 800;
+}
+
+.dw2-page-hero__eyebrow,
+.dw2-section-eyebrow,
+.dw2-topbar__patient label,
+.dw2-topbar__critical span,
+.dw2-sidebar__brand p,
+.dw2-chip,
+.dw2-pill,
+.dw2-status-pill,
+.dw2-tag {
+  font-family: var(--dw2-type-body) !important;
+  font-size: 11px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.dw2-page-hero p,
+.dw2-panel__subtitle,
+.dw2-section-subtitle,
+.dw2-command-card p,
+.dw2-command-card span,
+.dw2-empty p,
+.dw2-card-muted,
+.dw2-sidebar__brand small,
+.dw2-account__meta small,
+.dw2-topbar__patient label,
+.dw2-search input {
+  font-size: 13.5px;
+  line-height: 1.55;
+  font-weight: 500;
+  color: #5e7185;
+}
+
+.dw2-stat-card strong,
+.dw2-command-kpi strong,
+.dw2-topbar__critical strong,
+.dw2-topbar__patient strong,
+.dw2-dashboard-kpi strong,
+.dw2-shell :where(.dw2-metric, .dw2-number, .dw2-count) {
+  font-family: var(--dw2-type-number) !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.dw2-stat-card strong {
+  font-size: 25px;
+  font-weight: 800;
+  color: #0f2437;
+}
+
+.dw2-stat-card span,
+.dw2-command-kpi span,
+.dw2-command-kpi small {
+  font-size: 12.5px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.dw2-sidebar__brand strong {
+  font-size: 15px;
+  line-height: 1.25;
+  color: #f8fffe;
+}
+
+.dw2-sidebar__brand p {
+  color: #79eadc;
+  text-transform: uppercase;
+}
+
+.dw2-nav-group__head span,
+.dw2-nav-group__button span,
+.dw2-nav-item {
+  font-size: 13.5px;
+  line-height: 1.35;
+  font-weight: 650;
+}
+
+.dw2-nav-item {
+  color: rgba(226, 247, 244, 0.78);
+}
+
+.dw2-sidebar :where(
+  .dw2-nav-group__label,
+  .dw2-nav-group__button > svg,
+  .dw2-nav-item,
+  .dw2-sidebar__footer,
+  .dw2-sidebar__footer strong,
+  .dw2-sidebar__footer-actions button,
+  .dw2-sidebar__logout
+) {
+  color: rgba(236, 254, 255, 0.86) !important;
+}
+
+.dw2-sidebar :where(
+  .dw2-nav-group__button:hover .dw2-nav-group__label,
+  .dw2-nav-group__button:focus-visible .dw2-nav-group__label,
+  .dw2-nav-group.is-active > .dw2-nav-group__button .dw2-nav-group__label,
+  .dw2-nav-group.is-active > .dw2-nav-group__button > svg,
+  .dw2-nav-item:hover,
+  .dw2-nav-item:focus-visible,
+  .dw2-nav-item.is-current,
+  .dw2-sidebar__footer-actions button:hover,
+  .dw2-sidebar__logout:hover
+) {
+  color: #ffffff !important;
+}
+
+.dw2-sidebar .dw2-nav-group__label {
+  overflow: hidden;
+  min-width: 0;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dw2-sidebar .dw2-nav-item span {
+  color: inherit;
+}
+
+.dw2-sidebar .dw2-nav-group.is-active > .dw2-nav-group__button {
+  border-color: rgba(94, 234, 212, 0.24);
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.26), rgba(14, 165, 233, 0.14));
+}
+
+.dw2-search input::placeholder {
+  color: #8091a5;
+  font-weight: 500;
+}
+
+.dw2-action-btn,
+.dw2-btn,
+.dw2-ghost-btn,
+.dw2-secondary-button,
+.dw2-panel-action,
+.dw2-card-action,
+.dw2-topbar__start,
+.dw2-command-button,
+.dw2-user-chip {
+  font-size: 13.5px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.dw2-panel__title,
+.dw2-section-title,
+.dw2-card-title,
+.dw2-command-card strong {
+  font-size: 16.5px;
+  line-height: 1.28;
+}
+
+.dw2-active-patient h3,
+.dw2-active-patient strong {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+@media (max-width: 980px) {
+  .dw2-page-hero h1 {
+    font-size: 28px;
+    line-height: 1.18;
+  }
+
+  .dw2-page-hero p,
+  .dw2-panel__subtitle,
+  .dw2-section-subtitle,
+  .dw2-command-card p,
+  .dw2-command-card span,
+  .dw2-empty p,
+  .dw2-card-muted {
+    font-size: 13px;
   }
 }

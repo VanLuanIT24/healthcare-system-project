@@ -557,6 +557,52 @@
   color: #12233f;
 }
 
+.sched-appt-drawer header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sched-appt-drawer__time {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.78rem;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.sched-appt-drawer__time.is-green { color: #047857; border-color: #bbf7d0; background: #ecfdf5; }
+.sched-appt-drawer__time.is-amber { color: #b45309; border-color: #fde68a; background: #fffbeb; }
+.sched-appt-drawer__time.is-red { color: #be123c; border-color: #fecdd3; background: #fff1f2; }
+.sched-appt-drawer__time.is-violet { color: #6d28d9; border-color: #ddd6fe; background: #f5f3ff; }
+.sched-appt-drawer__time.is-slate { color: #475569; border-color: #e2e8f0; background: #f8fafc; }
+
+.sched-appt-drawer__time div {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.sched-appt-drawer__time strong,
+.sched-appt-drawer__time span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-drawer__time strong {
+  color: currentColor;
+  font-size: 0.88rem;
+}
+
+.sched-appt-drawer__time span {
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
 .sched-ops-detail__grid,
 .sched-appt-drawer__grid {
   display: grid;
@@ -724,7 +770,8 @@
 }
 
 .sched-appt-table {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .sched-appt-table__head,
@@ -776,6 +823,158 @@
   color: #6b7f99;
   font-size: 0.7rem;
   font-weight: 760;
+}
+
+.sched-appt-table__header {
+  align-items: flex-end;
+}
+
+.sched-appt-table__header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.sched-appt-table__head,
+.sched-appt-table article {
+  grid-template-columns: 0.78fr 1.25fr 1.25fr 0.95fr 1fr 1.05fr;
+  gap: 0.75rem;
+  min-width: 980px;
+}
+
+.sched-appt-table__head {
+  padding: 0.62rem 0.88rem;
+  border-radius: 12px;
+  background: #f5f9fd;
+}
+
+.sched-appt-table__list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  overflow-x: auto;
+}
+
+.sched-appt-table article {
+  position: relative;
+  padding: 0.78rem 0.88rem;
+  border: 1px solid #e4edf7;
+  border-radius: 14px;
+  background: #ffffff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.sched-appt-table article::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: #2563eb;
+}
+
+.sched-appt-table article.is-time-green::before { background: #16a34a; }
+.sched-appt-table article.is-time-amber::before { background: #d97706; }
+.sched-appt-table article.is-time-red::before { background: #dc2626; }
+.sched-appt-table article.is-time-violet::before { background: #7c3aed; }
+.sched-appt-table article.is-time-slate::before { background: #64748b; }
+
+.sched-appt-table article:hover,
+.sched-appt-table article.is-selected {
+  border-color: #9bc4f5;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(15, 35, 63, 0.1);
+  transform: translateY(-1px);
+}
+
+.sched-appt-time-cell,
+.sched-appt-clinical-cell,
+.sched-appt-ops-cell,
+.sched-appt-state-cell,
+.sched-appt-patient-cell > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.sched-appt-patient-cell {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.68rem;
+}
+
+.sched-appt-patient-cell > b {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: #0f766e;
+  background: #ecfdf9;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.sched-appt-patient-cell small {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.sched-appt-time-cell {
+  padding-left: 0.12rem;
+}
+
+.sched-appt-time-cell strong {
+  font-size: 1rem !important;
+}
+
+.sched-appt-time-cell small {
+  width: max-content;
+  max-width: 100%;
+  padding: 0.14rem 0.42rem;
+  border-radius: 999px;
+  color: #1d4ed8 !important;
+  background: #eff6ff;
+}
+
+.sched-appt-table article.is-time-green .sched-appt-time-cell small { color: #047857 !important; background: #ecfdf5; }
+.sched-appt-table article.is-time-amber .sched-appt-time-cell small { color: #b45309 !important; background: #fffbeb; }
+.sched-appt-table article.is-time-red .sched-appt-time-cell small { color: #be123c !important; background: #fff1f2; }
+.sched-appt-table article.is-time-violet .sched-appt-time-cell small { color: #6d28d9 !important; background: #f5f3ff; }
+.sched-appt-table article.is-time-slate .sched-appt-time-cell small { color: #475569 !important; background: #f1f5f9; }
+
+.sched-appt-table strong {
+  font-size: 0.86rem;
+}
+
+.sched-appt-table span,
+.sched-appt-table small {
+  font-size: 0.72rem;
+}
+
+.sched-appt-table b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-ops-cell span {
+  width: max-content;
+  max-width: 100%;
+  padding: 0.16rem 0.45rem;
+  border-radius: 999px;
+  color: #0f766e;
+  background: #ecfdf9;
+  font-size: 0.68rem;
+  font-weight: 950;
 }
 
 .sched-appt-status {
@@ -842,50 +1041,376 @@
 }
 
 .sched-appt-calendar {
-  overflow-x: auto;
-}
-
-.sched-appt-calendar__grid {
   display: grid;
-  grid-template-columns: 72px repeat(var(--resource-count), minmax(190px, 1fr));
-  min-width: 900px;
-  border: 1px solid #e2ebf5;
-  border-radius: 12px;
+  gap: 0.85rem;
   overflow: hidden;
 }
 
-.sched-appt-calendar__corner,
-.sched-appt-calendar__grid > strong,
-.sched-appt-calendar__row > time,
-.sched-appt-calendar__row > span {
-  min-height: 54px;
-  padding: 0.55rem;
-  border-right: 1px solid #e2ebf5;
-  border-bottom: 1px solid #e2ebf5;
-  background: #ffffff;
+.sched-appt-calendar__header {
+  align-items: stretch !important;
+  margin-bottom: 0 !important;
 }
 
-.sched-appt-calendar__corner,
-.sched-appt-calendar__grid > strong {
-  color: #13243d;
-  background: #f3f8fd;
-  font-size: 0.76rem;
+.sched-appt-calendar__header p {
+  margin: 0.28rem 0 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 780;
+  line-height: 1.45;
 }
 
-.sched-appt-calendar__row {
+.sched-appt-calendar__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(96px, 1fr));
+  gap: 0.5rem;
+  min-width: min(100%, 520px);
+}
+
+.sched-appt-calendar__metrics article {
+  display: grid;
+  gap: 0.18rem;
+  min-height: 64px;
+  padding: 0.62rem;
+  border: 1px solid #deebf7;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.sched-appt-calendar__metrics span {
+  color: #64748b;
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.sched-appt-calendar__metrics strong {
+  color: #0f2742;
+  font-size: 1.28rem;
+  line-height: 1;
+}
+
+.sched-appt-calendar__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.46rem;
+  padding: 0.65rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 13px;
+  background: #fbfdff;
+}
+
+.sched-appt-calendar__legend span {
+  --legend-color: #64748b;
+  --legend-bg: #f1f5f9;
+  display: inline-grid;
+  grid-template-columns: 10px auto;
+  grid-template-areas:
+    "dot label"
+    "dot hint";
+  column-gap: 0.38rem;
+  align-items: center;
+  min-height: 38px;
+  padding: 0.34rem 0.52rem;
+  border-radius: 10px;
+  color: var(--legend-color);
+  background: var(--legend-bg);
+}
+
+.sched-appt-calendar__legend i {
+  grid-area: dot;
+  width: 9px;
+  height: 100%;
+  max-height: 26px;
+  border-radius: 999px;
+  background: var(--legend-color);
+}
+
+.sched-appt-calendar__legend b {
+  grid-area: label;
+  color: #17243a;
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.sched-appt-calendar__legend small {
+  grid-area: hint;
+  color: currentColor;
+  font-size: 0.6rem;
+  font-weight: 820;
+}
+
+.sched-appt-calendar__legend .is-amber { --legend-color: #b45309; --legend-bg: #fffbeb; }
+.sched-appt-calendar__legend .is-blue { --legend-color: #1d4ed8; --legend-bg: #eff6ff; }
+.sched-appt-calendar__legend .is-green { --legend-color: #047857; --legend-bg: #ecfdf5; }
+.sched-appt-calendar__legend .is-violet { --legend-color: #6d28d9; --legend-bg: #f5f3ff; }
+.sched-appt-calendar__legend .is-teal { --legend-color: #0f766e; --legend-bg: #ecfdf9; }
+.sched-appt-calendar__legend .is-red { --legend-color: #be123c; --legend-bg: #fff1f2; }
+.sched-appt-calendar__legend .is-slate { --legend-color: #475569; --legend-bg: #f1f5f9; }
+
+.sched-appt-calendar__board {
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.sched-appt-calendar__week-grid {
+  display: grid;
+  grid-template-columns: 252px repeat(var(--week-days), minmax(154px, 1fr));
+  min-width: 1180px;
+  border: 1px solid #dbe7f3;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #dfeaf5;
+}
+
+.sched-appt-calendar__doctor-head,
+.sched-appt-calendar__day-head,
+.sched-appt-calendar__doctor-card,
+.sched-appt-calendar__day-cell {
+  min-width: 0;
+  border-right: 1px solid #dfeaf5;
+  border-bottom: 1px solid #dfeaf5;
+}
+
+.sched-appt-calendar__doctor-head,
+.sched-appt-calendar__day-head {
+  min-height: 70px;
+  display: grid;
+  align-content: center;
+  gap: 0.18rem;
+  padding: 0.72rem;
+  background: #f4f8fc;
+}
+
+.sched-appt-calendar__doctor-head {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+
+.sched-appt-calendar__doctor-head strong,
+.sched-appt-calendar__day-head strong {
+  color: #10233b;
+  font-size: 0.82rem;
+}
+
+.sched-appt-calendar__doctor-head span,
+.sched-appt-calendar__day-head span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.sched-appt-calendar__day-head {
+  text-align: center;
+}
+
+.sched-appt-calendar__day-head.is-selected {
+  background: #eaf5ff;
+}
+
+.sched-appt-calendar__day-head.is-selected strong {
+  color: #1d4ed8;
+}
+
+.sched-appt-calendar__doctor-row {
   display: contents;
 }
 
-.sched-appt-calendar__row em {
-  display: block;
-  margin-bottom: 0.26rem;
-  padding: 0.35rem;
-  border-radius: 8px;
-  color: #0f3f5f;
-  background: #eff6ff;
+.sched-appt-calendar__doctor-card {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-height: 164px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 0.64rem;
+  align-items: center;
+  padding: 0.76rem;
+  background: #ffffff;
+}
+
+.sched-appt-calendar__doctor-card > b {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: #0f766e;
+  background: #ecfdf9;
+  font-size: 0.8rem;
+  font-weight: 950;
+}
+
+.sched-appt-calendar__doctor-card div {
+  min-width: 0;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.sched-appt-calendar__doctor-card strong,
+.sched-appt-calendar-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #10233b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-calendar__doctor-card strong {
+  font-size: 0.84rem;
+}
+
+.sched-appt-calendar__doctor-card span {
+  overflow: hidden;
+  color: #64748b;
   font-size: 0.68rem;
-  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-calendar__doctor-card small {
+  align-self: start;
+  padding: 0.2rem 0.42rem;
+  border-radius: 999px;
+  color: #0f766e;
+  background: #ecfdf9;
+  font-size: 0.62rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.sched-appt-calendar__doctor-card em {
+  height: 7px;
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf3f9;
+}
+
+.sched-appt-calendar__doctor-card em i {
+  width: var(--load);
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: #64748b;
+}
+
+.sched-appt-calendar__doctor-card em.is-green i { background: #16a34a; }
+.sched-appt-calendar__doctor-card em.is-amber i { background: #d97706; }
+.sched-appt-calendar__doctor-card em.is-red i { background: #dc2626; }
+.sched-appt-calendar__doctor-card em.is-slate i { background: #94a3b8; }
+
+.sched-appt-calendar__day-cell {
+  min-height: 164px;
+  display: grid;
+  align-content: start;
+  gap: 0.42rem;
+  padding: 0.54rem;
+  background: #ffffff;
+}
+
+.sched-appt-calendar__day-cell.is-selected {
+  background: #f7fbff;
+}
+
+.sched-appt-calendar-card {
+  --card-color: #64748b;
+  --card-bg: #f8fafc;
+  --card-border: #e2e8f0;
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.48rem;
+  border: 1px solid var(--card-border);
+  border-left: 4px solid var(--card-color);
+  border-radius: 9px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--card-bg) 100%);
+  box-shadow: 0 8px 18px rgba(15, 35, 63, 0.06);
+}
+
+.sched-appt-calendar-card.is-amber { --card-color: #d97706; --card-bg: #fff9e8; --card-border: #fde68a; }
+.sched-appt-calendar-card.is-blue { --card-color: #2563eb; --card-bg: #eff6ff; --card-border: #bfdbfe; }
+.sched-appt-calendar-card.is-green { --card-color: #16a34a; --card-bg: #ecfdf5; --card-border: #bbf7d0; }
+.sched-appt-calendar-card.is-violet { --card-color: #7c3aed; --card-bg: #f5f3ff; --card-border: #ddd6fe; }
+.sched-appt-calendar-card.is-teal { --card-color: #0d9488; --card-bg: #ecfdf9; --card-border: #99f6e4; }
+.sched-appt-calendar-card.is-red { --card-color: #dc2626; --card-bg: #fff1f2; --card-border: #fecdd3; }
+.sched-appt-calendar-card.is-slate { --card-color: #64748b; --card-bg: #f8fafc; --card-border: #e2e8f0; }
+
+.sched-appt-calendar-card > div,
+.sched-appt-calendar-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.sched-appt-calendar-card time {
+  color: var(--card-color);
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.sched-appt-calendar-card div span {
+  max-width: 86px;
+  overflow: hidden;
+  padding: 0.12rem 0.34rem;
+  border-radius: 999px;
+  color: var(--card-color);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 0.56rem;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-calendar-card strong {
+  font-size: 0.74rem;
+}
+
+.sched-appt-calendar-card small {
+  min-width: 0;
+  overflow: hidden;
+  color: #475569;
+  font-size: 0.63rem;
+  font-weight: 790;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-calendar-card footer span,
+.sched-appt-calendar-card footer b {
+  min-width: 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 0.58rem;
   font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-calendar-card footer b {
+  flex: 0 0 auto;
+  color: var(--card-color);
+}
+
+.sched-appt-calendar__more,
+.sched-appt-calendar__empty-cell {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #cbd5e1;
+  border-radius: 9px;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 0.64rem;
+  font-weight: 900;
+}
+
+.sched-appt-calendar__empty-cell {
+  color: #94a3b8;
+  background: transparent;
 }
 
 .sched-appt-create {
@@ -943,9 +1468,64 @@
   gap: 0.85rem;
 }
 
+.sched-appt-create__section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
 .sched-appt-create__body h2 {
   margin: 0;
   color: #12233f;
+}
+
+.sched-appt-create__section-head p {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 820;
+}
+
+.sched-appt-create__section-head > span,
+.sched-appt-create__message {
+  width: max-content;
+  max-width: 100%;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 999px;
+  color: #475569;
+  background: #f8fafc;
+  font-size: 0.68rem;
+  font-weight: 920;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.sched-appt-create__section-head > span.is-green,
+.sched-appt-create__message.is-green {
+  color: #047857;
+  border-color: #bbf7d0;
+  background: #ecfdf5;
+}
+
+.sched-appt-create__section-head > span.is-amber,
+.sched-appt-create__message.is-warning,
+.sched-appt-create__message.is-amber {
+  color: #b45309;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.sched-appt-create__section-head > span.is-red,
+.sched-appt-create__message.is-red {
+  color: #be123c;
+  border-color: #fecdd3;
+  background: #fff1f2;
 }
 
 .sched-appt-create__body article,
@@ -967,10 +1547,27 @@
   gap: 0.75rem;
 }
 
+.sched-appt-create__slot-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.sched-appt-create__slot-picker h3 {
+  margin: 0 0 0.55rem;
+  color: #12233f;
+  font-size: 0.9rem;
+}
+
 .sched-appt-slot-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 0.65rem;
+}
+
+.sched-appt-slot-cards--compact {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .sched-appt-slot-cards button {
@@ -986,6 +1583,37 @@
   cursor: pointer;
 }
 
+.sched-appt-slot-cards--compact button {
+  min-height: 88px;
+}
+
+.sched-appt-slot-cards button:hover,
+.sched-appt-slot-cards button:focus-visible,
+.sched-appt-slot-cards button.is-active {
+  border-color: #0f9f9a;
+  background: #ecfdf9;
+  box-shadow: 0 12px 26px rgba(15, 118, 110, 0.1);
+  outline: 0;
+}
+
+.sched-appt-slot-cards button:disabled,
+.sched-appt-create nav button:disabled,
+.sched-appt-create__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+  box-shadow: none;
+}
+
+.sched-appt-slot-cards p {
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  font-weight: 850;
+}
+
 .sched-appt-preview-checks {
   display: grid;
   gap: 0.48rem;
@@ -995,6 +1623,34 @@
   grid-template-columns: 22px minmax(0, 1fr);
   color: #31506f;
   font-weight: 850;
+}
+
+.sched-appt-preview-checks p span {
+  color: #13243d;
+  font-weight: 900;
+}
+
+.sched-appt-preview-checks p span b {
+  color: #64748b;
+  font-weight: 920;
+}
+
+.sched-appt-preview-checks p.is-green {
+  color: #047857;
+  border-color: #bbf7d0;
+  background: #ecfdf5;
+}
+
+.sched-appt-preview-checks p.is-amber {
+  color: #b45309;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.sched-appt-preview-checks p.is-red {
+  color: #be123c;
+  border-color: #fecdd3;
+  background: #fff1f2;
 }
 
 .sched-appt-create__actions {
@@ -1013,6 +1669,334 @@
 .sched-appt-noshow article {
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
+
+.sched-appt-workbench__header {
+  align-items: start;
+}
+
+.sched-appt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.55rem;
+}
+
+.sched-appt-toolbar label,
+.sched-appt-toolbar select {
+  min-height: 38px;
+  border: 1px solid #dbe7f3;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.sched-appt-toolbar label {
+  min-width: min(360px, 100%);
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0 0.68rem;
+}
+
+.sched-appt-toolbar input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 820;
+}
+
+.sched-appt-toolbar select {
+  padding: 0 0.65rem;
+  color: #13243d;
+  font-weight: 850;
+}
+
+.sched-appt-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.58rem;
+  margin-bottom: 0.75rem;
+}
+
+.sched-appt-summary-strip.is-compact {
+  margin-bottom: 0;
+}
+
+.sched-appt-summary-strip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  min-height: 36px;
+  padding: 0 0.7rem;
+  border: 1px solid #dbeafe;
+  border-radius: 9px;
+  color: #31506f;
+  background: #f8fbff;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.sched-appt-summary-strip b {
+  color: #0f766e;
+  font-size: 1rem;
+}
+
+.sched-appt-action-list {
+  display: grid;
+  gap: 0.62rem;
+}
+
+.sched-appt-action-list article,
+.sched-appt-comm .sched-appt-action-list article,
+.sched-appt-checkin .sched-appt-action-list article {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  border-left-color: #0ea5e9;
+}
+
+.sched-appt-action-list article.is-amber { border-left-color: #d97706; background: #fffaf0; }
+.sched-appt-action-list article.is-blue { border-left-color: #2563eb; background: #f8fbff; }
+.sched-appt-action-list article.is-green { border-left-color: #16a34a; background: #f6fffb; }
+.sched-appt-action-list article.is-red { border-left-color: #dc2626; background: #fff7f7; }
+.sched-appt-action-list article.is-violet { border-left-color: #7c3aed; background: #fbf7ff; }
+
+.sched-appt-action-list time {
+  display: grid;
+  place-items: center;
+  min-width: 58px;
+  min-height: 48px;
+  border-radius: 10px;
+  color: #0f766e;
+  background: #ecfdf5;
+  font-size: 0.86rem;
+  font-weight: 950;
+}
+
+.sched-appt-action-list small,
+.sched-appt-workbench__list small,
+.sched-appt-action-card small {
+  color: #71829a;
+  font-size: 0.69rem;
+  font-weight: 820;
+}
+
+.sched-appt-action-list b,
+.sched-appt-action-card > header b,
+.sched-appt-workbench__list b {
+  color: #31506f;
+  font-size: 0.74rem;
+}
+
+.sched-appt-workbench {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.36fr) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.sched-appt-workbench__list {
+  display: grid;
+  gap: 0.52rem;
+  max-height: 760px;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.sched-appt-workbench__list > button,
+.sched-appt-chip-list > button {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.72rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 10px;
+  color: #13243d;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sched-appt-workbench__list > button.is-selected,
+.sched-appt-chip-list > button.is-selected {
+  border-color: #0f9f9a;
+  background: #ecfdf9;
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.09);
+}
+
+.sched-appt-workbench__list strong,
+.sched-appt-chip-list strong {
+  color: #13243d;
+  font-size: 0.84rem;
+}
+
+.sched-appt-action-card,
+.sched-appt-waitlist-create,
+.sched-appt-slot-match {
+  display: grid;
+  gap: 0.78rem;
+  padding: 0.9rem;
+  border: 1px solid #dfeaf5;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.sched-appt-action-card > header,
+.sched-appt-waitlist-create > header,
+.sched-appt-slot-match > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.sched-appt-action-card h3,
+.sched-appt-waitlist-create h3,
+.sched-appt-slot-match h3 {
+  margin: 0.12rem 0 0;
+  color: #12233f;
+  font-size: 1rem;
+}
+
+.sched-appt-action-card__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.sched-appt-action-card__meta span {
+  display: grid;
+  gap: 0.14rem;
+  min-width: 0;
+  padding: 0.62rem;
+  border: 1px solid #e4edf7;
+  border-radius: 10px;
+  color: #71829a;
+  background: #f8fbff;
+  font-size: 0.71rem;
+  font-weight: 820;
+}
+
+.sched-appt-action-card__meta b {
+  overflow: hidden;
+  color: #13243d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sched-appt-action-card label,
+.sched-appt-field-grid label {
+  display: grid;
+  gap: 0.28rem;
+  color: #31506f;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.sched-appt-action-card textarea,
+.sched-appt-field-grid input,
+.sched-appt-field-grid select,
+.sched-appt-field-grid textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #dbe7f3;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #13243d;
+  font: inherit;
+  font-weight: 820;
+}
+
+.sched-appt-action-card textarea,
+.sched-appt-field-grid textarea {
+  min-height: 72px;
+  padding: 0.58rem 0.65rem;
+  resize: vertical;
+}
+
+.sched-appt-field-grid input,
+.sched-appt-field-grid select {
+  min-height: 38px;
+  padding: 0 0.62rem;
+}
+
+.sched-appt-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.62rem;
+}
+
+.sched-appt-field-grid .is-wide {
+  grid-column: span 2;
+}
+
+.sched-appt-slot-match {
+  background: #f8fcff;
+}
+
+.sched-appt-slot-match > header b {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 0.6rem;
+  border-radius: 999px;
+  color: #047857;
+  background: #dcfce7;
+  font-size: 0.72rem;
+}
+
+.sched-appt-slot-match__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.7rem;
+}
+
+.sched-appt-slot-match h4 {
+  margin: 0 0 0.42rem;
+  color: #31506f;
+  font-size: 0.78rem;
+}
+
+.sched-appt-inline-message {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  color: #9a3412;
+  background: #fff7ed;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.sched-appt-waitlist-create {
+  margin-bottom: 0.85rem;
+  background: #f9fffd;
+}
+
+.sched-appt-chip-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.52rem;
+}
+
+.sched-appt-create__actions .is-danger,
+.sched-appt-row-actions .is-danger,
+.sched-appt-change .is-danger,
+.sched-appt-waitlist .is-danger {
+  border-color: #fecdd3;
+  color: #be123c;
+  background: #fff1f2;
+}
+
+.sched-appt-action-card button:disabled,
+.sched-appt-action-list button:disabled,
+.sched-appt-workbench__list button:disabled,
+.sched-appt-waitlist-create button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.sched-appt-action-card .is-red { color: #be123c; }
+.sched-appt-action-card .is-amber { color: #b45309; }
 
 .sched-appt-empty,
 .sched-ops-empty {
@@ -1033,13 +2017,22 @@
   .sched-ops-grid,
   .sched-ops-grid--wide,
   .sched-ops-queue-layout,
-  .sched-appt-layout {
+  .sched-appt-layout,
+  .sched-appt-workbench {
     grid-template-columns: 1fr;
   }
 
   .sched-ops-detail,
   .sched-appt-drawer {
     position: static;
+  }
+
+  .sched-appt-calendar__header {
+    display: grid !important;
+  }
+
+  .sched-appt-calendar__metrics {
+    min-width: 0;
   }
 }
 
@@ -1054,12 +2047,1397 @@
   .sched-ops-flow > div,
   .sched-appt-filter,
   .sched-appt-form-grid,
+  .sched-appt-field-grid,
+  .sched-appt-action-card__meta,
+  .sched-appt-slot-match__columns,
+  .sched-appt-create__slot-picker,
   .sched-appt-create {
     grid-template-columns: 1fr;
+  }
+
+  .sched-appt-field-grid .is-wide {
+    grid-column: auto;
+  }
+
+  .sched-appt-action-list article,
+  .sched-appt-comm .sched-appt-action-list article,
+  .sched-appt-checkin .sched-appt-action-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .sched-appt-create__section-head {
+    display: grid;
   }
 
   .sched-appt-create nav {
     border-right: 0;
     border-bottom: 1px solid #e2ebf5;
+  }
+
+  .sched-appt-calendar__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sched-appt-calendar__week-grid {
+    min-width: 980px;
+    grid-template-columns: 216px repeat(var(--week-days), minmax(128px, 1fr));
+  }
+
+  .sched-appt-calendar__doctor-card {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .sched-appt-calendar__doctor-card > b {
+    width: 34px;
+    height: 34px;
+  }
+
+  .sched-appt-calendar__doctor-card small {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+/* =========================
+   Appointment Command Center v2
+   Backend-first, balanced cockpit layout
+   ========================= */
+.sched-appt-v2 {
+  --appt-primary: #0f766e;
+  --appt-primary-2: #0d9488;
+  --appt-ink: #10233b;
+  --appt-muted: #64748b;
+  --appt-line: #dbe7f3;
+  --appt-soft: #f6fbff;
+  --appt-card: rgba(255, 255, 255, 0.94);
+  gap: 0.85rem;
+  max-width: 100%;
+}
+
+.sched-appt-v2 .sched-appt-hero {
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  min-height: 94px;
+  padding: 1rem 1.1rem;
+  border-color: rgba(15, 118, 110, 0.18);
+  background:
+    radial-gradient(circle at 7% 0%, rgba(14, 165, 233, 0.11), transparent 12rem),
+    radial-gradient(circle at 92% 20%, rgba(20, 184, 166, 0.16), transparent 13rem),
+    linear-gradient(135deg, #ffffff 0%, #f7fcff 62%, #f2fbf8 100%);
+}
+
+.sched-appt-v2 .sched-appt-hero::after {
+  content: '';
+  position: absolute;
+  inset: auto 1.1rem 0 1.1rem;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: linear-gradient(90deg, #0f766e, #38bdf8, #22c55e);
+  opacity: 0.8;
+}
+
+.sched-appt-v2 .sched-appt-hero h1 {
+  margin: 0.12rem 0 0.2rem;
+  font-size: clamp(1.35rem, 1.8vw, 1.9rem);
+  letter-spacing: -0.025em;
+}
+
+.sched-appt-v2 .sched-appt-hero p {
+  max-width: 760px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.sched-appt-v2 .sched-appt-hero__tools {
+  flex: 0 0 auto;
+  max-width: 520px;
+}
+
+.sched-appt-v2 .sched-appt-hero__tools label {
+  min-width: 150px;
+}
+
+.sched-appt-v2 .sched-appt-hero__tools input,
+.sched-appt-v2 .sched-appt-hero__tools button,
+.sched-appt-v2 .sched-appt-hero__tools a {
+  min-height: 36px;
+  border-radius: 12px;
+}
+
+.sched-appt-command-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "status actions"
+    "nav nav";
+  gap: 0.62rem;
+  padding: 0.72rem;
+  border: 1px solid var(--appt-line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 34px rgba(15, 35, 63, 0.06);
+  backdrop-filter: blur(12px);
+}
+
+.sched-appt-command-strip__status {
+  grid-area: status;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sched-appt-command-strip__status span,
+.sched-appt-command-strip__actions button,
+.sched-appt-command-strip__nav a {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.sched-appt-command-strip__status span {
+  padding: 0 0.62rem;
+  border: 1px solid #dbeafe;
+  color: #31506f;
+  background: #f8fbff;
+}
+
+.sched-appt-command-strip__status .is-online {
+  border-color: #bbf7d0;
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.sched-appt-command-strip__status .is-warning {
+  border-color: #fde68a;
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.sched-appt-command-strip__status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.sched-appt-command-strip__nav {
+  grid-area: nav;
+  display: flex;
+  gap: 0.38rem;
+  overflow-x: auto;
+  padding-top: 0.1rem;
+}
+
+.sched-appt-command-strip__nav a {
+  flex: 0 0 auto;
+  padding: 0 0.74rem;
+  border: 1px solid #e2ebf5;
+  color: #49627d;
+  background: #ffffff;
+  text-decoration: none;
+}
+
+.sched-appt-command-strip__nav a.is-active {
+  border-color: transparent;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  box-shadow: 0 10px 20px rgba(15, 118, 110, 0.18);
+}
+
+.sched-appt-command-strip__actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 0.45rem;
+}
+
+.sched-appt-command-strip__actions button {
+  padding: 0 0.7rem;
+  border: 1px solid #cfe2f3;
+  color: #15314f;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.sched-appt-v2 .sched-appt-kpis {
+  grid-template-columns: repeat(8, minmax(118px, 1fr));
+  gap: 0.55rem;
+}
+
+.sched-appt-v2 .sched-appt-kpis article {
+  position: relative;
+  min-height: 82px;
+  overflow: hidden;
+  padding: 0.72rem;
+  border-radius: 15px;
+  box-shadow: 0 10px 26px rgba(15, 35, 63, 0.055);
+}
+
+.sched-appt-v2 .sched-appt-kpis article::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #0ea5e9;
+}
+.sched-appt-v2 .sched-appt-kpis article.is-amber::before { background: #d97706; }
+.sched-appt-v2 .sched-appt-kpis article.is-cyan::before { background: #0891b2; }
+.sched-appt-v2 .sched-appt-kpis article.is-green::before { background: #16a34a; }
+.sched-appt-v2 .sched-appt-kpis article.is-violet::before { background: #7c3aed; }
+.sched-appt-v2 .sched-appt-kpis article.is-teal::before { background: #0d9488; }
+.sched-appt-v2 .sched-appt-kpis article.is-red::before { background: #dc2626; }
+.sched-appt-v2 .sched-appt-kpis article.is-slate::before { background: #64748b; }
+
+.sched-appt-v2 .sched-appt-kpis span {
+  font-size: 0.68rem;
+}
+
+.sched-appt-v2 .sched-appt-kpis strong {
+  font-size: 1.45rem;
+}
+
+.sched-appt-v2 .sched-appt-kpis small {
+  font-size: 0.66rem;
+}
+
+.sched-appt-v2 .sched-appt-filter {
+  position: sticky;
+  top: 68px;
+  z-index: 8;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+  padding: 0.62rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 28px rgba(15, 35, 63, 0.06);
+}
+
+.sched-appt-v2 .sched-appt-filter label {
+  min-height: 38px;
+  border-radius: 13px;
+}
+
+.sched-appt-v2 .sched-appt-filter button {
+  min-height: 32px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+}
+
+.sched-appt-v2 .sched-appt-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 370px);
+  align-items: start;
+}
+
+.sched-appt-v2 .sched-appt-panel,
+.sched-appt-v2 .sched-appt-drawer,
+.sched-appt-v2 .sched-appt-create {
+  border-color: rgba(207, 226, 243, 0.96);
+  border-radius: 18px;
+  background: var(--appt-card);
+  box-shadow: 0 16px 38px rgba(15, 35, 63, 0.07);
+}
+
+.sched-appt-v2 .sched-appt-table {
+  overflow: hidden;
+}
+
+.sched-appt-v2 .sched-appt-table__header {
+  display: flex;
+  align-items: center !important;
+  margin-bottom: 0.62rem;
+}
+
+.sched-appt-v2 .sched-appt-table__header h2 {
+  font-size: 1.08rem;
+  letter-spacing: -0.01em;
+}
+
+.sched-appt-v2 .sched-appt-table__header p {
+  margin-top: 0.18rem;
+}
+
+.sched-appt-table__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.38rem;
+}
+
+.sched-appt-table__bulk button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.62rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 999px;
+  color: #0f766e;
+  background: #f2fffb;
+  font-size: 0.68rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.sched-appt-table__bulk button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.sched-appt-v2 .sched-appt-table__head,
+.sched-appt-v2 .sched-appt-table article {
+  grid-template-columns: 92px minmax(190px, 1.15fr) minmax(200px, 1.12fr) minmax(130px, 0.7fr) minmax(150px, 0.82fr) minmax(210px, 1fr);
+  min-width: 1080px;
+}
+
+.sched-appt-v2 .sched-appt-table__head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.56rem 0.78rem;
+  border: 1px solid #e3edf7;
+  background: #f3f8fd;
+}
+
+.sched-appt-v2 .sched-appt-table__list {
+  max-height: min(620px, calc(100vh - 390px));
+  min-height: 240px;
+  overflow: auto;
+  padding-right: 0.18rem;
+}
+
+.sched-appt-v2 .sched-appt-table article {
+  min-height: 86px;
+  padding: 0.7rem 0.78rem;
+  box-shadow: none;
+}
+
+.sched-appt-v2 .sched-appt-time-cell strong {
+  font-size: 0.98rem !important;
+}
+
+.sched-appt-v2 .sched-appt-row-actions {
+  justify-content: flex-start;
+}
+
+.sched-appt-v2 .sched-appt-row-actions button {
+  min-height: 30px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+}
+
+.sched-appt-v2 .sched-appt-drawer {
+  top: 82px;
+  max-height: calc(100vh - 110px);
+  overflow: auto;
+}
+
+.sched-appt-v2 .sched-appt-drawer:not(.is-filled) {
+  min-height: 300px;
+}
+
+.sched-appt-v2 .sched-appt-drawer.is-filled header {
+  padding: 0.78rem;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fbff, #f2fffb);
+}
+
+.sched-appt-v2 .sched-appt-drawer__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sched-appt-v2 .sched-appt-drawer__grid span {
+  padding: 0.6rem;
+  border: 1px solid #edf3f9;
+  border-radius: 11px;
+  background: #fbfdff;
+}
+
+.sched-appt-v2 .sched-appt-empty {
+  min-height: 150px;
+  padding: 1rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ffffff, #f8fbff);
+}
+
+/* Calendar page: turn giant table into an executive planning board */
+.sched-appt-v2 .sched-appt-calendar {
+  padding: 0.9rem;
+}
+
+.sched-appt-v2 .sched-appt-calendar__header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.62fr);
+  gap: 0.9rem;
+}
+
+.sched-appt-v2 .sched-appt-calendar__metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.sched-appt-v2 .sched-appt-calendar__metrics article {
+  min-height: 58px;
+  border-radius: 13px;
+}
+
+.sched-appt-v2 .sched-appt-calendar__legend {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.sched-appt-v2 .sched-appt-calendar__board {
+  max-height: calc(100vh - 360px);
+  min-height: 420px;
+  overflow: auto;
+  border-radius: 16px;
+}
+
+.sched-appt-v2 .sched-appt-calendar__week-grid {
+  grid-template-columns: 236px repeat(var(--week-days), minmax(158px, 1fr));
+  min-width: 1280px;
+}
+
+.sched-appt-v2 .sched-appt-calendar__doctor-head,
+.sched-appt-v2 .sched-appt-calendar__day-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  min-height: 60px;
+}
+
+.sched-appt-v2 .sched-appt-calendar__doctor-head {
+  left: 0;
+  z-index: 7;
+}
+
+.sched-appt-v2 .sched-appt-calendar__doctor-card,
+.sched-appt-v2 .sched-appt-calendar__day-cell {
+  min-height: 138px;
+}
+
+.sched-appt-v2 .sched-appt-calendar__doctor-card {
+  align-items: start;
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+}
+
+.sched-appt-v2 .sched-appt-calendar-card {
+  padding: 0.46rem;
+  border-radius: 11px;
+}
+
+/* Shared workbench pages: confirmation, reschedule, check-in, no-show, waitlist */
+.sched-appt-v2 .sched-appt-comm,
+.sched-appt-v2 .sched-appt-change,
+.sched-appt-v2 .sched-appt-checkin,
+.sched-appt-v2 .sched-appt-noshow,
+.sched-appt-v2 .sched-appt-waitlist {
+  min-height: min(640px, calc(100vh - 250px));
+}
+
+.sched-appt-v2 .sched-appt-workbench__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+
+.sched-appt-v2 .sched-appt-toolbar label {
+  min-width: 320px;
+  border-radius: 999px;
+}
+
+.sched-appt-v2 .sched-appt-summary-strip {
+  margin-bottom: 0.65rem;
+}
+
+.sched-appt-v2 .sched-appt-action-list {
+  max-height: min(560px, calc(100vh - 390px));
+  overflow: auto;
+  padding-right: 0.22rem;
+}
+
+.sched-appt-v2 .sched-appt-action-list article {
+  min-height: 76px;
+  padding: 0.72rem;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(15, 35, 63, 0.045);
+}
+
+.sched-appt-v2 .sched-appt-workbench {
+  grid-template-columns: minmax(300px, 0.34fr) minmax(0, 1fr);
+  min-height: 520px;
+}
+
+.sched-appt-v2 .sched-appt-workbench__list {
+  max-height: min(620px, calc(100vh - 370px));
+  padding: 0.22rem;
+  border: 1px solid #edf3f9;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.sched-appt-v2 .sched-appt-workbench__list > button {
+  border-radius: 13px;
+  background: #ffffff;
+}
+
+.sched-appt-v2 .sched-appt-action-card {
+  min-height: 520px;
+  max-height: min(680px, calc(100vh - 330px));
+  overflow: auto;
+  border-radius: 16px;
+}
+
+.sched-appt-v2 .sched-appt-action-card__meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sched-appt-v2 .sched-appt-slot-match {
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fcff, #f6fffc);
+}
+
+.sched-appt-v2 .sched-appt-slot-match__columns {
+  max-height: 280px;
+  overflow: auto;
+}
+
+.sched-appt-v2 .sched-appt-slot-cards button {
+  min-height: 92px;
+  border-radius: 14px;
+}
+
+.sched-appt-v2 .sched-appt-slot-cards--compact button {
+  min-height: 74px;
+}
+
+/* Create wizard: compact, high-density booking flow */
+.sched-appt-v2.sched-appt-page--create .sched-appt-hero {
+  margin-bottom: 0.15rem;
+}
+
+.sched-appt-v2 .sched-appt-create {
+  grid-template-columns: 230px minmax(0, 1fr);
+  min-height: min(660px, calc(100vh - 210px));
+}
+
+.sched-appt-v2 .sched-appt-create nav {
+  gap: 0.48rem;
+  padding: 0.9rem;
+  background:
+    linear-gradient(180deg, #f2fffb 0%, #f8fbff 100%);
+}
+
+.sched-appt-v2 .sched-appt-create nav button {
+  min-height: 56px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+}
+
+.sched-appt-v2 .sched-appt-create nav button.is-active {
+  border-color: #b8eee5;
+  background: #e9fbf6;
+  box-shadow: 0 12px 24px rgba(15, 118, 110, 0.08);
+}
+
+.sched-appt-v2 .sched-appt-create__body {
+  min-height: 0;
+  max-height: min(720px, calc(100vh - 220px));
+  overflow: auto;
+  padding: 1rem;
+}
+
+.sched-appt-v2 .sched-appt-create__section-head {
+  align-items: center;
+  padding: 0.78rem;
+  border: 1px solid #e2ebf5;
+  border-radius: 15px;
+  background: #fbfdff;
+}
+
+.sched-appt-v2 .sched-appt-slot-cards {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.sched-appt-v2 .sched-appt-create__slot-picker {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.75fr);
+}
+
+.sched-appt-v2 .sched-appt-preview-checks p {
+  border-radius: 14px;
+}
+
+.sched-appt-v2 .sched-appt-create__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  padding-top: 0.7rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0), #ffffff 30%);
+}
+
+.sched-appt-v2 .sched-appt-toast,
+.sched-appt-v2 .sched-appt-loading,
+.sched-appt-v2 .sched-appt-notice {
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(15, 35, 63, 0.06);
+}
+
+@media (max-width: 1500px) {
+  .sched-appt-v2 .sched-appt-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .sched-appt-command-strip,
+  .sched-appt-v2 .sched-appt-calendar__header,
+  .sched-appt-v2 .sched-appt-workbench__header,
+  .sched-appt-v2 .sched-appt-layout,
+  .sched-appt-v2 .sched-appt-workbench,
+  .sched-appt-v2 .sched-appt-create {
+    grid-template-columns: 1fr;
+  }
+
+  .sched-appt-command-strip {
+    grid-template-areas: "status" "actions" "nav";
+  }
+
+  .sched-appt-command-strip__actions {
+    justify-content: flex-start;
+  }
+
+  .sched-appt-v2 .sched-appt-drawer,
+  .sched-appt-v2 .sched-appt-action-card {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .sched-appt-v2 .sched-appt-hero,
+  .sched-appt-v2 .sched-appt-filter,
+  .sched-appt-v2 .sched-appt-create__slot-picker,
+  .sched-appt-v2 .sched-appt-action-card__meta,
+  .sched-appt-v2 .sched-appt-slot-match__columns {
+    grid-template-columns: 1fr;
+  }
+
+  .sched-appt-v2 .sched-appt-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sched-appt-v2 .sched-appt-hero__tools {
+    justify-content: flex-start;
+  }
+
+  .sched-appt-v2 .sched-appt-action-list article {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Appointment Command Center V3: premium weekly calendar, create wizard, waitlist */
+.sched-appt-v2 .sched-appt-calendar-pro {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid rgba(14, 165, 233, 0.18);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(20, 184, 166, 0.12), transparent 32%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+.sched-appt-calendar-pro__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(520px, .9fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 24px 26px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+.sched-appt-calendar-pro__hero > div:first-child span,
+.sched-appt-calendar-pro__insights b,
+.sched-appt-waitlist-pro__hero > div > span,
+.sched-appt-create-console header span,
+.sched-appt-smart-card header span {
+  display: inline-flex;
+  color: #00796b;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+.sched-appt-calendar-pro__hero h2 { margin: 7px 0 5px; font-size: 24px; letter-spacing: -.03em; color: #0f172a; }
+.sched-appt-calendar-pro__hero p { margin: 0; color: #64748b; font-weight: 750; line-height: 1.55; }
+.sched-appt-calendar-pro__hero-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 10px;
+}
+.sched-appt-calendar-pro__hero-actions article {
+  border: 1px solid rgba(203, 213, 225, .8);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,.82);
+  box-shadow: 0 16px 30px rgba(15,23,42,.05);
+}
+.sched-appt-calendar-pro__hero-actions article.is-warning { background: #fffbeb; border-color: #fde68a; }
+.sched-appt-calendar-pro__hero-actions article.is-ok { background: #ecfdf5; border-color: #bbf7d0; }
+.sched-appt-calendar-pro__hero-actions span { display: block; color: #00796b; font-weight: 900; font-size: 12px; }
+.sched-appt-calendar-pro__hero-actions strong { display: block; margin-top: 6px; font-size: 28px; color: #0f172a; }
+.sched-appt-calendar-pro__hero-actions small { color: #64748b; font-weight: 800; }
+.sched-appt-calendar-pro__insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 26px;
+}
+.sched-appt-calendar-pro__insights article {
+  border: 1px solid rgba(20, 184, 166, .18);
+  background: rgba(240, 253, 250, .75);
+  border-radius: 16px;
+  padding: 13px 16px;
+}
+.sched-appt-calendar-pro__insights strong { display:block; margin: 4px 0; color:#0f172a; font-size: 16px; }
+.sched-appt-calendar-pro__insights span { color:#64748b; font-weight:800; font-size: 12px; }
+.sched-appt-calendar-pro__legend {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 12px 26px 16px;
+}
+.sched-appt-calendar-pro__legend span {
+  --legend-color: #0f766e;
+  --legend-bg: #f8fafc;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 6px auto;
+  column-gap: 9px;
+  min-width: 126px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--legend-bg);
+  border: 1px solid rgba(203,213,225,.65);
+}
+.sched-appt-calendar-pro__legend i { width:6px; height:32px; border-radius:99px; background: var(--legend-color); grid-row: span 2; }
+.sched-appt-calendar-pro__legend b { color:#0f172a; font-size:12px; line-height:1.1; }
+.sched-appt-calendar-pro__legend small { color: var(--legend-color); font-weight: 850; font-size:11px; }
+.sched-appt-calendar-pro__legend .is-amber { --legend-color:#b45309; --legend-bg:#fffbeb; }
+.sched-appt-calendar-pro__legend .is-blue { --legend-color:#1d4ed8; --legend-bg:#eff6ff; }
+.sched-appt-calendar-pro__legend .is-green { --legend-color:#047857; --legend-bg:#ecfdf5; }
+.sched-appt-calendar-pro__legend .is-violet { --legend-color:#6d28d9; --legend-bg:#f5f3ff; }
+.sched-appt-calendar-pro__legend .is-teal { --legend-color:#0f766e; --legend-bg:#ecfdf9; }
+.sched-appt-calendar-pro__legend .is-red { --legend-color:#be123c; --legend-bg:#fff1f2; }
+.sched-appt-calendar-pro__legend .is-slate { --legend-color:#475569; --legend-bg:#f1f5f9; }
+.sched-appt-calendar-pro__board {
+  max-height: calc(100vh - 360px);
+  min-height: 520px;
+  overflow: auto;
+  padding: 0 26px 24px;
+  scrollbar-gutter: stable both-edges;
+}
+.sched-appt-calendar-pro__grid {
+  min-width: 1320px;
+  display: grid;
+  grid-template-columns: 270px repeat(var(--week-days), minmax(165px, 1fr));
+  align-items: stretch;
+  border: 1px solid rgba(203,213,225,.75);
+  border-radius: 20px;
+  overflow: clip;
+  background: #fff;
+}
+.sched-appt-calendar-pro__doctor-head,
+.sched-appt-calendar-pro__day-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #f8fafc;
+  padding: 14px 16px;
+  min-height: 70px;
+  border-bottom: 1px solid rgba(203,213,225,.85);
+  border-right: 1px solid rgba(226,232,240,.9);
+}
+.sched-appt-calendar-pro__doctor-head { left: 0; z-index:4; }
+.sched-appt-calendar-pro__doctor-head strong,
+.sched-appt-calendar-pro__day-head strong { display:block; color:#0f172a; font-weight:950; }
+.sched-appt-calendar-pro__doctor-head span,
+.sched-appt-calendar-pro__day-head span,
+.sched-appt-calendar-pro__day-head small { display:block; color:#64748b; font-weight:850; font-size:12px; margin-top:3px; }
+.sched-appt-calendar-pro__day-head.is-selected { background:#eff6ff; }
+.sched-appt-calendar-pro__resource-row { display: contents; }
+.sched-appt-calendar-pro__doctor-card,
+.sched-appt-calendar-pro__cell {
+  border-right: 1px solid rgba(226,232,240,.9);
+  border-bottom: 1px solid rgba(226,232,240,.9);
+}
+.sched-appt-calendar-pro__doctor-card {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-height: 168px;
+  padding: 18px 16px;
+  background: rgba(255,255,255,.96);
+}
+.sched-appt-calendar-pro__doctor-card > b {
+  width: 48px; height: 48px; border-radius: 16px;
+  display:grid; place-items:center; background:#ecfdf5; color:#00796b; font-weight:950;
+}
+.sched-appt-calendar-pro__doctor-card strong { display:block; color:#0f172a; line-height:1.25; }
+.sched-appt-calendar-pro__doctor-card span { color:#64748b; font-weight:850; font-size:12px; }
+.sched-appt-calendar-pro__doctor-card em { display:block; height:7px; background:#e2e8f0; border-radius:99px; margin:10px 0 8px; overflow:hidden; }
+.sched-appt-calendar-pro__doctor-card em i { display:block; width:var(--load); height:100%; border-radius:inherit; background:#14b8a6; }
+.sched-appt-calendar-pro__doctor-card em.is-amber i { background:#f59e0b; }
+.sched-appt-calendar-pro__doctor-card em.is-red i { background:#ef4444; }
+.sched-appt-calendar-pro__doctor-card em.is-slate i { background:#94a3b8; }
+.sched-appt-calendar-pro__doctor-card small { display:block; color:#475569; font-weight:800; font-size:11px; line-height:1.45; }
+.sched-appt-calendar-pro__cell {
+  min-height: 168px;
+  padding: 10px;
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+}
+.sched-appt-calendar-pro__cell.is-selected { background:#f8fbff; }
+.sched-appt-calendar-pro-card {
+  --card-color:#0f766e; --card-bg:#f8fafc; --card-border:#e2e8f0;
+  display:block;
+  margin-bottom:8px;
+  padding:10px;
+  border-radius:14px;
+  background:var(--card-bg);
+  border:1px solid var(--card-border);
+  border-left:4px solid var(--card-color);
+  box-shadow:0 10px 20px rgba(15,23,42,.04);
+}
+.sched-appt-calendar-pro-card.is-amber { --card-color:#d97706; --card-bg:#fff9e8; --card-border:#fde68a; }
+.sched-appt-calendar-pro-card.is-blue { --card-color:#2563eb; --card-bg:#eff6ff; --card-border:#bfdbfe; }
+.sched-appt-calendar-pro-card.is-green { --card-color:#16a34a; --card-bg:#ecfdf5; --card-border:#bbf7d0; }
+.sched-appt-calendar-pro-card.is-violet { --card-color:#7c3aed; --card-bg:#f5f3ff; --card-border:#ddd6fe; }
+.sched-appt-calendar-pro-card.is-teal { --card-color:#0d9488; --card-bg:#ecfdf9; --card-border:#99f6e4; }
+.sched-appt-calendar-pro-card.is-red { --card-color:#dc2626; --card-bg:#fff1f2; --card-border:#fecdd3; }
+.sched-appt-calendar-pro-card.is-slate { --card-color:#64748b; --card-bg:#f8fafc; --card-border:#e2e8f0; }
+.sched-appt-calendar-pro-card header,
+.sched-appt-calendar-pro-card footer { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+.sched-appt-calendar-pro-card time { color:var(--card-color); font-weight:950; font-size:12px; }
+.sched-appt-calendar-pro-card header span { color:var(--card-color); font-weight:900; font-size:11px; white-space:nowrap; }
+.sched-appt-calendar-pro-card strong { display:block; margin:6px 0 2px; color:#0f172a; font-size:13px; line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.sched-appt-calendar-pro-card small { color:#475569; font-weight:800; font-size:11px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
+.sched-appt-calendar-pro-card footer { margin-top:8px; }
+.sched-appt-calendar-pro-card footer span,
+.sched-appt-calendar-pro-card footer b { color:#64748b; font-weight:900; font-size:10px; }
+.sched-appt-calendar-pro-card footer b { color:#00796b; }
+.sched-appt-calendar-pro__empty,
+.sched-appt-calendar-pro__more {
+  width:100%; min-height:34px; border-radius:12px; border:1px dashed #cbd5e1; background:#f8fafc; color:#94a3b8; font-weight:900; display:grid; place-items:center; font-size:12px;
+}
+.sched-appt-calendar-pro__more { color:#0f766e; background:#f0fdfa; cursor:pointer; }
+
+.sched-appt-v2 .sched-appt-create-pro {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  padding: 0;
+  min-height: calc(100vh - 250px);
+  overflow: hidden;
+}
+.sched-appt-create-pro__steps {
+  padding: 20px;
+  background: linear-gradient(180deg, #f8fafc, #f0fdfa);
+  border-right:1px solid rgba(203,213,225,.7);
+}
+.sched-appt-create-pro__steps button {
+  width:100%; display:grid; grid-template-columns:40px 1fr; grid-template-rows:auto auto; align-items:center; gap:2px 12px;
+  padding:14px; margin-bottom:12px; border-radius:18px; border:1px solid transparent; background:transparent; text-align:left; cursor:pointer;
+}
+.sched-appt-create-pro__steps button b { grid-row:span 2; width:38px;height:38px;display:grid;place-items:center;border-radius:13px;background:#fff;color:#00796b;box-shadow:0 8px 20px rgba(15,23,42,.06); }
+.sched-appt-create-pro__steps button span { color:#334155; font-weight:950; }
+.sched-appt-create-pro__steps button small { color:#64748b; font-weight:800; }
+.sched-appt-create-pro__steps button.is-active { background:#fff; border-color:#0f766e; box-shadow:0 18px 34px rgba(15,23,42,.08); }
+.sched-appt-create-pro__steps button.is-active span { color:#00796b; }
+.sched-appt-create-pro__steps button:disabled { opacity:.52; cursor:not-allowed; }
+.sched-appt-create-pro__layout { display:grid; grid-template-columns:minmax(0,1fr) 360px; min-width:0; }
+.sched-appt-create-pro .sched-appt-create__body { min-height:100%; max-height:calc(100vh - 250px); overflow:auto; padding:24px; }
+.sched-appt-create-pro__right { max-height:calc(100vh - 250px); overflow:auto; padding:20px; background:rgba(248,250,252,.8); border-left:1px solid rgba(203,213,225,.72); }
+.sched-appt-create-pro__search { margin-bottom:14px; }
+.sched-appt-create-pro__patient-grid,
+.sched-appt-doctor-picks { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
+.sched-appt-create-pro__patient-grid button,
+.sched-appt-doctor-picks button,
+.sched-appt-chip-list-pro button {
+  border:1px solid #dbe7ef; background:#fbfffd; border-radius:16px; padding:14px; text-align:left; cursor:pointer; transition:.18s ease;
+}
+.sched-appt-create-pro__patient-grid button:hover,
+.sched-appt-doctor-picks button:hover,
+.sched-appt-chip-list-pro button:hover { transform:translateY(-1px); box-shadow:0 14px 28px rgba(15,23,42,.08); }
+.sched-appt-create-pro__patient-grid button.is-active,
+.sched-appt-doctor-picks button.is-active,
+.sched-appt-chip-list-pro button.is-selected { border-color:#0f766e; background:#ecfdf5; box-shadow:inset 0 0 0 1px rgba(15,118,110,.18); }
+.sched-appt-create-pro__patient-grid strong,
+.sched-appt-doctor-picks strong { display:block; color:#0f172a; font-weight:950; }
+.sched-appt-create-pro__patient-grid span,
+.sched-appt-create-pro__patient-grid small,
+.sched-appt-doctor-picks small { display:block; margin-top:4px; color:#64748b; font-weight:800; }
+.sched-appt-doctor-picks button { display:flex; gap:12px; align-items:center; }
+.sched-appt-doctor-picks button > b { width:42px;height:42px;flex:0 0 auto;display:grid;place-items:center;border-radius:14px;background:#ecfdf5;color:#00796b; }
+.sched-appt-create-pro__slot-picker { grid-template-columns: minmax(0,1fr) minmax(300px,.7fr); }
+.sched-appt-smart-card,
+.sched-appt-create-console {
+  background:#fff; border:1px solid #dbe7ef; border-radius:20px; padding:16px; margin-bottom:14px; box-shadow:0 16px 34px rgba(15,23,42,.05);
+}
+.sched-appt-smart-card header { display:flex; gap:12px; align-items:flex-start; margin-bottom:14px; }
+.sched-appt-smart-card header > b { width:40px;height:40px;display:grid;place-items:center;border-radius:14px;background:#ecfdf5;color:#00796b; }
+.sched-appt-smart-card header strong { display:block; color:#0f172a; font-weight:950; line-height:1.25; }
+.sched-appt-smart-card header small { display:block; color:#64748b; font-weight:800; margin-top:3px; }
+.sched-appt-smart-card__facts { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.sched-appt-smart-card__facts span { padding:10px; border-radius:13px; background:#f8fafc; border:1px solid #eef2f7; }
+.sched-appt-smart-card__facts small { display:block; color:#64748b; font-weight:850; font-size:11px; }
+.sched-appt-smart-card__facts b { display:block; color:#0f172a; font-weight:950; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sched-appt-create-console header h3 { margin:5px 0 12px; color:#0f172a; font-size:16px; }
+.sched-appt-create-console__checks { display:grid; gap:8px; }
+.sched-appt-create-console__checks article { display:flex; gap:9px; padding:10px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; color:#64748b; }
+.sched-appt-create-console__checks article.is-ok { background:#ecfdf5; border-color:#bbf7d0; color:#047857; }
+.sched-appt-create-console__checks article.is-warning { background:#fffbeb; border-color:#fde68a; color:#b45309; }
+.sched-appt-create-console__checks article.is-error { background:#fff1f2; border-color:#fecdd3; color:#be123c; }
+.sched-appt-create-console__checks b { display:block; color:#0f172a; font-size:12px; }
+.sched-appt-create-console__checks span { display:block; font-weight:800; font-size:11px; line-height:1.35; }
+.sched-appt-create-console__log { margin-top:12px; display:grid; gap:7px; }
+.sched-appt-create-console__log p { margin:0; display:grid; grid-template-columns:48px 1fr; gap:8px; padding:8px 0; border-top:1px dashed #e2e8f0; }
+.sched-appt-create-console__log time { color:#0f766e; font-weight:950; font-size:11px; }
+.sched-appt-create-console__log span { color:#475569; font-weight:800; font-size:12px; line-height:1.35; }
+.sched-appt-create-pro__final { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+.sched-appt-waitlist-pro { padding:22px; }
+.sched-appt-waitlist-pro__hero { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:16px; margin-bottom:16px; }
+.sched-appt-waitlist-pro__hero h2 { margin:5px 0; color:#0f172a; font-size:24px; }
+.sched-appt-waitlist-pro__hero p { margin:0; color:#64748b; font-weight:800; }
+.sched-appt-waitlist-create-pro { padding:0; overflow:hidden; }
+.sched-appt-waitlist-create-pro > header { display:flex; justify-content:space-between; gap:16px; align-items:center; padding:18px; border-bottom:1px solid #e2e8f0; background:linear-gradient(135deg,#f0fdfa,#fff); }
+.sched-appt-waitlist-create-pro header h3 { margin:4px 0; font-size:20px; color:#0f172a; }
+.sched-appt-waitlist-create-pro header p { margin:0; color:#64748b; font-weight:800; }
+.sched-appt-waitlist-create-pro__grid { display:grid; grid-template-columns:minmax(0,.85fr) minmax(460px,1fr); gap:16px; padding:18px; }
+.sched-appt-waitlist-create-pro__left label { display:block; margin-bottom:10px; }
+.sched-appt-chip-list-pro { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; max-height:180px; overflow:auto; }
+.sched-appt-waitlist-pro__workspace { display:grid; grid-template-columns:360px minmax(0,1fr); gap:18px; margin-top:16px; min-height:520px; }
+.sched-appt-waitlist-pro__list { max-height:540px; overflow:auto; padding-right:6px; }
+.sched-appt-waitlist-pro__list button { position:relative; padding:16px; border-radius:18px; }
+.sched-appt-waitlist-pro__status { position:absolute; right:12px; top:12px; padding:5px 9px; border-radius:999px; background:#f1f5f9; color:#475569; font-size:11px; font-weight:950; }
+.sched-appt-waitlist-pro__status.is-waiting { background:#fffbeb; color:#b45309; }
+.sched-appt-waitlist-pro__status.is-offered { background:#eff6ff; color:#1d4ed8; }
+.sched-appt-waitlist-pro__status.is-booked { background:#ecfdf5; color:#047857; }
+.sched-appt-waitlist-pro__status.is-cancelled { background:#fff1f2; color:#be123c; }
+.sched-appt-waitlist-pro__detail { max-height:540px; overflow:auto; }
+.sched-appt-waitlist-pro__detail header p { margin:6px 0 0; color:#64748b; font-weight:800; }
+.sched-appt-waitlist-pro__meta { grid-template-columns:repeat(2,minmax(0,1fr)); }
+
+@media (max-width: 1320px) {
+  .sched-appt-calendar-pro__hero { grid-template-columns:1fr; }
+  .sched-appt-create-pro__layout { grid-template-columns:1fr; }
+  .sched-appt-create-pro__right { max-height:none; border-left:0; border-top:1px solid rgba(203,213,225,.72); }
+  .sched-appt-waitlist-create-pro__grid,
+  .sched-appt-waitlist-pro__workspace { grid-template-columns:1fr; }
+}
+@media (max-width: 980px) {
+  .sched-appt-v2 .sched-appt-create-pro { grid-template-columns:1fr; }
+  .sched-appt-create-pro__steps { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .sched-appt-create-pro__steps button { margin:0; }
+  .sched-appt-create-pro__patient-grid,
+  .sched-appt-doctor-picks,
+  .sched-appt-create-pro__final,
+  .sched-appt-calendar-pro__insights,
+  .sched-appt-calendar-pro__hero-actions { grid-template-columns:1fr; }
+}
+
+/* Appointment Command Center V4 hotfix: calendar crash, larger create wizard, professional waitlist layout */
+.sched-appt-v2 .sched-appt-calendar-pro__board {
+  max-height: none;
+  min-height: 560px;
+  overflow: auto;
+  padding: 0 24px 24px;
+}
+
+.sched-appt-v2 .sched-appt-calendar-pro__grid {
+  min-width: 1280px;
+  grid-template-columns: 255px repeat(var(--week-days), minmax(170px, 1fr));
+}
+
+.sched-appt-v2 .sched-appt-calendar-pro__doctor-card,
+.sched-appt-v2 .sched-appt-calendar-pro__cell {
+  min-height: 156px;
+}
+
+.sched-appt-v2 .sched-appt-calendar-pro__cell {
+  align-content: start;
+}
+
+.sched-appt-v2 .sched-appt-calendar-pro-card {
+  min-height: 102px;
+}
+
+.sched-appt-v2 .sched-appt-create-pro {
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 720px;
+  height: auto;
+  overflow: visible;
+  border-color: rgba(20, 184, 166, 0.22);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(20, 184, 166, 0.12), transparent 32rem),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.sched-appt-v2 .sched-appt-create-pro__steps {
+  position: sticky;
+  top: 14px;
+  align-self: start;
+  min-height: 640px;
+  padding: 18px;
+}
+
+.sched-appt-v2 .sched-appt-create-pro__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  min-width: 0;
+}
+
+.sched-appt-v2 .sched-appt-create-pro .sched-appt-create__body {
+  max-height: none;
+  min-height: 540px;
+  overflow: visible;
+  padding: 26px 28px 18px;
+}
+
+.sched-appt-v2 .sched-appt-create-pro__right {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-height: none;
+  overflow: visible;
+  padding: 18px 28px 26px;
+  border-top: 1px solid rgba(203, 213, 225, 0.72);
+  border-left: 0;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.72), rgba(240, 253, 250, 0.72));
+}
+
+.sched-appt-v2 .sched-appt-create-pro__right > * {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.sched-appt-v2 .sched-appt-create__section-head {
+  align-items: center;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(203, 213, 225, 0.76);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.05);
+}
+
+.sched-appt-v2 .sched-appt-create__section-head h2 {
+  font-size: clamp(24px, 2vw, 34px);
+  letter-spacing: -0.035em;
+}
+
+.sched-appt-v2 .sched-appt-create-pro__search {
+  min-height: 54px;
+  padding: 0 18px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.sched-appt-v2 .sched-appt-create-pro__search input {
+  min-height: 52px;
+  font-size: 16px;
+}
+
+.sched-appt-v2 .sched-appt-create-pro__patient-grid {
+  grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+  gap: 14px;
+  min-height: 320px;
+  align-content: start;
+}
+
+.sched-appt-v2 .sched-appt-create-pro__patient-grid button {
+  min-height: 128px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 253, 251, 0.94));
+}
+
+.sched-appt-v2 .sched-appt-create-pro__patient-grid button::before {
+  content: "Hồ sơ BN";
+  justify-self: start;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: #047857;
+  background: #ecfdf5;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.sched-appt-v2 .sched-appt-create-pro__patient-grid strong {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.sched-appt-v2 .sched-appt-create-pro__patient-grid span {
+  color: #0f766e;
+  font-size: 15px;
+}
+
+.sched-appt-v2 .sched-appt-create-pro__patient-grid small {
+  line-height: 1.45;
+}
+
+.sched-appt-v2 .sched-appt-smart-card,
+.sched-appt-v2 .sched-appt-create-console {
+  border-radius: 22px;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.06);
+}
+
+.sched-appt-v2 .sched-appt-create-console__log {
+  max-height: 185px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.sched-appt-v2 .sched-appt-create__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin-top: 18px;
+  padding: 14px 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #ffffff 38%);
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro {
+  padding: 0 !important;
+  overflow: hidden;
+  border-color: rgba(20, 184, 166, 0.22);
+  background:
+    radial-gradient(circle at 4% 0%, rgba(20, 184, 166, 0.13), transparent 24rem),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__hero {
+  margin: 0;
+  padding: 24px 26px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.72);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__hero h2 {
+  font-size: clamp(24px, 2vw, 34px);
+  letter-spacing: -0.035em;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-create-pro {
+  margin: 20px 24px 0;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.06);
+}
+
+.sched-appt-v2 .sched-appt-waitlist-create-pro > header {
+  padding: 20px 22px;
+  background:
+    radial-gradient(circle at 95% 0%, rgba(15, 118, 110, 0.12), transparent 18rem),
+    linear-gradient(135deg, #f0fdfa, #ffffff);
+}
+
+.sched-appt-v2 .sched-appt-waitlist-create-pro__grid {
+  grid-template-columns: minmax(420px, 0.92fr) minmax(0, 1.08fr);
+  gap: 20px;
+  padding: 22px;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-create-pro__left,
+.sched-appt-v2 .sched-appt-field-grid {
+  min-width: 0;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-create-pro__left label,
+.sched-appt-v2 .sched-appt-field-grid label {
+  display: grid !important;
+  gap: 8px;
+  margin: 0 0 12px !important;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-create-pro__left input,
+.sched-appt-v2 .sched-appt-field-grid input,
+.sched-appt-v2 .sched-appt-field-grid select,
+.sched-appt-v2 .sched-appt-field-grid textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 52px;
+  box-sizing: border-box;
+  border-radius: 15px;
+  border: 1px solid #dbe7ef;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 14px;
+  font-weight: 850;
+}
+
+.sched-appt-v2 .sched-appt-chip-list-pro {
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 12px;
+  max-height: 260px;
+  padding: 2px 4px 4px 0;
+  overflow: auto;
+}
+
+.sched-appt-v2 .sched-appt-chip-list-pro button {
+  min-height: 86px;
+  padding: 15px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #f8fffd);
+}
+
+.sched-appt-v2 .sched-appt-field-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-content: start;
+}
+
+.sched-appt-v2 .sched-appt-field-grid .is-wide {
+  grid-column: 1 / -1;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__workspace {
+  grid-template-columns: minmax(340px, 0.34fr) minmax(0, 0.66fr);
+  gap: 20px;
+  margin: 20px 24px 24px;
+  min-height: 620px;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__list {
+  max-height: 620px;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 0 6px 0 0;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__list > button {
+  display: grid !important;
+  gap: 7px;
+  min-height: 112px;
+  width: 100%;
+  padding: 18px 18px 18px 20px !important;
+  border: 1px solid #dbe7ef !important;
+  border-left: 5px solid #14b8a6 !important;
+  border-radius: 22px !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__list > button.is-selected {
+  border-color: #0f766e !important;
+  border-left-color: #0f766e !important;
+  background: #ecfdf5 !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.14), 0 18px 36px rgba(15, 23, 42, 0.07);
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__list > button strong {
+  max-width: calc(100% - 112px);
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__list > button span:not(.sched-appt-waitlist-pro__status),
+.sched-appt-v2 .sched-appt-waitlist-pro__list > button small {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__status {
+  right: 14px;
+  top: 14px;
+  z-index: 1;
+  max-width: 110px;
+  text-align: center;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__detail {
+  max-height: 620px;
+  overflow: auto;
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.06);
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__detail > header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__meta {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin: 16px 0;
+}
+
+.sched-appt-v2 .sched-appt-waitlist-pro__meta span {
+  padding: 13px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+}
+
+@media (max-width: 1500px) {
+  .sched-appt-v2 .sched-appt-create-pro {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+  .sched-appt-v2 .sched-appt-create-pro__right {
+    grid-template-columns: 1fr;
+  }
+  .sched-appt-v2 .sched-appt-waitlist-create-pro__grid,
+  .sched-appt-v2 .sched-appt-waitlist-pro__workspace {
+    grid-template-columns: 1fr;
+  }
+  .sched-appt-v2 .sched-appt-waitlist-pro__detail,
+  .sched-appt-v2 .sched-appt-waitlist-pro__list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .sched-appt-v2 .sched-appt-create-pro {
+    grid-template-columns: 1fr;
+  }
+  .sched-appt-v2 .sched-appt-create-pro__steps {
+    position: static;
+    min-height: 0;
+  }
+  .sched-appt-v2 .sched-appt-create-pro__patient-grid,
+  .sched-appt-v2 .sched-appt-field-grid,
+  .sched-appt-v2 .sched-appt-waitlist-pro__meta {
+    grid-template-columns: 1fr !important;
   }
 }

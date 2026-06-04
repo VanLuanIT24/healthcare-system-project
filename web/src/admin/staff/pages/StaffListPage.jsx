@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
+  SlidersHorizontal,
   ShieldCheck,
   Stethoscope,
   UserCheck,
@@ -25,6 +26,7 @@ import {
   UserLock,
   UserPlus,
   UsersRound,
+  Wifi,
   X,
 } from 'lucide-react';
 import {
@@ -59,9 +61,11 @@ import {
   getStatusTone,
 } from '../staffUi';
 import { ResetPasswordDialog, StaffStatusDialog } from '../components/StaffDialogs';
+import '../staffWorkforcePro.css';
 
 const VIEW_TABS = [
   { id: 'all', label: 'Tất cả', icon: UsersRound },
+  { id: 'profiles', label: 'Hồ sơ 360', icon: Fingerprint },
   { id: 'doctors', label: 'Bác sĩ', icon: Stethoscope },
   { id: 'pending', label: 'Chờ kích hoạt', icon: UserCheck },
   { id: 'locked', label: 'Bị khóa', icon: UserLock },
@@ -74,6 +78,11 @@ const VIEW_COPY = {
     eyebrow: 'Human Identity & Workforce Control Center',
     title: 'Tổ chức & nhân sự',
     subtitle: 'Kiểm soát tài khoản, vai trò, khoa/phòng, phiên đăng nhập, audit và rủi ro vận hành trong một màn hình.',
+  },
+  profiles: {
+    eyebrow: 'Staff Profile Registry',
+    title: 'Hồ sơ nhân sự 360',
+    subtitle: 'Tập trung vào độ hoàn thiện hồ sơ, định danh, khoa/phòng, vai trò, liên hệ và credential readiness của từng nhân sự.',
   },
   doctors: {
     eyebrow: 'Clinical Workforce',
@@ -104,6 +113,7 @@ const VIEW_COPY = {
 
 function resolveView(searchParams) {
   if (searchParams.get('risk')) return 'risk';
+  if (searchParams.get('view') === 'profiles') return 'profiles';
   if (searchParams.get('role') === 'doctor' || searchParams.get('role_code') === 'doctor') return 'doctors';
   if (searchParams.get('status') === 'pending_activation') return 'pending';
   if (searchParams.get('status') === 'locked') return 'locked';
@@ -160,6 +170,120 @@ function departmentNameOf(staff, departments) {
     'Chưa gán khoa/phòng';
 }
 
+
+function roleNameOf(roleCode, roles = []) {
+  const matched = roles.find((role) => role.role_code === roleCode);
+  return matched?.role_name || String(roleCode || '').replaceAll('_', ' ') || 'Chưa gán';
+}
+
+function buildCsvValue(value) {
+  const text = String(value ?? '').replaceAll('"', '""');
+  return /[",\n]/.test(text) ? `"${text}"` : text;
+}
+
+function DownloadCsvButton({ accounts, departments, disabled }) {
+  function exportCurrentPageCsv() {
+    const header = ['Họ tên', 'Username', 'Email', 'SĐT', 'Mã NV', 'Khoa/phòng', 'Vai trò', 'Trạng thái', 'Session active', 'Failed login', 'Last login', 'Ngày tạo'];
+    const rows = accounts.map((item) => [
+      item.full_name || item.username,
+      item.username,
+      item.email,
+      item.phone,
+      item.employee_code,
+      departmentNameOf(item, departments),
+      (item.roles || []).join('|'),
+      isPendingActivation(item) ? 'pending_activation' : item.status,
+      item.active_session_count || 0,
+      item.failed_login_attempts || 0,
+      item.last_login_at || '',
+      item.created_at || '',
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(buildCsvValue).join(',')).join('\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `staff-accounts-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <button type="button" className="staff-button staff-button--ghost" onClick={exportCurrentPageCsv} disabled={disabled || !accounts.length}>
+      <Download size={16} strokeWidth={2.25} />
+      <span>Export CSV</span>
+    </button>
+  );
+}
+
+function StaffCommandInsights({ summary, roles, departments, applyFilters }) {
+  const roleRows = (summary?.role_breakdown || [])
+    .filter((item) => Number(item.count) > 0)
+    .sort((a, b) => Number(b.count) - Number(a.count))
+    .slice(0, 6);
+  const departmentRows = (summary?.department_breakdown || [])
+    .filter((item) => Number(item.count) > 0)
+    .sort((a, b) => Number(b.count) - Number(a.count))
+    .slice(0, 6);
+  const total = Math.max(Number(summary?.total || 0), 1);
+
+  return (
+    <section className="staff-command-intelligence">
+      <article className="staff-command-intelligence__card staff-command-intelligence__card--blue">
+        <div className="staff-intel-card__header">
+          <span><Fingerprint size={16} strokeWidth={2.25} /> Identity health</span>
+          <strong>{Math.round(((summary?.active || 0) / total) * 100)}%</strong>
+        </div>
+        <div className="staff-intel-progress"><span style={{ width: `${Math.min(((summary?.active || 0) / total) * 100, 100)}%` }} /></div>
+        <div className="staff-intel-grid">
+          <button type="button" onClick={() => applyFilters({ status: 'active' })}>Active <b>{formatNumber(summary?.active)}</b></button>
+          <button type="button" onClick={() => applyFilters({ status: 'locked' })}>Locked <b>{formatNumber(summary?.locked)}</b></button>
+          <button type="button" onClick={() => applyFilters({ status: 'disabled' })}>Disabled <b>{formatNumber(summary?.disabled)}</b></button>
+          <button type="button" onClick={() => applyFilters({ never_logged_in: 'true' })}>Never login <b>{formatNumber(summary?.never_logged_in_count)}</b></button>
+        </div>
+      </article>
+
+      <article className="staff-command-intelligence__card">
+        <div className="staff-intel-card__header">
+          <span><UserCog size={16} strokeWidth={2.25} /> Role coverage</span>
+          <small>{roleRows.length} nhóm đang có người dùng</small>
+        </div>
+        <div className="staff-intel-list">
+          {roleRows.length ? roleRows.map((item) => (
+            <button key={item.role_code} type="button" onClick={() => applyFilters({ role_code: item.role_code })}>
+              <span>{roleNameOf(item.role_code, roles)}</span>
+              <b>{formatNumber(item.count)}</b>
+            </button>
+          )) : <p>Chưa có dữ liệu role từ backend.</p>}
+        </div>
+      </article>
+
+      <article className="staff-command-intelligence__card">
+        <div className="staff-intel-card__header">
+          <span><Building2 size={16} strokeWidth={2.25} /> Department load</span>
+          <small>{departments.length} khoa/phòng</small>
+        </div>
+        <div className="staff-intel-list">
+          {departmentRows.length ? departmentRows.map((item) => (
+            <button key={item.department_id} type="button" onClick={() => applyFilters({ department_id: item.department_id })}>
+              <span>{item.department_name}</span>
+              <b>{formatNumber(item.count)}</b>
+            </button>
+          )) : <p>Chưa có dữ liệu khoa/phòng từ backend.</p>}
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function StaffTableSkeleton() {
+  return (
+    <div className="staff-table-skeleton" aria-label="Đang tải danh sách nhân sự">
+      {Array.from({ length: 6 }).map((_, index) => <span key={index} />)}
+    </div>
+  );
+}
+
 function MiniMetric({ icon: Icon, label, value, tone = 'blue', hint }) {
   return (
     <article className={`staff-command-metric staff-command-metric--${tone}`}>
@@ -206,7 +330,7 @@ function isPendingActivation(staff = {}) {
   return staff.activation_status === 'pending_activation';
 }
 
-function StaffInspector({ inspector, activeTab, setActiveTab, onClose, onAction }) {
+function StaffInspector({ inspector, activeTab, setActiveTab, onClose, onAction, actionNotice, pendingAction }) {
   if (!inspector) return null;
 
   const staff = inspector.staff || {};
@@ -214,29 +338,33 @@ function StaffInspector({ inspector, activeTab, setActiveTab, onClose, onAction 
   const roles = inspector.detail?.roles || staff.role_details || staff.roles || [];
   const permissions = inspector.permissions?.permissions || inspector.detail?.permissions || [];
   const sessions = inspector.sessions?.items || [];
-  const deps = inspector.dependencies;
-  const risk = inspector.risk;
+  const deps = inspector.dependencies || {};
+  const risk = inspector.risk || {};
   const audit = inspector.audit?.items || [];
+  const activeSessions = sessions.filter((session) => session.is_active).length;
+  const roleList = Array.isArray(roles) ? roles : [];
+  const isForceLogoutBusy = pendingAction === `force_logout:${staff.user_id}`;
+  const isPasswordBusy = pendingAction === `require_password_change:${staff.user_id}`;
   const tabs = [
     { id: 'overview', label: 'Tổng quan' },
     { id: 'security', label: 'Bảo mật' },
     { id: 'roles', label: 'Vai trò & quyền' },
-    { id: 'sessions', label: 'Session' },
+    { id: 'sessions', label: 'Phiên đăng nhập' },
     { id: 'dependencies', label: 'Phụ thuộc' },
     { id: 'audit', label: 'Audit' },
   ];
 
   return (
-    <aside className="staff-inspector" aria-label="Staff detail drawer">
+    <aside className="staff-inspector staff-inspector--pro" aria-label="Staff detail drawer">
       <div className="staff-inspector__scrim" onClick={onClose} role="presentation" />
-      <section className="staff-inspector__panel">
-        <header className="staff-inspector__header">
-          <div className="staff-inspector__identity">
-            <div className="admin-avatar">{getInitials(detailUser.full_name || detailUser.username)}</div>
+      <section className="staff-inspector__panel staff-inspector__panel--pro">
+        <header className="staff-inspector-pro-head">
+          <div className="staff-inspector-pro-head__identity">
+            <div className="staff-inspector-pro-avatar">{getInitials(detailUser.full_name || detailUser.username)}</div>
             <div>
-              <small>Staff 360 Profile</small>
+              <small>STAFF 360 COMMAND PROFILE</small>
               <h2>{detailUser.full_name || detailUser.username}</h2>
-              <span>{detailUser.username} · {detailUser.employee_code || 'Chưa có mã NV'}</span>
+              <p>{detailUser.username} · {detailUser.employee_code || 'Chưa có mã nhân sự'}</p>
             </div>
           </div>
           <button type="button" className="staff-icon-button" onClick={onClose} aria-label="Đóng">
@@ -244,16 +372,52 @@ function StaffInspector({ inspector, activeTab, setActiveTab, onClose, onAction 
           </button>
         </header>
 
-        <div className="staff-inspector__badges">
-          <span className={`staff-status-dot staff-status-dot--${getStatusTone(detailUser.status)}`}>
-            <span />
-            {getStatusLabel(detailUser.status)}
-          </span>
-          <span>{detailUser.department_name || staff.department_name || 'Chưa gán khoa'}</span>
-          {risk ? <span className={`staff-risk-chip staff-risk-chip--${getRiskTone(risk.risk_level)}`}>Risk {risk.risk_score}</span> : null}
-        </div>
+        <section className="staff-inspector-pro-summary">
+          <div>
+            <small>Trạng thái</small>
+            <strong className={`staff-status-dot staff-status-dot--${getStatusTone(detailUser.status)}`}><span />{getStatusLabel(detailUser.status)}</strong>
+          </div>
+          <div>
+            <small>Khoa/phòng</small>
+            <strong>{detailUser.department_name || staff.department_name || 'Chưa gán'}</strong>
+          </div>
+          <div>
+            <small>Vai trò</small>
+            <strong>{roleList.length || staff.role_count || 0}</strong>
+          </div>
+          <div>
+            <small>Risk</small>
+            <strong className={`staff-risk-chip staff-risk-chip--${getRiskTone(risk.risk_level || 'low')}`}>{risk.risk_score ?? 0}</strong>
+          </div>
+          <div>
+            <small>Active session</small>
+            <strong>{activeSessions}</strong>
+          </div>
+        </section>
 
-        <nav className="staff-inspector__tabs" aria-label="Staff drawer tabs">
+        <section className="staff-inspector-pro-actions">
+          <Link to={`/admin/staff/${staff.user_id}`} className="staff-button staff-button--primary">Mở hồ sơ đầy đủ</Link>
+          <button type="button" onClick={() => onAction('force_logout', staff)} disabled={isForceLogoutBusy}>
+            <LogOut size={15} strokeWidth={2.25} />
+            {isForceLogoutBusy ? 'Đang thu hồi...' : 'Force logout'}
+          </button>
+          <button type="button" onClick={() => onAction('require_password_change', staff)} disabled={isPasswordBusy}>
+            <KeyRound size={15} strokeWidth={2.25} />
+            {isPasswordBusy ? 'Đang cập nhật...' : 'Bắt đổi mật khẩu'}
+          </button>
+        </section>
+
+        {actionNotice ? (
+          <div className={`staff-inspector-pro-notice staff-inspector-pro-notice--${actionNotice.tone}`}>
+            <CheckCircle2 size={18} strokeWidth={2.5} />
+            <div>
+              <strong>{actionNotice.title}</strong>
+              <span>{actionNotice.message}</span>
+            </div>
+          </div>
+        ) : null}
+
+        <nav className="staff-inspector-pro-tabs" aria-label="Staff drawer tabs">
           {tabs.map((tab) => (
             <button key={tab.id} type="button" className={activeTab === tab.id ? 'is-active' : ''} onClick={() => setActiveTab(tab.id)}>
               {tab.label}
@@ -264,84 +428,92 @@ function StaffInspector({ inspector, activeTab, setActiveTab, onClose, onAction 
         {inspector.loading ? (
           <div className="staff-inspector__loading">Đang tải dữ liệu 360...</div>
         ) : (
-          <div className="staff-inspector__body">
+          <div className="staff-inspector-pro-body">
             {activeTab === 'overview' ? (
-              <div className="staff-inspector-grid">
-                {[
-                  ['Email', detailUser.email || 'Chưa có'],
-                  ['Số điện thoại', detailUser.phone || 'Chưa có'],
-                  ['Khoa/phòng', detailUser.department_name || staff.department_name || 'Chưa gán'],
-                  ['Auth provider', detailUser.auth_provider || staff.auth_provider || 'local'],
-                  ['Lần đăng nhập cuối', formatDateTime(detailUser.last_login_at)],
-                  ['Ngày tạo', formatDateTime(detailUser.created_at)],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="staff-inspector-pro-section-title">
+                  <h3>Thông tin định danh</h3>
+                  <span>Dữ liệu trực tiếp từ backend staff account</span>
+                </div>
+                <div className="staff-inspector-pro-grid">
+                  {[
+                    ['Email', detailUser.email || 'Chưa có'],
+                    ['Số điện thoại', detailUser.phone || 'Chưa có'],
+                    ['Auth provider', detailUser.auth_provider || staff.auth_provider || 'local'],
+                    ['Lần đăng nhập cuối', formatDateTime(detailUser.last_login_at)],
+                    ['Ngày tạo', formatDateTime(detailUser.created_at)],
+                    ['Bắt đổi mật khẩu', detailUser.must_change_password ? 'Có' : 'Không'],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <span>{label}</span>
+                      <strong>{value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : null}
 
             {activeTab === 'security' ? (
-              <div className="staff-inspector-stack">
-                <div className="staff-risk-score-card">
+              <div className="staff-inspector-pro-stack">
+                <div className={`staff-inspector-risk-card staff-inspector-risk-card--${getRiskTone(risk.risk_level || 'low')}`}>
                   <div>
                     <small>Risk score</small>
-                    <strong>{risk?.risk_score ?? 0}</strong>
-                    <span>{getRiskLabel(risk?.risk_level || 'low')}</span>
+                    <strong>{risk.risk_score ?? 0}</strong>
+                    <span>{getRiskLabel(risk.risk_level || 'low')}</span>
                   </div>
-                  <ShieldAlert size={28} strokeWidth={2.2} />
+                  <ShieldAlert size={32} strokeWidth={2.1} />
                 </div>
-                <div className="staff-inspector-list">
-                  {(risk?.reasons || ['Không có tín hiệu rủi ro đáng kể.']).map((reason) => (
+                <div className="staff-inspector-pro-list">
+                  {(risk.reasons || ['Không có tín hiệu rủi ro đáng kể từ backend.']).map((reason) => (
                     <span key={reason}>{reason}</span>
                   ))}
-                </div>
-                <div className="staff-inspector-actions">
-                  <button type="button" onClick={() => onAction('force_logout', staff)}>Force logout</button>
-                  <button type="button" onClick={() => onAction('require_password_change', staff)}>Bắt đổi mật khẩu</button>
                 </div>
               </div>
             ) : null}
 
             {activeTab === 'roles' ? (
-              <div className="staff-inspector-stack">
-                <div className="staff-inspector-list">
-                  {(Array.isArray(roles) ? roles : []).map((role) => (
-                    <span key={role.role_code || role}>{role.role_name || String(role).replaceAll('_', ' ')}</span>
+              <div className="staff-inspector-pro-stack">
+                <div className="staff-inspector-pro-section-title">
+                  <h3>Vai trò được gán</h3>
+                  <span>{roleList.length} vai trò · {permissions.length} quyền hiệu lực</span>
+                </div>
+                <div className="staff-inspector-role-grid">
+                  {roleList.map((role) => (
+                    <div key={role.role_code || role}>
+                      <strong>{role.role_name || String(role).replaceAll('_', ' ')}</strong>
+                      <span>{role.role_code || 'role'}</span>
+                    </div>
                   ))}
                 </div>
-                <div className="staff-permission-cloud">
-                  {permissions.slice(0, 36).map((permission) => (
-                    <span key={permission}>{permission}</span>
-                  ))}
-                  {permissions.length > 36 ? <strong>+{permissions.length - 36} quyền</strong> : null}
+                <div className="staff-permission-cloud staff-permission-cloud--pro">
+                  {permissions.slice(0, 48).map((permission) => <span key={permission}>{permission}</span>)}
+                  {permissions.length > 48 ? <strong>+{permissions.length - 48} quyền khác</strong> : null}
                 </div>
               </div>
             ) : null}
 
             {activeTab === 'sessions' ? (
-              <div className="staff-inspector-stack">
-                <div className="staff-inspector-actions">
-                  <button type="button" onClick={() => onAction('force_logout', staff)}>Thu hồi toàn bộ phiên</button>
+              <div className="staff-inspector-pro-stack">
+                <div className="staff-inspector-pro-section-title">
+                  <h3>Phiên đăng nhập</h3>
+                  <span>{activeSessions} phiên active / {sessions.length} phiên được trả về</span>
                 </div>
                 {sessions.length ? sessions.map((session) => (
-                  <div key={session.session_id} className="staff-session-row">
+                  <div key={session.session_id || session.created_at} className="staff-session-row staff-session-row--pro">
                     <MonitorMeta session={session} />
                     <span className={session.is_active ? 'is-active' : ''}>{session.is_active ? 'Active' : 'Revoked'}</span>
                   </div>
-                )) : <p className="staff-muted-text">Chưa có session nào được backend trả về.</p>}
+                )) : <p className="staff-empty-state">Backend chưa trả session nào cho nhân sự này.</p>}
               </div>
             ) : null}
 
             {activeTab === 'dependencies' ? (
-              <div className="staff-inspector-stack">
-                <div className={`staff-dependency-verdict ${deps?.can_delete ? 'is-clear' : 'is-blocked'}`}>
+              <div className="staff-inspector-pro-stack">
+                <div className={`staff-dependency-verdict staff-dependency-verdict--pro ${deps?.can_delete ? 'is-clear' : 'is-blocked'}`}>
                   <strong>{deps?.can_delete ? 'Không có blocker nghiệp vụ' : 'Có blocker cần xử lý'}</strong>
                   <span>Delete: {deps?.can_delete ? 'Có thể' : 'Không'} · Transfer: {deps?.can_transfer ? 'Có thể' : 'Không'}</span>
                 </div>
-                <div className="staff-inspector-grid">
+                <div className="staff-inspector-pro-grid">
                   {Object.entries(deps?.blockers || {}).map(([key, value]) => (
                     <div key={key}>
                       <span>{key.replaceAll('_', ' ')}</span>
@@ -349,27 +521,138 @@ function StaffInspector({ inspector, activeTab, setActiveTab, onClose, onAction 
                     </div>
                   ))}
                 </div>
-                <div className="staff-inspector-list">
-                  {(deps?.blocking_reasons || deps?.recommendations || []).map((item) => <span key={item}>{item}</span>)}
+                <div className="staff-inspector-pro-list">
+                  {(deps?.blocking_reasons || deps?.recommendations || ['Không có khuyến nghị bổ sung.']).map((item) => <span key={item}>{item}</span>)}
                 </div>
               </div>
             ) : null}
 
             {activeTab === 'audit' ? (
-              <div className="staff-inspector-stack">
-                {audit.length ? audit.slice(0, 8).map((item, index) => (
-                  <div key={`${item._id || item.created_at}-${index}`} className="staff-audit-row">
+              <div className="staff-inspector-pro-stack">
+                {audit.length ? audit.slice(0, 10).map((item, index) => (
+                  <div key={`${item._id || item.created_at}-${index}`} className="staff-audit-row staff-audit-row--pro">
                     <span>{formatDateTime(item.created_at)}</span>
                     <strong>{item.message || item.action}</strong>
                     <small>{item.action}</small>
                   </div>
-                )) : <p className="staff-muted-text">Chưa có audit log hoặc chưa đủ quyền đọc audit.</p>}
+                )) : <p className="staff-empty-state">Chưa có audit log hoặc tài khoản hiện tại chưa đủ quyền đọc audit.</p>}
               </div>
             ) : null}
           </div>
         )}
       </section>
     </aside>
+  );
+}
+
+
+function StaffViewDifferentiator({ view, accounts, summary, departments, applyFilters }) {
+  const sample = accounts.slice(0, 6);
+  const doctorCount = accounts.filter((item) => (item.roles || []).includes('doctor')).length;
+  const pendingCount = accounts.filter(isPendingActivation).length;
+  const lockedCount = accounts.filter((item) => item.status === 'locked').length;
+  const riskCount = accounts.filter((item) => ['high', 'critical'].includes(item.risk_level || item.risk_profile?.risk_level)).length;
+
+  if (view === 'profiles') {
+    return (
+      <section className="staff-view-signature staff-view-signature--profiles">
+        <div className="staff-view-signature__intro">
+          <span><Fingerprint size={16} /> Profile completeness</span>
+          <h2>Bảng kiểm hồ sơ nhân sự 360</h2>
+          <p>Màn hình này khác danh sách tổng: ưu tiên chất lượng hồ sơ, định danh, liên hệ, mã nhân viên, khoa/phòng và vai trò để chuẩn bị cho Staff 360.</p>
+        </div>
+        <div className="staff-profile-board">
+          {sample.map((item) => {
+            const scoreParts = [item.full_name, item.email, item.phone, item.employee_code, item.department_id, (item.roles || []).length].filter(Boolean).length;
+            const score = Math.round((scoreParts / 6) * 100);
+            return (
+              <article key={item.user_id} className="staff-profile-card">
+                <div className="staff-profile-card__head">
+                  <div className="admin-avatar">{getInitials(item.full_name || item.username)}</div>
+                  <div><strong>{item.full_name || item.username}</strong><small>{item.employee_code || 'Thiếu mã NV'}</small></div>
+                  <b>{score}%</b>
+                </div>
+                <div className="staff-profile-card__meter"><span style={{ width: `${score}%` }} /></div>
+                <div className="staff-profile-card__grid">
+                  <span className={item.email ? 'is-ok' : 'is-missing'}>Email</span>
+                  <span className={item.phone ? 'is-ok' : 'is-missing'}>SĐT</span>
+                  <span className={item.department_id ? 'is-ok' : 'is-missing'}>Khoa</span>
+                  <span className={(item.roles || []).length ? 'is-ok' : 'is-missing'}>Role</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
+  if (view === 'doctors') {
+    return (
+      <section className="staff-view-signature staff-view-signature--doctor">
+        <div className="staff-view-signature__intro">
+          <span><Stethoscope size={16} /> Clinical roster</span>
+          <h2>Roster bác sĩ theo khoa và readiness lâm sàng</h2>
+          <p>Tập trung vào bác sĩ: khoa đang công tác, trạng thái đăng nhập, session active và mức sẵn sàng vận hành phòng khám.</p>
+        </div>
+        <div className="staff-doctor-lanes">
+          {departments.slice(0, 5).map((department) => {
+            const count = accounts.filter((item) => item.department_id === department.department_id).length;
+            return <button key={department.department_id} type="button" onClick={() => applyFilters({ department_id: department.department_id })}><Building2 size={16} /><span>{department.department_name}</span><strong>{formatNumber(count)}</strong></button>;
+          })}
+          <button type="button" onClick={() => applyFilters({ role_code: 'doctor' })}><Stethoscope size={16} /><span>Tất cả bác sĩ</span><strong>{formatNumber(doctorCount || summary?.doctor_count)}</strong></button>
+        </div>
+      </section>
+    );
+  }
+
+  if (view === 'pending') {
+    return (
+      <section className="staff-view-signature staff-view-signature--pending">
+        <div className="staff-view-signature__intro">
+          <span><Clock3 size={16} /> Activation funnel</span>
+          <h2>Luồng kích hoạt tài khoản mới</h2>
+          <p>Ưu tiên tài khoản chưa từng đăng nhập, còn phải đổi mật khẩu, thiếu email/SĐT hoặc cần bàn giao thông tin đăng nhập.</p>
+        </div>
+        <div className="staff-activation-steps">
+          <button type="button" onClick={() => applyFilters({ never_logged_in: 'true' })}><strong>{formatNumber(pendingCount || summary?.pending_activation_count)}</strong><span>Chưa login</span></button>
+          <button type="button" onClick={() => applyFilters({ must_change_password: 'true' })}><strong>{formatNumber(summary?.must_change_password_count)}</strong><span>Phải đổi mật khẩu</span></button>
+          <button type="button" onClick={() => applyFilters({ status: 'active' })}><strong>{formatNumber(summary?.active)}</strong><span>Đã active</span></button>
+        </div>
+      </section>
+    );
+  }
+
+  if (view === 'locked' || view === 'risk') {
+    return (
+      <section className={`staff-view-signature staff-view-signature--${view}`}>
+        <div className="staff-view-signature__intro">
+          <span>{view === 'locked' ? <UserLock size={16} /> : <ShieldAlert size={16} />} Security queue</span>
+          <h2>{view === 'locked' ? 'Bàn xử lý tài khoản bị khóa' : 'Bảng săn tài khoản rủi ro cao'}</h2>
+          <p>Không chỉ là danh sách: gom failed login, session active, credential flag và hành động nhanh reset / unlock / force logout.</p>
+        </div>
+        <div className="staff-security-pulse">
+          <div><UserLock size={18} /><span>Locked</span><strong>{formatNumber(lockedCount || summary?.locked)}</strong></div>
+          <div><ShieldAlert size={18} /><span>High risk</span><strong>{formatNumber(riskCount || summary?.risk_account_count)}</strong></div>
+          <div><KeyRound size={18} /><span>Credential review</span><strong>{formatNumber(summary?.must_change_password_count)}</strong></div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="staff-view-signature staff-view-signature--all">
+      <div className="staff-view-signature__intro">
+        <span><UsersRound size={16} /> Workforce cockpit</span>
+        <h2>Toàn cảnh nhân sự theo vai trò, khoa/phòng và trạng thái tài khoản</h2>
+        <p>Dùng màn hình tổng để điều hướng nhanh sang hồ sơ 360, bác sĩ, hàng chờ kích hoạt, locked và risk queue.</p>
+      </div>
+      <div className="staff-workforce-snapshot">
+        <button type="button" onClick={() => applyFilters({ status: 'active' })}><CheckCircle2 size={17} /> Active <b>{formatNumber(summary?.active)}</b></button>
+        <button type="button" onClick={() => applyFilters({ status: 'locked' })}><UserLock size={17} /> Locked <b>{formatNumber(summary?.locked)}</b></button>
+        <button type="button" onClick={() => applyFilters({ role_code: 'doctor' })}><Stethoscope size={17} /> Doctors <b>{formatNumber(doctorCount || summary?.doctor_count)}</b></button>
+      </div>
+    </section>
   );
 }
 
@@ -416,6 +699,8 @@ export function StaffListPage() {
   const [submitting, setSubmitting] = useState(false);
   const [inspector, setInspector] = useState(null);
   const [inspectorTab, setInspectorTab] = useState('overview');
+  const [actionNotice, setActionNotice] = useState(null);
+  const [pendingAction, setPendingAction] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -499,7 +784,8 @@ export function StaffListPage() {
 
   function updateSearch(nextFilters) {
     const params = new URLSearchParams(searchParams);
-    ['keyword', 'role', 'role_code', 'department', 'department_id', 'status', 'risk'].forEach((key) => params.delete(key));
+    ['keyword', 'role', 'role_code', 'department', 'department_id', 'status', 'risk', 'view'].forEach((key) => params.delete(key));
+    if (view === 'profiles') params.set('view', 'profiles');
     if (nextFilters.keyword) params.set('keyword', nextFilters.keyword);
     if (nextFilters.role_code) params.set('role', nextFilters.role_code);
     if (nextFilters.department_id) params.set('department', nextFilters.department_id);
@@ -517,6 +803,7 @@ export function StaffListPage() {
 
   function switchView(nextView) {
     const params = new URLSearchParams();
+    if (nextView === 'profiles') params.set('view', 'profiles');
     if (nextView === 'doctors') params.set('role', 'doctor');
     if (nextView === 'pending') params.set('status', 'pending_activation');
     if (nextView === 'locked') params.set('status', 'locked');
@@ -547,6 +834,7 @@ export function StaffListPage() {
       sort_order: 'desc',
     };
     const params = new URLSearchParams();
+    if (view === 'profiles') params.set('view', 'profiles');
     if (view === 'doctors') params.set('role', 'doctor');
     if (view === 'pending') params.set('status', 'pending_activation');
     if (view === 'locked') params.set('status', 'locked');
@@ -616,15 +904,18 @@ export function StaffListPage() {
 
   async function handleDirectAction(action, staff) {
     setSubmitting(true);
+    setPendingAction(`${action}:${staff.user_id}`);
     setError('');
     try {
       if (action === 'force_logout') await forceLogoutStaff(staff.user_id);
       if (action === 'require_password_change') await requireStaffPasswordChange(staff.user_id);
       await refreshAccounts();
+      setActionNotice({ tone: 'success', title: action === 'force_logout' ? 'Đã force logout' : 'Đã yêu cầu đổi mật khẩu', message: action === 'force_logout' ? `Đã thu hồi phiên đăng nhập của ${staff.full_name || staff.username}.` : `Đã bật yêu cầu đổi mật khẩu cho ${staff.full_name || staff.username}.` });
       if (inspector?.staff?.user_id === staff.user_id) await openInspector(staff);
     } catch (submitError) {
       setError(submitError.message);
     } finally {
+      setPendingAction('');
       setSubmitting(false);
     }
   }
@@ -644,6 +935,7 @@ export function StaffListPage() {
       }
       setSelectedIds([]);
       await refreshAccounts();
+      setActionNotice({ tone: 'success', title: 'Đã xử lý tác vụ hàng loạt', message: `${selectedIds.length} tài khoản đã được gửi lệnh ${action}.` });
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -696,10 +988,7 @@ export function StaffListPage() {
             <RefreshCw size={16} strokeWidth={2.25} />
             <span>Làm mới</span>
           </button>
-          <button type="button" className="staff-button staff-button--ghost">
-            <Download size={16} strokeWidth={2.25} />
-            <span>Export</span>
-          </button>
+          <DownloadCsvButton accounts={accounts} departments={departments} disabled={loading} />
           <Link to="/admin/staff/create" className="staff-button staff-button--primary">
             <UserPlus size={16} strokeWidth={2.25} />
             <span>Tạo nhân sự</span>
@@ -722,6 +1011,21 @@ export function StaffListPage() {
       <section className="staff-command-metrics">
         {metrics.map((item) => <MiniMetric key={item.label} {...item} />)}
       </section>
+
+      <StaffCommandInsights
+        summary={summary}
+        roles={roles}
+        departments={departments}
+        applyFilters={(partial) => applyFilters({ ...filters, ...partial })}
+      />
+
+      <StaffViewDifferentiator
+        view={view}
+        accounts={accounts}
+        summary={summary}
+        departments={departments}
+        applyFilters={(partial) => applyFilters({ ...filters, ...partial })}
+      />
 
       <section className="staff-command-filters">
         <label className="staff-command-search">
@@ -788,6 +1092,38 @@ export function StaffListPage() {
             </select>
           </label>
 
+          <label>
+            <KeyRound size={15} strokeWidth={2.2} />
+            <select value={filters.must_change_password} onChange={(event) => setFilters((current) => ({ ...current, must_change_password: event.target.value }))}>
+              <option value="">Credential bất kỳ</option>
+              <option value="true">Phải đổi mật khẩu</option>
+              <option value="false">Đã ổn định</option>
+            </select>
+          </label>
+
+          <label>
+            <Wifi size={15} strokeWidth={2.2} />
+            <select value={filters.never_logged_in} onChange={(event) => setFilters((current) => ({ ...current, never_logged_in: event.target.value }))}>
+              <option value="">Login bất kỳ</option>
+              <option value="true">Chưa từng login</option>
+              <option value="false">Đã từng login</option>
+            </select>
+          </label>
+
+          <label>
+            <SlidersHorizontal size={15} strokeWidth={2.2} />
+            <select value={`${filters.sort_by}:${filters.sort_order}`} onChange={(event) => {
+              const [sort_by, sort_order] = event.target.value.split(':');
+              setFilters((current) => ({ ...current, sort_by, sort_order }));
+            }}>
+              <option value="created_at:desc">Mới tạo trước</option>
+              <option value="created_at:asc">Cũ tạo trước</option>
+              <option value="full_name:asc">Tên A → Z</option>
+              <option value="last_login_at:desc">Đăng nhập mới nhất</option>
+              <option value="status:asc">Trạng thái</option>
+            </select>
+          </label>
+
           <button type="button" className="staff-filter-reset" onClick={resetFilters}>
             Reset
           </button>
@@ -822,8 +1158,17 @@ export function StaffListPage() {
 
       <section className="staff-command-table-panel">
         {error ? <p className="form-message error">{error}</p> : null}
+        {actionNotice ? (
+          <div className={`staff-action-notice staff-action-notice--${actionNotice.tone}`}>
+            <strong>{actionNotice.title}</strong>
+            <span>{actionNotice.message}</span>
+            <button type="button" onClick={() => setActionNotice(null)}>×</button>
+          </div>
+        ) : null}
 
-        {accounts.length === 0 && !loading ? (
+        {loading ? (
+          <StaffTableSkeleton />
+        ) : accounts.length === 0 ? (
           <div className="staff-empty-state">
             <div className="staff-empty-state__art"><Search size={30} strokeWidth={2.2} /></div>
             <h3>Không tìm thấy nhân sự phù hợp</h3>
@@ -838,8 +1183,7 @@ export function StaffListPage() {
               <span>Vai trò</span>
               <span>Trạng thái</span>
               <span>Bảo mật</span>
-              <span>Session</span>
-              <span>Last login</span>
+              <span>Session / Login</span>
               <span>Actions</span>
             </div>
 
@@ -880,12 +1224,8 @@ export function StaffListPage() {
 
                 <div className="staff-session-indicator">
                   <strong>{item.active_session_count || 0}</strong>
-                  <small>active</small>
-                </div>
-
-                <div className="staff-engagement-cell">
-                  <strong>{formatDateTime(item.last_login_at)}</strong>
-                  <small>Created: {formatCompactDate(item.created_at)}</small>
+                  <small>active sessions</small>
+                  <em>{formatDateTime(item.last_login_at)}</em>
                 </div>
 
                 <div className="staff-command-actions">
@@ -950,6 +1290,8 @@ export function StaffListPage() {
         setActiveTab={setInspectorTab}
         onClose={() => setInspector(null)}
         onAction={handleDirectAction}
+        actionNotice={actionNotice}
+        pendingAction={pendingAction}
       />
 
       {dialog?.type === 'reset' ? (

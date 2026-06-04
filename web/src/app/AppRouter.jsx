@@ -57,6 +57,7 @@ const AdminToolsPage = lazyNamed(() => import('../admin/admin-tools/AdminToolsPa
 const SecurityCenterPage = lazyNamed(() => import('../admin/security-center/pages/SecurityCenterPage'), 'SecurityCenterPage');
 const AuditCompliancePage = lazyNamed(() => import('../admin/audit-compliance/pages/AuditCompliancePage'), 'AuditCompliancePage');
 const AdminOverviewPage = lazyNamed(() => import('../admin/pages/AdminOverviewPage'), 'AdminOverviewPage');
+const AdminPatientListPage = lazyNamed(() => import('../admin/pages/AdminPatientListPage'), 'AdminPatientListPage');
 const AdminLayout = lazyNamed(() => import('../admin/components/AdminLayout'), 'AdminLayout');
 const StaffListPage = lazyNamed(() => import('../admin/staff/pages/StaffListPage'), 'StaffListPage');
 const StaffCreatePage = lazyNamed(() => import('../admin/staff/pages/StaffCreatePage'), 'StaffCreatePage');
@@ -111,7 +112,6 @@ const devPlaceholderRoutes = [
   { path: '/schedules', title: 'Danh sách lịch khám', workspaceKey: 'scheduling', guard: 'staff' },
   { path: '/queue', title: 'Hàng đợi tiếp nhận', workspaceKey: 'reception', guard: 'staff' },
   { path: '/encounters', title: 'Cuộc khám', workspaceKey: 'doctor', guard: 'staff' },
-  { path: '/patients', title: 'Danh sách bệnh nhân', workspaceKey: 'admin', guard: 'staff' },
   { path: '/audit-logs', title: 'Nhật ký kiểm toán', workspaceKey: 'admin', guard: 'staff' },
   { path: '/dev/ui-kit', title: 'Dev UI Kit', guard: 'super-admin' },
   { path: '/dev/routes', title: 'Dev Routes', guard: 'super-admin' },
@@ -204,6 +204,14 @@ export function AppRouter() {
             }
           />
         ))}
+        <Route
+          path="/patients"
+          element={
+            <StaffRoute requiredWorkspaceKey="admin">
+              <Navigate to="/admin/patients" replace />
+            </StaffRoute>
+          }
+        />
         <Route
           path="/nurse/*"
           element={
@@ -511,6 +519,7 @@ export function AppRouter() {
           <Route path="audit-compliance/export" element={<AuditCompliancePage view="exportAudit" />} />
           <Route path="audit-compliance/reports" element={<AuditCompliancePage view="reports" />} />
           <Route path="overview" element={<AdminOverviewPage />} />
+          <Route path="patients" element={<AdminPatientListPage />} />
           <Route path="staff" element={<StaffListPage />} />
           <Route path="staff/create" element={<StaffCreatePage />} />
           <Route path="staff/:staffId" element={<StaffDetailPage />} />

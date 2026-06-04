@@ -1,3 +1,4 @@
+import '../iamControlPlanePro.css';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -126,17 +127,17 @@ const VIEW_META = {
 };
 
 const IAM_NAV = [
-  ['overview', 'Tổng quan'],
-  ['matrix', 'Ma trận'],
-  ['assignment', 'Gán vai trò'],
-  ['effective', 'Quyền hiệu lực'],
-  ['accessCheck', 'Kiểm tra truy cập'],
-  ['context', 'Ngữ cảnh'],
-  ['cache', 'Cache'],
-  ['denyPermissions', 'Chặn quyền'],
-  ['denyRoles', 'Chặn vai trò'],
-  ['audit', 'Audit'],
-  ['seed', 'Seed'],
+  { key: 'overview', label: 'Tổng quan', path: '/admin/iam/overview' },
+  { key: 'matrix', label: 'Ma trận', path: '/admin/iam/matrix' },
+  { key: 'assignment', label: 'Gán vai trò', path: '/admin/iam/assignment' },
+  { key: 'effective', label: 'Quyền hiệu lực', path: '/admin/iam/effective' },
+  { key: 'accessCheck', label: 'Kiểm tra truy cập', path: '/admin/iam/access-check' },
+  { key: 'context', label: 'Ngữ cảnh', path: '/admin/iam/context' },
+  { key: 'cache', label: 'Cache', path: '/admin/iam/cache' },
+  { key: 'denyPermissions', label: 'Chặn quyền', path: '/admin/iam/deny-permissions' },
+  { key: 'denyRoles', label: 'Chặn vai trò', path: '/admin/iam/deny-roles' },
+  { key: 'audit', label: 'Audit', path: '/admin/iam/audit' },
+  { key: 'seed', label: 'Seed', path: '/admin/iam/seed' },
 ];
 
 const IAM_LABELS = {
@@ -226,9 +227,9 @@ function IamPageShell({ view, children, actions = null }) {
       </section>
 
       <nav className="iam-plane-tabs" aria-label="IAM control plane">
-        {IAM_NAV.map(([key, label]) => (
-          <button key={key} type="button" className={view === key ? 'is-active' : ''} onClick={() => navigate(`/admin/iam/${key}`)}>
-            {label}
+        {IAM_NAV.map((item) => (
+          <button key={item.key} type="button" className={view === item.key ? 'is-active' : ''} onClick={() => navigate(item.path)}>
+            {item.label}
           </button>
         ))}
       </nav>

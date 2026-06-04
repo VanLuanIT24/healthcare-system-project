@@ -530,6 +530,56 @@ function DetailDrawer({ view, detail, row, onClose, onAction }) {
   );
 }
 
+
+function normalizeSupportRows(listData) {
+  if (Array.isArray(listData)) return listData;
+  if (Array.isArray(listData?.items)) return listData.items;
+  if (Array.isArray(listData?.records)) return listData.records;
+  if (Array.isArray(listData?.rows)) return listData.rows;
+  if (Array.isArray(listData?.data)) return listData.data;
+  return [];
+}
+
+function CommunicationRunway({ view, config, overview, rows }) {
+  const stages = supportStages(view);
+  return (
+    <section className="scm-runway">
+      <article className="scm-runway__copy">
+        <span className="scm-eyebrow">Communication operating model</span>
+        <h2>{config.title}</h2>
+        <p>Đọc trực tiếp từ backend, hiển thị SLA, trạng thái delivery, người phụ trách, hội thoại và thao tác có xác nhận để chạy được trong vận hành thật.</p>
+        <div className="scm-stage-row">
+          {stages.map((stage, index) => <span key={stage}><b>{index + 1}</b>{stage}</span>)}
+        </div>
+      </article>
+      <article className="scm-runway__health">
+        <strong>Live contract</strong>
+        <span>Endpoint: /api/admin/support-communication{config.endpoint}</span>
+        <span>Dữ liệu bảng: {formatValue(rows.length)}</span>
+        <span>Ticket mở: {formatValue(overview?.kpis?.open_tickets || 0)}</span>
+        <span>Notification lỗi: {formatValue(Number(overview?.kpis?.failed_notifications || 0) + Number(overview?.kpis?.failed_deliveries || 0))}</span>
+      </article>
+    </section>
+  );
+}
+
+function supportStages(view) {
+  const map = {
+    tickets: ['Tiếp nhận', 'Gán xử lý', 'Trao đổi', 'Đóng SLA'],
+    sla: ['Quét hạn', 'Phân tầng rủi ro', 'Cứu SLA', 'Audit quyết định'],
+    technical: ['Ghi lỗi', 'Khoanh vùng module', 'Điều phối kỹ thuật', 'Xác nhận khắc phục'],
+    account: ['Định danh tài khoản', 'Kiểm tra rủi ro', 'Hỗ trợ truy cập', 'Ghi audit'],
+    billing: ['Liên kết hóa đơn', 'Kiểm tra payment', 'Đối soát', 'Phản hồi khách hàng'],
+    conversations: ['Mở luồng', 'Trao đổi', 'Ghim ngữ cảnh', 'Lưu transcript'],
+    systemMessages: ['Tạo tin', 'Gửi realtime', 'Xác nhận đọc', 'Truy vết'],
+    notifications: ['Queue', 'Dispatch', 'Delivery', 'Retry lỗi'],
+    broadcast: ['Audience', 'Nội dung', 'Safety check', 'Gửi chiến dịch'],
+    notificationTemplates: ['Biến mẫu', 'Kênh', 'Preview', 'Kích hoạt'],
+    replyTemplates: ['Soạn mẫu', 'Duyệt', 'Sử dụng', 'Tối ưu'],
+  };
+  return map[view] || ['Tải dữ liệu', 'Kiểm tra', 'Thao tác', 'Audit'];
+}
+
 export function SupportCommunicationPage({ view = 'tickets' }) {
   const location = useLocation();
   const config = VIEW_CONFIG[view] || VIEW_CONFIG.tickets;
@@ -568,7 +618,7 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
       ]);
       setOverview(overviewData);
       setSummary(summaryData);
-      setRows(Array.isArray(listData?.items) ? listData.items : Array.isArray(listData) ? listData : []);
+      setRows(normalizeSupportRows(listData));
       setPagination(listData?.pagination || null);
     } catch (err) {
       setError(err.message || 'Không thể tải dữ liệu.');
@@ -735,6 +785,8 @@ export function SupportCommunicationPage({ view = 'tickets' }) {
           </Link>
         ))}
       </nav>
+
+      <CommunicationRunway view={view} config={config} overview={overview} rows={rows} />
 
       <section className="scm-kpi-strip">
         {kpis.map(([label, value, tone, KpiIcon]) => (

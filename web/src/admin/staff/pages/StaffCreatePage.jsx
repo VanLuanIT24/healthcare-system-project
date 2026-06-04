@@ -20,7 +20,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { PasswordPolicyChecklist } from '../../../Auth/components/PasswordPolicyChecklist';
-import { usePasswordPolicyValidation } from '../../../lib/passwordPolicy';
+import { evaluatePasswordPolicy } from '../../../Auth/recovery/recoveryConfig';
 import {
   createStaffAccount,
   generateStaffEmployeeCode,
@@ -31,6 +31,7 @@ import {
 } from '../staffApi';
 import { StaffSuccessDialog } from '../components/StaffDialogs';
 import { formatNumber } from '../staffUi';
+import '../staffWorkforcePro.css';
 
 const INITIAL_FORM = {
   full_name: '',
@@ -179,6 +180,23 @@ function Field({ icon: Icon, label, children, hint, error }) {
   );
 }
 
+function getPasswordPolicyMessage(form) {
+  if (!form.password) return '';
+
+  const checks = evaluatePasswordPolicy('staff', form.password, [form.username, form.email, form.phone]);
+  if (Object.values(checks).every(Boolean)) return '';
+
+  if (!checks.length) return 'Mật khẩu nhân sự phải có ít nhất 10 ký tự.';
+  if (!checks.lowercase) return 'Mật khẩu nhân sự phải có chữ thường.';
+  if (!checks.uppercase) return 'Mật khẩu nhân sự phải có chữ hoa.';
+  if (!checks.number) return 'Mật khẩu nhân sự phải có số.';
+  if (!checks.specialChar) return 'Mật khẩu nhân sự phải có ký tự đặc biệt.';
+  if (!checks.special) return 'Mật khẩu không được chứa username, email hoặc số điện thoại.';
+  if (!checks.common) return 'Mật khẩu quá phổ biến.';
+
+  return 'Mật khẩu chưa đáp ứng chính sách bảo mật.';
+}
+
 export function StaffCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -191,15 +209,6 @@ export function StaffCreatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
-  const passwordPolicyValidation = usePasswordPolicyValidation({
-    actorType: 'staff',
-    password: form.password,
-    username: form.username,
-    email: form.email,
-    phone: form.phone,
-    clientApp: 'staff-portal',
-    enabled: Boolean(form.password),
-  });
 
   useEffect(() => {
     let active = true;
@@ -354,9 +363,9 @@ export function StaffCreatePage() {
       return;
     }
     if (form.password) {
-      const validationResult = await passwordPolicyValidation.validateNow();
-      if (!validationResult.valid) {
-        setError(validationResult.messages[0] || 'Mật khẩu chưa đáp ứng chính sách bảo mật.');
+      const passwordPolicyMessage = getPasswordPolicyMessage(form);
+      if (passwordPolicyMessage) {
+        setError(passwordPolicyMessage);
         return;
       }
     }
@@ -412,7 +421,7 @@ export function StaffCreatePage() {
           </div>
           <div className="staff-create-pro-hero__actions">
             <Link to="/admin/staff" className="staff-button staff-button--ghost">Hủy</Link>
-            <button type="submit" form="staff-create-pro-form" className="staff-button staff-button--primary" disabled={submitting || passwordPolicyValidation.isChecking}>
+            <button type="submit" form="staff-create-pro-form" className="staff-button staff-button--primary" disabled={submitting}>
               <CheckCircle2 size={16} /> {submitting ? 'Đang tạo...' : 'Tạo nhân sự'}
             </button>
           </div>
@@ -492,13 +501,15 @@ export function StaffCreatePage() {
                   const selected = form.role_codes.includes(role.role_code);
                   return (
                     <button key={role.role_code} type="button" className={selected ? 'is-selected' : ''} onClick={() => toggleRole(role.role_code)}>
-                      <div>
+                      <div className="staff-create-pro-role-main">
                         <strong>{role.role_name}</strong>
                         <code>{role.role_code}</code>
                         <small>{role.description || 'Vai trò vận hành nội bộ'}</small>
                       </div>
-                      <span>P{role.priority_level || 0}</span>
-                      <RiskBadge level={roleRisk(role)} />
+                      <div className="staff-create-pro-role-meta">
+                        <span className="staff-create-pro-priority">P{role.priority_level || 0}</span>
+                        <RiskBadge level={roleRisk(role)} />
+                      </div>
                     </button>
                   );
                 })}
@@ -550,7 +561,7 @@ export function StaffCreatePage() {
               </div>
               <div className="staff-create-pro-grid">
                 <Field icon={KeyRound} label="Mật khẩu tạm" hint="Để trống để backend tự sinh mật khẩu mạnh.">
-                  <input type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} onBlur={() => passwordPolicyValidation.validateNow().catch(() => {})} />
+                  <input type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} />
                 </Field>
                 <Field icon={KeyRound} label="Xác nhận mật khẩu">
                   <input type="password" value={form.confirm_password} onChange={(event) => updateField('confirm_password', event.target.value)} />
@@ -632,7 +643,7 @@ export function StaffCreatePage() {
               <button type="button" className="staff-button staff-button--ghost" onClick={(event) => submitForm(event, true)} disabled={submitting}>
                 <ClipboardCheck size={16} /> Tạo & tiếp tục
               </button>
-              <button type="submit" className="staff-button staff-button--primary" disabled={submitting || passwordPolicyValidation.isChecking}>
+              <button type="submit" className="staff-button staff-button--primary" disabled={submitting}>
                 <UserPlus size={16} /> Tạo nhân sự
               </button>
             </div>

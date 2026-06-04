@@ -13,8 +13,12 @@ router.param('accountId', validateObjectIdParam);
 
 const passwordValidateLimit = createAuthRateLimit({
   scope: 'password-validate',
-  limit: 20,
+  limit: 120,
   windowMs: 15 * 60 * 1000,
+  keyGenerator: (req) => [
+    req.body?.actor_type || req.body?.actorType || 'unknown',
+    req.get('x-client-app') || req.get('x-client-platform') || 'web',
+  ].join(':'),
   message: 'Quá nhiều yêu cầu kiểm tra mật khẩu. Vui lòng thử lại sau.',
 });
 const forgotPasswordLimit = createAuthRateLimit({

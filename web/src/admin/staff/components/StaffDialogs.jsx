@@ -223,6 +223,16 @@ const STATUS_COPY = {
     noticeTitle: 'Thông tin',
     noticeBody: 'Hành động này sẽ mở lại tài khoản đang bị khóa và lưu lại lịch sử thao tác trong nhật ký kiểm toán.',
   },
+  forceLogout: {
+    title: 'Force logout tất cả phiên',
+    subtitle: 'Thu hồi token/phiên đăng nhập đang hoạt động của nhân sự này.',
+    button: 'Xác nhận đăng xuất phiên',
+    tone: 'warning',
+    icon: '↯',
+    noticeTone: 'warning',
+    noticeTitle: 'Tác động sau khi xác nhận',
+    noticeBody: 'Toàn bộ phiên active sẽ bị thu hồi. Người dùng phải đăng nhập lại để tiếp tục sử dụng hệ thống. Tác vụ này được ghi vào audit log.',
+  },
 };
 
 export function StaffStatusDialog({ action, staff, onClose, onConfirm, isSubmitting }) {

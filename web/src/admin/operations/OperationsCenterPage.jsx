@@ -326,30 +326,48 @@ function JsonViewer({ value }) {
 function DataTable({ rows = [], columns = [], selected, onSelect, actionSlot }) {
   const safeRows = rows.filter((row) => row && typeof row === 'object');
   if (!safeRows.length) return <EmptyState />;
-  const template = `${columns.map(() => 'minmax(120px, 1fr)').join(' ')} 96px`;
+  const minWidth = Math.max(920, columns.length * 150 + 118);
   return (
-    <div className="ops-table" style={{ '--ops-table-template': template, '--ops-table-min': `${(columns.length + 1) * 150}px` }}>
-      <div className="ops-table__head">
-        {columns.map(([, label]) => <span key={label}>{label}</span>)}
-        <span>Thao tác</span>
-      </div>
-      {safeRows.map((row, index) => {
-        const id = rowId(row);
-        const isSelected = rowId(selected) === id;
-        return (
-          <button type="button" key={id || `${index}-${JSON.stringify(row).slice(0, 60)}`} className={`ops-table__row${isSelected ? ' is-selected' : ''}`} onClick={() => onSelect(row)}>
-            {columns.map(([field]) => (
-              <span key={field} title={String(valueForCell(row, field))}>
-                {field === 'status' || field === 'scan_status' ? <StatusBadge value={row[field]} /> : valueForCell(row, field)}
-              </span>
-            ))}
-            <span className="ops-table__actions">
-              <IconButton icon={Eye} label="Xem chi tiết" onClick={(event) => { event.stopPropagation(); onSelect(row); }} />
-              {actionSlot?.(row)}
-            </span>
-          </button>
-        );
-      })}
+    <div className="ops-table-wrap" style={{ '--ops-table-min': `${minWidth}px` }}>
+      <table className="ops-table">
+        <colgroup>
+          {columns.map(([field], index) => <col key={field} style={{ width: index === 0 ? '210px' : '150px' }} />)}
+          <col style={{ width: '118px' }} />
+        </colgroup>
+        <thead>
+          <tr>
+            {columns.map(([, label]) => <th key={label} scope="col">{label}</th>)}
+            <th scope="col" className="ops-table__action-head">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {safeRows.map((row, index) => {
+            const id = rowId(row);
+            const isSelected = rowId(selected) === id;
+            return (
+              <tr
+                key={id || `${index}-${JSON.stringify(row).slice(0, 60)}`}
+                className={isSelected ? 'is-selected' : ''}
+                onClick={() => onSelect(row)}
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') onSelect(row);
+                }}
+              >
+                {columns.map(([field]) => (
+                  <td key={field} title={String(valueForCell(row, field))}>
+                    {field === 'status' || field === 'scan_status' ? <StatusBadge value={row[field]} /> : valueForCell(row, field)}
+                  </td>
+                ))}
+                <td className="ops-table__actions" onClick={(event) => event.stopPropagation()}>
+                  <IconButton icon={Eye} label="Xem chi tiết" onClick={(event) => { event.stopPropagation(); onSelect(row); }} />
+                  {actionSlot?.(row)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -243,7 +243,8 @@ function securityActionCopy(action, item = {}) {
 function extractItems(data) {
   if (!data) return [];
   if (Array.isArray(data)) return data;
-  return data.items || data.sessions || data.realtime_events || [];
+  const items = data.items || data.sessions || data.realtime_events || data.events || data.rows || [];
+  return Array.isArray(items) ? items : [];
 }
 
 function hoursForRange(range) {
@@ -251,6 +252,11 @@ function hoursForRange(range) {
   if (range === '7d') return 24 * 7;
   if (range === '30d') return 24 * 30;
   return 24;
+}
+
+function num(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function buildQuery(filters) {
@@ -518,7 +524,7 @@ const VIEW_CONFIG = {
 };
 
 function SecurityHero({ dashboard, loading, onRefresh }) {
-  const score = dashboard?.security_score ?? 0;
+  const score = num(dashboard?.security_score ?? 0);
   const summary = dashboard?.summary || {};
   return (
     <section className={`security-center-hero security-center-hero--${riskTone(dashboard?.risk_level, 100 - score)}`}>
@@ -536,7 +542,7 @@ function SecurityHero({ dashboard, loading, onRefresh }) {
         <div className="security-center-hero__meta">
           <RiskBadge level={dashboard?.risk_level || 'low'} score={100 - score} />
           <span>Phiên đang hoạt động: {formatNumber(summary.active_sessions)}</span>
-          <span>Cảnh báo nghiêm trọng: {formatNumber(summary.token_replay_events_24h + summary.active_break_glass)}</span>
+          <span>Cảnh báo nghiêm trọng: {formatNumber(num(summary.token_replay_events_24h) + num(summary.active_break_glass))}</span>
           <span>Cập nhật gần nhất: {formatDateTime(new Date())}</span>
         </div>
       </div>
@@ -645,10 +651,10 @@ function SummaryStrip({ activeView, dashboard, summary }) {
 }
 
 function DashboardView({ dashboard, onSelect }) {
-  const events = dashboard?.realtime_events || [];
-  const ips = dashboard?.top_suspicious_ips || [];
-  const accounts = dashboard?.top_risky_accounts || [];
-  const recommendedActions = dashboard?.recommended_actions || [];
+  const events = Array.isArray(dashboard?.realtime_events) ? dashboard.realtime_events : [];
+  const ips = Array.isArray(dashboard?.top_suspicious_ips) ? dashboard.top_suspicious_ips : [];
+  const accounts = Array.isArray(dashboard?.top_risky_accounts) ? dashboard.top_risky_accounts : [];
+  const recommendedActions = Array.isArray(dashboard?.recommended_actions) ? dashboard.recommended_actions : [];
 
   return (
     <div className="security-center-dashboard">
@@ -1209,6 +1215,25 @@ export function SecurityCenterPage({ view = 'dashboard' }) {
       <SecurityHero dashboard={dashboard} loading={loading} onRefresh={load} />
       <SecurityNav activeView={activeView} />
       <FilterBar filters={filters} setFilters={setFilters} loading={loading} onApply={() => setAppliedFilters(filters)} />
+
+      <section className="security-center-command-deck">
+        <article>
+          <span>Incident command</span>
+          <strong>Investigate → Contain → Revoke → Audit</strong>
+          <small>Phiên, token family, IP, thiết bị, break-glass và policy đều dùng endpoint backend thật.</small>
+        </article>
+        <article>
+          <span>Data protection</span>
+          <strong>Consent + patient authorization + sensitive access</strong>
+          <small>Theo dõi truy cập hồ sơ, đồng thuận, ủy quyền người thân và quyết định allow/deny.</small>
+        </article>
+        <article>
+          <span>Realtime readiness</span>
+          <strong>{formatNumber(num(dashboard?.summary?.active_sessions))} phiên đang mở</strong>
+          <small>Lọc theo 1h/24h/7d/30d, actor, trạng thái, IP để xử lý sự cố ngay trên màn hình.</small>
+        </article>
+      </section>
+
       {message ? (
         <section className="security-center-alert">
           <AlertTriangle size={17} aria-hidden="true" />

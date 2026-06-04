@@ -240,9 +240,28 @@ function formatNumber(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value || 0));
 }
 
+const SUPPORTED_CURRENCIES = new Set(['VND', 'USD', 'EUR', 'JPY', 'KRW', 'CNY']);
+
+function normalizeCurrency(currency) {
+  const normalized = String(currency || 'VND').trim().toUpperCase();
+  return SUPPORTED_CURRENCIES.has(normalized) ? normalized : 'VND';
+}
+
 function formatCurrency(value, currency = 'VND') {
   if (value === undefined || value === null || value === '') return 'Chưa có';
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(value || 0));
+  const numeric = Number(value || 0);
+  const safeCurrency = normalizeCurrency(currency);
+  try {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: safeCurrency, maximumFractionDigits: safeCurrency === 'VND' ? 0 : 2 }).format(numeric);
+  } catch (error) {
+    return `${formatNumber(numeric)} ${safeCurrency}`;
+  }
+}
+
+function getCurrencyWarning(currency) {
+  const raw = String(currency || '').trim();
+  if (!raw || SUPPORTED_CURRENCIES.has(raw.toUpperCase())) return '';
+  return `Currency không hợp lệ: ${raw}. UI tạm hiển thị theo VND để không vỡ màn hình.`;
 }
 
 function formatDate(value) {
@@ -291,6 +310,16 @@ function getSecondary(item = {}) {
 
 function getStatus(item = {}) {
   return item.status_resolved || item.status || (item.active === false ? 'inactive' : 'active');
+}
+
+function getPrice(item = {}) {
+  return item.unit_price ?? item.price ?? item.default_price ?? item.amount ?? item.service_id?.unit_price;
+}
+
+function getEffectiveRange(item = {}) {
+  const from = formatDate(item.effective_from || item.valid_from || item.created_at);
+  const to = item.effective_to || item.valid_to ? formatDate(item.effective_to || item.valid_to) : 'Đang áp dụng';
+  return `${from} → ${to}`;
 }
 
 function getMappingLabel(item = {}, entity) {
@@ -532,11 +561,159 @@ function QualityView({ quality }) {
   );
 }
 
+
+function getEntityScore(summary = {}) {
+  const total = Number(summary.total || summary.filtered_total || 0);
+  if (!total) return 100;
+  const active = Number(summary.active || 0);
+  const warnings = Number(summary.warning_items || 0);
+  return Math.max(0, Math.min(100, Math.round((active / total) * 100 - warnings * 4)));
+}
+
+function getCodeSuggestions(entity, config = {}) {
+  const prefixMap = {
+    services: ['SV-KHAM-TQ', 'SV-XN-CBC', 'SV-CDHA-XQ', 'SV-TT-NOI-SOI'],
+    'service-prices': ['SPV-YYYYMM-001', 'PRICE-OPD-001', 'PRICE-LAB-001', 'PRICE-IMG-001'],
+    medications: ['MED-PARA-500', 'MED-AMOX-500', 'MED-OMEP-20', 'MED-INS-R'],
+    'medication-units': ['TAB', 'CAP', 'VIAL', 'ML'],
+    'dosage-forms': ['TABLET', 'CAPSULE', 'INJECTION', 'SYRUP'],
+    'administration-routes': ['PO', 'IV', 'IM', 'SC'],
+    suppliers: ['NCC-DUOC-001', 'NCC-VTYT-001', 'NCC-HC-001', 'NCC-MAY-001'],
+    warehouses: ['WH-MAIN', 'WH-PHAR-OPD', 'WH-ER', 'WH-COLD'],
+    'storage-locations': ['A01-S01-B01', 'FRIDGE-01', 'QC-HOLD', 'RECALL-ZONE'],
+    'lab-tests': ['XN-CBC', 'XN-GLU', 'XN-CRP', 'XN-HBA1C'],
+    'specimen-types': ['SP-BLOOD-EDTA', 'SP-SERUM', 'SP-URINE', 'SP-SWAB'],
+    'imaging-catalog': ['XR-CHEST', 'US-ABDOMEN', 'CT-BRAIN', 'MRI-SPINE'],
+    'imaging-equipment': ['EQ-XR-001', 'EQ-US-001', 'EQ-CT-001', 'EQ-MRI-001'],
+    'imaging-rooms': ['IMG-XR-01', 'IMG-US-01', 'IMG-CT-01', 'IMG-MRI-01'],
+    procedures: ['PROC-ECG', 'PROC-ENDO', 'PROC-WOUND', 'PROC-NEB'],
+    'report-templates': ['TPL-LAB-CBC', 'TPL-XR-CHEST', 'TPL-US-ABD', 'TPL-PROC-ENDO'],
+    'schedule-types': ['FIRST_VISIT', 'FOLLOW_UP', 'LAB_SLOT', 'IMAGING_SLOT'],
+    'identifier-rules': ['PATIENT', 'INVOICE', 'ORDER', 'PRESCRIPTION'],
+  };
+  return prefixMap[entity] || [config.entity || 'MASTER', 'ACTIVE', 'DRAFT', 'RETIRED'];
+}
+
+function getLifecycleSteps(entity) {
+  const common = ['Draft', 'Validate mapping', 'Approve', 'Active', 'Audit'];
+  const map = {
+    services: ['Draft service', 'Gắn khoa', 'Tạo giá', 'Mở billing', 'Theo dõi charge'],
+    'service-prices': ['Tạo version', 'Kiểm tra tiền tệ', 'Duyệt giá', 'Effective date', 'Retire version cũ'],
+    medications: ['Tạo thuốc', 'Gắn unit/form/route', 'Gắn billing service', 'Safety policy', 'Active pharmacy'],
+    'lab-tests': ['Tạo test', 'Gắn specimen', 'Result items', 'Reference range', 'Link billing'],
+    procedures: ['Tạo thủ thuật', 'Checklist/consent', 'Duration/room', 'Link billing', 'Release result'],
+    'report-templates': ['Builder', 'Validate section', 'Preview print', 'Publish', 'Set default'],
+  };
+  return map[entity] || common;
+}
+
+function EntityReadinessPanel({ entity, meta, summary }) {
+  const score = getEntityScore(summary);
+  const steps = getLifecycleSteps(entity);
+  const statusText = meta?.backend_status || 'available';
+  const routeHint = meta?.route_hint || '/api/admin/master-data/entities';
+  return (
+    <section className="master-data-pro-readiness">
+      <article className="master-data-pro-readiness__score">
+        <span>Readiness</span>
+        <strong>{score}%</strong>
+        <div className="master-data-pro-progress" aria-hidden="true"><span style={{ width: `${score}%` }} /></div>
+        <p>{formatNumber(summary?.warning_items)} bản ghi cần chuẩn hóa · {formatNumber(summary?.filtered_total ?? summary?.total)} đang hiển thị.</p>
+      </article>
+      <article>
+        <span>Backend contract</span>
+        <strong>{statusText}</strong>
+        <p>{routeHint}</p>
+        <div className="master-data-pro-readiness__chips">
+          <em>GET list</em>
+          <em>quality flags</em>
+          <em>dependency impact</em>
+          <em>audit ready</em>
+        </div>
+      </article>
+      <article>
+        <span>Lifecycle chuẩn</span>
+        <div className="master-data-pro-flowline">
+          {steps.map((step, index) => (
+            <div key={step}><b>{index + 1}</b><small>{step}</small></div>
+          ))}
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function CodeSuggestionRail({ entity, config }) {
+  const suggestions = getCodeSuggestions(entity, config);
+  return (
+    <section className="master-data-pro-suggestion-rail">
+      <div>
+        <span>Gợi ý mã nhanh</span>
+        <strong>Quy ước code dễ đọc, dễ audit, không trùng nghiệp vụ</strong>
+      </div>
+      <div>
+        {suggestions.map((code) => <button key={code} type="button" onClick={() => navigator.clipboard?.writeText(code)}>{code}</button>)}
+      </div>
+    </section>
+  );
+}
+
+function ServicePriceStudio({ items, selectedItem, setSelectedItem, summary }) {
+  const activePrices = items.filter((item) => ['active', 'approved'].includes(String(getStatus(item)).toLowerCase())).length;
+  const pendingPrices = items.filter((item) => ['draft', 'pending', 'pending_approval'].includes(String(getStatus(item)).toLowerCase())).length;
+  const invalidCurrencyCount = items.filter((item) => getCurrencyWarning(item.currency)).length;
+  const newest = items[0];
+  return (
+    <section className="master-data-pro-price-studio">
+      <div className="master-data-pro-price-studio__main">
+        <div className="master-data-pro-panel__head">
+          <div>
+            <span>Price version board</span>
+            <strong>Bảng giá dịch vụ đang lấy trực tiếp từ backend ServicePriceVersion</strong>
+          </div>
+          <span className="master-data-pro-panel__count">{formatNumber(items.length)} versions</span>
+        </div>
+        <div className="master-data-pro-price-cards">
+          {items.length ? items.map((item) => {
+            const selected = getItemId(selectedItem) === getItemId(item);
+            const currencyWarning = getCurrencyWarning(item.currency);
+            return (
+              <button key={getItemId(item)} type="button" className={`master-data-pro-price-card${selected ? ' is-selected' : ''}`} onClick={() => setSelectedItem(item)}>
+                <div>
+                  <strong>{getCode(item)}</strong>
+                  <StatusBadge value={getStatus(item)} />
+                </div>
+                <h3>{item.service_id?.service_name || getName(item)}</h3>
+                <p>{item.service_id?.service_code || item.change_type || 'service price version'}</p>
+                <b>{formatCurrency(getPrice(item), item.currency)}</b>
+                <small>{getEffectiveRange(item)}</small>
+                {currencyWarning ? <em>{currencyWarning}</em> : null}
+              </button>
+            );
+          }) : <div className="master-data-pro-empty">Chưa có phiên bản giá phù hợp bộ lọc.</div>}
+        </div>
+      </div>
+      <aside className="master-data-pro-price-studio__side">
+        <span>Pricing health</span>
+        <strong>{formatNumber(activePrices)} active</strong>
+        <dl>
+          <div><dt>Tổng version</dt><dd>{formatNumber(summary?.filtered_total ?? summary?.total)}</dd></div>
+          <div><dt>Chờ duyệt</dt><dd>{formatNumber(pendingPrices)}</dd></div>
+          <div><dt>Currency lỗi</dt><dd>{formatNumber(invalidCurrencyCount)}</dd></div>
+          <div><dt>Version mới nhất</dt><dd>{newest ? getCode(newest) : 'Chưa có'}</dd></div>
+        </dl>
+        <p>Fix quan trọng: UI đã chặn lỗi Intl.NumberFormat khi backend/demo trả currency không phải mã ISO như “Demo Service Price Version mẫu 3”.</p>
+      </aside>
+    </section>
+  );
+}
+
 function EntityView({ config, data, selectedItem, setSelectedItem, searchTerm, setSearchTerm, statusFilter, setStatusFilter, onApplyFilters, isLoading }) {
   const entity = config.entity;
   const items = data?.items || [];
   const summary = data?.summary || {};
   const meta = data?.meta || {};
+  const activeItem = selectedItem || items[0] || null;
 
   return (
     <>
@@ -547,7 +724,10 @@ function EntityView({ config, data, selectedItem, setSelectedItem, searchTerm, s
         <MetricCard icon={AlertTriangle} label="Cảnh báo" value={formatNumber(summary.warning_items)} hint="quality flags" tone="amber" />
       </section>
 
-      <section className="master-data-pro-commandbar">
+      <EntityReadinessPanel entity={entity} meta={meta} summary={summary} />
+      <CodeSuggestionRail entity={entity} config={config} />
+
+      <section className="master-data-pro-commandbar master-data-pro-commandbar--pro">
         <label>
           <Search size={16} strokeWidth={2.25} />
           <input
@@ -567,6 +747,7 @@ function EntityView({ config, data, selectedItem, setSelectedItem, searchTerm, s
           <option value="retired">Retired</option>
           <option value="deprecated">Deprecated</option>
           <option value="draft">Draft</option>
+          <option value="pending">Pending</option>
           <option value="blocked">Blocked</option>
         </select>
         <button type="button" className="staff-button staff-button--primary" onClick={onApplyFilters} disabled={isLoading}>
@@ -579,50 +760,57 @@ function EntityView({ config, data, selectedItem, setSelectedItem, searchTerm, s
         </div>
       </section>
 
-      <section className="master-data-pro-entity-layout">
-        <div className="master-data-pro-panel master-data-pro-table-panel">
-          <div className="master-data-pro-panel__head">
-            <div>
-              <span>{meta.domain || 'master-data'}</span>
-              <strong>{meta.title || config.title}</strong>
+      {entity === 'service-prices' ? (
+        <section className="master-data-pro-entity-layout master-data-pro-entity-layout--prices">
+          <ServicePriceStudio items={items} selectedItem={activeItem} setSelectedItem={setSelectedItem} summary={summary} />
+          <DetailDrawer item={activeItem} entity={entity} meta={meta} />
+        </section>
+      ) : (
+        <section className="master-data-pro-entity-layout">
+          <div className="master-data-pro-panel master-data-pro-table-panel">
+            <div className="master-data-pro-panel__head">
+              <div>
+                <span>{meta.domain || 'master-data'}</span>
+                <strong>{meta.title || config.title}</strong>
+              </div>
+              <span className="master-data-pro-panel__count">{meta.backend_status || 'available'}</span>
             </div>
-            <span className="master-data-pro-panel__count">{meta.backend_status || 'available'}</span>
-          </div>
-          <div className="master-data-pro-table">
-            <div className="master-data-pro-table__head">
-              <span>Định danh</span>
-              <span>Mapping / cấu hình</span>
-              <span>Trạng thái</span>
-              <span>Risk / quality</span>
-              <span>Cập nhật</span>
+            <div className="master-data-pro-table">
+              <div className="master-data-pro-table__head">
+                <span>Định danh</span>
+                <span>Mapping / cấu hình</span>
+                <span>Trạng thái</span>
+                <span>Risk / quality</span>
+                <span>Cập nhật</span>
+              </div>
+              {items.length ? items.map((item) => (
+                <button
+                  type="button"
+                  key={getItemId(item)}
+                  className={`master-data-pro-row${getItemId(activeItem) === getItemId(item) ? ' is-selected' : ''}`}
+                  onClick={() => setSelectedItem(item)}
+                >
+                  <span className="master-data-pro-row__identity">
+                    <strong>{getCode(item)}</strong>
+                    <em>{getName(item)}</em>
+                    <small>{getSecondary(item)}</small>
+                  </span>
+                  <span>{getMappingLabel(item, entity)}</span>
+                  <span><StatusBadge value={getStatus(item)} /></span>
+                  <span className="master-data-pro-row__flags">
+                    {item.quality_flags?.length ? item.quality_flags.slice(0, 2).map((flag) => <QualityFlag key={flag} value={flag} />) : <QualityFlag value={getRiskLabel(item, entity)} />}
+                  </span>
+                  <span>{formatDate(item.updated_at || item.created_at || item.published_at || item.effective_from)}</span>
+                </button>
+              )) : (
+                <div className="master-data-pro-empty">Không có dữ liệu phù hợp bộ lọc hiện tại.</div>
+              )}
             </div>
-            {items.length ? items.map((item) => (
-              <button
-                type="button"
-                key={getItemId(item)}
-                className={`master-data-pro-row${getItemId(selectedItem) === getItemId(item) ? ' is-selected' : ''}`}
-                onClick={() => setSelectedItem(item)}
-              >
-                <span className="master-data-pro-row__identity">
-                  <strong>{getCode(item)}</strong>
-                  <em>{getName(item)}</em>
-                  <small>{getSecondary(item)}</small>
-                </span>
-                <span>{getMappingLabel(item, entity)}</span>
-                <span><StatusBadge value={getStatus(item)} /></span>
-                <span className="master-data-pro-row__flags">
-                  {item.quality_flags?.length ? item.quality_flags.slice(0, 2).map((flag) => <QualityFlag key={flag} value={flag} />) : <QualityFlag value={getRiskLabel(item, entity)} />}
-                </span>
-                <span>{formatDate(item.updated_at || item.created_at || item.published_at || item.effective_from)}</span>
-              </button>
-            )) : (
-              <div className="master-data-pro-empty">Không có dữ liệu phù hợp bộ lọc hiện tại.</div>
-            )}
           </div>
-        </div>
 
-        <DetailDrawer item={selectedItem || items[0]} entity={entity} meta={meta} />
-      </section>
+          <DetailDrawer item={activeItem} entity={entity} meta={meta} />
+        </section>
+      )}
     </>
   );
 }
@@ -666,7 +854,8 @@ function DetailDrawer({ item, entity, meta }) {
         <span>Thông tin nghiệp vụ</span>
         <dl>
           {[
-            ['Giá', item.unit_price !== undefined ? formatCurrency(item.unit_price, item.currency || 'VND') : null],
+            ['Giá', getPrice(item) !== undefined ? formatCurrency(getPrice(item), item.currency || 'VND') : null],
+            ['Currency warning', getCurrencyWarning(item.currency) || null],
             ['Hiệu lực từ', item.effective_from ? formatDate(item.effective_from) : null],
             ['Hiệu lực đến', item.effective_to ? formatDate(item.effective_to) : null],
             ['Billable', item.is_billable !== undefined ? (item.is_billable ? 'Có' : 'Không') : null],
