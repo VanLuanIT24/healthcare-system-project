@@ -36,6 +36,114 @@ function getInvoiceStatusLabel(status) {
   return map[status] || status || 'Chưa rõ'
 }
 
+function asObject(value) {
+  return value && typeof value === 'object' ? value : {}
+}
+
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '') || ''
+}
+
+function getPaymentMethodLabel(method, provider) {
+  const normalized = String(method || provider || '').toLowerCase()
+  const map = {
+    e_wallet: 'Ví điện tử',
+    momo: 'MoMo',
+    momo_personal_qr: 'MoMo QR',
+    bank_qr_manual: 'Chuyển khoản QR',
+    qr_manual: 'QR thủ công',
+    cash: 'Tiền mặt',
+    card: 'Thẻ',
+    credit_card: 'Thẻ tín dụng',
+    manual: 'Thanh toán thủ công',
+  }
+  return map[normalized] || method || provider || 'Thanh toán'
+}
+
+function getReceiptStatusLabel(status) {
+  const map = {
+    generated: 'Đã phát hành',
+    issued: 'Đã phát hành',
+    sent: 'Đã gửi',
+    printed: 'Đã in',
+    cancelled: 'Đã hủy',
+    voided: 'Đã hủy',
+  }
+  return map[status] || status || 'Đã phát hành'
+}
+
+function ReceiptDetailPaper({ receipt }) {
+  const payment = asObject(receipt.payment_id)
+  const invoice = asObject(receipt.invoice_id)
+  const patient = asObject(receipt.patient_id)
+  const intent = asObject(receipt.payment_intent_id)
+  const method = getPaymentMethodLabel(
+    firstValue(receipt.payment_method, payment.payment_method, intent.method),
+    firstValue(receipt.payment_provider, payment.payment_provider, intent.provider),
+  )
+  const transactionRef = firstValue(
+    receipt.transaction_ref,
+    receipt.transaction_reference,
+    payment.transaction_ref,
+    payment.transaction_reference,
+    intent.transaction_reference,
+    payment.provider_transaction_id,
+    receipt.provider_transaction_id,
+  )
+  const paymentNote = firstValue(receipt.payment_note, payment.payment_note, intent.payment_note)
+  const isDemoPayment = /demo|sandbox/i.test(`${transactionRef} ${paymentNote}`)
+  const amount = firstValue(receipt.amount, payment.amount, invoice.paid_amount)
+  const paidAt = firstValue(payment.paid_at, payment.confirmed_at, receipt.issued_at, receipt.created_at)
+
+  return (
+    <section className="patient-receipt-paper" aria-label="Biên lai thanh toán">
+      <div className="patient-receipt-paper-top">
+        <div>
+          <span>Bệnh viện Đa khoa Bộ Y tế</span>
+          <h3>Biên lai thu tiền</h3>
+          <p>Chứng từ thanh toán điện tử phát hành cho bệnh nhân.</p>
+        </div>
+        <div className="patient-receipt-paper-status">
+          <PatientIcon name="verified" aria-hidden="true" />
+          <strong>Đã thanh toán</strong>
+          <span>{getReceiptStatusLabel(receipt.status)}</span>
+        </div>
+      </div>
+
+      <div className="patient-receipt-paper-amount">
+        <span>Số tiền đã thu</span>
+        <strong>{formatMoney(amount)}</strong>
+        {isDemoPayment ? <em>Thanh toán demo / sandbox</em> : null}
+      </div>
+
+      <div className="patient-receipt-paper-grid">
+        <div><span>Mã biên lai</span><strong>{receipt.receipt_no || 'Chưa có'}</strong></div>
+        <div><span>Mã hóa đơn</span><strong>{invoice.invoice_no || 'Chưa có'}</strong></div>
+        <div><span>Người bệnh</span><strong>{patient.full_name || 'Bệnh nhân'}</strong></div>
+        <div><span>Mã bệnh nhân</span><strong>{patient.patient_code || 'Chưa có'}</strong></div>
+        <div><span>Giao dịch</span><strong>{payment.payment_no || receipt.intent_code || intent.intent_code || 'Chưa có'}</strong></div>
+        <div><span>Phương thức</span><strong>{method}</strong></div>
+        <div><span>Mã tham chiếu</span><strong>{transactionRef || 'Chưa có'}</strong></div>
+        <div><span>Ngày thanh toán</span><strong>{formatDateTime(paidAt)}</strong></div>
+        <div><span>Ngày phát hành</span><strong>{formatDateTime(receipt.issued_at || receipt.created_at)}</strong></div>
+        <div><span>Điện thoại</span><strong>{patient.phone || 'Chưa có'}</strong></div>
+      </div>
+
+      {paymentNote ? (
+        <div className="patient-receipt-paper-note">
+          <span>Nội dung thanh toán</span>
+          <strong>{paymentNote}</strong>
+        </div>
+      ) : null}
+
+      <div className="patient-receipt-paper-footer">
+        <span>Biên lai này xác nhận khoản thanh toán đã được ghi nhận trong hệ thống.</span>
+        <strong>{receipt._id || receipt.receipt_id || receipt.id || receipt.receipt_no}</strong>
+      </div>
+    </section>
+  )
+}
+
 export default function PatientBillingReceiptsPage({
   error = '',
   invoices = [],
@@ -292,12 +400,7 @@ export default function PatientBillingReceiptsPage({
               <div><span>Số dòng phí</span><strong>{detail.data.items?.length || 0}</strong></div>
             </div>
           ) : (
-            <div className="patient-receipt-detail-grid">
-              <div><span>Mã biên lai</span><strong>{detail.data.receipt_no || 'Chưa có'}</strong></div>
-              <div><span>Mã hóa đơn</span><strong>{detail.data.invoice_id?.invoice_no || 'Chưa có'}</strong></div>
-              <div><span>Giao dịch</span><strong>{detail.data.payment_id?.payment_no || detail.data.intent_code || 'Chưa có'}</strong></div>
-              <div><span>Ngày phát hành</span><strong>{formatDateTime(detail.data.issued_at || detail.data.created_at)}</strong></div>
-            </div>
+            <ReceiptDetailPaper receipt={detail.data} />
           )}
         </aside>
       ) : null}

@@ -336,6 +336,150 @@
   font-size: 15px;
 }
 
+.patient-receipt-paper {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(13, 99, 243, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(13, 99, 243, 0.08), rgba(16, 185, 129, 0.07)),
+    #ffffff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.patient-receipt-paper-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed rgba(100, 116, 139, 0.28);
+}
+
+.patient-receipt-paper-top span,
+.patient-receipt-paper-amount span,
+.patient-receipt-paper-grid span,
+.patient-receipt-paper-note span,
+.patient-receipt-paper-footer span {
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.patient-receipt-paper-top h3 {
+  margin: 4px 0 6px;
+  color: var(--patient-copy);
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.patient-receipt-paper-top p {
+  margin: 0;
+  color: var(--patient-muted);
+  font-weight: 700;
+}
+
+.patient-receipt-paper-status {
+  min-width: 156px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: 16px;
+  color: #047857;
+  background: rgba(236, 253, 245, 0.9);
+}
+
+.patient-receipt-paper-status .patient-lucide-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.patient-receipt-paper-status strong {
+  color: #047857;
+  font-size: 15px;
+}
+
+.patient-receipt-paper-status span {
+  color: #059669;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.patient-receipt-paper-amount {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 16px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0d63f3, #084bc2);
+}
+
+.patient-receipt-paper-amount span {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.patient-receipt-paper-amount strong {
+  color: #ffffff;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.patient-receipt-paper-amount em {
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #075985;
+  background: #e0f2fe;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.patient-receipt-paper-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.patient-receipt-paper-grid div,
+.patient-receipt-paper-note {
+  display: grid;
+  gap: 5px;
+  padding: 13px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.84);
+}
+
+.patient-receipt-paper-grid strong,
+.patient-receipt-paper-note strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--patient-copy);
+  font-size: 15px;
+}
+
+.patient-receipt-paper-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(100, 116, 139, 0.28);
+}
+
+.patient-receipt-paper-footer strong {
+  color: var(--patient-copy);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
 .patient-checkin-guide ol {
   display: grid;
   gap: 12px;
@@ -533,6 +677,15 @@
     grid-template-columns: 1fr;
     align-items: start;
   }
+
+  .patient-receipt-paper-top,
+  .patient-receipt-paper-footer {
+    flex-direction: column;
+  }
+
+  .patient-receipt-paper-status {
+    justify-items: start;
+  }
 }
 
 @media (max-width: 640px) {
@@ -546,8 +699,17 @@
 
   .patient-checkin-meta-grid,
   .patient-receipt-detail-grid,
+  .patient-receipt-paper-grid,
   .patient-relatives-checks {
     grid-template-columns: 1fr;
+  }
+
+  .patient-receipt-paper {
+    padding: 14px;
+  }
+
+  .patient-receipt-paper-amount strong {
+    font-size: 28px;
   }
 
   .patient-checkin-empty-panel {
