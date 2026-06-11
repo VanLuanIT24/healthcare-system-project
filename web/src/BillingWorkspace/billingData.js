@@ -23,7 +23,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 
-export const billingMenuSections = [
+const billingMenuCatalog = [
   {
     id: 'overview',
     label: 'Tổng quan',
@@ -194,6 +194,55 @@ export const billingMenuSections = [
   },
 ];
 
+const compactBillingMenuItemsBySection = {
+  overview: ['overview-dashboard', 'overview-action-items'],
+  'cashier-counter': [
+    'counter-collect',
+    'counter-search',
+    'counter-unpaid',
+    'counter-transfer-confirm',
+    'counter-print-receipt',
+  ],
+  invoices: ['invoices-all', 'invoices-unpaid', 'invoices-paid', 'invoices-overdue'],
+  payments: ['payments-all', 'payments-manual-confirmation', 'payments-failed-rejected'],
+  receipts: ['receipts-reprint', 'receipts-history'],
+  reports: ['reports-overview', 'reports-revenue', 'reports-debt'],
+};
+
+const compactBillingMenuLabels = {
+  'overview-dashboard': 'Bảng điều khiển',
+  'counter-unpaid': 'Hóa đơn chờ thu',
+  'invoices-unpaid': 'Chưa thanh toán',
+  'invoices-paid': 'Đã thanh toán',
+  'invoices-overdue': 'Quá hạn',
+  'payments-manual-confirmation': 'Cần xác nhận',
+  'payments-failed-rejected': 'Thanh toán lỗi',
+};
+
+const compactDefaultOpenSections = new Set(['overview', 'cashier-counter']);
+
+export const billingMenuSections = billingMenuCatalog
+  .map((section) => {
+    const itemIds = compactBillingMenuItemsBySection[section.id];
+    if (!itemIds) return null;
+
+    const itemsById = new Map((section.children || []).map((item) => [item.id, item]));
+    const children = itemIds
+      .map((id) => itemsById.get(id))
+      .filter(Boolean)
+      .map((item) => ({
+        ...item,
+        label: compactBillingMenuLabels[item.id] || item.label,
+      }));
+
+    return {
+      ...section,
+      defaultOpen: compactDefaultOpenSections.has(section.id),
+      children,
+    };
+  })
+  .filter(Boolean);
+
 export function flattenBillingMenu(sections = billingMenuSections) {
   return sections.flatMap((section) =>
     (section.children || []).map((item) => ({
@@ -206,7 +255,9 @@ export function flattenBillingMenu(sections = billingMenuSections) {
 
 export function getBillingPageMeta(pathname = '/billing/dashboard') {
   const normalizedPath = pathname === '/billing' ? '/billing/dashboard' : pathname;
-  const item = flattenBillingMenu().find((entry) => entry.to === normalizedPath);
+  const item =
+    flattenBillingMenu().find((entry) => entry.to === normalizedPath) ||
+    flattenBillingMenu(billingMenuCatalog).find((entry) => entry.to === normalizedPath);
 
   return item || {
     id: 'overview-dashboard',

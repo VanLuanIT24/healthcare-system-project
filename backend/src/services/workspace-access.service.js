@@ -1,6 +1,8 @@
 const ApiError = require('../common/errors/api-error');
 const permissionService = require('./permission.service');
 
+const DISABLED_WORKSPACE_CODES = new Set(['nursing', 'lab', 'reports']);
+
 const WORKSPACE_DEFINITIONS = [
   {
     code: 'admin',
@@ -83,7 +85,7 @@ const WORKSPACE_DEFINITIONS = [
     permissionsAny: ['reports.read', 'reports.read_all', 'reports.billing.read', 'reports.insurance.read', 'reports.revenue.read'],
     permissionPrefixes: ['reports.'],
   },
-];
+].filter((workspace) => !DISABLED_WORKSPACE_CODES.has(workspace.code));
 
 function actorRoles(actor = {}) {
   return Array.isArray(actor.roles) ? actor.roles : actor.user?.roles || [];
@@ -107,7 +109,7 @@ function canAccessWorkspace(actor = {}, workspace = {}) {
 }
 
 function getAvailableWorkspaces(actor = {}, options = {}) {
-  const currentWorkspace = options.current_workspace || options.currentWorkspace || 'nursing';
+  const currentWorkspace = options.current_workspace || options.currentWorkspace || 'reception';
   const badges = options.badges || {};
   const available = WORKSPACE_DEFINITIONS
     .filter((workspace) => canAccessWorkspace(actor, workspace))

@@ -35,6 +35,10 @@ const {
   normalizeString,
   recordAuditLog,
 } = require('./core.service');
+const {
+  applyRealInvoiceFilter,
+  shouldIncludeDemoBillingData,
+} = require('./billing-data-scope.helper');
 const { generateSequenceCode } = require('./code-generator.service');
 const { CASHIER_SHIFT_STATUS } = require('../models/billing/cashier-shift.model');
 const { CASH_DRAWER_MOVEMENT_TYPE } = require('../models/billing/cash-drawer-movement.model');
@@ -83,6 +87,12 @@ function hasGlobalCashierScope(actor = {}) {
     || !actorDepartmentId(actor);
 }
 
+function shouldIncludeClosedInvoiceIntents(source = {}) {
+  return source.include_closed_invoices === true
+    || source.includeClosedInvoices === true
+    || ['true', '1', 'yes', 'y'].includes(String(source.include_closed_invoices ?? source.includeClosedInvoices ?? '').trim().toLowerCase());
+}
+
 function assertCashierAccess(actor = {}, permissions = []) {
   if ((actor.actorType || actor.actor_type) !== 'staff') throw createError('Chỉ staff được dùng quầy thu tiền.', 403);
   const allowed = [
@@ -126,6 +136,9 @@ function normalizeFilters(query = {}, { defaultToday = false } = {}) {
     min_balance_due: query.min_balance_due || query.balance_due_gt,
     max_balance_due: query.max_balance_due || query.balance_due_lt,
     sort: normalizeString(query.sort || query.sort_by),
+    include_demo: query.include_demo ?? query.includeDemo,
+    include_closed_invoices: query.include_closed_invoices ?? query.includeClosedInvoices,
+    data_scope: query.data_scope || query.dataScope || query.scope,
   };
 }
 
@@ -169,12 +182,12 @@ async function applyInvoiceScope(match = {}, filters = {}, actor = {}) {
     if (admissionIds.length) scopeConditions.push({ admission_id: { $in: admissionIds } });
     addMatchCondition(match, scopeConditions.length ? { $or: scopeConditions } : { _id: { $in: [] } });
   }
-  return match;
+  return applyRealInvoiceFilter(match, filters);
 }
 
 async function scopedInvoiceIds(filters = {}, actor = {}, extraMatch = {}) {
   const departmentId = await getScopedDepartmentId(filters, actor);
-  const needsInvoiceScope = filters.patient_id || departmentId;
+  const needsInvoiceScope = filters.patient_id || departmentId || !shouldIncludeDemoBillingData(filters);
   if (!needsInvoiceScope) return null;
   const match = await applyInvoiceScope({ ...extraMatch }, filters, actor);
   return (await Invoice.find(match).select('_id').lean()).map((invoice) => invoice._id);
@@ -472,8 +485,13 @@ async function searchCashier(query = {}, actor = {}) {
   ]);
 
   const patientSummaries = await Promise.all(patients.map(async (patient) => {
+    const debtMatch = applyRealInvoiceFilter({
+      patient_id: patient._id,
+      status: { $in: PAYABLE_INVOICE_STATUSES },
+      balance_due: { $gt: 0 },
+    }, filters);
     const debt = await Invoice.aggregate([
-      { $match: { patient_id: patient._id, status: { $in: PAYABLE_INVOICE_STATUSES }, balance_due: { $gt: 0 } } },
+      { $match: debtMatch },
       { $group: { _id: null, count: { $sum: 1 }, balance_due: { $sum: '$balance_due' } } },
     ]);
     return {
@@ -726,6 +744,10 @@ async function getWorkbench(query = {}, actor = {}) {
   const cashierId = actorId(actor);
   const scopedIds = await scopedInvoiceIds(filters, actor);
   const scopedInvoiceFilter = scopedIds ? { invoice_id: { $in: scopedIds } } : {};
+  const payableScopedIds = shouldIncludeClosedInvoiceIntents(filters)
+    ? scopedIds
+    : await scopedInvoiceIds(filters, actor, { status: { $in: PAYABLE_INVOICE_STATUSES }, balance_due: { $gt: 0 } });
+  const payableInvoiceFilter = payableScopedIds ? { invoice_id: { $in: payableScopedIds } } : scopedInvoiceFilter;
   const [cashier, currentShift, unpaid, partial, allDue, todayPayments, pendingQr, submittedReceipt, manualReview, failedIntent, printedCount, recentPayments] = await Promise.all([
     cashierId ? User.findById(cashierId).select('full_name username employee_code department_id').lean() : null,
     getCurrentShift(actor),
@@ -737,9 +759,9 @@ async function getWorkbench(query = {}, actor = {}) {
       applyDate(match, 'paid_at', filters);
       return Payment.aggregate([{ $match: match }, { $group: { _id: '$payment_method', count: { $sum: 1 }, amount: { $sum: '$amount' } } }]);
     })(),
-    PaymentIntent.countDocuments({ ...scopedInvoiceFilter, status: PAYMENT_INTENT_STATUS.PENDING_MANUAL_CONFIRMATION }),
-    PaymentIntent.countDocuments({ ...scopedInvoiceFilter, status: PAYMENT_INTENT_STATUS.SUBMITTED_RECEIPT }),
-    PaymentIntent.countDocuments({ ...scopedInvoiceFilter, status: PAYMENT_INTENT_STATUS.MANUAL_REVIEW }),
+    PaymentIntent.countDocuments({ ...payableInvoiceFilter, status: PAYMENT_INTENT_STATUS.PENDING_MANUAL_CONFIRMATION }),
+    PaymentIntent.countDocuments({ ...payableInvoiceFilter, status: PAYMENT_INTENT_STATUS.SUBMITTED_RECEIPT }),
+    PaymentIntent.countDocuments({ ...payableInvoiceFilter, status: PAYMENT_INTENT_STATUS.MANUAL_REVIEW }),
     PaymentIntent.countDocuments({ ...scopedInvoiceFilter, status: { $in: [PAYMENT_INTENT_STATUS.FAILED, PAYMENT_INTENT_STATUS.REJECTED, PAYMENT_INTENT_STATUS.EXPIRED] } }),
     ReceiptPrintLog.countDocuments({ ...scopedInvoiceFilter, printed_at: { $gte: filters.date_from, $lte: filters.date_to } }),
     Payment.find({ ...scopedInvoiceFilter, status: PAYMENT_STATUS.COMPLETED, paid_at: { $gte: filters.date_from, $lte: filters.date_to } })

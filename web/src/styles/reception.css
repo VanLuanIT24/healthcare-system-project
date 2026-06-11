@@ -11292,6 +11292,38 @@
   min-height: 52px !important;
 }
 
+.reception-topbar-profile {
+  width: min(268px, 100%) !important;
+  max-width: 100% !important;
+}
+
+.reception-topbar-profile__trigger {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.reception-topbar-profile__trigger .reception-avatar-badge,
+.reception-topbar-profile__trigger > svg {
+  flex: 0 0 auto !important;
+}
+
+.reception-topbar-profile__copy {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.reception-topbar-profile__copy strong,
+.reception-topbar-profile__copy span {
+  display: block !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
 .reception-topbar-profile__menu {
   width: min(372px, calc(100vw - 34px)) !important;
 }
@@ -11322,6 +11354,10 @@
   .reception-topbar-profile__trigger {
     width: 238px !important;
     max-width: 238px !important;
+  }
+
+  .reception-topbar-profile {
+    width: min(238px, 100%) !important;
   }
 }
 

@@ -2,6 +2,8 @@ import { readStoredAuth, writeStoredAuth } from '../lib/storage';
 
 const STAFF_WORKSPACE_PREFERENCE_KEY = 'healthcare.staff.workspace.preference';
 
+const DISABLED_STAFF_WORKSPACE_KEYS = new Set(['nurse', 'lab', 'reports']);
+
 const STAFF_WORKSPACE_DEFINITIONS = [
   {
     key: 'admin',
@@ -231,28 +233,23 @@ const STAFF_WORKSPACE_DEFINITIONS = [
     ],
     permissionPrefixes: ['reports.'],
   },
-];
+].filter((workspace) => !DISABLED_STAFF_WORKSPACE_KEYS.has(workspace.key));
 
 const ROLE_PREFERRED_WORKSPACE_KEYS = [
   { roles: ['admin', 'manager'], workspaceKey: 'admin' },
   { roles: ['doctor'], workspaceKey: 'doctor' },
-  { roles: ['nurse'], workspaceKey: 'nurse' },
   { roles: ['receptionist'], workspaceKey: 'reception' },
   { roles: ['scheduler', 'department_head', 'medical_record_staff'], workspaceKey: 'scheduling' },
   { roles: ['pharmacist', 'inventory_staff'], workspaceKey: 'pharmacy' },
-  { roles: ['lab_technician', 'lab_manager', 'radiologist', 'imaging_technician', 'procedure_staff'], workspaceKey: 'lab' },
   { roles: ['cashier', 'billing_staff', 'insurance_staff'], workspaceKey: 'billing' },
 ];
 
 const FALLBACK_WORKSPACE_KEY_PRIORITY = [
   'doctor',
-  'nurse',
   'reception',
   'scheduling',
   'pharmacy',
-  'lab',
   'billing',
-  'reports',
   'admin',
 ];
 

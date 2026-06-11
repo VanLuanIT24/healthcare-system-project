@@ -28,6 +28,12 @@ const {
   getStartOfDay,
   normalizeString,
 } = require('./core.service');
+const {
+  applyRealChargeFilter,
+  applyRealInvoiceFilter,
+  restrictToInvoiceIds,
+  shouldIncludeDemoBillingData,
+} = require('./billing-data-scope.helper');
 
 const DEFAULT_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const PAYABLE_INVOICE_STATUSES = [INVOICE_STATUS.ISSUED, INVOICE_STATUS.PARTIALLY_PAID];
@@ -153,6 +159,9 @@ function normalizeFilters(query = {}, { defaultToday = true } = {}) {
     payment_method: normalizeString(query.payment_method || query.method),
     provider: normalizeString(query.provider),
     keyword: normalizeString(query.keyword || query.search || query.q),
+    include_demo: query.include_demo ?? query.includeDemo,
+    include_closed_invoices: query.include_closed_invoices ?? query.includeClosedInvoices,
+    data_scope: query.data_scope || query.dataScope || query.scope,
   };
 }
 
@@ -204,7 +213,7 @@ async function applyInvoiceScope(match = {}, filters = {}, actor = {}) {
   const departmentId = await getScopedDepartmentId(filters, actor);
   const encounterIds = await getEncounterIdsForDepartment(departmentId);
   if (encounterIds) match.encounter_id = { $in: encounterIds };
-  return match;
+  return applyRealInvoiceFilter(match, filters);
 }
 
 async function invoiceIdsForScopedInvoices(filters = {}, actor = {}, extraMatch = {}) {
@@ -220,13 +229,9 @@ async function applyPaymentScope(match = {}, filters = {}, actor = {}) {
   if (filters.cashier_id) match.received_by = toObjectId(filters.cashier_id, 'cashier_id');
 
   const departmentId = await getScopedDepartmentId(filters, actor);
-  if (departmentId) {
-    const invoiceIds = await invoiceIdsForScopedInvoices({ ...filters, department_id: departmentId }, actor);
-    if (match.invoice_id) {
-      match.invoice_id = invoiceIds.some((id) => String(id) === String(match.invoice_id)) ? match.invoice_id : { $in: [] };
-    } else {
-      match.invoice_id = { $in: invoiceIds };
-    }
+  if (departmentId || !shouldIncludeDemoBillingData(filters)) {
+    const invoiceIds = await invoiceIdsForScopedInvoices({ ...filters, department_id: departmentId || filters.department_id }, actor);
+    match = restrictToInvoiceIds(match, invoiceIds);
   }
   return match;
 }
@@ -236,15 +241,26 @@ async function applyPaymentIntentScope(match = {}, filters = {}, actor = {}) {
   if (filters.invoice_id) match.invoice_id = toObjectId(filters.invoice_id, 'invoice_id');
   if (filters.provider) match.provider = filters.provider;
   const departmentId = await getScopedDepartmentId(filters, actor);
-  if (departmentId) {
-    const invoiceIds = await invoiceIdsForScopedInvoices({ ...filters, department_id: departmentId }, actor);
-    if (match.invoice_id) {
-      match.invoice_id = invoiceIds.some((id) => String(id) === String(match.invoice_id)) ? match.invoice_id : { $in: [] };
-    } else {
-      match.invoice_id = { $in: invoiceIds };
-    }
+  if (departmentId || !shouldIncludeDemoBillingData(filters)) {
+    const invoiceIds = await invoiceIdsForScopedInvoices({ ...filters, department_id: departmentId || filters.department_id }, actor);
+    match = restrictToInvoiceIds(match, invoiceIds);
   }
   return match;
+}
+
+function shouldIncludeClosedInvoiceIntents(source = {}) {
+  return source.include_closed_invoices === true
+    || source.includeClosedInvoices === true
+    || ['true', '1', 'yes', 'y'].includes(String(source.include_closed_invoices ?? source.includeClosedInvoices ?? '').trim().toLowerCase());
+}
+
+async function applyPayableInvoiceScope(match = {}, filters = {}, actor = {}) {
+  if (shouldIncludeClosedInvoiceIntents(filters)) return match;
+  const invoiceIds = await invoiceIdsForScopedInvoices(filters, actor, {
+    status: { $in: PAYABLE_INVOICE_STATUSES },
+    balance_due: { $gt: 0 },
+  });
+  return restrictToInvoiceIds(match, invoiceIds);
 }
 
 async function applyChargeScope(match = {}, filters = {}, actor = {}) {
@@ -252,7 +268,7 @@ async function applyChargeScope(match = {}, filters = {}, actor = {}) {
   const departmentId = await getScopedDepartmentId(filters, actor);
   const encounterIds = await getEncounterIdsForDepartment(departmentId);
   if (encounterIds) match.encounter_id = { $in: encounterIds };
-  return match;
+  return applyRealChargeFilter(match, filters);
 }
 
 async function patientIdsForKeyword(keyword) {
@@ -525,7 +541,8 @@ async function getPaymentConfirmationQueue(query = {}, actor = {}) {
   const statuses = query.status
     ? String(query.status).split(',').map((item) => item.trim()).filter(Boolean)
     : CONFIRMATION_INTENT_STATUSES;
-  const match = await applyPaymentIntentScope({ status: { $in: statuses } }, filters, actor);
+  let match = await applyPaymentIntentScope({ status: { $in: statuses } }, filters, actor);
+  match = await applyPayableInvoiceScope(match, filters, actor);
   if (query.date_from || query.date_to || query.date) applyDateRange(match, 'created_at', filters);
   if (filters.keyword) {
     const patientIds = await patientIdsForKeyword(filters.keyword);
@@ -834,9 +851,10 @@ async function getBillingWorkQueue(query = {}, actor = {}) {
     })(),
     (async () => {
       const invoiceIds = await invoiceIdsForScopedInvoices(filters, actor);
+      const departmentId = await getScopedDepartmentId(filters, actor);
       const match = {
         status: { $in: [INSURANCE_CLAIM_STATUS.SUBMITTED, INSURANCE_CLAIM_STATUS.UNDER_REVIEW] },
-        ...(invoiceIds.length || await getScopedDepartmentId(filters, actor) ? { invoice_id: { $in: invoiceIds } } : {}),
+        ...(invoiceIds.length || departmentId || !shouldIncludeDemoBillingData(filters) ? { invoice_id: { $in: invoiceIds } } : {}),
       };
       const items = await InsuranceClaim.find(match)
         .sort({ submitted_at: -1, updated_at: -1 })
@@ -912,7 +930,9 @@ async function getRecentBillingActivity(query = {}, actor = {}) {
   const intentMatch = await applyPaymentIntentScope({}, filters, actor);
   const invoiceMatch = await applyInvoiceScope({}, filters, actor);
   const invoiceIds = await invoiceIdsForScopedInvoices(filters, actor);
-  const scopedClaimMatch = invoiceIds.length || await getScopedDepartmentId(filters, actor)
+  const includeDemoData = shouldIncludeDemoBillingData(filters);
+  const departmentId = await getScopedDepartmentId(filters, actor);
+  const scopedClaimMatch = invoiceIds.length || departmentId || !includeDemoData
     ? { invoice_id: { $in: invoiceIds } }
     : {};
   if (query.date_from || query.date_to || query.date) {
@@ -946,13 +966,13 @@ async function getRecentBillingActivity(query = {}, actor = {}) {
       .populate('patient_id', 'patient_code full_name phone')
       .populate('invoice_id', 'invoice_no status total_amount paid_amount balance_due')
       .lean(),
-    canReadGlobalAuditTrail
+    canReadGlobalAuditTrail && includeDemoData
       ? EventOutbox.find({ aggregate_type: { $in: ['payment', 'payment_intent', 'invoice', 'insurance_claim'] } })
         .sort({ occurred_at: -1, created_at: -1 })
         .limit(Math.ceil(limit / 2))
         .lean()
       : Promise.resolve([]),
-    canReadGlobalAuditTrail
+    canReadGlobalAuditTrail && includeDemoData
       ? AuditLog.find({ target_type: { $in: ['payment', 'payment_intent', 'invoice', 'insurance_claim', 'billing'] } })
         .sort({ created_at: -1 })
         .limit(Math.ceil(limit / 2))
@@ -1065,9 +1085,12 @@ async function getBillingDashboardOverview(query = {}, actor = {}) {
   const invoiceTodayMatch = await applyInvoiceScope({ status: { $in: [INVOICE_STATUS.ISSUED, INVOICE_STATUS.PARTIALLY_PAID, INVOICE_STATUS.PAID] } }, filters, actor);
   const unpaidMatch = await applyInvoiceScope({ status: { $in: PAYABLE_INVOICE_STATUSES }, balance_due: { $gt: 0 } }, { ...filters, date_from: null, date_to: null }, actor);
   const overdueMatch = { ...unpaidMatch, due_at: { $lt: new Date() } };
-  const pendingManualMatch = await applyPaymentIntentScope({ status: PAYMENT_INTENT_STATUS.PENDING_MANUAL_CONFIRMATION }, filters, actor);
-  const submittedReceiptMatch = await applyPaymentIntentScope({ status: PAYMENT_INTENT_STATUS.SUBMITTED_RECEIPT }, filters, actor);
-  const manualReviewMatch = await applyPaymentIntentScope({ status: PAYMENT_INTENT_STATUS.MANUAL_REVIEW }, filters, actor);
+  let pendingManualMatch = await applyPaymentIntentScope({ status: PAYMENT_INTENT_STATUS.PENDING_MANUAL_CONFIRMATION }, filters, actor);
+  let submittedReceiptMatch = await applyPaymentIntentScope({ status: PAYMENT_INTENT_STATUS.SUBMITTED_RECEIPT }, filters, actor);
+  let manualReviewMatch = await applyPaymentIntentScope({ status: PAYMENT_INTENT_STATUS.MANUAL_REVIEW }, filters, actor);
+  pendingManualMatch = await applyPayableInvoiceScope(pendingManualMatch, filters, actor);
+  submittedReceiptMatch = await applyPayableInvoiceScope(submittedReceiptMatch, filters, actor);
+  manualReviewMatch = await applyPayableInvoiceScope(manualReviewMatch, filters, actor);
   const failedIntentMatch = await applyPaymentIntentScope({ status: { $in: ERROR_INTENT_STATUSES } }, filters, actor);
   const refundMatch = await applyPaymentScope({ refund_status: 'requested' }, filters, actor);
   applyDateRange(paymentMatch, 'paid_at', filters);

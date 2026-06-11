@@ -28,6 +28,11 @@ const eventBus = require('../events/event-bus.service');
 const { isValidObjectId, toObjectId } = require('../common/helpers/object-id.helper');
 const paymentProviderRegistry = require('../payments/payment-provider.registry');
 const { generateSequenceCode } = require('./code-generator.service');
+const {
+  applyRealInvoiceFilter,
+  restrictToInvoiceIds,
+  shouldIncludeDemoBillingData,
+} = require('./billing-data-scope.helper');
 
 const PAYABLE_INVOICE_STATUSES = [INVOICE_STATUS.ISSUED, INVOICE_STATUS.PARTIALLY_PAID];
 const ACTIVE_INTENT_STATUSES = [
@@ -265,6 +270,12 @@ function hasGlobalPaymentIntentScope(actor = {}) {
     || hasPermission(actor, PERMISSION.SYSTEM.FULL_ACCESS)
     || hasPermission(actor, PERMISSION.REPORTS.READ_ALL)
     || !actorDepartmentId(actor);
+}
+
+function shouldIncludeClosedInvoiceIntents(source = {}) {
+  return source.include_closed_invoices === true
+    || source.includeClosedInvoices === true
+    || ['true', '1', 'yes', 'y'].includes(String(source.include_closed_invoices ?? source.includeClosedInvoices ?? '').trim().toLowerCase());
 }
 
 async function applyPaymentIntentDepartmentScope(filter = {}, actor = {}) {
@@ -1031,7 +1042,7 @@ async function listManualPayments(query = {}, actor = {}) {
       PAYMENT_INTENT_STATUS.SUBMITTED_RECEIPT,
       PAYMENT_INTENT_STATUS.MANUAL_REVIEW,
     ];
-  const filter = {
+  let filter = {
     provider: { $in: MANUAL_PAYMENT_PROVIDERS },
     status: { $in: statuses },
   };
@@ -1073,6 +1084,13 @@ async function listManualPayments(query = {}, actor = {}) {
     ];
   }
   await applyPaymentIntentDepartmentScope(filter, actor);
+  if (!shouldIncludeDemoBillingData(query)) {
+    const invoiceMatch = shouldIncludeClosedInvoiceIntents(query)
+      ? applyRealInvoiceFilter({}, query)
+      : applyRealInvoiceFilter({ status: { $in: PAYABLE_INVOICE_STATUSES }, balance_due: { $gt: 0 } }, query);
+    const realInvoiceIds = (await Invoice.find(invoiceMatch).select('_id').lean()).map((invoice) => invoice._id);
+    filter = restrictToInvoiceIds(filter, realInvoiceIds);
+  }
   const [items, total] = await Promise.all([
     PaymentIntent.find(filter)
       .sort({ updated_at: -1, created_at: -1 })

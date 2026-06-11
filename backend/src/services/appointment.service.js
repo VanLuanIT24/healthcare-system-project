@@ -77,7 +77,11 @@ function isDoctorActor(actor = {}) {
 }
 
 function hasGlobalAppointmentScope(actor = {}) {
-  return hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.REPORTS.APPOINTMENTS_READ]);
+  return hasAnyPermission(actor, [
+    PERMISSION.SYSTEM.FULL_ACCESS,
+    PERMISSION.APPOINTMENTS.READ,
+    PERMISSION.REPORTS.APPOINTMENTS_READ,
+  ]);
 }
 
 function canUseSensitivePatientSearchFilters(actor = {}) {

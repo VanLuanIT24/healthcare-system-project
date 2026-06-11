@@ -74,8 +74,18 @@ function hasGlobalFrontdeskScope(actor = {}) {
     || hasAnyPermission(actor, [PERMISSION.SYSTEM.FULL_ACCESS, PERMISSION.REPORTS.READ_ALL]);
 }
 
-function scopedDepartmentFilter(filter = {}, actor = {}) {
-  if (hasGlobalFrontdeskScope(actor)) return { ...filter };
+function hasGlobalAppointmentScope(actor = {}) {
+  return hasGlobalFrontdeskScope(actor)
+    || hasAnyPermission(actor, [PERMISSION.APPOINTMENTS.READ, PERMISSION.REPORTS.APPOINTMENTS_READ]);
+}
+
+function hasGlobalQueueScope(actor = {}) {
+  return hasGlobalFrontdeskScope(actor)
+    || hasAnyPermission(actor, [PERMISSION.QUEUE.READ, PERMISSION.APPOINTMENTS.READ, PERMISSION.REPORTS.QUEUE_READ]);
+}
+
+function scopedDepartmentFilter(filter = {}, actor = {}, options = {}) {
+  if (options.globalScope || hasGlobalFrontdeskScope(actor)) return { ...filter };
   const departmentId = actorDepartmentId(actor);
   if (!departmentId) return { ...filter, _id: null };
   return { ...filter, department_id: departmentId };
@@ -393,10 +403,10 @@ async function getSidebarCounters(query = {}, actor = {}) {
   const appointmentFilter = scopedDepartmentFilter({
     is_deleted: false,
     appointment_time: buildDateFilter(date),
-  }, actor);
+  }, actor, { globalScope: hasGlobalAppointmentScope(actor) });
   const queueFilter = scopedDepartmentFilter({
     queue_date: getStartOfDay(date),
-  }, actor);
+  }, actor, { globalScope: hasGlobalQueueScope(actor) });
   const [
     appointmentsToday,
     waitingQueue,
@@ -611,7 +621,7 @@ async function getRecentCheckins(query = {}, actor = {}) {
   const filter = scopedDepartmentFilter({
     status: { $in: [QUEUE_STATUS.WAITING, QUEUE_STATUS.CALLED, QUEUE_STATUS.RECALLED, QUEUE_STATUS.IN_SERVICE, QUEUE_STATUS.COMPLETED] },
     checkin_time: { $exists: true },
-  }, actor);
+  }, actor, { globalScope: hasGlobalQueueScope(actor) });
   if (query.date) filter.queue_date = getStartOfDay(query.date);
   const [items, total] = await Promise.all([
     QueueTicket.find(filter).sort({ checkin_time: -1 }).skip(skip).limit(limit).lean(),

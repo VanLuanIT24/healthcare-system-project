@@ -102,6 +102,42 @@ const CLINICAL_SERVICE_TYPES = [
   SERVICE_TYPE.PROCEDURE,
 ];
 
+const DEMO_INVOICE_NO_PATTERN = /^(HD-2026|INV-DUOC-|DEV-INV-|INV\d{6}-)/i;
+
+function isQueryFlagTruthy(value) {
+  return value === true || value === 1 || ['true', '1', 'yes', 'y'].includes(String(value || '').trim().toLowerCase());
+}
+
+function shouldIncludeDemoBillingData(query = {}) {
+  const scope = String(query.data_scope || query.dataScope || query.scope || '').trim().toLowerCase();
+  return isQueryFlagTruthy(query.include_demo)
+    || isQueryFlagTruthy(query.includeDemo)
+    || ['all', 'demo', 'seed', 'with_demo'].includes(scope);
+}
+
+function appendAndFilter(filter = {}, condition = null) {
+  if (!condition) return filter;
+  return {
+    ...filter,
+    $and: [
+      ...(Array.isArray(filter.$and) ? filter.$and : []),
+      condition,
+    ],
+  };
+}
+
+function applyDemoInvoiceExclusion(filter = {}, query = {}) {
+  if (shouldIncludeDemoBillingData(query)) return filter;
+  return appendAndFilter(filter, { invoice_no: { $not: DEMO_INVOICE_NO_PATTERN } });
+}
+
+async function applyDemoPaymentExclusion(filter = {}, query = {}) {
+  if (shouldIncludeDemoBillingData(query)) return filter;
+  const demoInvoiceIds = await Invoice.distinct('_id', { invoice_no: DEMO_INVOICE_NO_PATTERN });
+  if (!demoInvoiceIds.length) return filter;
+  return appendAndFilter(filter, { invoice_id: { $nin: demoInvoiceIds } });
+}
+
 function sessionOptions(session) {
   return session ? { session } : {};
 }
@@ -129,12 +165,12 @@ function actorDepartmentId(actor = {}) {
 }
 
 function actorPermissions(actor = {}) {
-  return new Set(actor.permissions || []);
+  return new Set(actor.permissions || actor.permission_codes || []);
 }
 
 function hasPermission(actor = {}, permission) {
   const permissions = actorPermissions(actor);
-  return permissions.has(permission) || permissions.has('*');
+  return permissions.has(PERMISSION.SYSTEM.FULL_ACCESS) || permissions.has(permission) || permissions.has('*');
 }
 
 function hasAnyPermission(actor = {}, permissions = []) {
@@ -2161,6 +2197,7 @@ async function listInvoices(query = {}, actor = {}) {
       ...(patients.length ? [{ patient_id: { $in: patients.map((patient) => patient._id) } }] : []),
     ];
   }
+  filter = applyDemoInvoiceExclusion(filter, query);
   filter = applyPatientScope(filter, actor, PERMISSION.INVOICES.SELF_READ);
   filter = await applyEncounterDepartmentScope(filter, actor);
   const [items, total] = await Promise.all([
@@ -2659,6 +2696,7 @@ async function listPayments(query = {}, actor = {}) {
       },
     ];
   }
+  filter = await applyDemoPaymentExclusion(filter, query);
   filter = applyPatientScope(filter, actor, PERMISSION.PAYMENTS.SELF_READ);
   filter = await applyInvoiceDepartmentScope(filter, actor);
   const [items, total] = await Promise.all([

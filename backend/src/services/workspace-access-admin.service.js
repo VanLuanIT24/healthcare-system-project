@@ -25,21 +25,18 @@ const WORKSPACE_GROUPS = {
   scheduling: 'operations',
   reception: 'front-office',
   doctor: 'clinical',
-  nursing: 'clinical',
-  lab: 'clinical-ops',
   pharmacy: 'pharmacy',
   billing: 'finance',
-  reports: 'analytics',
 };
 
 const DEPARTMENT_WORKSPACE_HINTS = [
-  { match: ['xet nghiem', 'laboratory', 'lab'], workspaces: ['lab'] },
-  { match: ['chan doan', 'imaging', 'cdha', 'radiology'], workspaces: ['lab', 'doctor'] },
-  { match: ['thu thuat', 'procedure'], workspaces: ['lab', 'nursing'] },
+  { match: ['xet nghiem', 'laboratory', 'lab'], workspaces: ['doctor'] },
+  { match: ['chan doan', 'imaging', 'cdha', 'radiology'], workspaces: ['doctor'] },
+  { match: ['thu thuat', 'procedure'], workspaces: ['doctor'] },
   { match: ['duoc', 'pharmacy', 'nha thuoc', 'kho'], workspaces: ['pharmacy'] },
-  { match: ['tai chinh', 'vien phi', 'billing', 'cashier', 'bao hiem'], workspaces: ['billing', 'reports'] },
-  { match: ['cntt', 'it', 'hanh chinh', 'admin'], workspaces: ['admin', 'reports'] },
-  { match: ['kham', 'clinical', 'noi', 'ngoai', 'san', 'nhi'], workspaces: ['scheduling', 'reception', 'doctor', 'nursing'] },
+  { match: ['tai chinh', 'vien phi', 'billing', 'cashier', 'bao hiem'], workspaces: ['billing'] },
+  { match: ['cntt', 'it', 'hanh chinh', 'admin'], workspaces: ['admin'] },
+  { match: ['kham', 'clinical', 'noi', 'ngoai', 'san', 'nhi'], workspaces: ['scheduling', 'reception', 'doctor'] },
 ];
 
 function normalizeText(value) {
@@ -584,7 +581,7 @@ function inferDepartmentWorkspaces(department = {}) {
     department.department_type,
   ].join(' '));
   const matched = DEPARTMENT_WORKSPACE_HINTS.find((item) => item.match.some((word) => searchable.includes(word)));
-  return matched?.workspaces || ['scheduling', 'nursing', 'reports'];
+  return matched?.workspaces || ['scheduling', 'reception', 'doctor'];
 }
 
 async function getByDepartment() {
@@ -604,6 +601,9 @@ async function getByDepartment() {
   return {
     departments: departments.map((department) => {
       const workspaces = inferDepartmentWorkspaces(department);
+      const allowedWorkspaces = workspaces
+        .map((code) => workspaceDefinitions().find((workspace) => workspace.code === code))
+        .filter(Boolean);
       const counts = usersByDepartment.get(String(department._id)) || { total: 0, active: 0 };
       return {
         department_id: String(department._id),
@@ -614,8 +614,8 @@ async function getByDepartment() {
         head_user_id: department.head_user_id ? String(department.head_user_id) : null,
         active_staff_count: counts.active,
         staff_count: counts.total,
-        default_workspace: workspaces[0],
-        allowed_workspaces: workspaces.map((code) => workspaceDefinitions().find((workspace) => workspace.code === code)).filter(Boolean).map(serializeWorkspace),
+        default_workspace: allowedWorkspaces[0]?.code || 'scheduling',
+        allowed_workspaces: allowedWorkspaces.map(serializeWorkspace),
         denied_workspaces: [],
         mapping_source: 'heuristic_from_department_type',
         risk_level: workspaces.includes('admin') ? 'high' : 'medium',
@@ -786,11 +786,10 @@ async function getSidebarConfigs() {
       actor_type: 'staff',
       version: 'generated-from-registry',
       status: 'published',
-      item_count: 5,
+      item_count: 2,
       items: [
         { key: `${workspace.code}.dashboard`, label: 'Dashboard', route: workspace.route, required_roles: workspace.roles, required_permissions: workspace.permissionsAny.slice(0, 2), visible: true },
         { key: `${workspace.code}.worklist`, label: 'Worklist', route: workspace.route.replace('/dashboard', '/worklist'), required_roles: workspace.roles, required_permissions: workspace.permissionsAny.slice(0, 1), visible: true },
-        { key: `${workspace.code}.reports`, label: 'Báo cáo', route: '/reports/dashboard', required_permissions: ['reports.read'], visible: workspace.code === 'reports' || workspace.roles.includes('manager') },
       ],
       diagnostics: [],
     })),
@@ -800,8 +799,6 @@ async function getSidebarConfigs() {
 async function getNavigationRules() {
   return {
     items: [
-      { rule_id: 'lab-to-billing-charge', from_workspace: 'lab', to_workspace: 'billing', source_entity_type: 'clinical_order', target_entity_type: 'charge', action_key: 'view_charge', route_template: '/billing/charges/:chargeId', required_permissions: ['charges.read'], open_mode: 'drawer', status: 'generated', risk_level: 'medium' },
-      { rule_id: 'billing-to-record', from_workspace: 'billing', to_workspace: 'reports', source_entity_type: 'invoice', target_entity_type: 'report', action_key: 'view_revenue_report', route_template: '/reports/billing/:invoiceId', required_permissions: ['reports.billing.read'], open_mode: 'new_tab', status: 'generated', risk_level: 'high' },
       { rule_id: 'admin-to-iam-context', from_workspace: 'admin', to_workspace: 'admin', source_entity_type: 'user', target_entity_type: 'access_context', action_key: 'open_access_context', route_template: '/admin/iam/context?userId=:userId', required_permissions: ['users.read', 'roles.read'], open_mode: 'drawer', status: 'generated', risk_level: 'high' },
     ],
   };

@@ -83,17 +83,6 @@ const SIDEBAR_SECTIONS = [
     ],
   },
   {
-    key: 'checkin',
-    label: 'Check-in & Queue',
-    icon: CheckCircle2,
-    children: [
-      { key: 'checkin-quick', label: 'Check-in nhanh' },
-      { key: 'checkin-appointment', label: 'Check-in theo lịch hẹn' },
-      { key: 'queue-board', label: 'Queue hiện tại' },
-      { key: 'transfer-nursing', label: 'Chuyển tuyến nội bộ' },
-    ],
-  },
-  {
     key: 'payments',
     label: 'Thanh toán & Hỗ trợ',
     icon: CreditCard,
@@ -151,10 +140,8 @@ const WORKFLOW_MENU_MODE_ALIASES = {
 };
 
 const PAYMENT_MENU_MODE_ALIASES = {
-  'payments-status': 'payments-status',
   'payments-qr-guide': 'payments-qr-guide',
   'payments-confirmation': 'payments-confirmation',
-  'payments-transfer-cashier': 'payments-transfer-cashier',
 };
 
 const SUPPORT_MENU_MODES = new Set([
@@ -229,10 +216,8 @@ const MENU_PARENT_ALIASES = {
   'transfer-clinical-service': 'checkin',
   'transfer-pharmacy': 'checkin',
   'transfer-history': 'checkin',
-  'payments-status': 'payments',
   'payments-qr-guide': 'payments',
   'payments-confirmation': 'payments',
-  'payments-transfer-cashier': 'payments',
   'support-patient-messages': 'payments',
   'support-portal-guide': 'payments',
   'support-booking-guide': 'payments',
@@ -984,7 +969,6 @@ export function ReceptionDashboardPage() {
     overview: true,
     'patient-administration': false,
     'frontdesk-appointments': false,
-    checkin: false,
     payments: false,
     reports: false,
   });

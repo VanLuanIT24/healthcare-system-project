@@ -23,6 +23,11 @@ const billingCashierService = require('./billing-cashier.service');
 const permissionService = require('./permission.service');
 const workspaceAccessService = require('./workspace-access.service');
 const { createError, escapeRegex, getEndOfDay, getStartOfDay, normalizeString } = require('./core.service');
+const {
+  applyRealChargeFilter,
+  applyRealInvoiceFilter,
+  shouldIncludeDemoBillingData,
+} = require('./billing-data-scope.helper');
 
 const BILLING_WORKSPACE_READ_PERMISSIONS = [
   PERMISSION.SYSTEM.FULL_ACCESS,
@@ -169,11 +174,21 @@ function profile(actor = {}) {
   };
 }
 
-async function countOpenRefundRequests() {
+async function invoiceIdsForRealBillingData(query = {}) {
+  if (shouldIncludeDemoBillingData(query)) return null;
+  return (await Invoice.find(applyRealInvoiceFilter({}, query)).select('_id').lean()).map((invoice) => invoice._id);
+}
+
+function invoiceIdFilter(invoiceIds = null) {
+  return Array.isArray(invoiceIds) ? { invoice_id: { $in: invoiceIds } } : {};
+}
+
+async function countOpenRefundRequests(invoiceIds = null) {
   const refundStatuses = ['requested', 'under_review', 'approved', 'processing'];
+  const invoiceFilter = invoiceIdFilter(invoiceIds);
   const [refundDocs, legacyPayments] = await Promise.all([
-    PaymentRefund.countDocuments({ status: { $in: refundStatuses } }).catch(() => 0),
-    Payment.countDocuments({ refund_status: { $in: refundStatuses } }).catch(() => 0),
+    PaymentRefund.countDocuments({ status: { $in: refundStatuses }, ...invoiceFilter }).catch(() => 0),
+    Payment.countDocuments({ refund_status: { $in: refundStatuses }, ...invoiceFilter }).catch(() => 0),
   ]);
   return refundDocs + legacyPayments;
 }
@@ -181,6 +196,8 @@ async function countOpenRefundRequests() {
 async function getCounters(query = {}, actor = {}) {
   const workbench = await billingCashierService.getWorkbench(query, actor);
   const range = todayRange(query);
+  const realInvoiceIds = await invoiceIdsForRealBillingData(query);
+  const invoiceFilter = invoiceIdFilter(realInvoiceIds);
   const [
     overdueInvoices,
     todayPayments,
@@ -190,20 +207,21 @@ async function getCounters(query = {}, actor = {}) {
     mismatchCount,
     rejectedClaims,
   ] = await Promise.all([
-    Invoice.countDocuments({
+    Invoice.countDocuments(applyRealInvoiceFilter({
       status: { $in: [INVOICE_STATUS.ISSUED, INVOICE_STATUS.PARTIALLY_PAID] },
       balance_due: { $gt: 0 },
       due_at: { $lt: new Date() },
-    }).catch(() => 0),
+    }, query)).catch(() => 0),
     Payment.countDocuments({
       status: PAYMENT_STATUS.COMPLETED,
       paid_at: { $gte: range.from, $lte: range.to },
+      ...invoiceFilter,
     }).catch(() => 0),
-    Charge.countDocuments({ status: { $in: [CHARGE_STATUS.PENDING, CHARGE_STATUS.DRAFT] } }).catch(() => 0),
-    Charge.countDocuments({ status: CHARGE_STATUS.POSTED, $or: [{ invoice_id: null }, { invoice_id: { $exists: false } }] }).catch(() => 0),
-    countOpenRefundRequests(),
-    ReconciliationException.countDocuments({ status: { $in: ['open', 'assigned'] } }).catch(() => 0),
-    InsuranceClaim.countDocuments({ status: INSURANCE_CLAIM_STATUS.REJECTED }).catch(() => 0),
+    Charge.countDocuments(applyRealChargeFilter({ status: { $in: [CHARGE_STATUS.PENDING, CHARGE_STATUS.DRAFT] } }, query)).catch(() => 0),
+    Charge.countDocuments(applyRealChargeFilter({ status: CHARGE_STATUS.POSTED, $or: [{ invoice_id: null }, { invoice_id: { $exists: false } }] }, query)).catch(() => 0),
+    countOpenRefundRequests(realInvoiceIds),
+    ReconciliationException.countDocuments({ status: { $in: ['open', 'assigned'] }, ...invoiceFilter }).catch(() => 0),
+    InsuranceClaim.countDocuments({ status: INSURANCE_CLAIM_STATUS.REJECTED, ...invoiceFilter }).catch(() => 0),
   ]);
 
   const counters = {
@@ -323,18 +341,20 @@ async function getDashboardOverview(query = {}, actor = {}) {
 
 async function getCashierWorklist(query = {}, actor = {}) {
   assertBillingWorkspaceAccess(actor);
+  const realInvoiceIds = await invoiceIdsForRealBillingData(query);
+  const invoiceFilter = invoiceIdFilter(realInvoiceIds);
   const [unpaid, partial, manualPending, manualReview, failedIntents, recentReceipts] = await Promise.all([
     billingCashierService.listCashierInvoices({ ...query, status_group: 'unpaid', limit: query.limit || 30 }, actor),
     billingCashierService.listCashierInvoices({ ...query, status_group: 'partial', limit: query.limit || 30 }, actor),
-    billingCashierService.listManualPayments({ status: `${PAYMENT_INTENT_STATUS.PENDING_MANUAL_CONFIRMATION},${PAYMENT_INTENT_STATUS.SUBMITTED_RECEIPT}`, limit: 30 }, actor).catch(() => ({ items: [] })),
-    billingCashierService.listManualPayments({ status: PAYMENT_INTENT_STATUS.MANUAL_REVIEW, limit: 30 }, actor).catch(() => ({ items: [] })),
-    PaymentIntent.find({ status: { $in: [PAYMENT_INTENT_STATUS.FAILED, PAYMENT_INTENT_STATUS.REJECTED, PAYMENT_INTENT_STATUS.EXPIRED] } })
+    billingCashierService.listManualPayments({ ...query, status: `${PAYMENT_INTENT_STATUS.PENDING_MANUAL_CONFIRMATION},${PAYMENT_INTENT_STATUS.SUBMITTED_RECEIPT}`, limit: 30 }, actor).catch(() => ({ items: [] })),
+    billingCashierService.listManualPayments({ ...query, status: PAYMENT_INTENT_STATUS.MANUAL_REVIEW, limit: 30 }, actor).catch(() => ({ items: [] })),
+    PaymentIntent.find({ status: { $in: [PAYMENT_INTENT_STATUS.FAILED, PAYMENT_INTENT_STATUS.REJECTED, PAYMENT_INTENT_STATUS.EXPIRED] }, ...invoiceFilter })
       .sort({ updated_at: -1, created_at: -1 })
       .limit(30)
       .populate('invoice_id', 'invoice_no status total_amount paid_amount balance_due issued_at due_at patient_id')
       .populate('patient_id', 'patient_code full_name phone gender')
       .lean(),
-    Receipt.find({})
+    Receipt.find(invoiceFilter)
       .sort({ issued_at: -1, created_at: -1 })
       .limit(20)
       .populate('invoice_id', 'invoice_no status total_amount paid_amount balance_due issued_at due_at patient_id')
@@ -403,20 +423,23 @@ async function searchBillingWorkspace(query = {}, actor = {}) {
   }
   const pattern = escapeRegex(q);
   const cashierResults = await billingCashierService.searchCashier({ ...query, q }, actor).catch(() => ({}));
+  const realInvoiceIds = await invoiceIdsForRealBillingData(query);
+  const invoiceFilter = invoiceIdFilter(realInvoiceIds);
   const [charges, receipts, claims] = await Promise.all([
-    Charge.find({
+    Charge.find(applyRealChargeFilter({
       $or: [
         { charge_no: { $regex: pattern, $options: 'i' } },
         { description: { $regex: pattern, $options: 'i' } },
         { source_module: { $regex: pattern, $options: 'i' } },
         { status: { $regex: pattern, $options: 'i' } },
       ],
-    })
+    }, query))
       .sort({ charged_at: -1, created_at: -1 })
       .limit(10)
       .populate('patient_id', 'patient_code full_name phone gender')
       .lean(),
     Receipt.find({
+      ...invoiceFilter,
       $or: [
         { receipt_no: { $regex: pattern, $options: 'i' } },
         { transaction_ref: { $regex: pattern, $options: 'i' } },
@@ -430,6 +453,7 @@ async function searchBillingWorkspace(query = {}, actor = {}) {
       .populate('patient_id', 'patient_code full_name phone gender')
       .lean(),
     InsuranceClaim.find({
+      ...invoiceFilter,
       $or: [
         { claim_no: { $regex: pattern, $options: 'i' } },
         { status: { $regex: pattern, $options: 'i' } },
@@ -484,7 +508,8 @@ async function searchBillingWorkspace(query = {}, actor = {}) {
 async function getReconciliationMismatches(query = {}, actor = {}) {
   assertBillingWorkspaceAccess(actor);
   const limit = Math.min(Number(query.limit || 30), 100);
-  const rows = await ReconciliationException.find({ status: { $in: ['open', 'assigned'] } })
+  const realInvoiceIds = await invoiceIdsForRealBillingData(query);
+  const rows = await ReconciliationException.find({ status: { $in: ['open', 'assigned'] }, ...invoiceIdFilter(realInvoiceIds) })
     .sort({ severity: -1, created_at: -1 })
     .limit(limit)
     .populate('invoice_id', 'invoice_no status total_amount balance_due patient_id')
