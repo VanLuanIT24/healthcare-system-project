@@ -36,6 +36,53 @@ const emergencyNumber = '115'
 const messengerUrl = 'https://www.facebook.com/profile.php?id=61551884413560&locale=vi_VN'
 const chatbotDisplayName = 'Trợ lý tư vấn & đặt lịch'
 
+const departmentNameViMap = {
+  'general medicine': 'Nội tổng quát',
+  cardiology: 'Tim mạch',
+  pediatrics: 'Nhi khoa',
+  orthopedics: 'Cơ xương khớp',
+  orthopedic: 'Cơ xương khớp',
+  neurology: 'Thần kinh',
+  dermatology: 'Da liễu',
+  gastroenterology: 'Tiêu hóa',
+  pulmonology: 'Hô hấp',
+  respiratory: 'Hô hấp',
+  obstetrics: 'Sản khoa',
+  gynecology: 'Phụ khoa',
+  emergency: 'Cấp cứu',
+  radiology: 'Chẩn đoán hình ảnh',
+  imaging: 'Chẩn đoán hình ảnh',
+  laboratory: 'Xét nghiệm',
+  pharmacy: 'Dược',
+  dentistry: 'Răng hàm mặt',
+  ophthalmology: 'Mắt',
+  ent: 'Tai mũi họng',
+  'khoa tim mach': 'Khoa Tim mạch',
+  'khoa nhi': 'Khoa Nhi',
+  'khoa cap cuu': 'Khoa Cấp cứu',
+  'khoa than kinh': 'Khoa Thần kinh',
+  'chan doan hinh anh': 'Chẩn đoán hình ảnh',
+  'trung tam xet nghiem': 'Trung tâm Xét nghiệm',
+  'khoa duoc': 'Khoa Dược',
+  'khoa ngoai tong hop': 'Khoa Ngoại tổng hợp',
+}
+
+function normalizeDepartmentKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function departmentNameVi(value, fallback = 'Chuyên khoa') {
+  const raw = String(value || '').trim()
+  if (!raw) return fallback
+  return departmentNameViMap[normalizeDepartmentKey(raw)] || raw
+}
+
 const windows1252CodePointByByte = {
   0x80: 0x20ac,
   0x82: 0x201a,
@@ -479,6 +526,7 @@ function SlotPicker({ slots = [], onPick, disabled }) {
     <div className="hc-chatbot-card-grid hc-chatbot-card-grid--slots">
       {slots.map((slot) => {
         const actionType = slot.action_type || 'select_slot'
+        const departmentLabel = departmentNameVi(slot.department_name)
         return (
           <button
             key={`${slot.slot_id}-${actionType}`}
@@ -493,7 +541,7 @@ function SlotPicker({ slots = [], onPick, disabled }) {
           >
             <span>{slot.time}</span>
             <strong>{slot.doctor_name}</strong>
-            <small>{slot.department_name} · {slot.date}</small>
+            <small>{departmentLabel} · {slot.date}</small>
             {slot.schedule_window ? <small>Ca làm: {slot.schedule_window}</small> : null}
             {slot.remaining_label || slot.remaining ? <small>{slot.remaining_label || `Còn ${slot.remaining} slot`}</small> : null}
             {slot.fee_display ? <em>{slot.fee_display}</em> : null}
@@ -508,20 +556,23 @@ function DepartmentCards({ departments = [], onPick, disabled }) {
   if (!Array.isArray(departments) || departments.length === 0) return null
   return (
     <div className="hc-chatbot-card-grid">
-      {departments.map((department) => (
-        <article key={department.department_id || department.department_name} className="hc-chatbot-info-card">
-          <strong>{department.department_name}</strong>
-          <p>{department.description}</p>
-          <button
-            type="button"
-            onClick={() => onPick({ label: `Đặt lịch ${department.department_name}`, value: `Tôi muốn đặt lịch ${department.department_name}` })}
-            disabled={disabled}
-          >
-            <CalendarPlus size={14} />
-            Đặt lịch
-          </button>
-        </article>
-      ))}
+      {departments.map((department) => {
+        const departmentLabel = departmentNameVi(department.department_name)
+        return (
+          <article key={department.department_id || department.department_name} className="hc-chatbot-info-card">
+            <strong>{departmentLabel}</strong>
+            <p>{department.description}</p>
+            <button
+              type="button"
+              onClick={() => onPick({ label: `Đặt lịch ${departmentLabel}`, value: `Tôi muốn đặt lịch ${departmentLabel}` })}
+              disabled={disabled}
+            >
+              <CalendarPlus size={14} />
+              Đặt lịch
+            </button>
+          </article>
+        )
+      })}
     </div>
   )
 }
@@ -530,21 +581,25 @@ function DoctorCards({ doctors = [], onPick, disabled }) {
   if (!Array.isArray(doctors) || doctors.length === 0) return null
   return (
     <div className="hc-chatbot-card-grid">
-      {doctors.map((doctor) => (
-        <article key={doctor.doctor_id || doctor.doctor_name} className="hc-chatbot-info-card">
-          <strong>{doctor.doctor_name}</strong>
-          <p>{[doctor.specialty, doctor.department_name, doctor.years_of_experience ? `${doctor.years_of_experience} năm KN` : null].filter(Boolean).join(' · ')}</p>
-          {doctor.fee_display ? <span>{doctor.fee_display}</span> : null}
-          <button
-            type="button"
-            onClick={() => onPick({ label: `Đặt với ${doctor.doctor_name}`, value: `Tôi muốn đặt lịch với ${doctor.doctor_name}` })}
-            disabled={disabled}
-          >
-            <CalendarPlus size={14} />
-            Xem lịch
-          </button>
-        </article>
-      ))}
+      {doctors.map((doctor) => {
+        const specialtyLabel = departmentNameVi(doctor.specialty, '')
+        const departmentLabel = departmentNameVi(doctor.department_name, '')
+        return (
+          <article key={doctor.doctor_id || doctor.doctor_name} className="hc-chatbot-info-card">
+            <strong>{doctor.doctor_name}</strong>
+            <p>{[specialtyLabel, departmentLabel, doctor.years_of_experience ? `${doctor.years_of_experience} năm KN` : null].filter(Boolean).join(' · ')}</p>
+            {doctor.fee_display ? <span>{doctor.fee_display}</span> : null}
+            <button
+              type="button"
+              onClick={() => onPick({ label: `Đặt với ${doctor.doctor_name}`, value: `Tôi muốn đặt lịch với ${doctor.doctor_name}` })}
+              disabled={disabled}
+            >
+              <CalendarPlus size={14} />
+              Xem lịch
+            </button>
+          </article>
+        )
+      })}
     </div>
   )
 }
