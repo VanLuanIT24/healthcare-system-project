@@ -1274,8 +1274,8 @@ async function checkEncounterCanComplete(encounterId, actor = {}) {
   if (signedClinicalNoteCount === 0) {
     blockingReasons.push('Encounter chưa có clinical note đã ký.');
   }
-  if (primaryDiagnosisCount === 0) {
-    blockingReasons.push('Encounter chưa có chẩn đoán chính.');
+  if (diagnosisCount === 0) {
+    blockingReasons.push('Encounter chưa có chẩn đoán.');
   }
   if (draftConsultationCount > 0) {
     blockingReasons.push('Encounter còn consultation draft/in_progress.');
@@ -1286,7 +1286,7 @@ async function checkEncounterCanComplete(encounterId, actor = {}) {
   if (orderSummary.has_blocking_orders) {
     blockingReasons.push('Encounter còn order active chưa hoàn tất/hủy.');
   }
-  if (diagnosisCount === 0) warnings.push('Encounter chưa có diagnosis nào.');
+  if (primaryDiagnosisCount === 0) warnings.push('Encounter chưa đánh dấu chẩn đoán chính.');
   if (prescriptionSummary.has_active_prescription) warnings.push('Encounter có đơn thuốc active/verified chưa hoàn tất cấp phát.');
 
   return {

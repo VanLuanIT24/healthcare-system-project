@@ -223,6 +223,16 @@ function canResolveDiagnosis(diagnosis = {}) {
   return normalizedStatus(diagnosis?.status || 'active') === 'active'
 }
 
+function isUsableDiagnosis(diagnosis = {}) {
+  const status = normalizedStatus(diagnosis?.status || 'active')
+  return !['cancelled', 'entered_in_error', 'voided', 'inactive'].includes(status)
+}
+
+function isPrimaryDiagnosis(diagnosis = {}) {
+  const type = normalizedStatus(diagnosis?.diagnosis_type || diagnosis?.type)
+  return Boolean(diagnosis?.is_primary || type === 'primary' || type === 'confirmed_diagnosis')
+}
+
 function canCancelOrder(order = {}) {
   return ['draft', 'ordered', 'acknowledged', 'in_progress'].includes(normalizedStatus(order?.status))
 }
@@ -244,7 +254,8 @@ function hasSignedClinicalNote(notes = []) {
 }
 
 function hasPrimaryDiagnosis(diagnoses = []) {
-  return safeArray(diagnoses).some((diagnosis) => diagnosis?.is_primary && normalizedStatus(diagnosis.status || 'active') === 'active')
+  const usableDiagnoses = safeArray(diagnoses).filter(isUsableDiagnosis)
+  return usableDiagnoses.some(isPrimaryDiagnosis) || usableDiagnoses.length > 0
 }
 
 function hasAnyOrder(orders = []) {
