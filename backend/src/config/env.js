@@ -193,6 +193,7 @@ const env = {
   frontendAuthSuccessUrl: process.env.FRONTEND_AUTH_SUCCESS_URL || 'http://localhost:5173/auth/success',
   frontendAuthFailureUrl: process.env.FRONTEND_AUTH_FAILURE_URL || 'http://localhost:5173/auth/failure',
   manualPaymentEnabled: parseBoolean(process.env.MANUAL_PAYMENT_ENABLED, true),
+  paymentDemoEnabled: parseBoolean(process.env.PAYMENT_DEMO_ENABLED, process.env.NODE_ENV !== 'production'),
   paymentReceiptUploadEnabled: parseBoolean(process.env.PAYMENT_RECEIPT_UPLOAD_ENABLED, true),
   paymentReceiptMaxSizeBytes: parsePositiveNumber(process.env.PAYMENT_RECEIPT_MAX_SIZE_BYTES, 5 * 1024 * 1024),
   momoPersonalQrEnabled: parseBoolean(process.env.MOMO_PERSONAL_QR_ENABLED, false),

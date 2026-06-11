@@ -67,6 +67,7 @@ APP_BASE_URL=https://<frontend-static-web-app>.azurestaticapps.net
 CORS_ORIGINS=https://<frontend-static-web-app>.azurestaticapps.net
 GOOGLE_AUTH_ENABLED=false
 SMTP_ENABLED=false
+PAYMENT_DEMO_ENABLED=true
 MOMO_PERSONAL_QR_ENABLED=false
 ```
 

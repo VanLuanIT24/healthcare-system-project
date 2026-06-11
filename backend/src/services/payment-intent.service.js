@@ -1208,8 +1208,8 @@ async function confirmManualPayment(paymentOrIntentId, payload = {}, actor = {},
 }
 
 async function confirmDemoPayment(intentId, payload = {}, actor = {}, requestMeta = {}) {
-  if (env.nodeEnv === 'production') {
-    throw createError('Thanh toán thử nghiệm chỉ khả dụng ở môi trường demo/dev.', 404);
+  if (!env.paymentDemoEnabled) {
+    throw createError('Thanh toán thử nghiệm chưa được bật trên môi trường này.', 403);
   }
 
   const intent = await PaymentIntent.findById(intentId).lean();
