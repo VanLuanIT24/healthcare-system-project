@@ -233,9 +233,9 @@ export default function PatientBillingPage({
 
   function getMomoSandboxError({ includeOtp = true } = {}) {
     if (!isMomoSandbox) return ''
-    if (momoWalletDigits.length < 9 || momoWalletDigits.length > 11) return 'Vui lòng nhập số ví MoMo sandbox hợp lệ.'
+    if (momoWalletDigits.length < 9 || momoWalletDigits.length > 11) return 'Vui lòng nhập số ví MoMo hợp lệ.'
     if (!momoSandboxForm.cardHolder.trim()) return 'Vui lòng nhập tên trên thẻ liên kết.'
-    if (momoCardDigits.length < 12 || momoCardDigits.length > 19) return 'Vui lòng nhập số thẻ sandbox từ 12-19 chữ số.'
+    if (momoCardDigits.length < 12 || momoCardDigits.length > 19) return 'Vui lòng nhập số thẻ từ 12-19 chữ số.'
     if (!isValidExpiry(momoSandboxForm.expiry)) return 'Vui lòng nhập hạn thẻ theo định dạng MM/YY.'
     if (!includeOtp) return ''
     if (!momoSandboxOtp) return 'Vui lòng gửi OTP giả lập trước khi thanh toán.'
@@ -303,7 +303,7 @@ export default function PatientBillingPage({
       setPaymentFeedback({
         type: 'success',
         message: isMomoSandbox
-          ? 'Đã tạo giao dịch MoMo sandbox. Bấm xác nhận để ghi nhận thanh toán và sinh biên lai.'
+          ? 'Đã tạo giao dịch MoMo. Bấm xác nhận để ghi nhận thanh toán và sinh biên lai.'
           : 'Đã tạo giao dịch thử nghiệm. Bạn có thể giả lập thanh toán để hoàn tất.',
       })
     } catch (err) {
@@ -332,7 +332,7 @@ export default function PatientBillingPage({
           ? `MOMO-SANDBOX-${momoCardDigits.slice(-4)}-${Date.now()}`
           : `DEMO-PAID-${Date.now()}`,
         note: isMomoSandbox
-          ? `MoMo sandbox OTP verified for ${maskPhone(momoSandboxForm.walletPhone)} / card ****${momoCardDigits.slice(-4)}.`
+          ? `MoMo OTP verified for ${maskPhone(momoSandboxForm.walletPhone)} / card ****${momoCardDigits.slice(-4)}.`
           : undefined,
       }))
       const nextIntent = payload?.payment_intent || paymentIntent
@@ -351,7 +351,7 @@ export default function PatientBillingPage({
       setPaymentFeedback({
         type: 'success',
         message: paymentId
-          ? 'Thanh toán MoMo sandbox thành công. Hóa đơn đã cập nhật và biên lai đã sẵn sàng trong mục Hóa đơn / Biên lai.'
+          ? 'Thanh toán MoMo thành công. Hóa đơn đã cập nhật và biên lai đã sẵn sàng trong mục Hóa đơn / Biên lai.'
           : 'Thanh toán thử nghiệm thành công. Hóa đơn và biên lai đã được cập nhật.',
       })
       await onPaymentCompleted?.()
@@ -638,7 +638,7 @@ export default function PatientBillingPage({
                   <div className="pb-momo-sandbox-head">
                     <span className="pb-momo-mark">MoMo</span>
                     <div>
-                      <strong>Thanh toán MoMo sandbox</strong>
+                      <strong>Thanh toán MoMo</strong>
                       <small>Nhập thẻ liên kết và OTP giả lập. Không trừ tiền thật.</small>
                     </div>
                   </div>
@@ -664,7 +664,7 @@ export default function PatientBillingPage({
                   </label>
                   <div className="pb-momo-card-row">
                     <label>
-                      <span>Số thẻ sandbox</span>
+                      <span>Số thẻ liên kết</span>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -704,7 +704,7 @@ export default function PatientBillingPage({
                   </div>
                   {momoSandboxOtp ? (
                     <p className="pb-momo-otp-hint">
-                      Sandbox OTP: <strong>{momoSandboxOtp}</strong>
+                      OTP MoMo: <strong>{momoSandboxOtp}</strong>
                     </p>
                   ) : null}
                 </div>
@@ -716,7 +716,7 @@ export default function PatientBillingPage({
               ) : null}
               {paymentIntent ? (
                 <div className="pb-demo-payment-panel">
-                  <span className="pb-demo-badge">Sandbox</span>
+                  <span className="pb-demo-badge">MoMo</span>
                   <div>
                     <span>Mã giao dịch</span>
                     <strong>{paymentIntent.intent_code || paymentIntent.payment_intent_id}</strong>
@@ -734,8 +734,8 @@ export default function PatientBillingPage({
                   ) : (
                     <div className="pb-demo-qr-fallback">
                       <PatientIcon name="qr_code_2" aria-hidden="true" />
-                      <strong>{isMomoSandbox ? 'QR MoMo sandbox chưa cấu hình' : 'QR sandbox chưa có ảnh'}</strong>
-                      <span>{paymentIntent.qr_payload || paymentIntent.qr_image_url || paymentIntent.payment_note || 'Có thể tiếp tục xác nhận bằng OTP sandbox.'}</span>
+                      <strong>{isMomoSandbox ? 'QR MoMo chưa cấu hình' : 'QR chưa có ảnh'}</strong>
+                      <span>{paymentIntent.qr_payload || paymentIntent.qr_image_url || paymentIntent.payment_note || 'Có thể tiếp tục xác nhận bằng OTP.'}</span>
                     </div>
                   )}
                   {paymentReceipt ? (
@@ -758,10 +758,10 @@ export default function PatientBillingPage({
                   : paymentBusy
                   ? 'Đang xử lý...'
                   : paymentCompleted
-                    ? 'Đã thanh toán sandbox'
+                    ? 'Đã thanh toán MoMo'
                   : paymentIntent
-                    ? isMomoSandbox ? 'Xác nhận thanh toán MoMo sandbox' : 'Giả lập đã thanh toán'
-                    : isMomoSandbox ? 'Tạo giao dịch MoMo sandbox' : 'Tạo thanh toán thử nghiệm'}
+                    ? isMomoSandbox ? 'Xác nhận thanh toán MoMo' : 'Giả lập đã thanh toán'
+                    : isMomoSandbox ? 'Tạo giao dịch MoMo' : 'Tạo thanh toán thử nghiệm'}
               </button>
               {(paymentCompleted || paymentReceipt) && onOpenHistory ? (
                 <button className="pb-btn-outline pb-btn-full pb-receipt-link" type="button" onClick={() => onOpenHistory()}>
@@ -769,7 +769,7 @@ export default function PatientBillingPage({
                 </button>
               ) : null}
               <p className="pb-security-text">
-                Chế độ sandbox dùng để kiểm thử báo cáo, không trừ tiền thật. Phương thức đã chọn: {currentMethod?.label || 'Thanh toán demo'}.
+                Chế độ demo dùng để kiểm thử báo cáo, không trừ tiền thật. Phương thức đã chọn: {currentMethod?.label || 'Thanh toán demo'}.
               </p>
             </div>
           </div>

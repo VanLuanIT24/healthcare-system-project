@@ -203,7 +203,7 @@ function ReceiptDetailPaper({ receipt }) {
     receipt.provider_transaction_id,
   )
   const paymentNote = firstValue(receipt.payment_note, payment.payment_note, intent.payment_note)
-  const isDemoPayment = /demo|sandbox/i.test(`${transactionRef} ${paymentNote}`)
+  const isMomoPayment = /momo/i.test(`${method} ${transactionRef} ${paymentNote}`)
   const amount = firstValue(receipt.amount, payment.amount, invoice.paid_amount)
   const paidAt = firstValue(payment.paid_at, payment.confirmed_at, receipt.issued_at, receipt.created_at)
 
@@ -225,7 +225,7 @@ function ReceiptDetailPaper({ receipt }) {
       <div className="patient-receipt-paper-amount">
         <span>Số tiền đã thu</span>
         <strong>{formatMoney(amount)}</strong>
-        {isDemoPayment ? <em>Thanh toán demo / sandbox</em> : null}
+        {isMomoPayment ? <em>Thanh toán MoMo</em> : null}
       </div>
 
       <div className="patient-receipt-paper-grid">
