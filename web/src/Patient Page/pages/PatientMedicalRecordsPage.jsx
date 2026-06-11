@@ -80,10 +80,46 @@ function getDoctorAvatar(seed) {
   return avatars[hash % avatars.length]
 }
 
+function getText(value) {
+  const text = String(value || '').trim()
+  return text || ''
+}
+
+function getPersonName(value) {
+  if (!value || typeof value !== 'object') return ''
+  return getText(value.full_name || value.name || value.display_name || value.username)
+}
+
+function getEncounterDoctorName(encounter) {
+  return (
+    getText(encounter.doctor_name) ||
+    getText(encounter.attending_doctor_name) ||
+    getPersonName(encounter.doctor) ||
+    getPersonName(encounter.attending_doctor) ||
+    getPersonName(encounter.attending_doctor_id) ||
+    getPersonName(encounter.appointment?.doctor) ||
+    getText(encounter.appointment?.doctor_name) ||
+    'Bác sĩ đang cập nhật'
+  )
+}
+
+function getRecordDoctorName(record) {
+  return (
+    getText(record.doctor_name) ||
+    getText(record.attending_doctor_name) ||
+    getText(record.created_by_name) ||
+    getPersonName(record.doctor) ||
+    getPersonName(record.attending_doctor) ||
+    getPersonName(record.attending_doctor_id) ||
+    getPersonName(record.created_by) ||
+    'Đang cập nhật'
+  )
+}
+
 function mapEncounter(encounter, index) {
   const dateParts = getDateParts(encounter.start_time)
   const status = getStatusMeta(encounter.status)
-  const doctor = encounter.doctor_name || `Bác sĩ ${index + 1}`
+  const doctor = getEncounterDoctorName(encounter)
   const specialty = encounter.department_name || 'Khám ngoại trú'
   const reason = encounter.chief_reason || 'Khám định kỳ'
 
@@ -119,7 +155,7 @@ function mapRecordRows(records = [], encounters = []) {
         `Hồ sơ bệnh án ${index + 1}`,
       type: record.record_type || record.category || 'Bệnh án',
       date: formatDate(record.recorded_at || record.updated_at || record.created_at),
-      doctor: record.doctor_name || 'Đang cập nhật',
+      doctor: getRecordDoctorName(record),
       note:
         record.clinical_notes ||
         record.notes ||

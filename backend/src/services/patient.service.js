@@ -2731,20 +2731,37 @@ async function getPatientEncounterHistory(patientId, query = {}, actor = {}) {
     Encounter.countDocuments(filter),
   ]);
 
+  const doctorIds = [...new Set(items.map((item) => toId(item.attending_doctor_id)).filter(Boolean))];
+  const departmentIds = [...new Set(items.map((item) => toId(item.department_id)).filter(Boolean))];
+  const [doctors, departments] = await Promise.all([
+    doctorIds.length ? User.find({ _id: { $in: doctorIds }, is_deleted: false }).select('full_name employee_code').lean() : [],
+    departmentIds.length ? Department.find({ _id: { $in: departmentIds }, is_deleted: false }).select('department_name department_code').lean() : [],
+  ]);
+  const doctorMap = new Map(doctors.map((item) => [toId(item._id), item]));
+  const departmentMap = new Map(departments.map((item) => [toId(item._id), item]));
+
   return {
     patient_id: toId(patient._id),
-    items: items.map((item) => ({
-      encounter_id: toId(item._id),
-      encounter_code: item.encounter_code,
-      appointment_id: item.appointment_id ? toId(item.appointment_id) : null,
-      department_id: toId(item.department_id),
-      attending_doctor_id: toId(item.attending_doctor_id),
-      encounter_type: item.encounter_type,
-      start_time: item.start_time,
-      end_time: item.end_time,
-      chief_reason: item.chief_reason,
-      status: item.status,
-    })),
+    items: items.map((item) => {
+      const doctor = doctorMap.get(toId(item.attending_doctor_id));
+      const department = departmentMap.get(toId(item.department_id));
+
+      return {
+        encounter_id: toId(item._id),
+        encounter_code: item.encounter_code,
+        appointment_id: item.appointment_id ? toId(item.appointment_id) : null,
+        department_id: toId(item.department_id),
+        department_name: department?.department_name || null,
+        attending_doctor_id: toId(item.attending_doctor_id),
+        doctor_id: toId(item.attending_doctor_id),
+        doctor_name: doctor?.full_name || null,
+        encounter_type: item.encounter_type,
+        start_time: item.start_time,
+        end_time: item.end_time,
+        chief_reason: item.chief_reason,
+        status: item.status,
+      };
+    }),
     pagination: buildPagination(page, limit, total),
   };
 }
