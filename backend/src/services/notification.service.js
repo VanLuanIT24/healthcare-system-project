@@ -538,11 +538,12 @@ function normalizeChannel(channel) {
 
 function buildActionUrl(type, payload = {}) {
   if (payload.route) return payload.route;
-  const entityId = payload.entity_id || payload.appointment_id || payload.result_id || payload.report_id || payload.invoice_id;
+  const entityId = payload.entity_id || payload.appointment_id || payload.result_id || payload.report_id || payload.prescription_id || payload.invoice_id;
   if (!entityId) return undefined;
   if (type?.startsWith('appointment.')) return `/appointments/${entityId}`;
   if (type?.startsWith('lab.')) return `/lab/results/${entityId}`;
   if (type?.startsWith('imaging.')) return `/imaging/reports/${entityId}`;
+  if (type?.startsWith('prescription.')) return `/prescriptions/${entityId}`;
   if (type?.startsWith('invoice.') || type?.startsWith('payment.')) return `/billing/invoices/${entityId}`;
   if (type?.startsWith('dispense.')) return `/pharmacy/dispenses/${entityId}`;
   if (type?.startsWith('schedule.')) return `/schedules/${entityId}`;
@@ -598,6 +599,10 @@ function buildNotificationMessage(type, data = {}) {
     [NOTIFICATION_TYPE.IMAGING_REPORT_RELEASED]: {
       title: 'Kết quả chẩn đoán hình ảnh đã sẵn sàng',
       message: 'Bạn có kết quả chẩn đoán hình ảnh mới. Vui lòng đăng nhập hệ thống để xem chi tiết.',
+    },
+    [NOTIFICATION_TYPE.PRESCRIPTION_READY_FOR_PATIENT]: {
+      title: 'Đơn thuốc đã sẵn sàng',
+      message: `Đơn thuốc ${data.prescription_no || ''} đã được phát hành cho bạn.`.trim(),
     },
     [NOTIFICATION_TYPE.INVOICE_UNPAID]: {
       title: 'Hóa đơn chưa thanh toán',
@@ -1647,6 +1652,27 @@ async function notifyDispenseCompleted(dispenseId, actor = {}) {
   return { patient_notification: patientNotification, doctor_notification: doctorNotification };
 }
 
+async function notifyPrescriptionReadyForPatient(prescriptionId, actor = {}) {
+  const prescription = await Prescription.findById(prescriptionId).lean();
+  if (!prescription || !prescription.patient_id) return null;
+  return createPatientNotification(prescription.patient_id, {
+    notification_type: NOTIFICATION_TYPE.PRESCRIPTION_READY_FOR_PATIENT,
+    priority: NOTIFICATION_PRIORITY.NORMAL,
+    dedupe_key: `prescription.ready_for_patient:${prescription._id}:patient`,
+    template_data: { prescription_no: prescription.prescription_no },
+    payload: {
+      entity_type: 'prescription',
+      entity_id: String(prescription._id),
+      prescription_id: String(prescription._id),
+      patient_id: String(prescription.patient_id),
+      encounter_id: prescription.encounter_id ? String(prescription.encounter_id) : undefined,
+      route: `/prescriptions/${prescription._id}`,
+      action: 'view_prescription',
+    },
+    created_by_module: 'pharmacy',
+  }, actor);
+}
+
 async function notifySchedulePublished(scheduleId, actor = {}) {
   const schedule = await DoctorSchedule.findById(scheduleId).lean();
   if (!schedule) return null;
@@ -1786,6 +1812,7 @@ module.exports = {
   notifyInvoiceUnpaid,
   // notifyDispenseCompleted: Gửi thông báo hoàn tất cấp phát thuốc.
   notifyDispenseCompleted,
+  notifyPrescriptionReadyForPatient,
   // notifySchedulePublished: Gửi thông báo lịch làm việc đã được công bố.
   notifySchedulePublished,
   // notifyMedicalRecordReleased: Gửi thông báo hồ sơ bệnh án đã phát hành.

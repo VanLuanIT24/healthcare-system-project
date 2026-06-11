@@ -572,6 +572,47 @@ async function buildAppointmentReferenceMaps(appointments = []) {
   };
 }
 
+function formatAppointmentInvoice(invoice) {
+  if (!invoice) return null;
+  return {
+    invoice_id: String(invoice._id),
+    invoice_no: invoice.invoice_no,
+    status: invoice.status,
+    total_amount: invoice.total_amount,
+    paid_amount: invoice.paid_amount,
+    balance_due: invoice.balance_due,
+    issued_at: invoice.issued_at,
+    due_at: invoice.due_at,
+    currency: invoice.currency,
+  };
+}
+
+async function buildAppointmentBillingMaps(appointments = []) {
+  if (!appointments.length) return { encounterMap: new Map(), invoiceMap: new Map() };
+  const appointmentIds = appointments.map((item) => item._id).filter(Boolean);
+  const encounters = await Encounter.find({ appointment_id: { $in: appointmentIds } })
+    .select('_id appointment_id encounter_code status start_time')
+    .lean();
+  const encounterIds = encounters.map((item) => item._id);
+  const invoices = encounterIds.length
+    ? await Invoice.find({
+        encounter_id: { $in: encounterIds },
+        status: { $nin: [INVOICE_STATUS.VOIDED, INVOICE_STATUS.CANCELLED, INVOICE_STATUS.REFUNDED] },
+      })
+        .select('invoice_no status total_amount paid_amount balance_due issued_at due_at currency encounter_id')
+        .sort({ issued_at: -1, created_at: -1 })
+        .lean()
+    : [];
+
+  const encounterMap = new Map(encounters.map((item) => [String(item.appointment_id), item]));
+  const invoiceMap = invoices.reduce((map, item) => {
+    const key = String(item.encounter_id);
+    if (!map.has(key)) map.set(key, item);
+    return map;
+  }, new Map());
+  return { encounterMap, invoiceMap };
+}
+
 async function ensurePatientAndDoctor(payload) {
   const [patient, doctor, department, doctorProfile] = await Promise.all([
     Patient.findById(payload.patient_id).lean(),
@@ -756,13 +797,19 @@ async function listAppointments(query = {}, actor = {}) {
     Appointment.find(filter).sort({ appointment_time: -1 }).skip(skip).limit(limit).lean(),
     Appointment.countDocuments(filter),
   ]);
-  const { patientMap, doctorMap, departmentMap } = await buildAppointmentReferenceMaps(items);
+  const [{ patientMap, doctorMap, departmentMap }, { encounterMap, invoiceMap }] = await Promise.all([
+    buildAppointmentReferenceMaps(items),
+    buildAppointmentBillingMaps(items),
+  ]);
 
   return {
     items: items.map((item) => {
       const doctor = doctorMap.get(String(item.doctor_id));
       const department = departmentMap.get(String(item.department_id));
       const patient = patientMap.get(String(item.patient_id));
+      const encounter = encounterMap.get(String(item._id));
+      const invoice = encounter ? invoiceMap.get(String(encounter._id)) : null;
+      const formattedInvoice = formatAppointmentInvoice(invoice);
 
       return {
         appointment_id: String(item._id),
@@ -782,6 +829,13 @@ async function listAppointments(query = {}, actor = {}) {
         source: item.source,
         status: item.status,
         reason: item.reason,
+        encounter_id: encounter ? String(encounter._id) : null,
+        encounter_code: encounter?.encounter_code || null,
+        encounter_status: encounter?.status || null,
+        invoice_id: formattedInvoice?.invoice_id || null,
+        invoice_status: formattedInvoice?.status || null,
+        balance_due: formattedInvoice?.balance_due || 0,
+        invoice: formattedInvoice,
       };
     }),
     pagination: buildPagination(page, limit, total),
@@ -886,6 +940,16 @@ async function getAppointmentDetail(appointmentId, actor = {}) {
     User.findById(appointment.doctor_id).select('full_name employee_code').lean(),
     Department.findById(appointment.department_id).select('department_name department_code').lean(),
   ]);
+  const invoice = encounter
+    ? await Invoice.findOne({
+        encounter_id: encounter._id,
+        status: { $nin: [INVOICE_STATUS.VOIDED, INVOICE_STATUS.CANCELLED, INVOICE_STATUS.REFUNDED] },
+      })
+        .select('invoice_no status total_amount paid_amount balance_due issued_at due_at currency')
+        .sort({ issued_at: -1, created_at: -1 })
+        .lean()
+    : null;
+  const formattedInvoice = formatAppointmentInvoice(invoice);
 
   return {
     appointment: {
@@ -907,6 +971,10 @@ async function getAppointmentDetail(appointmentId, actor = {}) {
       reason: appointment.reason,
       source: appointment.source,
       status: appointment.status,
+      invoice_id: formattedInvoice?.invoice_id || null,
+      invoice_status: formattedInvoice?.status || null,
+      balance_due: formattedInvoice?.balance_due || 0,
+      invoice: formattedInvoice,
       notes: isPortalPatientActor(actor) ? undefined : appointment.notes,
       confirmed_at: appointment.confirmed_at,
       checked_in_at: appointment.checked_in_at,

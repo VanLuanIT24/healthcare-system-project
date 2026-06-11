@@ -108,6 +108,7 @@ const NOTIFICATION_TYPE = {
   IMAGING_REPORT_AMENDED: 'imaging.report_amended',
   IMAGING_REPORT_CRITICAL: 'imaging.report_critical',
   IMAGING_REPORT_RELEASED: 'imaging.report_released',
+  PRESCRIPTION_READY_FOR_PATIENT: 'prescription.ready_for_patient',
   PRESCRIPTION_VERIFIED: 'prescription.verified',
   DISPENSE_COMPLETED: 'dispense.completed',
   INVOICE_ISSUED: 'invoice.issued',

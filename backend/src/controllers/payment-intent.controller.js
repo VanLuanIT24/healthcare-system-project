@@ -7,6 +7,7 @@ module.exports = {
   queryProviderStatus: wrap((req) => paymentIntentService.queryProviderStatus(req.params.intentId, req.auth, requestMeta(req)), 'Truy vấn trạng thái provider thành công.'),
   listPaymentIntents: wrap((req) => paymentIntentService.listPaymentIntents(req.query, req.auth), 'Lấy danh sách payment intent thành công.'),
   confirmBankTransfer: wrap((req) => paymentIntentService.confirmBankTransfer(req.params.intentId, req.body, req.auth, requestMeta(req)), 'Xác nhận chuyển khoản thành công.'),
+  confirmDemoPayment: wrap((req) => paymentIntentService.confirmDemoPayment(req.params.intentId, req.body, req.auth, requestMeta(req)), 'Thanh toán thử nghiệm thành công.'),
   rejectBankTransfer: wrap((req) => paymentIntentService.rejectBankTransfer(req.params.intentId, req.body, req.auth, requestMeta(req)), 'Từ chối chuyển khoản thành công.'),
   markManualReview: wrap((req) => paymentIntentService.markManualReview(req.params.intentId, req.body, req.auth, requestMeta(req)), 'Đưa payment vào manual review thành công.'),
   submitManualReceipt: wrap((req) => paymentIntentService.submitManualReceipt(req.params.paymentId, req.body, req.auth, requestMeta(req)), 'Gửi biên lai thanh toán thành công.'),

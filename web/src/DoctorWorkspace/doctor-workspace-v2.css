@@ -4434,6 +4434,50 @@
   background: inherit;
 }
 
+.dw2-exam-optional-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin: -8px 0 12px;
+}
+
+.dw2-exam-optional-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 360px;
+  padding: 10px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #0f3f7a;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .04);
+}
+
+.dw2-exam-optional-tools button.is-active {
+  border-color: rgba(20, 184, 166, .55);
+  background: #f0fdfa;
+  color: #047065;
+}
+
+.dw2-exam-optional-tools span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dw2-exam-optional-tools strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.dw2-exam-optional-tools small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .dw2-encounter-list .dw2-encounter-card {
   border-radius: 8px;
 }

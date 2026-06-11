@@ -255,6 +255,10 @@ function hasAnyPrescription(prescriptions = []) {
   return safeArray(prescriptions).length > 0
 }
 
+function hasBlockingOrders(orders = []) {
+  return safeArray(orders).some(canCancelOrder)
+}
+
 function canCompleteEncounter(readiness = {}) {
   return Boolean(readiness?.can_complete || readiness?.canComplete || readiness?.allowed || readiness?.ready)
 }
@@ -1043,12 +1047,13 @@ export function DoctorPatientFlowPage({ item, overview, onNavigate, onRefresh })
 }
 
 function readinessItems(readiness = {}) {
-  const checklist = safeArray(readiness.checklist)
-  if (checklist.length) return checklist
+  const checklist = safeArray(readiness.checklist).length ? safeArray(readiness.checklist) : safeArray(readiness.items)
+  if (checklist.length) {
+    return checklist.filter((item) => !['orders_clear', 'care_plan'].includes(item.key))
+  }
   return [
     { key: 'note', label: 'Ghi chú lâm sàng đã ký', done: !safeArray(readiness.missing).some((item) => String(item).toLowerCase().includes('note')) },
     { key: 'diagnosis', label: 'Có chẩn đoán chính', done: !safeArray(readiness.missing).some((item) => String(item).toLowerCase().includes('chẩn đoán')) },
-    { key: 'orders', label: 'Không còn order chờ', done: true },
     { key: 'prescription', label: 'Không còn đơn thuốc draft', done: true },
   ]
 }
@@ -1281,6 +1286,38 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
     await runAction(() => prescriptionAPI.cancel(id, { reason: 'Hủy từ màn hình hoàn tất lượt khám của bác sĩ' }), 'Đã hủy đơn thuốc.')
   }
 
+  async function completeCurrentEncounter() {
+    if (!selectedEncounterId) return
+    await encounterAPI.complete(selectedEncounterId)
+  }
+
+  async function ensureEncounterCompletedForRecordAction() {
+    if (!isEncounterCompleted(encounter)) {
+      await completeCurrentEncounter()
+    }
+  }
+
+  async function finalizeCurrentMedicalRecord() {
+    if (!encounterRecordId) return
+    await ensureEncounterCompletedForRecordAction()
+    const recordStatus = normalizedStatus(encounterRecord?.status)
+    if (!['finalized', 'sealed', 'archived'].includes(recordStatus)) {
+      await recordsAPI.finalizeMedicalRecord(encounterRecordId)
+    }
+  }
+
+  async function releaseCurrentMedicalRecord() {
+    if (!encounterRecordId) return
+    await ensureEncounterCompletedForRecordAction()
+    const recordStatus = normalizedStatus(encounterRecord?.status)
+    if (!['finalized', 'sealed', 'archived'].includes(recordStatus)) {
+      await recordsAPI.finalizeMedicalRecord(encounterRecordId)
+    }
+    if (!isReleased(encounterRecord)) {
+      await recordsAPI.releaseMedicalRecordToPatient(encounterRecordId)
+    }
+  }
+
   function selectMedicationForPrescription(medication, defaults = {}) {
     const medicationId = medicationIdOf(medication)
     if (!medicationId) return
@@ -1488,8 +1525,14 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
     { key: 'diagnosis', label: '2. Chẩn đoán', done: hasPrimaryDiagnosis(workspace.diagnoses), doneLabel: 'Đã làm' },
     { key: 'order', label: '3. Tạo chỉ định', done: hasAnyOrder(workspace.orders), doneLabel: 'Đã tạo' },
     { key: 'prescription', label: '4. Kê đơn', done: hasAnyPrescription(workspace.prescriptions), doneLabel: 'Đã tạo' },
-    { key: 'complete', label: '5. Hoàn tất', done: canCompleteEncounter(readiness), doneLabel: 'Đã hoàn tất' },
+    { key: 'complete', label: '5. Hoàn tất', done: isEncounterCompleted(encounter), doneLabel: 'Đã hoàn tất' },
   ]
+  const visibleExamWorkflowSteps = examWorkflowSteps
+    .filter((step) => step.key !== 'order')
+    .map((step, index) => ({
+      ...step,
+      label: `${index + 1}. ${step.label.replace(/^\d+\.\s*/, '')}`,
+    }))
   const showNotePanel = currentView === 'clinical-note' || (isExamWorkflow && activeExamAction === 'note')
   const showDiagnosisPanel = currentView === 'diagnosis' || (isExamWorkflow && activeExamAction === 'diagnosis')
   const showOrderPanel = isExamWorkflow && activeExamAction === 'order'
@@ -1510,7 +1553,20 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
   const encounterCompleted = isEncounterCompleted(encounter)
   const draftPrescriptions = safeArray(workspace.prescriptions).filter((prescription) => normalizedStatus(prescription.status) === 'draft')
   const activeBlockingOrders = safeArray(workspace.orders).filter(canCancelOrder)
-  const canCompleteNow = canCompleteEncounter(readiness) && !draftPrescriptions.length && !activeBlockingOrders.length
+  const noteStepComplete = hasSignedClinicalNote(workspace.notes)
+  const diagnosisStepComplete = hasPrimaryDiagnosis(workspace.diagnoses)
+  const visibleChecklistRows = checklistRows
+    .filter((check) => check.key !== 'care')
+    .filter((check) => check.key !== 'order' || activeBlockingOrders.length > 0)
+    .map((check) => {
+      if (check.key === 'note') return { ...check, done: noteStepComplete }
+      if (check.key === 'diagnosis') return { ...check, done: diagnosisStepComplete }
+      if (check.key === 'prescription') return { ...check, done: draftPrescriptions.length === 0 }
+      if (check.key === 'order') return { ...check, done: activeBlockingOrders.length === 0 }
+      return check
+    })
+  const missingRequiredClinicalSteps = !noteStepComplete || !diagnosisStepComplete
+  const canCompleteNow = noteStepComplete && diagnosisStepComplete && !draftPrescriptions.length && !activeBlockingOrders.length
 
   useEffect(() => {
     if (selectedEncounterId) return
@@ -1522,8 +1578,9 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
     <div className="dw2-command-page dw2-encounter-workspace">
       <CommandNotice error={notice.error} success={notice.success} />
       {isExamWorkflow ? (
+        <>
         <div className="dw2-exam-workflow">
-          {examWorkflowSteps.map((step, index) => {
+          {visibleExamWorkflowSteps.map((step, index) => {
             const isActive = activeExamAction === step.key
             const stepStatus = step.done ? step.doneLabel : isActive ? 'Đang thực hiện' : 'Chưa bắt đầu'
             return (
@@ -1541,6 +1598,20 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
             )
           })}
         </div>
+        <div className="dw2-exam-optional-tools">
+          <button
+            type="button"
+            className={activeExamAction === 'order' ? 'is-active' : ''}
+            onClick={() => setActiveExamAction('order')}
+          >
+            <ClipboardList size={16} />
+            <span>
+              <strong>Chỉ định nếu cần</strong>
+              <small>{hasBlockingOrders(workspace.orders) ? 'Có chỉ định đang mở cần xử lý' : hasAnyOrder(workspace.orders) ? 'Đã có chỉ định trong lượt khám' : 'Không bắt buộc cho mọi lượt khám'}</small>
+            </span>
+          </button>
+        </div>
+        </>
       ) : null}
       <div className="dw2-encounter-shell">
         <div className="dw2-encounter-shell__main">
@@ -1852,12 +1923,30 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
                   <div><FileText size={16} /><span>Chưa tạo hồ sơ bệnh án cho lượt khám này.</span></div>
                 )}
               </div>
-              {(draftPrescriptions.length || activeBlockingOrders.length || !encounterCompleted) ? (
+              {(missingRequiredClinicalSteps || draftPrescriptions.length || activeBlockingOrders.length) ? (
                 <div className="dw2-complete-blockers">
                   <div>
                     <strong>Cần xử lý trước</strong>
-                    <small>Xử lý đơn/chỉ định đang mở rồi mới hoàn tất lượt khám.</small>
+                    <small>Hoàn tất ghi chú, chẩn đoán và các mục đang mở trước khi chốt lượt khám.</small>
                   </div>
+                  {!noteStepComplete ? (
+                    <div className="dw2-command-row dw2-blocker-row">
+                      <FileText size={16} />
+                      <span><strong>Ghi chú lâm sàng</strong><small>Chưa ký</small></span>
+                      <span className="dw2-command-actions">
+                        <ActionButton onClick={() => setActiveExamAction('note')}>Mở ghi note</ActionButton>
+                      </span>
+                    </div>
+                  ) : null}
+                  {!diagnosisStepComplete ? (
+                    <div className="dw2-command-row dw2-blocker-row">
+                      <ClipboardCheck size={16} />
+                      <span><strong>Chẩn đoán chính</strong><small>Chưa có chẩn đoán chính active</small></span>
+                      <span className="dw2-command-actions">
+                        <ActionButton onClick={() => setActiveExamAction('diagnosis')}>Mở chẩn đoán</ActionButton>
+                      </span>
+                    </div>
+                  ) : null}
                   {draftPrescriptions.length ? draftPrescriptions.map((prescription) => (
                     <div className="dw2-command-row dw2-blocker-row" key={prescriptionIdOf(prescription)}>
                       <Pill size={16} />
@@ -1896,14 +1985,14 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
                   <FileText size={16} /> {encounterRecordId ? 'Đã tạo hồ sơ bệnh án' : 'Tạo hồ sơ bệnh án'}
                 </ActionButton>
                 <ActionButton
-                  onClick={() => runAction(() => encounterAPI.complete(selectedEncounterId), 'Đã hoàn tất lượt khám. Bây giờ có thể ký/chốt hồ sơ bệnh án.')}
+                  onClick={() => runAction(completeCurrentEncounter, 'Đã hoàn tất lượt khám. Bây giờ có thể ký/chốt hồ sơ bệnh án.')}
                   disabled={!canCompleteNow || encounterCompleted}
                   tone="success"
                 >
                   <CheckCircle2 size={16} /> {encounterCompleted ? 'Đã hoàn tất lượt khám' : 'Hoàn tất lượt khám'}
                 </ActionButton>
-                {encounterRecordId ? <ActionButton disabled={!encounterCompleted} onClick={() => runAction(() => recordsAPI.finalizeMedicalRecord(encounterRecordId), 'Đã ký/chốt hồ sơ bệnh án.')}>Ký/chốt hồ sơ</ActionButton> : null}
-                {encounterRecordId ? <ActionButton disabled={!encounterCompleted} onClick={() => runAction(() => recordsAPI.releaseMedicalRecordToPatient(encounterRecordId), 'Đã gửi hồ sơ bệnh án cho bệnh nhân.')} tone="success">Gửi cho bệnh nhân</ActionButton> : null}
+                {encounterRecordId ? <ActionButton disabled={!canCompleteNow && !encounterCompleted} onClick={() => runAction(finalizeCurrentMedicalRecord, 'Đã ký/chốt hồ sơ bệnh án.')}>Ký/chốt hồ sơ</ActionButton> : null}
+                {encounterRecordId ? <ActionButton disabled={!canCompleteNow && !encounterCompleted} onClick={() => runAction(releaseCurrentMedicalRecord, 'Đã gửi hồ sơ bệnh án cho bệnh nhân.')} tone="success">Gửi cho bệnh nhân</ActionButton> : null}
               </div>
             </Panel>
           ) : null}
@@ -1934,7 +2023,7 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
           </Panel>
           <Panel title="Việc cần hoàn tất" subtitle="Các hạng mục cần hoàn thành trước khi đóng encounter.">
             <div className="dw2-encounter-checklist">
-              {checklistRows.map((check) => (
+              {visibleChecklistRows.map((check) => (
                 <EncounterChecklistRow key={check.key} icon={check.icon} label={check.label} done={check.done} />
               ))}
               <button type="button" className="dw2-encounter-link-button">Xem chi tiết danh sách cần hoàn tất</button>

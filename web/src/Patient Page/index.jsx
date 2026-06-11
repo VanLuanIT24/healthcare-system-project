@@ -19,6 +19,7 @@ import {
   scheduleAPI,
   supportAPI,
 } from '../utils/api'
+import { API_BASE_URL } from '../lib/api'
 import { clearStoredAuth, readStoredAuth, writeStoredAuth } from '../lib/storage'
 import { HealthcareChatAssistCard, openHealthcareChatbot } from '../components/HealthcareChatbot'
 import PatientIcon from './components/PatientIcon'
@@ -110,11 +111,18 @@ function getRelativeTime(value) {
 }
 
 function getNotificationCategory(item) {
-  const type = String(item.notification_type || item.created_by_module || '').toLowerCase()
+  const type = String(
+    item.notification_type
+      || item.created_by_module
+      || item.target_type
+      || item.payload?.entity_type
+      || '',
+  ).toLowerCase()
   if (type.includes('appointment') || type.includes('schedule')) return 'appointments'
   if (type.includes('queue') || type.includes('checkin')) return 'queue'
   if (type.includes('lab') || type.includes('imaging') || type.includes('result') || type.includes('procedure')) return 'results'
   if (type.includes('prescription') || type.includes('medication') || type.includes('pharmacy')) return 'prescriptions'
+  if (type.includes('medical_record') || type.includes('record') || type.includes('document') || type.includes('attachment')) return 'documents'
   if (type.includes('billing') || type.includes('payment') || type.includes('invoice') || type.includes('receipt')) return 'billing'
   if (type.includes('insurance') || type.includes('claim')) return 'insurance'
   if (type.includes('support') || type.includes('ticket') || type.includes('message')) return 'support'
@@ -122,7 +130,15 @@ function getNotificationCategory(item) {
 }
 
 function getTargetSectionFromNotification(item) {
-  const target = String(item.target_type || item.created_by_module || item.notification_type || item.target_url || '').toLowerCase()
+  const target = String(
+    item.target_type
+      || item.created_by_module
+      || item.notification_type
+      || item.target_url
+      || item.payload?.entity_type
+      || item.payload?.route
+      || '',
+  ).toLowerCase()
   if (target.includes('appointment')) return 'appointments'
   if (target.includes('queue') || target.includes('checkin')) return 'checkin-queue'
   if (target.includes('lab')) return 'lab-results'
@@ -146,6 +162,7 @@ function mapApiNotification(item) {
     billing: 'payments',
     insurance: 'health_and_safety',
     support: 'support_agent',
+    documents: 'description',
     system: 'campaign',
   }
 
@@ -158,9 +175,16 @@ function mapApiNotification(item) {
     time: getRelativeTime(item.created_at || item.sent_at || item.delivered_at),
     body: item.message || '',
     unread: item.status !== 'read' && !item.read_at,
-    actions: item.target_url || item.target_type ? [{ label: 'Đi tới chức năng', tone: 'primary', targetSection: getTargetSectionFromNotification(item) }] : [],
+    actions: item.target_url || item.target_type || item.payload?.route || item.payload?.entity_type
+      ? [{ label: 'Đi tới chức năng', tone: 'primary', targetSection: getTargetSectionFromNotification(item) }]
+      : [],
     apiBacked: Boolean(item.notification_id || item._id),
   }
+}
+
+function mapNotificationItems(items = []) {
+  const apiNotifications = items.map(mapApiNotification)
+  return apiNotifications.length > 0 ? apiNotifications : notificationFeed
 }
 
 function normalizePatientUser(patient) {
@@ -194,6 +218,35 @@ function readPatientAuth() {
     auth,
     user: normalizePatientUser(portalProfile),
   }
+}
+
+function socketOrigin() {
+  if (!API_BASE_URL || API_BASE_URL === '/api') return window.location.origin
+  try {
+    return new URL(API_BASE_URL, window.location.origin).origin
+  } catch (error) {
+    return window.location.origin
+  }
+}
+
+function loadSocketIoClient() {
+  if (window.io) return Promise.resolve(window.io)
+  return new Promise((resolve) => {
+    const existing = document.querySelector('script[data-healthcare-socketio="true"]')
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.io || null), { once: true })
+      existing.addEventListener('error', () => resolve(null), { once: true })
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = `${socketOrigin()}/socket.io/socket.io.js`
+    script.async = true
+    script.dataset.healthcareSocketio = 'true'
+    script.onload = () => resolve(window.io || null)
+    script.onerror = () => resolve(null)
+    document.head.appendChild(script)
+  })
 }
 
 const patientSectionKeys = new Set([
@@ -260,6 +313,8 @@ export default function PatientPage() {
   const location = useLocation()
   const mainColumnRef = useRef(null)
   const lastNonMessageSectionRef = useRef('dashboard')
+  const notificationRefreshTimerRef = useRef(null)
+  const realtimeSocketRef = useRef(null)
   const [authState, setAuthState] = useState(readPatientAuth)
 
   const [activeSection, setActiveSection] = useState(() => getInitialPatientSection(location.search))
@@ -331,6 +386,25 @@ export default function PatientPage() {
   const patientName = user?.fullName || user?.email?.split('@')[0] || 'Bệnh nhân'
   const avatarText = getInitials(patientName) || 'BN'
   const patientId = user?.patientCode || user?.patientId || 'Chưa cấp mã'
+
+  const refreshNotifications = async ({ silent = true } = {}) => {
+    const token = readStoredAuth()?.tokens?.access_token
+    if (!user || !token) return null
+
+    try {
+      const response = await notificationAPI.getMyNotifications({ limit: 20 })
+      const items = response.data?.data?.items
+      if (Array.isArray(items)) {
+        setNotificationItems(mapNotificationItems(items))
+      }
+      return items || null
+    } catch (error) {
+      if (!silent) {
+        setPatientDataError(getApiErrorMessage(error, 'KhÃ´ng thá»ƒ táº£i thÃ´ng bÃ¡o.'))
+      }
+      return null
+    }
+  }
 
   const refreshProfile = async () => {
     const response = await authAPI.getMe()
@@ -597,7 +671,7 @@ export default function PatientPage() {
       optionalApiCall(queueAPI.getMyCurrentDetail()),
       portalAPI.getMyRelatives({ limit: 100 }),
       portalAPI.getMyAuthorizations({ limit: 100 }),
-      notificationAPI.getMyNotifications({ limit: 20 }),
+      optionalApiCall(notificationAPI.getMyNotifications({ limit: 20 }), { items: [] }),
       optionalApiCall(portalAPI.getMyDashboard()),
       optionalApiCall(portalAPI.getMyCounters()),
       optionalApiCall(portalAPI.getMyTodos({ limit: 8 }), { items: [] }),
@@ -688,7 +762,7 @@ export default function PatientPage() {
     setPatientSupportSummary(supportSummaryData || null)
     setPatientEmergencyCases(emergencyCasesData?.items || [])
     if (Array.isArray(notificationsData?.items)) {
-      setNotificationItems(notificationsData.items.map(mapApiNotification))
+      setNotificationItems(mapNotificationItems(notificationsData.items))
     }
 
     const failed = results.find((result) => result.status === 'rejected')
@@ -708,6 +782,71 @@ export default function PatientPage() {
 
     loadPatientPortalData()
   }, [authLoading, user?.patientId])
+
+  useEffect(() => {
+    if (!user) return undefined
+
+    const intervalId = window.setInterval(async () => {
+      await refreshNotifications()
+    }, 30000)
+
+    return () => window.clearInterval(intervalId)
+  }, [user?.patientId])
+
+  useEffect(() => {
+    if (!user) return undefined
+
+    let cancelled = false
+    const events = [
+      'notification.created',
+      'notification.updated',
+      'notification.read',
+      'payment.created',
+      'receipt.generated',
+      'counter.updated',
+    ]
+
+    const scheduleNotificationRefresh = () => {
+      if (notificationRefreshTimerRef.current) {
+        window.clearTimeout(notificationRefreshTimerRef.current)
+      }
+      notificationRefreshTimerRef.current = window.setTimeout(() => {
+        refreshNotifications()
+      }, 300)
+    }
+
+    async function connectRealtime() {
+      const token = readStoredAuth()?.tokens?.access_token
+      if (!token) return
+
+      const io = await loadSocketIoClient()
+      if (!io || cancelled) return
+
+      const socket = io(socketOrigin(), { auth: { token }, transports: ['websocket', 'polling'] })
+      realtimeSocketRef.current = socket
+
+      events.forEach((eventName) => {
+        socket.on(eventName, scheduleNotificationRefresh)
+      })
+      socket.on('connect', scheduleNotificationRefresh)
+      socket.on('connect_error', () => {})
+    }
+
+    connectRealtime()
+
+    return () => {
+      cancelled = true
+      if (notificationRefreshTimerRef.current) {
+        window.clearTimeout(notificationRefreshTimerRef.current)
+        notificationRefreshTimerRef.current = null
+      }
+      if (realtimeSocketRef.current) {
+        events.forEach((eventName) => realtimeSocketRef.current.off(eventName))
+        realtimeSocketRef.current.disconnect()
+        realtimeSocketRef.current = null
+      }
+    }
+  }, [user?.patientId])
 
   const handleLogout = async (options = {}) => {
     await logout(options)
@@ -1304,7 +1443,9 @@ export default function PatientPage() {
           error={patientDataError}
           invoices={patientInvoices}
           loading={patientDataLoading}
+          onOpenHistory={() => openSection('billing-receipts')}
           onOpenSupportChat={openPatientSupportChat}
+          onPaymentCompleted={loadPatientPortalData}
           payments={patientPayments}
         />
       )

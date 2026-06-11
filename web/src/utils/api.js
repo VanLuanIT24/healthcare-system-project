@@ -285,6 +285,8 @@ export const billingAPI = {
     request(`/billing/me/invoices/${encodeURIComponent(invoiceId)}/payment-intents`, { method: 'POST', body }),
   getMyPaymentIntents: (params) => request('/billing/me/payment-intents', { params }),
   getMyPaymentIntentDetail: (intentId) => request(`/billing/me/payment-intents/${encodeURIComponent(intentId)}`),
+  confirmMyDemoPaymentIntent: (intentId, body = {}) =>
+    request(`/billing/me/payment-intents/${encodeURIComponent(intentId)}/demo-confirm`, { method: 'POST', body }),
   getMyPayments: (params) => request('/billing/me/payments', { params }),
   getMyPaymentDetail: (paymentId) => request(`/billing/me/payments/${encodeURIComponent(paymentId)}`),
   getMyPaymentReceipt: (paymentId) => request(`/billing/me/payments/${encodeURIComponent(paymentId)}/receipt`),

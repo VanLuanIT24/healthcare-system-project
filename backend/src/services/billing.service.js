@@ -5,6 +5,7 @@ const {
   AuditLog,
   Charge,
   Department,
+  DoctorProfile,
   Encounter,
   InsuranceClaim,
   InsurancePolicy,
@@ -21,6 +22,7 @@ const {
 const { PERMISSION } = require('../constants/permissions');
 const {
   CHARGE_STATUS,
+  ENCOUNTER_STATUS,
   INVOICE_STATUS,
   INSURANCE_CLAIM_STATUS,
   INSURANCE_POLICY_STATUS,
@@ -1817,6 +1819,121 @@ async function issueInvoice(invoiceId, actor = {}, requestMeta = {}) {
   return getInvoiceDetail(updatedInvoiceId, actor);
 }
 
+async function findConsultationServiceForEncounter(encounter, chargedAt = new Date()) {
+  const effectiveFilter = buildEffectiveDateFilter(chargedAt);
+  const services = await ServiceCatalog.find({
+    service_type: SERVICE_TYPE.CONSULTATION,
+    is_billable: true,
+    is_deleted: false,
+    status: SERVICE_STATUS.ACTIVE,
+    $and: effectiveFilter.$and,
+    $or: [
+      { department_id: encounter.department_id },
+      { department_id: { $exists: false } },
+      { department_id: null },
+    ],
+  })
+    .sort({ service_code: 1, service_name: 1 })
+    .limit(20)
+    .lean();
+
+  return services.find((service) => sameId(service.department_id, encounter.department_id))
+    || services.find((service) => !service.department_id)
+    || services[0]
+    || null;
+}
+
+async function createConsultationInvoiceForEncounter(encounterId, actor = {}, requestMeta = {}) {
+  const systemActor = actorContext.isSystem(actor)
+    ? actor
+    : actorContext.buildSystemActor({
+        serviceName: 'encounter-auto-billing',
+        requestMeta,
+      });
+  const encounter = await Encounter.findById(encounterId).lean();
+  if (!encounter) throw createError('Không tìm thấy encounter để tạo hóa đơn.', 404);
+
+  const existingInvoice = await Invoice.findOne({
+    encounter_id: encounter._id,
+    status: { $nin: [INVOICE_STATUS.VOIDED, INVOICE_STATUS.CANCELLED, INVOICE_STATUS.REFUNDED] },
+  })
+    .sort({ issued_at: -1, created_at: -1 })
+    .lean();
+  if (existingInvoice) return getInvoiceDetail(existingInvoice._id, systemActor);
+
+  const chargedAt = encounter.end_time || new Date();
+  const existingCharge = await Charge.findOne({
+    encounter_id: encounter._id,
+    source_module: 'consultation',
+    source_id: encounter._id,
+    status: { $in: ACTIVE_CHARGE_STATUSES },
+  }).lean();
+
+  let charge = existingCharge;
+  if (!charge) {
+    const [service, doctorProfile] = await Promise.all([
+      findConsultationServiceForEncounter(encounter, chargedAt),
+      DoctorProfile.findOne({ user_id: encounter.attending_doctor_id, is_deleted: false })
+        .select('consultation_fee specialty')
+        .lean(),
+    ]);
+    const consultationFee = Number(doctorProfile?.consultation_fee || service?.unit_price || 220000);
+    charge = await createCharge({
+      patient_id: encounter.patient_id,
+      encounter_id: encounter._id,
+      service_id: service?._id,
+      source_module: 'consultation',
+      source_id: encounter._id,
+      description: service?.service_name || `Phí khám ${doctorProfile?.specialty || 'bác sĩ'}`,
+      quantity: 1,
+      unit_price: consultationFee,
+      charged_at: chargedAt,
+      post_immediately: true,
+    }, systemActor, requestMeta, { internal: true });
+  }
+
+  if (charge.invoice_id) return getInvoiceDetail(charge.invoice_id, systemActor);
+
+  const invoice = await createInvoiceFromCharges({
+    charge_ids: [String(charge._id || charge.id)],
+    encounter_id: encounter._id,
+    patient_id: encounter.patient_id,
+    due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  }, systemActor, requestMeta);
+  const invoiceId = invoice?._id || invoice?.id || invoice?.invoice_id;
+  return issueInvoice(invoiceId, systemActor, requestMeta);
+}
+
+async function ensureConsultationInvoicesForCompletedPatientEncounters(patientId, requestMeta = {}) {
+  if (!patientId) return { created_count: 0, failed_count: 0 };
+  const completedEncounters = await Encounter.find({
+    patient_id: patientId,
+    status: ENCOUNTER_STATUS.COMPLETED,
+  })
+    .select('_id')
+    .sort({ end_time: -1, updated_at: -1, created_at: -1 })
+    .limit(25)
+    .lean();
+  if (!completedEncounters.length) return { created_count: 0, failed_count: 0 };
+
+  const encounterIds = completedEncounters.map((encounter) => encounter._id);
+  const existingInvoiceEncounterIds = await Invoice.distinct('encounter_id', {
+    encounter_id: { $in: encounterIds },
+    status: { $nin: [INVOICE_STATUS.VOIDED, INVOICE_STATUS.CANCELLED, INVOICE_STATUS.REFUNDED] },
+  });
+  const existing = new Set(existingInvoiceEncounterIds.map((id) => String(id)));
+  const missingEncounterIds = encounterIds.filter((id) => !existing.has(String(id)));
+  if (!missingEncounterIds.length) return { created_count: 0, failed_count: 0 };
+
+  const results = await Promise.allSettled(
+    missingEncounterIds.map((encounterId) => createConsultationInvoiceForEncounter(encounterId, {}, requestMeta)),
+  );
+  return {
+    created_count: results.filter((result) => result.status === 'fulfilled').length,
+    failed_count: results.filter((result) => result.status === 'rejected').length,
+  };
+}
+
 async function updateInvoiceBalance(invoiceId, actor = {}, session = null, options = {}) {
   const invoice = await withSession(Invoice.findById(invoiceId), session);
   if (!invoice) throw createError('Không tìm thấy invoice.', 404);
@@ -1957,6 +2074,7 @@ async function voidInvoice(invoiceId, payload = {}, actor = {}, requestMeta = {}
 async function listInvoices(query = {}, actor = {}) {
   if (actor.actorType === 'patient') {
     assertPatientSelf(actor, actor.patientId || actor.patient_id, PERMISSION.INVOICES.SELF_READ);
+    await ensureConsultationInvoicesForCompletedPatientEncounters(actor.patientId || actor.patient_id);
   } else {
     assertStaffPermission(actor, [PERMISSION.INVOICES.READ]);
   }
@@ -2269,18 +2387,18 @@ async function createPayment(invoiceId, payload = {}, actor = {}, requestMeta = 
   }
   const detail = await getPaymentDetail(paymentId, actor);
   await publishBillingEvent({
-    eventType: REALTIME_EVENT_TYPE.REFUND_PROCESSED,
-    aggregateType: refundId ? 'payment_refund' : 'payment',
-    aggregateId: refundId || paymentId,
+    eventType: REALTIME_EVENT_TYPE.PAYMENT_CREATED,
+    aggregateType: 'payment',
+    aggregateId: paymentId,
     actor,
-    patientId,
+    patientId: detail.patient_id?._id || detail.patient_id,
     requestMeta,
     payload: {
-      refund_id: refundId ? String(refundId) : undefined,
       payment_id: String(paymentId),
       payment_no: detail.payment_no,
-      refund_amount: detail.refund_amount,
-      reason,
+      invoice_id: detail.invoice_id?._id || detail.invoice_id,
+      amount: detail.amount,
+      status: detail.status,
     },
   });
   return detail;
@@ -4172,8 +4290,12 @@ async function getInsuranceClaimDetail(claimId, actor = {}) {
 }
 
 async function getPatientBillingSummary(patientId, actor = {}) {
-  if (actor.actorType === 'patient') assertPatientSelf(actor, patientId, PERMISSION.INVOICES.SELF_READ);
-  else assertStaffPermission(actor, [PERMISSION.INVOICES.READ, PERMISSION.CHARGES.READ, PERMISSION.PAYMENTS.READ]);
+  if (actor.actorType === 'patient') {
+    assertPatientSelf(actor, patientId, PERMISSION.INVOICES.SELF_READ);
+    await ensureConsultationInvoicesForCompletedPatientEncounters(patientId);
+  } else {
+    assertStaffPermission(actor, [PERMISSION.INVOICES.READ, PERMISSION.CHARGES.READ, PERMISSION.PAYMENTS.READ]);
+  }
   if (actor.actorType === 'staff' && !hasGlobalBillingScope(actor)) {
     const encounterExists = await Encounter.exists({ patient_id: patientId, department_id: actorDepartmentId(actor) });
     if (!encounterExists) throw createError('Bạn không có quyền xem billing summary ngoài khoa.', 403);
@@ -4342,6 +4464,7 @@ const billingServiceExports = {
   createInvoiceItemsSnapshot,
   // issueInvoice: Kiểm tra sue hóa đơn.
   issueInvoice,
+  createConsultationInvoiceForEncounter,
   // updateInvoiceBalance: Cập nhật số dư hóa đơn.
   updateInvoiceBalance,
   // voidInvoice: Hủy hiệu lực hóa đơn.

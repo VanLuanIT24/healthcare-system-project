@@ -1207,6 +1207,34 @@ async function confirmManualPayment(paymentOrIntentId, payload = {}, actor = {},
   };
 }
 
+async function confirmDemoPayment(intentId, payload = {}, actor = {}, requestMeta = {}) {
+  if (env.nodeEnv === 'production') {
+    throw createError('Thanh toán thử nghiệm chỉ khả dụng ở môi trường demo/dev.', 404);
+  }
+
+  const intent = await PaymentIntent.findById(intentId).lean();
+  if (!intent) throw createError('Không tìm thấy payment intent.', 404);
+
+  const patientId = patientIdFromActor(actor);
+  if (actorContext.getActorType(actor) !== 'patient' || toId(intent.patient_id) !== toId(patientId)) {
+    throw createError('Bạn chỉ được giả lập thanh toán cho giao dịch của chính mình.', 403);
+  }
+
+  const systemActor = actorContext.buildSystemActor({
+    serviceName: 'patient-payment-demo',
+    permissions: ['system.full_access'],
+    requestMeta,
+  });
+
+  return confirmManualPayment(intent._id, {
+    ...payload,
+    received_amount: intent.amount,
+    transaction_reference: normalizeString(payload.transaction_reference || payload.transactionReference)
+      || `DEMO-${intent.intent_code}-${Date.now()}`,
+    note: normalizeString(payload.note) || 'Sandbox demo payment from patient portal.',
+  }, systemActor, requestMeta);
+}
+
 async function rejectManualPayment(paymentOrIntentId, payload = {}, actor = {}, requestMeta = {}) {
   assertStaffCanConfirmBankTransfer(actor);
   const reason = normalizeString(payload.reason || payload.note || payload.failure_reason);
@@ -1343,6 +1371,7 @@ module.exports = {
   queryProviderStatus,
   listPaymentIntents,
   confirmBankTransfer,
+  confirmDemoPayment,
   rejectBankTransfer,
   markManualReview,
   submitManualReceipt,

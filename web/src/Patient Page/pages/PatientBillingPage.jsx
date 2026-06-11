@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import PatientIcon from '../components/PatientIcon'
 import paymentGiftImage from '../assets/payment-gift.png'
 import { paymentMethods } from '../data/patientPageData'
+import { billingAPI, getApiErrorMessage, unwrapData } from '../../utils/api'
+import { formatDateTime } from '../utils/patientHelpers'
 
 function formatMoney(value) {
   const amount = Number(value || 0)
@@ -15,6 +17,34 @@ function formatMoney(value) {
 
 function getInvoiceId(invoice) {
   return invoice.invoice_id || invoice._id || invoice.id || invoice.invoice_no
+}
+
+function getPaymentId(payment = {}) {
+  return payment.payment_id || payment._id || payment.id || payment.payment_no || payment.transaction_ref
+}
+
+function getInvoiceStatusLabel(status) {
+  const map = {
+    draft: 'Nháp',
+    issued: 'Chưa thanh toán',
+    partially_paid: 'Thanh toán một phần',
+    paid: 'Đã thanh toán',
+    cancelled: 'Đã hủy',
+    voided: 'Đã hủy',
+  }
+  return map[status] || status || 'Chưa rõ'
+}
+
+function getPaymentStatusLabel(status) {
+  const map = {
+    pending: 'Đang chờ',
+    processing: 'Đang xử lý',
+    completed: 'Đã thanh toán',
+    failed: 'Thất bại',
+    cancelled: 'Đã hủy',
+    refunded: 'Đã hoàn tiền',
+  }
+  return map[status] || status || 'Chưa rõ'
 }
 
 function mapInvoiceToCheckoutItem(invoice) {
@@ -39,19 +69,99 @@ function summarizeBillingAmount(summary, groupKey, amountKey = 'total_amount') {
   return rows.reduce((total, row) => total + Number(row?.[amountKey] || 0), 0)
 }
 
+function providerForMethod(methodId) {
+  if (methodId === 'e-wallet' || methodId === 'healthcare-wallet') return 'momo_personal_qr'
+  if (methodId === 'over-counter') return 'cash_manual'
+  return 'bank_qr_manual'
+}
+
+function digitsOnly(value) {
+  return String(value || '').replace(/\D/g, '')
+}
+
+function formatCardNumber(value) {
+  return digitsOnly(value).slice(0, 19).replace(/(.{4})/g, '$1 ').trim()
+}
+
+function formatExpiry(value) {
+  const digits = digitsOnly(value).slice(0, 4)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`
+}
+
+function isValidExpiry(value) {
+  const match = String(value || '').match(/^(\d{2})\/(\d{2})$/)
+  if (!match) return false
+  const month = Number(match[1])
+  return month >= 1 && month <= 12
+}
+
+function maskPhone(value) {
+  const digits = digitsOnly(value)
+  if (digits.length <= 4) return digits
+  return `${digits.slice(0, 3)}•••${digits.slice(-3)}`
+}
+
 export default function PatientBillingPage({
   billingSummary,
   description = 'Thanh toán nhanh chóng, an toàn và tiện lợi.',
   error = '',
   invoices = [],
   loading = false,
+  onOpenHistory,
   onOpenSupportChat,
+  onPaymentCompleted,
   payments = [],
   title = 'Thanh toán',
 }) {
   const checkoutItems = useMemo(() => invoices.map(mapInvoiceToCheckoutItem), [invoices])
+  const billingHistoryItems = useMemo(() => {
+    const invoiceRows = invoices.map((invoice) => {
+      const balanceDue = Number(invoice.balance_due || 0)
+      return {
+        id: `invoice-${getInvoiceId(invoice)}`,
+        type: 'invoice',
+        icon: 'receipt_long',
+        title: invoice.invoice_no || 'Hóa đơn bệnh viện',
+        subtitle: formatDateTime(invoice.issued_at || invoice.created_at),
+        amount: formatMoney(invoice.total_amount ?? invoice.balance_due),
+        status: getInvoiceStatusLabel(invoice.status),
+        tone: balanceDue > 0 ? 'warn' : 'good',
+        sortDate: invoice.issued_at || invoice.created_at,
+      }
+    })
+
+    const paymentRows = payments.map((payment) => ({
+      id: `payment-${getPaymentId(payment)}`,
+      type: 'payment',
+      icon: 'account_balance_wallet',
+      title: payment.payment_no || payment.transaction_ref || 'Giao dịch thanh toán',
+      subtitle: payment.payment_method || payment.payment_provider || formatDateTime(payment.paid_at || payment.created_at),
+      amount: formatMoney(payment.amount),
+      status: getPaymentStatusLabel(payment.status),
+      tone: payment.status === 'completed' ? 'good' : 'soft',
+      sortDate: payment.paid_at || payment.created_at,
+    }))
+
+    return [...invoiceRows, ...paymentRows]
+      .sort((a, b) => new Date(b.sortDate || 0) - new Date(a.sortDate || 0))
+      .slice(0, 5)
+  }, [invoices, payments])
   const [selectedItem, setSelectedItem] = useState('')
   const [selectedMethod, setSelectedMethod] = useState(paymentMethods[0]?.id || '')
+  const [paymentIntent, setPaymentIntent] = useState(null)
+  const [paymentBusy, setPaymentBusy] = useState(false)
+  const [paymentFeedback, setPaymentFeedback] = useState(null)
+  const [paymentReceipt, setPaymentReceipt] = useState(null)
+  const [qrImageFailed, setQrImageFailed] = useState(false)
+  const [momoSandboxForm, setMomoSandboxForm] = useState({
+    walletPhone: '',
+    cardHolder: '',
+    cardNumber: '',
+    expiry: '',
+    otp: '',
+  })
+  const [momoSandboxOtp, setMomoSandboxOtp] = useState('')
 
   const currentItem = checkoutItems.find(i => i.id === selectedItem) || checkoutItems[0] || {
     label: 'Chưa có hóa đơn',
@@ -62,6 +172,44 @@ export default function PatientBillingPage({
   }
   const totalDue = summarizeBillingAmount(billingSummary, 'invoices', 'balance_due')
   const totalPaid = summarizeBillingAmount(billingSummary, 'payments')
+  const currentMethod = paymentMethods.find((method) => method.id === selectedMethod) || paymentMethods[0]
+  const isMomoSandbox = selectedMethod === 'e-wallet'
+  const momoCardDigits = digitsOnly(momoSandboxForm.cardNumber)
+  const momoWalletDigits = digitsOnly(momoSandboxForm.walletPhone)
+  const momoOtpVerified = !isMomoSandbox || (momoSandboxOtp && momoSandboxForm.otp === momoSandboxOtp)
+  const canStartDemoPayment = currentItem.id && currentItem.rawAmount > 0 && currentItem.status !== 'paid'
+  const hasSelectedPayableItem = Boolean(currentItem.id && currentItem.status !== 'none')
+  const hasSelectedMethod = hasSelectedPayableItem && Boolean(currentMethod?.id)
+  const hasPaymentIntent = Boolean(paymentIntent)
+  const paymentCompleted = ['succeeded', 'completed', 'paid'].includes(paymentIntent?.status)
+    || (paymentFeedback?.type === 'success' && paymentFeedback?.message?.includes('thành công'))
+  const activePaymentStep = !hasSelectedPayableItem ? 1 : !hasSelectedMethod ? 2 : hasPaymentIntent || paymentCompleted ? 3 : 2
+  const paymentSteps = [
+    {
+      number: 1,
+      icon: 'receipt_long',
+      title: 'Chọn khoản thanh toán',
+      description: 'Dịch vụ, hóa đơn hoặc đặt cọc',
+      done: hasSelectedPayableItem,
+    },
+    {
+      number: 2,
+      icon: 'account_balance_wallet',
+      title: 'Chọn phương thức',
+      description: 'Chọn hình thức thanh toán',
+      done: hasSelectedMethod,
+    },
+    {
+      number: 3,
+      icon: paymentCompleted ? 'task_alt' : 'help_outline',
+      title: 'Xác nhận & thanh toán',
+      description: 'Kiểm tra và hoàn tất giao dịch',
+      done: paymentCompleted,
+    },
+  ]
+  const invoiceSummaryLabel = currentItem.status === 'none'
+    ? 'Chưa có dữ liệu'
+    : currentItem.subLabel.replace('Hóa đơn ', '') || currentItem.label
 
   useEffect(() => {
     if (!checkoutItems.length) {
@@ -73,6 +221,146 @@ export default function PatientBillingPage({
       setSelectedItem(checkoutItems[0].id)
     }
   }, [checkoutItems, selectedItem])
+
+  useEffect(() => {
+    setPaymentIntent(null)
+    setPaymentFeedback(null)
+    setPaymentReceipt(null)
+    setQrImageFailed(false)
+    setMomoSandboxOtp('')
+    setMomoSandboxForm((current) => ({ ...current, otp: '' }))
+  }, [selectedItem, selectedMethod])
+
+  function getMomoSandboxError({ includeOtp = true } = {}) {
+    if (!isMomoSandbox) return ''
+    if (momoWalletDigits.length < 9 || momoWalletDigits.length > 11) return 'Vui lòng nhập số ví MoMo sandbox hợp lệ.'
+    if (!momoSandboxForm.cardHolder.trim()) return 'Vui lòng nhập tên trên thẻ liên kết.'
+    if (momoCardDigits.length < 12 || momoCardDigits.length > 19) return 'Vui lòng nhập số thẻ sandbox từ 12-19 chữ số.'
+    if (!isValidExpiry(momoSandboxForm.expiry)) return 'Vui lòng nhập hạn thẻ theo định dạng MM/YY.'
+    if (!includeOtp) return ''
+    if (!momoSandboxOtp) return 'Vui lòng gửi OTP giả lập trước khi thanh toán.'
+    if (!momoOtpVerified) return 'OTP giả lập không đúng.'
+    return ''
+  }
+
+  function handleMomoFieldChange(field, value) {
+    const normalizers = {
+      walletPhone: (input) => digitsOnly(input).slice(0, 11),
+      cardNumber: formatCardNumber,
+      expiry: formatExpiry,
+      otp: (input) => digitsOnly(input).slice(0, 6),
+    }
+    setMomoSandboxForm((current) => ({
+      ...current,
+      [field]: normalizers[field] ? normalizers[field](value) : value,
+    }))
+  }
+
+  function handleSendMomoOtp() {
+    const validationError = getMomoSandboxError({ includeOtp: false })
+    if (validationError) {
+      setPaymentFeedback({ type: 'error', message: validationError })
+      return
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000))
+    setMomoSandboxOtp(otp)
+    setMomoSandboxForm((current) => ({ ...current, otp: '' }))
+    setPaymentFeedback({
+      type: 'success',
+      message: `OTP giả lập đã được tạo cho ví ${maskPhone(momoSandboxForm.walletPhone)}. Nhập mã ${otp} để kiểm thử.`,
+    })
+  }
+
+  async function handleCreateDemoPayment() {
+    if (!canStartDemoPayment || paymentBusy) return
+
+    const momoValidationError = getMomoSandboxError()
+    if (momoValidationError) {
+      setPaymentFeedback({ type: 'error', message: momoValidationError })
+      return
+    }
+
+    setPaymentBusy(true)
+    setPaymentFeedback(null)
+
+    try {
+      const payload = unwrapData(await billingAPI.createMyPaymentIntent(currentItem.id, {
+        amount: currentItem.rawAmount,
+        provider: providerForMethod(selectedMethod),
+        force_new: isMomoSandbox,
+        payment_note: isMomoSandbox ? `MOMO DEMO ${currentItem.id}` : `DEMO ${currentItem.id}`,
+        metadata: isMomoSandbox ? {
+          sandbox: true,
+          provider: 'momo',
+          wallet_phone_masked: maskPhone(momoSandboxForm.walletPhone),
+          linked_card_last4: momoCardDigits.slice(-4),
+          otp_verified: true,
+        } : undefined,
+      }))
+      setPaymentIntent(payload?.payment_intent || payload)
+      setQrImageFailed(false)
+      setPaymentFeedback({
+        type: 'success',
+        message: isMomoSandbox
+          ? 'Đã tạo giao dịch MoMo sandbox. Bấm xác nhận để ghi nhận thanh toán và sinh biên lai.'
+          : 'Đã tạo giao dịch thử nghiệm. Bạn có thể giả lập thanh toán để hoàn tất.',
+      })
+    } catch (err) {
+      setPaymentFeedback({ type: 'error', message: getApiErrorMessage(err, 'Không tạo được giao dịch thử nghiệm.') })
+    } finally {
+      setPaymentBusy(false)
+    }
+  }
+
+  async function handleConfirmDemoPayment() {
+    const intentId = paymentIntent?.payment_intent_id || paymentIntent?._id || paymentIntent?.id
+    if (!intentId || paymentBusy) return
+
+    const momoValidationError = getMomoSandboxError()
+    if (momoValidationError) {
+      setPaymentFeedback({ type: 'error', message: momoValidationError })
+      return
+    }
+
+    setPaymentBusy(true)
+    setPaymentFeedback(null)
+
+    try {
+      const payload = unwrapData(await billingAPI.confirmMyDemoPaymentIntent(intentId, {
+        transaction_reference: isMomoSandbox
+          ? `MOMO-SANDBOX-${momoCardDigits.slice(-4)}-${Date.now()}`
+          : `DEMO-PAID-${Date.now()}`,
+        note: isMomoSandbox
+          ? `MoMo sandbox OTP verified for ${maskPhone(momoSandboxForm.walletPhone)} / card ****${momoCardDigits.slice(-4)}.`
+          : undefined,
+      }))
+      const nextIntent = payload?.payment_intent || paymentIntent
+      const payment = payload?.payment
+      const paymentId = payment?.payment_id || payment?._id || payment?.id
+      setPaymentIntent(nextIntent)
+      setQrImageFailed(false)
+      if (paymentId) {
+        try {
+          const receiptPayload = unwrapData(await billingAPI.getMyPaymentReceipt(paymentId))
+          setPaymentReceipt(receiptPayload?.receipt || receiptPayload)
+        } catch (receiptErr) {
+          setPaymentReceipt(null)
+        }
+      }
+      setPaymentFeedback({
+        type: 'success',
+        message: paymentId
+          ? 'Thanh toán MoMo sandbox thành công. Hóa đơn đã cập nhật và biên lai đã sẵn sàng trong mục Hóa đơn / Biên lai.'
+          : 'Thanh toán thử nghiệm thành công. Hóa đơn và biên lai đã được cập nhật.',
+      })
+      await onPaymentCompleted?.()
+    } catch (err) {
+      setPaymentFeedback({ type: 'error', message: getApiErrorMessage(err, 'Không xác nhận được thanh toán thử nghiệm.') })
+    } finally {
+      setPaymentBusy(false)
+    }
+  }
 
   return (
     <div className="patient-billing-page">
@@ -93,29 +381,25 @@ export default function PatientBillingPage({
         <div className="pb-main">
           <div className="pb-stepper-container">
             <div className="pb-stepper">
-              <div className="pb-step pb-step-active">
-                <div className="pb-step-icon"><PatientIcon name="receipt_long" aria-hidden="true" /></div>
-                <div className="pb-step-text">
-                  <strong>1. Chọn khoản thanh toán</strong>
-                  <span>Dịch vụ, hóa đơn hoặc đặt cọc</span>
-                </div>
-              </div>
-              <div className="pb-step-divider"></div>
-              <div className="pb-step">
-                <div className="pb-step-icon"><PatientIcon name="account_balance_wallet" aria-hidden="true" /></div>
-                <div className="pb-step-text">
-                  <strong>2. Chọn phương thức</strong>
-                  <span>Chọn hình thức thanh toán</span>
-                </div>
-              </div>
-              <div className="pb-step-divider"></div>
-              <div className="pb-step">
-                <div className="pb-step-icon"><PatientIcon name="task_alt" aria-hidden="true" /></div>
-                <div className="pb-step-text">
-                  <strong>3. Xác nhận & thanh toán</strong>
-                  <span>Kiểm tra và hoàn tất giao dịch</span>
-                </div>
-              </div>
+              {paymentSteps.map((step, index) => {
+                const active = activePaymentStep === step.number
+                const done = step.done || activePaymentStep > step.number
+                const locked = !active && !done
+                return (
+                  <div className="pb-step-fragment" key={step.number}>
+                    <div className={`pb-step ${active ? 'pb-step-active' : ''} ${done ? 'pb-step-done' : ''} ${locked ? 'pb-step-locked' : ''}`}>
+                      <div className="pb-step-icon"><PatientIcon name={done && !active ? 'check' : step.icon} aria-hidden="true" /></div>
+                      <div className="pb-step-text">
+                        <strong>{step.number}. {step.title}</strong>
+                        <span>{done && !active ? 'Đã xong' : step.description}</span>
+                      </div>
+                    </div>
+                    {index < paymentSteps.length - 1 ? (
+                      <div className={`pb-step-divider ${activePaymentStep > step.number ? 'is-done' : ''}`}></div>
+                    ) : null}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -162,9 +446,39 @@ export default function PatientBillingPage({
                     </div>
                   ) : null}
                 </div>
-                <div className="pb-history-link">
-                  <PatientIcon name="info" aria-hidden="true" className="pb-info-icon" />
-                  <span>Bạn có thể xem lịch sử giao dịch và hóa đơn tại mục <button className="pb-link-button">Xem lịch sử</button></span>
+                <div className="pb-inline-history">
+                  <div className="pb-inline-history-head">
+                    <div>
+                      <span>Lịch sử gần đây</span>
+                      <strong>Hóa đơn và giao dịch</strong>
+                    </div>
+                    <span className="pb-inline-history-count">{billingHistoryItems.length}</span>
+                  </div>
+
+                  {billingHistoryItems.length > 0 ? (
+                    <div className="pb-inline-history-list">
+                      {billingHistoryItems.map((item) => (
+                        <article className="pb-inline-history-row" key={item.id}>
+                          <div className={`pb-inline-history-icon ${item.tone}`}>
+                            <PatientIcon name={item.icon} aria-hidden="true" />
+                          </div>
+                          <div className="pb-inline-history-main">
+                            <strong>{item.title}</strong>
+                            <span>{item.subtitle || 'Chưa có ngày'}</span>
+                          </div>
+                          <div className="pb-inline-history-side">
+                            <strong>{item.amount}</strong>
+                            <span className={`pb-inline-history-status ${item.tone}`}>{item.status}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="pb-inline-history-empty">
+                      <PatientIcon name="info" aria-hidden="true" />
+                      <span>Chưa có hóa đơn hoặc giao dịch nào từ backend.</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -287,7 +601,7 @@ export default function PatientBillingPage({
               
               <div className="pb-summary-row pb-mt-12">
                 <span>Hóa đơn</span>
-                <strong>{currentItem.subLabel.replace('Hóa đơn ', '') || '#HD2024-000123'}</strong>
+                <strong>{invoiceSummaryLabel}</strong>
               </div>
               <div className="pb-summary-row">
                 <span>Ngày tạo</span>
@@ -319,11 +633,143 @@ export default function PatientBillingPage({
                 <span>Tổng thanh toán</span>
                 <strong>{currentItem.amount}</strong>
               </div>
-              <button className="pb-btn-primary pb-btn-full pb-btn-pay" type="button" disabled>
-                <PatientIcon name="lock" aria-hidden="true" className="pb-btn-icon" /> Chưa có API thanh toán online
+              {isMomoSandbox ? (
+                <div className="pb-momo-sandbox-form">
+                  <div className="pb-momo-sandbox-head">
+                    <span className="pb-momo-mark">MoMo</span>
+                    <div>
+                      <strong>Thanh toán MoMo sandbox</strong>
+                      <small>Nhập thẻ liên kết và OTP giả lập. Không trừ tiền thật.</small>
+                    </div>
+                  </div>
+                  <label>
+                    <span>Số ví MoMo</span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={momoSandboxForm.walletPhone}
+                      onChange={(event) => handleMomoFieldChange('walletPhone', event.target.value)}
+                      placeholder="0901234567"
+                      disabled={paymentBusy || Boolean(paymentIntent)}
+                    />
+                  </label>
+                  <label>
+                    <span>Tên trên thẻ liên kết</span>
+                    <input
+                      value={momoSandboxForm.cardHolder}
+                      onChange={(event) => handleMomoFieldChange('cardHolder', event.target.value)}
+                      placeholder="NGUYEN VAN A"
+                      disabled={paymentBusy || Boolean(paymentIntent)}
+                    />
+                  </label>
+                  <div className="pb-momo-card-row">
+                    <label>
+                      <span>Số thẻ sandbox</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={momoSandboxForm.cardNumber}
+                        onChange={(event) => handleMomoFieldChange('cardNumber', event.target.value)}
+                        placeholder="9704 0000 0000 0018"
+                        disabled={paymentBusy || Boolean(paymentIntent)}
+                      />
+                    </label>
+                    <label>
+                      <span>MM/YY</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={momoSandboxForm.expiry}
+                        onChange={(event) => handleMomoFieldChange('expiry', event.target.value)}
+                        placeholder="12/28"
+                        disabled={paymentBusy || Boolean(paymentIntent)}
+                      />
+                    </label>
+                  </div>
+                  <div className="pb-momo-otp-row">
+                    <label>
+                      <span>OTP giả lập</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={momoSandboxForm.otp}
+                        onChange={(event) => handleMomoFieldChange('otp', event.target.value)}
+                        placeholder="6 chữ số"
+                        disabled={paymentBusy || Boolean(paymentIntent)}
+                      />
+                    </label>
+                    <button type="button" onClick={handleSendMomoOtp} disabled={paymentBusy || Boolean(paymentIntent)}>
+                      Gửi OTP
+                    </button>
+                  </div>
+                  {momoSandboxOtp ? (
+                    <p className="pb-momo-otp-hint">
+                      Sandbox OTP: <strong>{momoSandboxOtp}</strong>
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {paymentFeedback ? (
+                <div className={`pb-demo-alert ${paymentFeedback.type === 'error' ? 'is-error' : 'is-success'}`}>
+                  {paymentFeedback.message}
+                </div>
+              ) : null}
+              {paymentIntent ? (
+                <div className="pb-demo-payment-panel">
+                  <span className="pb-demo-badge">Sandbox</span>
+                  <div>
+                    <span>Mã giao dịch</span>
+                    <strong>{paymentIntent.intent_code || paymentIntent.payment_intent_id}</strong>
+                  </div>
+                  <div>
+                    <span>Nội dung CK</span>
+                    <strong>{paymentIntent.payment_note || `DEMO ${currentItem.id}`}</strong>
+                  </div>
+                  {paymentIntent.qr_image_url && !qrImageFailed ? (
+                    <img
+                      src={paymentIntent.qr_image_url}
+                      alt="QR thanh toán thử nghiệm"
+                      onError={() => setQrImageFailed(true)}
+                    />
+                  ) : (
+                    <div className="pb-demo-qr-fallback">
+                      <PatientIcon name="qr_code_2" aria-hidden="true" />
+                      <strong>{isMomoSandbox ? 'QR MoMo sandbox chưa cấu hình' : 'QR sandbox chưa có ảnh'}</strong>
+                      <span>{paymentIntent.qr_payload || paymentIntent.qr_image_url || paymentIntent.payment_note || 'Có thể tiếp tục xác nhận bằng OTP sandbox.'}</span>
+                    </div>
+                  )}
+                  {paymentReceipt ? (
+                    <div>
+                      <span>Biên lai</span>
+                      <strong>{paymentReceipt.receipt_no || paymentReceipt.receipt_id || 'Đã sẵn sàng'}</strong>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <button
+                className="pb-btn-primary pb-btn-full pb-btn-pay"
+                type="button"
+                disabled={!canStartDemoPayment || paymentBusy || paymentCompleted}
+                onClick={paymentIntent ? handleConfirmDemoPayment : handleCreateDemoPayment}
+              >
+                <PatientIcon name={paymentIntent ? 'task_alt' : isMomoSandbox ? 'account_balance_wallet' : 'qr_code_scanner'} aria-hidden="true" className="pb-btn-icon" />
+                {!canStartDemoPayment
+                  ? 'Chưa có hóa đơn để thanh toán'
+                  : paymentBusy
+                  ? 'Đang xử lý...'
+                  : paymentCompleted
+                    ? 'Đã thanh toán sandbox'
+                  : paymentIntent
+                    ? isMomoSandbox ? 'Xác nhận thanh toán MoMo sandbox' : 'Giả lập đã thanh toán'
+                    : isMomoSandbox ? 'Tạo giao dịch MoMo sandbox' : 'Tạo thanh toán thử nghiệm'}
               </button>
+              {(paymentCompleted || paymentReceipt) && onOpenHistory ? (
+                <button className="pb-btn-outline pb-btn-full pb-receipt-link" type="button" onClick={() => onOpenHistory()}>
+                  <PatientIcon name="receipt_long" aria-hidden="true" className="pb-btn-icon" /> Xem hóa đơn / biên lai
+                </button>
+              ) : null}
               <p className="pb-security-text">
-                Backend hiện hỗ trợ bệnh nhân xem hóa đơn và lịch sử thanh toán; tạo payment vẫn là luồng nhân viên.
+                Chế độ sandbox dùng để kiểm thử báo cáo, không trừ tiền thật. Phương thức đã chọn: {currentMethod?.label || 'Thanh toán demo'}.
               </p>
             </div>
           </div>

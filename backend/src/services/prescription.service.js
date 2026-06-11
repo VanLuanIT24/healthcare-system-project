@@ -24,6 +24,7 @@ const {
 } = require('./core.service');
 const { CODE_TYPE, generateBusinessCode } = require('./code-generator.service');
 const permissionService = require('./permission.service');
+const notificationService = require('./notification.service');
 const {
   ALLERGY_SEVERITY,
   ALLERGY_STATUS,
@@ -1619,7 +1620,11 @@ async function createPrescription(payload = {}, actor, requestMeta = {}) {
   }, { fallbackToNoTransaction: false });
 
   await recordAuditLog({ actor, action: 'prescription.create', targetType: 'prescription', targetId: prescriptionId, status: 'success', message: 'Tạo đơn thuốc thành công.', requestMeta });
-  return getPrescriptionDetail(prescriptionId, actor);
+  const detail = await getPrescriptionDetail(prescriptionId, actor);
+  if ([PRESCRIPTION_STATUS.ACTIVE, PRESCRIPTION_STATUS.VERIFIED].includes(detail.prescription?.status)) {
+    await notificationService.notifyPrescriptionReadyForPatient(prescriptionId, actor);
+  }
+  return detail;
 }
 
 async function buildPrescriptionListScope(filter, actor = {}) {
@@ -1954,6 +1959,7 @@ async function activatePrescription(prescriptionId, actor, requestMeta = {}) {
     await syncPrescriptionStatusToOrder(prescription, actor, session);
   }, { fallbackToNoTransaction: false });
   await recordAuditLog({ actor, action: 'prescription.activate', targetType: 'prescription', targetId: prescriptionId, status: 'success', message: 'Kích hoạt đơn thuốc thành công.', requestMeta });
+  await notificationService.notifyPrescriptionReadyForPatient(prescriptionId, actor);
   return getPrescriptionDetail(prescriptionId, actor);
 }
 
@@ -2027,6 +2033,7 @@ async function verifyPrescription(prescriptionId, payload = {}, actor, requestMe
       interaction_override_reason: normalizeString(payload.override_interaction_warning_reason || payload.interaction_override_reason),
     },
   });
+  await notificationService.notifyPrescriptionReadyForPatient(prescriptionId, actor);
   return getPrescriptionDetail(prescriptionId, actor);
 }
 

@@ -53,6 +53,7 @@ const {
 } = require('../constants/transitions');
 const { PERMISSION, ROLE_CODE } = require('../constants/permissions');
 const permissionService = require('./permission.service');
+const notificationService = require('./notification.service');
 const { assertTransition, canTransition } = require('../shared/utils/status-transition');
 const { withOptionalTransaction } = require('../shared/utils/transaction');
 
@@ -1149,6 +1150,13 @@ async function createOrder(encounterId, payload, actor, requestMeta = {}) {
     }
   }
 
+  if (
+    childResult?.prescription?._id
+    && [PRESCRIPTION_STATUS.ACTIVE, PRESCRIPTION_STATUS.VERIFIED].includes(childResult.prescription.status)
+  ) {
+    await notificationService.notifyPrescriptionReadyForPatient(childResult.prescription._id, actor);
+  }
+
   return getOrderDetail(createdOrderId, actor);
 }
 
@@ -1376,6 +1384,12 @@ async function dispatchExistingOrder(orderId, payload = {}, actor, requestMeta =
   }, { fallbackToNoTransaction: true });
 
   await recordAuditLog({ actor, action: 'order.dispatch', targetType: 'order', targetId: orderId, status: 'success', message: 'Dispatch order thành công.', requestMeta, before, after });
+  if (
+    child?.prescription?._id
+    && [PRESCRIPTION_STATUS.ACTIVE, PRESCRIPTION_STATUS.VERIFIED].includes(child.prescription.status)
+  ) {
+    await notificationService.notifyPrescriptionReadyForPatient(child.prescription._id, actor);
+  }
   return { ...(await getOrderDetail(orderId, actor)), dispatched_child: child };
 }
 

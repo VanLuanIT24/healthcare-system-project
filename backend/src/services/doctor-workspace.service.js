@@ -407,18 +407,18 @@ async function buildEncounterReadiness(encounterIds = []) {
 function completionChecklistFromReadiness(encounter, readiness = {}) {
   const noteSigned = Number(readiness.notes?.signed || 0) > 0;
   const hasPrimaryDiagnosis = Number(readiness.primaryDiagnoses?.total || 0) > 0;
-  const hasCarePlan = Number(readiness.carePlans?.active || readiness.carePlans?.total || 0) > 0;
   const noDraftPrescription = Number(readiness.prescriptions?.draft || 0) === 0;
   const noActiveOrder = Number(readiness.orders?.active || 0) === 0;
   const noDraftConsultation = Number(readiness.consultations?.draft || 0) === 0;
   const items = [
     { key: 'clinical_note', label: 'Clinical note đã ký', done: noteSigned, count: Number(readiness.notes?.signed || 0) },
     { key: 'primary_diagnosis', label: 'Có chẩn đoán chính', done: hasPrimaryDiagnosis, count: Number(readiness.primaryDiagnoses?.total || 0) },
-    { key: 'care_plan', label: 'Có care plan / dặn dò', done: hasCarePlan, count: Number(readiness.carePlans?.total || 0) },
-    { key: 'orders_clear', label: 'Không còn order chờ', done: noActiveOrder, count: Number(readiness.orders?.active || 0) },
     { key: 'prescription_clear', label: 'Không còn đơn thuốc draft', done: noDraftPrescription, count: Number(readiness.prescriptions?.draft || 0) },
     { key: 'consultation_clear', label: 'Không còn hội chẩn draft', done: noDraftConsultation, count: Number(readiness.consultations?.draft || 0) },
   ];
+  if (!noActiveOrder) {
+    items.push({ key: 'orders_clear', label: 'Chỉ định đang mở cần hoàn tất/hủy', done: false, count: Number(readiness.orders?.active || 0) });
+  }
   const doneCount = items.filter((item) => item.done).length;
   return {
     encounter_id: toId(encounter),

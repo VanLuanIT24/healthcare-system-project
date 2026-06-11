@@ -1,6 +1,7 @@
 const {
   Appointment,
   AuditLog,
+  ClinicalNote,
   Consultation,
   Department,
   Diagnosis,
@@ -25,6 +26,7 @@ const { CODE_TYPE, generateBusinessCode } = require('./code-generator.service');
 const {
   APPOINTMENT_STATUS,
   APPOINTMENT_TYPE,
+  CLINICAL_NOTE_STATUS,
   CONSULTATION_STATUS,
   DIAGNOSIS_STATUS,
   ENCOUNTER_STATUS,
@@ -42,6 +44,7 @@ const { withOptionalTransaction } = require('../shared/utils/transaction');
 const { PERMISSION } = require('../constants/permissions');
 const permissionService = require('./permission.service');
 const scheduleService = require('./schedule.service');
+const billingService = require('./billing.service');
 
 const ACTIVE_ENCOUNTER_STATUSES = [
   ENCOUNTER_STATUS.PLANNED,
@@ -1240,8 +1243,12 @@ async function checkEncounterCanComplete(encounterId, actor = {}) {
     ownPermissions: [PERMISSION.ENCOUNTERS.COMPLETE_OWN],
   });
 
-  const [consultationSummary, primaryDiagnosisCount, diagnosisCount, draftConsultationCount, prescriptionSummary, orderSummary] = await Promise.all([
+  const [consultationSummary, signedClinicalNoteCount, primaryDiagnosisCount, diagnosisCount, draftConsultationCount, prescriptionSummary, orderSummary] = await Promise.all([
     checkEncounterHasSignedConsultation(encounter._id),
+    ClinicalNote.countDocuments({
+      encounter_id: encounter._id,
+      status: { $in: [CLINICAL_NOTE_STATUS.SIGNED, CLINICAL_NOTE_STATUS.AMENDED] },
+    }),
     Diagnosis.countDocuments({
       encounter_id: encounter._id,
       is_primary: true,
@@ -1261,8 +1268,11 @@ async function checkEncounterCanComplete(encounterId, actor = {}) {
 
   const blockingReasons = [];
   const warnings = [];
-  if (!COMPLETABLE_ENCOUNTER_STATUSES.includes(encounter.status)) {
-    blockingReasons.push('Encounter phải in_progress hoặc on_hold mới được hoàn tất.');
+  if (!COMPLETABLE_ENCOUNTER_STATUSES.includes(encounter.status) && !STARTABLE_ENCOUNTER_STATUSES.includes(encounter.status)) {
+    blockingReasons.push('Encounter phải đang khám, tạm dừng hoặc có thể bắt đầu khám mới được hoàn tất.');
+  }
+  if (signedClinicalNoteCount === 0) {
+    blockingReasons.push('Encounter chưa có clinical note đã ký.');
   }
   if (primaryDiagnosisCount === 0) {
     blockingReasons.push('Encounter chưa có chẩn đoán chính.');
@@ -1287,6 +1297,7 @@ async function checkEncounterCanComplete(encounterId, actor = {}) {
     warnings,
     consultations_count: consultationSummary.consultations_count,
     signed_consultations_count: consultationSummary.signed_consultations_count,
+    signed_clinical_notes_count: signedClinicalNoteCount,
     primary_diagnoses_count: primaryDiagnosisCount,
     active_diagnoses_count: diagnosisCount,
     draft_consultations_count: draftConsultationCount,
@@ -1330,11 +1341,25 @@ async function completeEncounter(encounterId, payload = {}, actor, requestMeta =
   if (!completionCheck.can_complete) {
     throw createError(`Encounter chưa đủ điều kiện hoàn tất: ${completionCheck.blocking_reasons.join(' ')}`, 409);
   }
-  validateEncounterStatusTransition(encounter.status, ENCOUNTER_STATUS.COMPLETED);
+  const shouldAutoStartBeforeComplete = STARTABLE_ENCOUNTER_STATUSES.includes(encounter.status)
+    && !COMPLETABLE_ENCOUNTER_STATUSES.includes(encounter.status);
+  if (shouldAutoStartBeforeComplete) {
+    validateEncounterStatusTransition(encounter.status, ENCOUNTER_STATUS.IN_PROGRESS);
+    validateEncounterStatusTransition(ENCOUNTER_STATUS.IN_PROGRESS, ENCOUNTER_STATUS.COMPLETED);
+  } else {
+    validateEncounterStatusTransition(encounter.status, ENCOUNTER_STATUS.COMPLETED);
+  }
 
   const before = encounter.toObject();
+  let autoBillingResult = null;
+  let autoBillingError = null;
   await withOptionalTransaction(async (session) => {
     const now = new Date();
+    if (shouldAutoStartBeforeComplete) {
+      encounter.start_time = encounter.start_time || now;
+      encounter.started_at = encounter.started_at || now;
+      encounter.started_by = encounter.started_by || actor?.userId;
+    }
     encounter.status = ENCOUNTER_STATUS.COMPLETED;
     encounter.end_time = now;
     encounter.completed_by = actor?.userId;
@@ -1363,6 +1388,12 @@ async function completeEncounter(encounterId, payload = {}, actor, requestMeta =
     await ensureMedicalRecordForEncounter(encounter, actor, session);
   }, { fallbackToNoTransaction: true });
 
+  try {
+    autoBillingResult = await billingService.createConsultationInvoiceForEncounter(encounter._id, {}, requestMeta);
+  } catch (error) {
+    autoBillingError = error.message || 'Không thể tự tạo hóa đơn phí khám.';
+  }
+
   await recordAuditLog({
     actor,
     action: 'encounter.complete',
@@ -1376,6 +1407,8 @@ async function completeEncounter(encounterId, payload = {}, actor, requestMeta =
     metadata: {
       warnings: completionCheck.warnings,
       complete_note: payload.note || null,
+      auto_billing_invoice_id: autoBillingResult?._id || autoBillingResult?.id || autoBillingResult?.invoice_id || null,
+      auto_billing_error: autoBillingError,
     },
   });
 
