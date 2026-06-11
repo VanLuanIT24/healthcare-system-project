@@ -887,6 +887,8 @@ function formatInteger(value) {
 
 function formatTime(value) {
   if (!value) return '--:--';
+  const textValue = String(value);
+  if (/^\d{1,2}:\d{2}/.test(textValue)) return textValue.slice(0, 5);
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '--:--';
   return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
@@ -936,8 +938,8 @@ function getPatientFromAppointment(item = {}) {
   return normalizePatient(item.patient || {
     patient_id: item.patient_id,
     patient_code: item.patient_code,
-    full_name: item.patient_name,
-    phone: item.patient_phone,
+    full_name: item.patient_name || item.patientName,
+    phone: item.patient_phone || item.patientPhone,
   });
 }
 
@@ -1066,8 +1068,8 @@ function buildRows(config, data = {}) {
       cells: [
         formatTime(item.time || item.appointment_time),
         item.patientName || item.patient_name || item.patient || '--',
-        item.department || item.department_name || '--',
-        item.doctor || item.doctor_name || '--',
+        item.department || item.departmentName || item.department_name || '--',
+        item.doctor || item.doctorName || item.doctor_name || '--',
         item.statusLabel || item.status || '--',
         item.can_checkin ? 'Check-in' : 'Mở hồ sơ',
       ],
@@ -1213,7 +1215,7 @@ function DashboardCommandCenter({ data, onNavigate, onSelectPatient }) {
       <section className="reception-operation-board">
         <article className="reception-operation-column">
           <header>
-            <span>Lịch hẹn sắp tới</span>
+            <span>Danh sách lịch hẹn</span>
             <button type="button" onClick={() => onNavigate?.('appointments-upcoming')}>Mở</button>
           </header>
           {appointments.map((item, index) => {
@@ -1222,11 +1224,11 @@ function DashboardCommandCenter({ data, onNavigate, onSelectPatient }) {
               <button type="button" className="reception-operation-card" key={item.id || index} onClick={() => onSelectPatient?.(patient)}>
                 <span>{formatTime(item.time || item.appointment_time)}</span>
                 <strong>{patient.full_name}</strong>
-                <small>{pickFirstValue([item.department, item.department_name])} · {pickFirstValue([item.doctor, item.doctor_name])}</small>
+                <small>{pickFirstValue([item.department, item.departmentName, item.department_name])} · {pickFirstValue([item.doctor, item.doctorName, item.doctor_name])}</small>
               </button>
             );
           })}
-          {!appointments.length ? <div className="reception-empty-panel reception-empty-panel--compact">Không có lịch hẹn sắp tới.</div> : null}
+          {!appointments.length ? <div className="reception-empty-panel reception-empty-panel--compact">Chưa có lịch hẹn phù hợp.</div> : null}
         </article>
 
         <article className="reception-operation-column">

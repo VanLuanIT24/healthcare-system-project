@@ -568,7 +568,12 @@ function SearchPatientsPage({ mode, onNavigate, onSelectPatient }) {
       <InlineState loading={state.loading} error={state.error} success={state.success} />
       <section className="reception-segmented-tabs reception-patient-admin-tabs">
         {tabs.map(([key, label, count]) => (
-          <button type="button" key={key} className={activeTab === key ? 'is-active' : ''} onClick={() => setActiveTab(key)}>
+          <button
+            type="button"
+            key={key}
+            className={`reception-segmented-tabs__item ${activeTab === key ? 'is-active' : ''}`}
+            onClick={() => setActiveTab(key)}
+          >
             {label} <span>{formatInteger(count)}</span>
           </button>
         ))}
@@ -616,11 +621,11 @@ function SearchPatientsPage({ mode, onNavigate, onSelectPatient }) {
           ) : null}
         </main>
         <aside className="reception-panel reception-patient-admin-side">
-          <h3>Patient Quick View</h3>
-          <p>Click một bệnh nhân để mở drawer nhanh ở dashboard. Các action in thẻ/chuyển tuyến trên card đều gọi API thật.</p>
+          <h3>Xem nhanh bệnh nhân</h3>
+          <p>Chọn một bệnh nhân trong danh sách để mở hồ sơ nhanh. Các thao tác in thẻ và chuyển tuyến đều gọi API thật.</p>
           <div className="reception-patient-admin-gap">
             <ShieldCheck size={18} />
-            <span>Recent lookup server-side hiện chưa persist; UI có cache cục bộ và không giả lập ghi DB.</span>
+            <span>Lịch sử tra cứu hiện lưu tạm trên giao diện; không tạo dữ liệu giả trong hệ thống.</span>
           </div>
         </aside>
       </div>
@@ -1038,7 +1043,12 @@ function CreatePatientPage({ mode, onNavigate, onSelectPatient }) {
       <PageHeader mode={mode} onNavigate={onNavigate} />
       <section className="reception-panel reception-patient-stepper">
         {['Kiểm tra trùng', 'Thông tin cơ bản', 'Định danh', 'Liên hệ / người thân', 'Portal / check-in'].map((label, index) => (
-          <button type="button" key={label} className={step === index + 1 ? 'is-active' : ''} onClick={() => setStep(index + 1)}>
+          <button
+            type="button"
+            key={label}
+            className={`${step === index + 1 ? 'is-active' : ''} ${step > index + 1 ? 'is-done' : ''}`}
+            onClick={() => setStep(index + 1)}
+          >
             <span>{index + 1}</span>
             <strong>{label}</strong>
           </button>

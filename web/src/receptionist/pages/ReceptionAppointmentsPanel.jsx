@@ -26,14 +26,14 @@ import { receptionAppointmentsApi } from '../api/receptionAppointmentsApi';
 import { RescheduleAppointmentModal } from '../components/RescheduleAppointmentModal';
 
 const STATUS_META = {
-  booked: { label: 'Booked', tone: 'info' },
-  confirmed: { label: 'Confirmed', tone: 'success' },
-  checked_in: { label: 'Checked-in', tone: 'teal' },
-  in_consultation: { label: 'In consultation', tone: 'violet' },
-  completed: { label: 'Completed', tone: 'success' },
-  cancelled: { label: 'Cancelled', tone: 'warning' },
-  no_show: { label: 'No-show', tone: 'danger' },
-  rescheduled: { label: 'Rescheduled', tone: 'violet' },
+  booked: { label: 'Đã đặt lịch', tone: 'info' },
+  confirmed: { label: 'Đã xác nhận', tone: 'success' },
+  checked_in: { label: 'Đã check-in', tone: 'teal' },
+  in_consultation: { label: 'Đang khám', tone: 'violet' },
+  completed: { label: 'Hoàn tất', tone: 'success' },
+  cancelled: { label: 'Đã hủy', tone: 'warning' },
+  no_show: { label: 'Không đến', tone: 'danger' },
+  rescheduled: { label: 'Đã dời lịch', tone: 'violet' },
 };
 
 const APPOINTMENT_TYPES = [
@@ -47,8 +47,8 @@ const APPOINTMENT_TYPES = [
 
 const LIST_MODE_CONFIG = {
   all: {
-    title: 'Tất cả lịch hẹn',
-    subtitle: 'Quản lý, tìm kiếm và thao tác với toàn bộ lịch hẹn.',
+    title: 'Danh sách lịch hẹn',
+    subtitle: 'Xem lịch hôm nay, lịch sắp tới và lịch cũ trên cùng một màn hình.',
     empty: 'Chưa có lịch hẹn phù hợp với bộ lọc hiện tại.',
   },
   today: {
@@ -88,13 +88,13 @@ const LIST_MODE_CONFIG = {
 
 const SUMMARY_ITEMS = [
   { key: 'total', label: 'Tổng lịch' },
-  { key: 'booked', label: 'Booked' },
-  { key: 'confirmed', label: 'Confirmed' },
-  { key: 'checked_in', label: 'Checked-in' },
+  { key: 'booked', label: 'Đã đặt lịch' },
+  { key: 'confirmed', label: 'Đã xác nhận' },
+  { key: 'checked_in', label: 'Đã check-in' },
   { key: 'in_consultation', label: 'Đang khám' },
   { key: 'completed', label: 'Hoàn tất' },
   { key: 'cancelled', label: 'Đã hủy' },
-  { key: 'no_show', label: 'No-show' },
+  { key: 'no_show', label: 'Không đến' },
 ];
 
 const TODAY_TABS = [
@@ -106,6 +106,13 @@ const TODAY_TABS = [
   { key: 'in_consultation', label: 'Đang khám' },
   { key: 'completed', label: 'Hoàn tất' },
   { key: 'late', label: 'Trễ giờ' },
+];
+
+const LIST_SCOPE_TABS = [
+  { key: 'all', label: 'Tất cả', hint: 'Toàn bộ lịch hẹn' },
+  { key: 'today', label: 'Hôm nay', hint: 'Lịch trong ngày' },
+  { key: 'upcoming', label: 'Sắp tới', hint: 'Từ hiện tại trở đi' },
+  { key: 'past', label: 'Lịch cũ', hint: 'Trước hôm nay' },
 ];
 
 const DATE_SORT_MODES = new Set(['today', 'upcoming', 'confirm', 'reschedule', 'cancelled', 'no_show']);
@@ -180,6 +187,12 @@ function addDaysToDateKey(value, amount) {
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
 }
 
+function getDateKeyFromDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function formatDate(value) {
   if (!value) return '--';
   const date = new Date(value);
@@ -225,6 +238,10 @@ function getAppointmentId(item) {
   return item?.appointment_id || item?.id || item?._id || '';
 }
 
+function getAppointmentTime(item) {
+  return item?.appointment_time || item?.time || item?.scheduled_at || item?.start_time || '';
+}
+
 function getPatientId(item) {
   return item?.patient_id || item?.id || item?._id || '';
 }
@@ -257,12 +274,12 @@ function getErrorMessage(error, fallback = 'Không thể xử lý yêu cầu.') 
 
 function isLateAppointment(item) {
   if (!['booked', 'confirmed'].includes(item?.status)) return false;
-  const time = new Date(item.appointment_time).getTime();
+  const time = new Date(getAppointmentTime(item)).getTime();
   return Number.isFinite(time) && time < Date.now();
 }
 
 function isUpcomingAppointment(item) {
-  const time = new Date(item?.appointment_time).getTime();
+  const time = new Date(getAppointmentTime(item)).getTime();
   return (
     Number.isFinite(time)
     && time >= Date.now()
@@ -271,12 +288,21 @@ function isUpcomingAppointment(item) {
 }
 
 function isReschedulableAppointment(item) {
-  const time = new Date(item?.appointment_time).getTime();
+  const time = new Date(getAppointmentTime(item)).getTime();
   return (
     Number.isFinite(time)
     && time >= Date.now()
     && ['booked', 'confirmed', 'rescheduled'].includes(item?.status)
   );
+}
+
+function isTodayAppointment(item) {
+  return getDateKeyFromDate(getAppointmentTime(item)) === todayKey();
+}
+
+function isPastAppointment(item) {
+  const appointmentDate = getDateKeyFromDate(getAppointmentTime(item));
+  return Boolean(appointmentDate) && appointmentDate < todayKey();
 }
 
 function buildAppointmentDateTime(date, time) {
@@ -1105,6 +1131,7 @@ function AppointmentListPanel({ mode, onNavigate, onSelectPatient }) {
     pagination: null,
     summary: null,
   });
+  const [listScope, setListScope] = useState('all');
   const [todayTab, setTodayTab] = useState('all');
   const [viewMode, setViewMode] = useState('list');
   const [selectedIds, setSelectedIds] = useState([]);
@@ -1131,6 +1158,9 @@ function AppointmentListPanel({ mode, onNavigate, onSelectPatient }) {
     setSelectedIds([]);
     setCapabilities({});
     setActiveActions('');
+    setListScope('all');
+    setTodayTab('all');
+    setViewMode('list');
     setRescheduleTarget(null);
     setDetailState({ loading: false, error: '', data: null, timeline: [] });
   }, [mode]);
@@ -1235,6 +1265,13 @@ function AppointmentListPanel({ mode, onNavigate, onSelectPatient }) {
   ]);
 
   const visibleItems = useMemo(() => {
+    if (mode === 'all') {
+      if (listScope === 'today') return state.items.filter(isTodayAppointment);
+      if (listScope === 'upcoming') return state.items.filter(isUpcomingAppointment);
+      if (listScope === 'past') return state.items.filter(isPastAppointment);
+      return state.items;
+    }
+
     if (mode === 'upcoming') {
       return state.items.filter(isUpcomingAppointment);
     }
@@ -1248,12 +1285,12 @@ function AppointmentListPanel({ mode, onNavigate, onSelectPatient }) {
       if (todayTab === 'all') return true;
       if (todayTab === 'late') return isLateAppointment(item);
       if (todayTab === 'upcoming') {
-        const time = new Date(item.appointment_time).getTime();
+        const time = new Date(getAppointmentTime(item)).getTime();
         return Number.isFinite(time) && time >= Date.now() && ['booked', 'confirmed'].includes(item.status);
       }
       return item.status === todayTab;
     });
-  }, [mode, state.items, todayTab]);
+  }, [mode, state.items, todayTab, listScope]);
 
   const selectedRows = useMemo(
     () => state.items.filter((item) => selectedIds.includes(getAppointmentId(item))),
@@ -1279,6 +1316,33 @@ function AppointmentListPanel({ mode, onNavigate, onSelectPatient }) {
 
   function shiftDay(amount) {
     setSingleDayFilter(addDaysToDateKey(filters.date_from || todayKey(), amount));
+  }
+
+  function setListScopeFilter(nextScope) {
+    setListScope(nextScope);
+    setFilters((current) => {
+      const today = todayKey();
+      const nextFilters = {
+        ...current,
+        page: 1,
+      };
+
+      if (nextScope === 'today') {
+        nextFilters.date_from = today;
+        nextFilters.date_to = today;
+      } else if (nextScope === 'upcoming') {
+        nextFilters.date_from = today;
+        nextFilters.date_to = '';
+      } else if (nextScope === 'past') {
+        nextFilters.date_from = '';
+        nextFilters.date_to = addDaysToDateKey(today, -1);
+      } else {
+        nextFilters.date_from = '';
+        nextFilters.date_to = '';
+      }
+
+      return nextFilters;
+    });
   }
 
   function toggleSelected(appointmentId) {
@@ -1479,6 +1543,22 @@ function AppointmentListPanel({ mode, onNavigate, onSelectPatient }) {
           </button>
         </div>
       </div>
+
+      {mode === 'all' ? (
+        <div className="reception-appointment-tabs reception-appointment-tabs--scope" aria-label="Lọc nhanh danh sách lịch hẹn">
+          {LIST_SCOPE_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={listScope === tab.key ? 'is-active' : ''}
+              onClick={() => setListScopeFilter(tab.key)}
+            >
+              <span>{tab.label}</span>
+              <small>{tab.hint}</small>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {mode === 'today' ? (
         <div className="reception-appointment-tabs">
@@ -1730,8 +1810,8 @@ function AppointmentTable({
             </label>
 
             <div className="reception-appointment-row__time">
-              <strong>{formatTime(item.appointment_time)}</strong>
-              <span>{formatDate(item.appointment_time)}</span>
+              <strong>{formatTime(getAppointmentTime(item))}</strong>
+              <span>{formatDate(getAppointmentTime(item))}</span>
               {isLateAppointment(item) ? <em className="reception-late-note">Trễ giờ</em> : null}
             </div>
 
@@ -1840,15 +1920,15 @@ function AppointmentTimeline({ items, capabilities, actionBusy, onOpenDetail, on
     <div className="reception-timeline-list">
       {items
         .slice()
-        .sort((a, b) => new Date(a.appointment_time).getTime() - new Date(b.appointment_time).getTime())
+        .sort((a, b) => new Date(getAppointmentTime(a)).getTime() - new Date(getAppointmentTime(b)).getTime())
         .map((item) => {
           const appointmentId = getAppointmentId(item);
           const cap = capabilities[appointmentId] || {};
           return (
             <div key={appointmentId} className={`reception-timeline-item ${isLateAppointment(item) ? 'is-late' : ''}`}>
               <div className="reception-timeline-item__time">
-                <strong>{formatTime(item.appointment_time)}</strong>
-                <span>{isLateAppointment(item) ? 'Trễ giờ' : formatDate(item.appointment_time)}</span>
+                <strong>{formatTime(getAppointmentTime(item))}</strong>
+                <span>{isLateAppointment(item) ? 'Trễ giờ' : formatDate(getAppointmentTime(item))}</span>
               </div>
               <div className="reception-timeline-item__body">
                 <div>
@@ -1911,7 +1991,7 @@ function AppointmentDetailDrawer({ state, onClose, onAction, onSelectPatient }) 
         <>
           <div className="reception-detail-grid">
             <div><span>Mã lịch</span><strong>{appointment.appointment_id?.slice(-8).toUpperCase()}</strong></div>
-            <div><span>Thời gian</span><strong>{formatDateTime(appointment.appointment_time)}</strong></div>
+            <div><span>Thời gian</span><strong>{formatDateTime(getAppointmentTime(appointment))}</strong></div>
             <div><span>Bệnh nhân</span><strong>{appointment.patient_name || '--'}</strong></div>
             <div><span>SĐT</span><strong>{appointment.patient_phone || '--'}</strong></div>
             <div><span>Bác sĩ</span><strong>{appointment.doctor_name || '--'}</strong></div>

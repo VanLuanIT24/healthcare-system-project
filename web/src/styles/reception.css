@@ -3023,6 +3023,22 @@
   box-shadow: 0 12px 24px rgba(30, 121, 255, 0.18);
 }
 
+.reception-appointment-tabs--scope button {
+  min-width: 142px;
+  min-height: 52px;
+  display: grid;
+  align-content: center;
+  gap: 0.12rem;
+  text-align: left;
+}
+
+.reception-appointment-tabs--scope button small {
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 720;
+  opacity: 0.72;
+}
+
 .reception-appointment-alert {
   display: flex;
   align-items: flex-start;
@@ -3859,36 +3875,71 @@
 
 .reception-patient-stepper {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.8rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.9rem;
 }
 
-.reception-patient-stepper > div {
+.reception-patient-stepper > button {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   min-width: 0;
+  min-height: 66px;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(194, 216, 243, 0.78);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, rgba(247, 252, 255, 0.96));
+  color: var(--reception-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(88, 121, 170, 0.07);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, background 160ms ease;
 }
 
-.reception-patient-stepper > div > span {
+.reception-patient-stepper > button:hover {
+  border-color: rgba(16, 180, 207, 0.36);
+  box-shadow: 0 14px 28px rgba(88, 121, 170, 0.12);
+  transform: translateY(-1px);
+}
+
+.reception-patient-stepper > button > span {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   border: 1px solid rgba(193, 216, 243, 0.95);
   color: var(--reception-text);
   background: rgba(246, 250, 255, 0.98);
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   font-weight: 950;
 }
 
-.reception-patient-stepper > div.is-active > span {
-  border-color: #1d7ef4;
+.reception-patient-stepper > button.is-active {
+  border-color: rgba(16, 180, 207, 0.48);
+  background: linear-gradient(180deg, #ffffff, #ecfffb);
+  box-shadow: 0 16px 30px rgba(16, 180, 207, 0.14);
+}
+
+.reception-patient-stepper > button.is-active > span {
+  border-color: #10a58f;
   color: #ffffff;
-  background: #1d7ef4;
+  background: linear-gradient(135deg, #10a58f, #10b4cf);
+}
+
+.reception-patient-stepper > button.is-done {
+  border-color: rgba(16, 165, 143, 0.24);
+  background: linear-gradient(180deg, #ffffff, #f0fff9);
+}
+
+.reception-patient-stepper > button.is-done > span {
+  border-color: rgba(16, 165, 143, 0.28);
+  color: #087f6f;
+  background: rgba(16, 165, 143, 0.12);
 }
 
 .reception-patient-stepper strong,
@@ -8786,23 +8837,53 @@
 }
 
 .reception-patient-admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
   margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.55rem;
+  border-radius: 18px;
+  border: 1px solid rgba(194, 216, 243, 0.72);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 16px 34px rgba(88, 121, 170, 0.08);
 }
 
-.reception-patient-admin-tabs button {
+.reception-patient-admin-tabs .reception-segmented-tabs__item {
+  min-height: 42px;
+  flex: 1 1 150px;
   gap: 0.4rem;
+  padding: 0.52rem 0.85rem;
+  border-radius: 999px;
+  border-color: rgba(193, 216, 243, 0.7);
+  background: rgba(248, 252, 255, 0.9);
+  color: var(--reception-text);
+  font-size: 0.94rem;
+  justify-content: center;
+}
+
+.reception-patient-admin-tabs .reception-segmented-tabs__item.is-active {
+  color: #067a8a;
+  border-color: rgba(16, 180, 207, 0.32);
+  background: linear-gradient(180deg, #ffffff, #eefcff);
+  box-shadow: 0 10px 24px rgba(16, 180, 207, 0.12);
 }
 
 .reception-patient-admin-tabs span {
   display: inline-flex;
-  min-width: 22px;
-  height: 22px;
+  min-width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: rgba(23, 49, 95, 0.08);
+  background: rgba(23, 49, 95, 0.09);
   font-size: 0.78rem;
   font-weight: 900;
+}
+
+.reception-patient-admin-tabs .reception-segmented-tabs__item.is-active span {
+  color: #ffffff;
+  background: linear-gradient(135deg, #10a58f, #10b4cf);
 }
 
 .reception-patient-search-layout,
