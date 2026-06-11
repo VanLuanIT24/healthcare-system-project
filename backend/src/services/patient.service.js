@@ -36,6 +36,7 @@ const {
   QueueTicket,
   Specimen,
   User,
+  DoctorProfile,
 } = require('../models');
 const { PERMISSION } = require('../constants/permissions');
 const {
@@ -2733,18 +2734,23 @@ async function getPatientEncounterHistory(patientId, query = {}, actor = {}) {
 
   const doctorIds = [...new Set(items.map((item) => toId(item.attending_doctor_id)).filter(Boolean))];
   const departmentIds = [...new Set(items.map((item) => toId(item.department_id)).filter(Boolean))];
-  const [doctors, departments] = await Promise.all([
-    doctorIds.length ? User.find({ _id: { $in: doctorIds }, is_deleted: false }).select('full_name employee_code').lean() : [],
+  const [doctors, departments, doctorProfiles] = await Promise.all([
+    doctorIds.length ? User.find({ _id: { $in: doctorIds }, is_deleted: false }).select('full_name employee_code avatar_url').lean() : [],
     departmentIds.length ? Department.find({ _id: { $in: departmentIds }, is_deleted: false }).select('department_name department_code').lean() : [],
+    doctorIds.length
+      ? DoctorProfile.find({ user_id: { $in: doctorIds }, is_deleted: false }).select('user_id avatar_url').lean()
+      : [],
   ]);
   const doctorMap = new Map(doctors.map((item) => [toId(item._id), item]));
   const departmentMap = new Map(departments.map((item) => [toId(item._id), item]));
+  const doctorProfileMap = new Map(doctorProfiles.map((item) => [toId(item.user_id), item]));
 
   return {
     patient_id: toId(patient._id),
     items: items.map((item) => {
       const doctor = doctorMap.get(toId(item.attending_doctor_id));
       const department = departmentMap.get(toId(item.department_id));
+      const doctorProfile = doctorProfileMap.get(toId(item.attending_doctor_id));
 
       return {
         encounter_id: toId(item._id),
@@ -2755,6 +2761,7 @@ async function getPatientEncounterHistory(patientId, query = {}, actor = {}) {
         attending_doctor_id: toId(item.attending_doctor_id),
         doctor_id: toId(item.attending_doctor_id),
         doctor_name: doctor?.full_name || null,
+        doctor_avatar_url: doctorProfile?.avatar_url || doctor?.avatar_url || null,
         encounter_type: item.encounter_type,
         start_time: item.start_time,
         end_time: item.end_time,

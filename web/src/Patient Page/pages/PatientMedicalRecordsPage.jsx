@@ -90,6 +90,11 @@ function getPersonName(value) {
   return getText(value.full_name || value.name || value.display_name || value.username)
 }
 
+function getPersonAvatar(value) {
+  if (!value || typeof value !== 'object') return ''
+  return getText(value.avatar_url || value.avatar || value.photo_url || value.image_url || value.profile_image)
+}
+
 function getEncounterDoctorName(encounter) {
   return (
     getText(encounter.doctor_name) ||
@@ -100,6 +105,21 @@ function getEncounterDoctorName(encounter) {
     getPersonName(encounter.appointment?.doctor) ||
     getText(encounter.appointment?.doctor_name) ||
     'Bác sĩ đang cập nhật'
+  )
+}
+
+function getEncounterDoctorAvatar(encounter) {
+  return (
+    getText(encounter.doctor_avatar_url) ||
+    getText(encounter.doctor_avatar) ||
+    getText(encounter.avatar_url) ||
+    getPersonAvatar(encounter.doctor) ||
+    getPersonAvatar(encounter.attending_doctor) ||
+    getPersonAvatar(encounter.attending_doctor_id) ||
+    getPersonAvatar(encounter.appointment?.doctor) ||
+    getText(encounter.appointment?.doctor_avatar_url) ||
+    getText(encounter.appointment?.doctor_avatar) ||
+    ''
   )
 }
 
@@ -138,7 +158,7 @@ function mapEncounter(encounter, index) {
     dateParts,
     time: dateParts.time,
     fullDate: dateParts.full,
-    avatar: getDoctorAvatar(doctor),
+    avatar: getEncounterDoctorAvatar(encounter) || getDoctorAvatar(doctor),
     recordCode: encounter.encounter_code || encounter.visit_code || `VIS-${index + 1}`,
   }
 }
