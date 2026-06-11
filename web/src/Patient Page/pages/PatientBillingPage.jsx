@@ -174,6 +174,7 @@ export default function PatientBillingPage({
   const totalPaid = summarizeBillingAmount(billingSummary, 'payments')
   const currentMethod = paymentMethods.find((method) => method.id === selectedMethod) || paymentMethods[0]
   const isMomoSandbox = selectedMethod === 'e-wallet'
+  const isCounterPayment = selectedMethod === 'over-counter'
   const momoCardDigits = digitsOnly(momoSandboxForm.cardNumber)
   const momoWalletDigits = digitsOnly(momoSandboxForm.walletPhone)
   const momoOtpVerified = !isMomoSandbox || (momoSandboxOtp && momoSandboxForm.otp === momoSandboxOtp)
@@ -183,6 +184,12 @@ export default function PatientBillingPage({
   const hasPaymentIntent = Boolean(paymentIntent)
   const paymentCompleted = ['succeeded', 'completed', 'paid'].includes(paymentIntent?.status)
     || (paymentFeedback?.type === 'success' && paymentFeedback?.message?.includes('thành công'))
+  const counterPaymentRequested = isCounterPayment && Boolean(paymentIntent) && !paymentCompleted
+  const paymentIntentBadge = isCounterPayment ? 'Tại quầy' : isMomoSandbox ? 'MoMo' : 'QR'
+  const paymentActionDisabled = !canStartDemoPayment || paymentBusy || paymentCompleted || counterPaymentRequested
+  const paymentSecurityText = isCounterPayment
+    ? 'Thanh toán tại quầy sẽ được thu ngân xác nhận trực tiếp. Vui lòng cung cấp mã giao dịch khi đến quầy.'
+    : `Chế độ demo dùng để kiểm thử báo cáo, không trừ tiền thật. Phương thức đã chọn: ${currentMethod?.label || 'Thanh toán demo'}.`
   const activePaymentStep = !hasSelectedPayableItem ? 1 : !hasSelectedMethod ? 2 : hasPaymentIntent || paymentCompleted ? 3 : 2
   const paymentSteps = [
     {
@@ -288,9 +295,14 @@ export default function PatientBillingPage({
       const payload = unwrapData(await billingAPI.createMyPaymentIntent(currentItem.id, {
         amount: currentItem.rawAmount,
         provider: providerForMethod(selectedMethod),
-        force_new: isMomoSandbox,
-        payment_note: isMomoSandbox ? `MOMO DEMO ${currentItem.id}` : `DEMO ${currentItem.id}`,
-        metadata: isMomoSandbox ? {
+        force_new: isMomoSandbox || isCounterPayment,
+        payment_note: isCounterPayment
+          ? `THANH TOAN TAI QUAY ${currentItem.id}`
+          : isMomoSandbox ? `MOMO DEMO ${currentItem.id}` : `DEMO ${currentItem.id}`,
+        metadata: isCounterPayment ? {
+          source: 'patient_portal',
+          requested_method: 'over_counter',
+        } : isMomoSandbox ? {
           sandbox: true,
           provider: 'momo',
           wallet_phone_masked: maskPhone(momoSandboxForm.walletPhone),
@@ -302,7 +314,9 @@ export default function PatientBillingPage({
       setQrImageFailed(false)
       setPaymentFeedback({
         type: 'success',
-        message: isMomoSandbox
+        message: isCounterPayment
+          ? 'Đã đăng ký thanh toán tại quầy. Vui lòng đưa mã giao dịch cho thu ngân để hoàn tất.'
+          : isMomoSandbox
           ? 'Đã tạo giao dịch MoMo. Bấm xác nhận để ghi nhận thanh toán và sinh biên lai.'
           : 'Đã tạo giao dịch thử nghiệm. Bạn có thể giả lập thanh toán để hoàn tất.',
       })
@@ -314,6 +328,7 @@ export default function PatientBillingPage({
   }
 
   async function handleConfirmDemoPayment() {
+    if (isCounterPayment) return
     const intentId = paymentIntent?.payment_intent_id || paymentIntent?._id || paymentIntent?.id
     if (!intentId || paymentBusy) return
 
@@ -716,16 +731,16 @@ export default function PatientBillingPage({
               ) : null}
               {paymentIntent ? (
                 <div className="pb-demo-payment-panel">
-                  <span className="pb-demo-badge">MoMo</span>
+                  <span className="pb-demo-badge">{paymentIntentBadge}</span>
                   <div>
                     <span>Mã giao dịch</span>
                     <strong>{paymentIntent.intent_code || paymentIntent.payment_intent_id}</strong>
                   </div>
                   <div>
-                    <span>Nội dung CK</span>
+                    <span>{isCounterPayment ? 'Mã đưa cho thu ngân' : 'Nội dung CK'}</span>
                     <strong>{paymentIntent.payment_note || `DEMO ${currentItem.id}`}</strong>
                   </div>
-                  {paymentIntent.qr_image_url && !qrImageFailed ? (
+                  {!isCounterPayment && paymentIntent.qr_image_url && !qrImageFailed ? (
                     <img
                       src={paymentIntent.qr_image_url}
                       alt="QR thanh toán thử nghiệm"
@@ -733,9 +748,13 @@ export default function PatientBillingPage({
                     />
                   ) : (
                     <div className="pb-demo-qr-fallback">
-                      <PatientIcon name="qr_code_2" aria-hidden="true" />
-                      <strong>{isMomoSandbox ? 'QR MoMo chưa cấu hình' : 'QR chưa có ảnh'}</strong>
-                      <span>{paymentIntent.qr_payload || paymentIntent.qr_image_url || paymentIntent.payment_note || 'Có thể tiếp tục xác nhận bằng OTP.'}</span>
+                      <PatientIcon name={isCounterPayment ? 'groups' : 'qr_code_2'} aria-hidden="true" />
+                      <strong>{isCounterPayment ? 'Đã tạo yêu cầu tại quầy' : isMomoSandbox ? 'QR MoMo chưa cấu hình' : 'QR chưa có ảnh'}</strong>
+                      <span>
+                        {isCounterPayment
+                          ? 'Mang mã giao dịch này đến quầy thu ngân để nhân viên xác nhận thanh toán.'
+                          : paymentIntent.qr_payload || paymentIntent.qr_image_url || paymentIntent.payment_note || 'Có thể tiếp tục xác nhận bằng OTP.'}
+                      </span>
                     </div>
                   )}
                   {paymentReceipt ? (
@@ -749,19 +768,21 @@ export default function PatientBillingPage({
               <button
                 className="pb-btn-primary pb-btn-full pb-btn-pay"
                 type="button"
-                disabled={!canStartDemoPayment || paymentBusy || paymentCompleted}
-                onClick={paymentIntent ? handleConfirmDemoPayment : handleCreateDemoPayment}
+                disabled={paymentActionDisabled}
+                onClick={paymentIntent && !isCounterPayment ? handleConfirmDemoPayment : handleCreateDemoPayment}
               >
-                <PatientIcon name={paymentIntent ? 'task_alt' : isMomoSandbox ? 'account_balance_wallet' : 'qr_code_scanner'} aria-hidden="true" className="pb-btn-icon" />
+                <PatientIcon name={paymentIntent ? 'task_alt' : isCounterPayment ? 'groups' : isMomoSandbox ? 'account_balance_wallet' : 'qr_code_scanner'} aria-hidden="true" className="pb-btn-icon" />
                 {!canStartDemoPayment
                   ? 'Chưa có hóa đơn để thanh toán'
                   : paymentBusy
                   ? 'Đang xử lý...'
+                  : counterPaymentRequested
+                    ? 'Đã đăng ký tại quầy'
                   : paymentCompleted
-                    ? 'Đã thanh toán MoMo'
+                    ? isCounterPayment ? 'Đã xác nhận tại quầy' : isMomoSandbox ? 'Đã thanh toán MoMo' : 'Đã thanh toán'
                   : paymentIntent
                     ? isMomoSandbox ? 'Xác nhận thanh toán MoMo' : 'Giả lập đã thanh toán'
-                    : isMomoSandbox ? 'Tạo giao dịch MoMo' : 'Tạo thanh toán thử nghiệm'}
+                    : isCounterPayment ? 'Đăng ký thanh toán tại quầy' : isMomoSandbox ? 'Tạo giao dịch MoMo' : 'Tạo thanh toán thử nghiệm'}
               </button>
               {(paymentCompleted || paymentReceipt) && onOpenHistory ? (
                 <button className="pb-btn-outline pb-btn-full pb-receipt-link" type="button" onClick={() => onOpenHistory()}>
@@ -769,7 +790,7 @@ export default function PatientBillingPage({
                 </button>
               ) : null}
               <p className="pb-security-text">
-                Chế độ demo dùng để kiểm thử báo cáo, không trừ tiền thật. Phương thức đã chọn: {currentMethod?.label || 'Thanh toán demo'}.
+                {paymentSecurityText}
               </p>
             </div>
           </div>
