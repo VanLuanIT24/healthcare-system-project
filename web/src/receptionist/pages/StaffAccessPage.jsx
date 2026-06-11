@@ -30,6 +30,7 @@ import {
   getRememberedStaffWorkspace,
   getStaffActorName,
   rememberStaffWorkspace,
+  resolveStaffLandingPath,
   setActiveStaffWorkspace,
 } from '../workspaceAccess';
 
@@ -65,6 +66,8 @@ export function StaffAccessPage() {
   const availableWorkspaces = useMemo(() => getAccessibleStaffWorkspaces(auth), [auth]);
   const activeWorkspace = useMemo(() => getCurrentActiveStaffWorkspace(auth), [auth]);
   const rememberedWorkspace = useMemo(() => getRememberedStaffWorkspace(), []);
+  const staffRoles = auth?.user?.roles || auth?.roles || [];
+  const isSuperAdmin = Array.isArray(staffRoles) && staffRoles.includes('super_admin');
   const rememberedWorkspaceKey = availableWorkspaces.some((workspace) => workspace.key === rememberedWorkspace?.key)
     ? rememberedWorkspace?.key
     : '';
@@ -82,6 +85,10 @@ export function StaffAccessPage() {
 
   if (availableWorkspaces.length === 0) {
     return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (auth?.user?.must_change_password || !isSuperAdmin) {
+    return <Navigate to={resolveStaffLandingPath(auth)} replace />;
   }
 
   function handleLogout() {

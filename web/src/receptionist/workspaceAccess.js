@@ -233,6 +233,29 @@ const STAFF_WORKSPACE_DEFINITIONS = [
   },
 ];
 
+const ROLE_PREFERRED_WORKSPACE_KEYS = [
+  { roles: ['admin', 'manager'], workspaceKey: 'admin' },
+  { roles: ['doctor'], workspaceKey: 'doctor' },
+  { roles: ['nurse'], workspaceKey: 'nurse' },
+  { roles: ['receptionist'], workspaceKey: 'reception' },
+  { roles: ['scheduler', 'department_head', 'medical_record_staff'], workspaceKey: 'scheduling' },
+  { roles: ['pharmacist', 'inventory_staff'], workspaceKey: 'pharmacy' },
+  { roles: ['lab_technician', 'lab_manager', 'radiologist', 'imaging_technician', 'procedure_staff'], workspaceKey: 'lab' },
+  { roles: ['cashier', 'billing_staff', 'insurance_staff'], workspaceKey: 'billing' },
+];
+
+const FALLBACK_WORKSPACE_KEY_PRIORITY = [
+  'doctor',
+  'nurse',
+  'reception',
+  'scheduling',
+  'pharmacy',
+  'lab',
+  'billing',
+  'reports',
+  'admin',
+];
+
 function safeReadPreference() {
   try {
     const raw = localStorage.getItem(STAFF_WORKSPACE_PREFERENCE_KEY);
@@ -299,13 +322,24 @@ function canAccessWorkspace(auth = {}, workspace) {
 
 function getRolePreferredStaffWorkspace(auth = {}, accessible = []) {
   const roles = getStaffRoles(auth);
-  const hasAdminRole = roles.includes('super_admin') || roles.includes('admin');
 
-  if (!hasAdminRole && roles.includes('doctor')) {
-    return accessible.find((workspace) => workspace.key === 'doctor') || null;
+  for (const preference of ROLE_PREFERRED_WORKSPACE_KEYS) {
+    if (!hasAnyRole(roles, preference.roles)) continue;
+
+    const workspace = accessible.find((item) => item.key === preference.workspaceKey);
+    if (workspace) return workspace;
   }
 
   return null;
+}
+
+function getFallbackStaffWorkspace(accessible = []) {
+  for (const workspaceKey of FALLBACK_WORKSPACE_KEY_PRIORITY) {
+    const workspace = accessible.find((item) => item.key === workspaceKey);
+    if (workspace) return workspace;
+  }
+
+  return accessible[0] || null;
 }
 
 function withWorkspaceFlags(auth = {}, workspace) {
@@ -416,13 +450,18 @@ export function resolveStaffLandingPath(auth = readStoredAuth(), options = {}) {
   const accessible = getAccessibleStaffWorkspaces(auth);
   if (!accessible.length) return '/unauthorized';
 
+  const roles = getStaffRoles(auth);
+  if (roles.includes('super_admin') && !options.forceWorkspaceRedirect) {
+    return '/staff/select-workspace';
+  }
+
   const rolePreferredWorkspace = getRolePreferredStaffWorkspace(auth, accessible);
   if (rolePreferredWorkspace) return rolePreferredWorkspace.path;
 
   const targetWorkspace = resolveStaffWorkspaceTarget(auth, options);
   if (targetWorkspace) return targetWorkspace.path;
 
-  return '/staff/select-workspace';
+  return getFallbackStaffWorkspace(accessible)?.path || '/unauthorized';
 }
 
 export function canAccessStaffPath(auth = readStoredAuth(), pathname = '') {
@@ -434,15 +473,20 @@ export function canAccessStaffPath(auth = readStoredAuth(), pathname = '') {
 
   if (
     pathname === '/staff/login'
-    || pathname === '/staff/access'
-    || pathname === '/staff/select-workspace'
-    || pathname.startsWith('/staff/select-workspace/')
     || pathname === '/staff/overview'
     || pathname === '/staff/change-password'
     || pathname.startsWith('/staff/change-password')
     || pathname === '/unauthorized'
   ) {
     return true;
+  }
+
+  if (
+    pathname === '/staff/access'
+    || pathname === '/staff/select-workspace'
+    || pathname.startsWith('/staff/select-workspace/')
+  ) {
+    return roles.includes('super_admin');
   }
 
   if (pathname === '/super-admin/access' || pathname.startsWith('/super-admin/access/')) {
