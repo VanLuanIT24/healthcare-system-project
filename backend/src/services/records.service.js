@@ -510,6 +510,8 @@ async function assertMedicalRecordAccess(record, actor = {}, action = 'read', se
   if (action === 'void' && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.VOID)) return true;
   if (action === 'export' && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.EXPORT)) return true;
   if (action === 'release' && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.RELEASE_TO_PATIENT)) return true;
+  if (action === 'release' && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.FINALIZE_OWN)
+    && (sameId(context.encounter?.attending_doctor_id, actor.userId) || sameId(context.admission?.attending_doctor_id, actor.userId))) return true;
   throw createError('Bạn không có quyền truy cập medical record này.', 403);
 }
 
@@ -677,7 +679,11 @@ async function getMedicalRecordDetail(recordId, actor = {}) {
     ...record,
     attachments: attachments.map((attachment) => sanitizeAttachment(attachment)),
     related_summary,
-    allowed_actions: buildMedicalRecordAllowedActions(normalizedRecord, actor),
+    allowed_actions: buildMedicalRecordAllowedActions({
+      ...normalizedRecord,
+      encounter: record.encounter_id,
+      admission: record.admission_id,
+    }, actor),
   };
 }
 
@@ -688,13 +694,16 @@ function buildMedicalRecordAllowedActions(record, actor = {}) {
   if (isRelativeActor(actor)) {
     return { can_export: record.released_to_patient && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.RELATIVE_READ_RELEASED_IF_AUTHORIZED) };
   }
+  const ownRecord = sameId(record.encounter?.attending_doctor_id, actor.userId) || sameId(record.admission?.attending_doctor_id, actor.userId);
   return {
     can_update: [MEDICAL_RECORD_STATUS.DRAFT, MEDICAL_RECORD_STATUS.ACTIVE].includes(record.status) && hasAnyPermission(actor, [PERMISSION.MEDICAL_RECORDS.UPDATE, PERMISSION.MEDICAL_RECORDS.AMEND]),
     can_finalize: [MEDICAL_RECORD_STATUS.DRAFT, MEDICAL_RECORD_STATUS.ACTIVE].includes(record.status) && hasAnyPermission(actor, [PERMISSION.MEDICAL_RECORDS.FINALIZE, PERMISSION.MEDICAL_RECORDS.FINALIZE_BY_POLICY, PERMISSION.MEDICAL_RECORDS.FINALIZE_OWN]),
     can_seal: record.status === MEDICAL_RECORD_STATUS.FINALIZED && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.SEAL),
     can_archive: [MEDICAL_RECORD_STATUS.FINALIZED, MEDICAL_RECORD_STATUS.SEALED].includes(record.status) && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.ARCHIVE),
     can_void: ![MEDICAL_RECORD_STATUS.VOIDED, MEDICAL_RECORD_STATUS.ARCHIVED].includes(record.status) && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.VOID),
-    can_release: FINALIZED_RECORD_STATUSES.includes(record.status) && hasPermission(actor, PERMISSION.MEDICAL_RECORDS.RELEASE_TO_PATIENT),
+    can_release: FINALIZED_RECORD_STATUSES.includes(record.status)
+      && (hasPermission(actor, PERMISSION.MEDICAL_RECORDS.RELEASE_TO_PATIENT)
+        || (hasPermission(actor, PERMISSION.MEDICAL_RECORDS.FINALIZE_OWN) && ownRecord)),
     can_export: hasPermission(actor, PERMISSION.MEDICAL_RECORDS.EXPORT),
     can_upload_attachment: ![MEDICAL_RECORD_STATUS.SEALED, MEDICAL_RECORD_STATUS.ARCHIVED, MEDICAL_RECORD_STATUS.VOIDED].includes(record.status) && hasAnyPermission(actor, [PERMISSION.ATTACHMENTS.UPLOAD, PERMISSION.ATTACHMENTS.CREATE]),
   };

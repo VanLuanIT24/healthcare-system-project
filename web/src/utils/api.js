@@ -36,9 +36,16 @@ export async function request(
     body: body ? JSON.stringify(body) : undefined,
   }
 
-  const response = auth
-    ? await fetchWithAuth(url, { ...requestOptions, skipRefresh })
-    : await fetch(url, requestOptions)
+  let response
+  try {
+    response = auth
+      ? await fetchWithAuth(url, { ...requestOptions, skipRefresh })
+      : await fetch(url, requestOptions)
+  } catch (error) {
+    const apiError = new Error('Không kết nối được máy chủ. Kiểm tra backend/API rồi thử lại.')
+    apiError.cause = error
+    throw apiError
+  }
 
   let payload = null
   try {

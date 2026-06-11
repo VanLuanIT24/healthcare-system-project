@@ -73,6 +73,7 @@ const QUEUE_CAN_START_ENCOUNTER_STATUSES = [
 ];
 
 const APPOINTMENT_CAN_CREATE_ENCOUNTER_STATUSES = [
+  APPOINTMENT_STATUS.CONFIRMED,
   APPOINTMENT_STATUS.CHECKED_IN,
   APPOINTMENT_STATUS.IN_CONSULTATION,
 ];
@@ -477,7 +478,7 @@ async function validateEncounterCreation(payload, actor = {}, options = {}) {
     if (!sameId(appointment.doctor_id, doctorId)) throw createError('Appointment không thuộc bác sĩ này.', 409);
     if (!sameId(appointment.department_id, departmentId)) throw createError('Appointment không thuộc department này.', 409);
     if (!APPOINTMENT_CAN_CREATE_ENCOUNTER_STATUSES.includes(appointment.status)) {
-      throw createError('Appointment phải checked_in hoặc in_consultation mới tạo encounter.', 409);
+      throw createError('Appointment phải confirmed, checked_in hoặc in_consultation mới tạo encounter.', 409);
     }
     if (queueTicket?.appointment_id && !sameId(queueTicket.appointment_id, appointment._id)) {
       throw createError('Queue ticket và appointment không khớp.', 409);
@@ -534,6 +535,29 @@ function resolveInitialEncounterStatus(payload, appointment, queueTicket) {
   return ENCOUNTER_STATUS.PLANNED;
 }
 
+function advanceAppointmentForEncounter(appointment, targetEncounterStatus, actor) {
+  if (!appointment) return false;
+
+  if (targetEncounterStatus === ENCOUNTER_STATUS.IN_PROGRESS) {
+    if ([APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.CHECKED_IN].includes(appointment.status)) {
+      appointment.status = APPOINTMENT_STATUS.IN_CONSULTATION;
+      appointment.checked_in_at = appointment.checked_in_at || new Date();
+      appointment.updated_by = actor?.userId;
+      return true;
+    }
+    return false;
+  }
+
+  if (targetEncounterStatus === ENCOUNTER_STATUS.ARRIVED && appointment.status === APPOINTMENT_STATUS.CONFIRMED) {
+    appointment.status = APPOINTMENT_STATUS.CHECKED_IN;
+    appointment.checked_in_at = appointment.checked_in_at || new Date();
+    appointment.updated_by = actor?.userId;
+    return true;
+  }
+
+  return false;
+}
+
 async function createEncounter(payload, actor, requestMeta = {}, options = {}) {
   let createdEncounterId = null;
 
@@ -565,9 +589,7 @@ async function createEncounter(payload, actor, requestMeta = {}, options = {}) {
 
     if (appointment) {
       const appointmentDoc = await withSession(Appointment.findById(appointment._id), session);
-      if (initialStatus === ENCOUNTER_STATUS.IN_PROGRESS && appointmentDoc.status === APPOINTMENT_STATUS.CHECKED_IN) {
-        appointmentDoc.status = APPOINTMENT_STATUS.IN_CONSULTATION;
-        appointmentDoc.updated_by = actor?.userId;
+      if (advanceAppointmentForEncounter(appointmentDoc, initialStatus, actor)) {
         await appointmentDoc.save(sessionOptions(session));
       }
     }
@@ -745,7 +767,7 @@ async function linkAppointmentToEncounter(encounterId, appointmentId, actor, req
   if (!sameId(appointment.doctor_id, encounter.attending_doctor_id)) throw createError('Appointment và encounter khác bác sĩ.', 409);
   if (!sameId(appointment.department_id, encounter.department_id)) throw createError('Appointment và encounter khác department.', 409);
   if (!APPOINTMENT_CAN_CREATE_ENCOUNTER_STATUSES.includes(appointment.status)) {
-    throw createError('Appointment phải checked_in hoặc in_consultation mới link encounter.', 409);
+    throw createError('Appointment phải confirmed, checked_in hoặc in_consultation mới link encounter.', 409);
   }
 
   const existing = await Encounter.findOne({
@@ -758,6 +780,13 @@ async function linkAppointmentToEncounter(encounterId, appointmentId, actor, req
   encounter.appointment_id = appointment._id;
   encounter.updated_by = actor?.userId;
   await encounter.save();
+
+  const appointmentTargetStatus = encounter.status === ENCOUNTER_STATUS.IN_PROGRESS
+    ? ENCOUNTER_STATUS.IN_PROGRESS
+    : ENCOUNTER_STATUS.ARRIVED;
+  if (advanceAppointmentForEncounter(appointment, appointmentTargetStatus, actor)) {
+    await appointment.save();
+  }
 
   await QueueTicket.updateMany(
     { appointment_id: appointment._id },
@@ -1068,9 +1097,7 @@ async function startEncounter(encounterId, actor, requestMeta = {}) {
 
     if (encounter.appointment_id) {
       const appointment = await withSession(Appointment.findById(encounter.appointment_id), session);
-      if (appointment && appointment.status === APPOINTMENT_STATUS.CHECKED_IN) {
-        appointment.status = APPOINTMENT_STATUS.IN_CONSULTATION;
-        appointment.updated_by = actor?.userId;
+      if (advanceAppointmentForEncounter(appointment, ENCOUNTER_STATUS.IN_PROGRESS, actor)) {
         await appointment.save(sessionOptions(session));
       }
     }
@@ -1159,14 +1186,21 @@ async function resumeEncounter(encounterId, actor, requestMeta = {}) {
 }
 
 async function checkEncounterHasSignedConsultation(encounterId) {
-  const signed_consultations_count = await Consultation.countDocuments({
-    encounter_id: encounterId,
-    status: { $in: [CONSULTATION_STATUS.SIGNED, CONSULTATION_STATUS.AMENDED] },
-  });
+  const [consultations_count, signed_consultations_count] = await Promise.all([
+    Consultation.countDocuments({
+      encounter_id: encounterId,
+      status: { $ne: CONSULTATION_STATUS.CANCELLED },
+    }),
+    Consultation.countDocuments({
+      encounter_id: encounterId,
+      status: { $in: [CONSULTATION_STATUS.SIGNED, CONSULTATION_STATUS.AMENDED] },
+    }),
+  ]);
 
   return {
     encounter_id: String(encounterId),
     has_signed_consultation: signed_consultations_count > 0,
+    consultations_count,
     signed_consultations_count,
   };
 }
@@ -1230,9 +1264,6 @@ async function checkEncounterCanComplete(encounterId, actor = {}) {
   if (!COMPLETABLE_ENCOUNTER_STATUSES.includes(encounter.status)) {
     blockingReasons.push('Encounter phải in_progress hoặc on_hold mới được hoàn tất.');
   }
-  if (!consultationSummary.has_signed_consultation) {
-    blockingReasons.push('Encounter chưa có consultation đã ký.');
-  }
   if (primaryDiagnosisCount === 0) {
     blockingReasons.push('Encounter chưa có chẩn đoán chính.');
   }
@@ -1254,6 +1285,7 @@ async function checkEncounterCanComplete(encounterId, actor = {}) {
     status: encounter.status,
     blocking_reasons: blockingReasons,
     warnings,
+    consultations_count: consultationSummary.consultations_count,
     signed_consultations_count: consultationSummary.signed_consultations_count,
     primary_diagnoses_count: primaryDiagnosisCount,
     active_diagnoses_count: diagnosisCount,

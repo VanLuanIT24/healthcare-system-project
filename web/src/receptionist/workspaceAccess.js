@@ -297,6 +297,17 @@ function canAccessWorkspace(auth = {}, workspace) {
   );
 }
 
+function getRolePreferredStaffWorkspace(auth = {}, accessible = []) {
+  const roles = getStaffRoles(auth);
+  const hasAdminRole = roles.includes('super_admin') || roles.includes('admin');
+
+  if (!hasAdminRole && roles.includes('doctor')) {
+    return accessible.find((workspace) => workspace.key === 'doctor') || null;
+  }
+
+  return null;
+}
+
 function withWorkspaceFlags(auth = {}, workspace) {
   return {
     ...workspace,
@@ -404,6 +415,9 @@ export function resolveStaffLandingPath(auth = readStoredAuth(), options = {}) {
 
   const accessible = getAccessibleStaffWorkspaces(auth);
   if (!accessible.length) return '/unauthorized';
+
+  const rolePreferredWorkspace = getRolePreferredStaffWorkspace(auth, accessible);
+  if (rolePreferredWorkspace) return rolePreferredWorkspace.path;
 
   const targetWorkspace = resolveStaffWorkspaceTarget(auth, options);
   if (targetWorkspace) return targetWorkspace.path;

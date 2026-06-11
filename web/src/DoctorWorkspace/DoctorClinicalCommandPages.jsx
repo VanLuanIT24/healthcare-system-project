@@ -29,7 +29,9 @@ import {
   doctorWorkspaceAPI,
   encounterAPI,
   getApiErrorMessage,
+  orderAPI,
   patientAPI,
+  prescriptionAPI,
   queueAPI,
   recordsAPI,
   unwrapData,
@@ -79,6 +81,41 @@ function appointmentIdOf(source = {}) {
   return idOf(value.appointment || value.appointment_id || value, ['appointment_id', 'id', '_id'])
 }
 
+function encounterExamPath(encounterId) {
+  return `/doctor/encounters?view=active&encounterId=${encodeURIComponent(encounterId)}`
+}
+
+async function findTodayEncounterForAppointment(appointmentId) {
+  if (!appointmentId) return ''
+  try {
+    const response = await encounterAPI.listToday({ limit: 100 })
+    const payload = dataOf(response, {})
+    const rows = safeArray(payload)
+    const matched = rows.find((encounter) => appointmentIdOf(encounter) === appointmentId)
+    return encounterIdOf(matched)
+  } catch (error) {
+    return ''
+  }
+}
+
+async function startEncounterForExam(encounterId, appointmentId = '') {
+  if (!encounterId) return
+  try {
+    await encounterAPI.start(encounterId)
+    return
+  } catch (startError) {
+    try {
+      await encounterAPI.arrive(encounterId)
+      await encounterAPI.start(encounterId)
+      return
+    } catch (arriveError) {
+      if (!appointmentId) throw arriveError || startError
+      await appointmentAPI.checkIn(appointmentId)
+      await encounterAPI.start(encounterId)
+    }
+  }
+}
+
 function recordIdOf(record = {}) {
   const value = record || {}
   return idOf(value.medical_record || value.record || value, ['record_id', 'medical_record_id', 'id', '_id'])
@@ -109,6 +146,21 @@ function noteIdOf(note = {}) {
   return idOf(value.clinical_note || value.note || value, ['note_id', 'clinical_note_id', 'id', '_id'])
 }
 
+function orderIdOf(order = {}) {
+  const value = order || {}
+  return idOf(value.order || value, ['order_id', 'id', '_id'])
+}
+
+function medicationIdOf(medication = {}) {
+  const value = medication || {}
+  return idOf(value.medication || value, ['medication_id', 'id', '_id'])
+}
+
+function prescriptionIdOf(prescription = {}) {
+  const value = prescription || {}
+  return idOf(value.prescription || value, ['prescription_id', 'id', '_id'])
+}
+
 function problemIdOf(problem = {}) {
   const value = problem || {}
   return idOf(value.problem || value, ['problem_id', 'id', '_id'])
@@ -131,6 +183,314 @@ function patientCode(source = {}) {
   return value.patient_code || patient?.patient_code || patient?.patientCode || patientIdOf(value)
 }
 
+function doctorName(source = {}) {
+  const value = source || {}
+  const doctor = value.doctor || value.attending_doctor || value.attending_doctor_id || value.provider || value.provider_id || {}
+  return value.doctor_name || value.attending_doctor_name || doctor?.full_name || doctor?.fullName || doctor?.name || 'Bác sĩ phụ trách'
+}
+
+function departmentName(source = {}) {
+  const value = source || {}
+  const department = value.department || value.department_id || value.clinic || value.clinic_id || {}
+  return value.department_name || department?.department_name || department?.name || value.specialty_name || '--'
+}
+
+function diagnosisTypeLabel(value) {
+  const normalized = String(value || '').toLowerCase()
+  const labels = {
+    provisional: 'Tạm thời',
+    confirmed: 'Đã xác nhận',
+    confirmed_diagnosis: 'Đã xác nhận',
+    differential: 'Phân biệt',
+    primary: 'Chẩn đoán chính',
+  }
+  return labels[normalized] || value || '--'
+}
+
+function normalizedStatus(value) {
+  return String(value || '').toLowerCase()
+}
+
+function canStartClinicalNote(note = {}) {
+  return ['draft', 'amended'].includes(normalizedStatus(note?.status))
+}
+
+function canSignClinicalNote(note = {}) {
+  return ['draft', 'in_progress', 'amended'].includes(normalizedStatus(note?.status))
+}
+
+function canResolveDiagnosis(diagnosis = {}) {
+  return normalizedStatus(diagnosis?.status || 'active') === 'active'
+}
+
+function canCancelOrder(order = {}) {
+  return ['draft', 'ordered', 'acknowledged', 'in_progress'].includes(normalizedStatus(order?.status))
+}
+
+function canActivatePrescription(prescription = {}) {
+  return normalizedStatus(prescription?.status) === 'draft'
+}
+
+function canCancelPrescription(prescription = {}) {
+  return !['cancelled', 'completed', 'stopped', 'voided'].includes(normalizedStatus(prescription?.status))
+}
+
+function isEncounterCompleted(encounter = {}) {
+  return normalizedStatus(encounter?.status) === 'completed'
+}
+
+function hasSignedClinicalNote(notes = []) {
+  return safeArray(notes).some((note) => normalizedStatus(note.status) === 'signed')
+}
+
+function hasPrimaryDiagnosis(diagnoses = []) {
+  return safeArray(diagnoses).some((diagnosis) => diagnosis?.is_primary && normalizedStatus(diagnosis.status || 'active') === 'active')
+}
+
+function hasAnyOrder(orders = []) {
+  return safeArray(orders).length > 0
+}
+
+function hasAnyPrescription(prescriptions = []) {
+  return safeArray(prescriptions).length > 0
+}
+
+function canCompleteEncounter(readiness = {}) {
+  return Boolean(readiness?.can_complete || readiness?.canComplete || readiness?.allowed || readiness?.ready)
+}
+
+const MEDICATION_SEARCH_ALIASES = {
+  acetaminophen: 'paracetamol',
+  paracatemol: 'paracetamol',
+  paracetemol: 'paracetamol',
+  parcetamol: 'paracetamol',
+  'giam dau': 'paracetamol',
+  'ha sot': 'paracetamol',
+  'so mui': 'cetirizine',
+  'di ung': 'cetirizine',
+  'dau da day': 'omeprazole',
+  'tieu chay': 'oresol',
+  'mat nuoc': 'oresol',
+  'khang sinh': 'amoxicillin',
+}
+
+const MEDICATION_SUGGESTION_CATALOG = [
+  {
+    key: 'paracetamol',
+    label: 'Paracetamol 500mg',
+    search: 'Paracetamol',
+    dosage: '500mg',
+    route: 'uống',
+    frequency: 'Ngày 3 lần khi sốt/đau',
+    duration_days: '3',
+    quantity: '9',
+    unit: 'viên',
+    instructions: 'Uống sau ăn, không dùng quá 4g/ngày.',
+    meta: 'Sốt, đau đầu, đau họng',
+    keywords: ['sốt', 'sot', 'đau', 'dau', 'nhức', 'nhuc', 'đau họng', 'dau hong', 'viêm họng', 'viem hong'],
+  },
+  {
+    key: 'oresol',
+    label: 'Oresol',
+    search: 'Oresol',
+    dosage: '1 gói',
+    route: 'uống',
+    frequency: 'Pha theo hướng dẫn, uống sau mỗi lần tiêu chảy',
+    duration_days: '2',
+    quantity: '6',
+    unit: 'gói',
+    instructions: 'Pha đúng lượng nước theo hướng dẫn trên gói, không pha đặc.',
+    meta: 'Tiêu chảy, nôn, mất nước',
+    keywords: ['tiêu chảy', 'tieu chay', 'nôn', 'non', 'mất nước', 'mat nuoc', 'đi ngoài', 'di ngoai'],
+  },
+  {
+    key: 'cetirizine',
+    label: 'Cetirizine 10mg',
+    search: 'Cetirizine',
+    dosage: '10mg',
+    route: 'uống',
+    frequency: 'Ngày 1 lần buổi tối',
+    duration_days: '5',
+    quantity: '5',
+    unit: 'viên',
+    instructions: 'Có thể gây buồn ngủ, tránh lái xe nếu buồn ngủ.',
+    meta: 'Dị ứng, hắt hơi, sổ mũi',
+    keywords: ['dị ứng', 'di ung', 'mề đay', 'me day', 'ngứa', 'ngua', 'sổ mũi', 'so mui', 'hắt hơi', 'hat hoi'],
+  },
+  {
+    key: 'amoxicillin',
+    label: 'Amoxicillin 500mg',
+    search: 'Amoxicillin',
+    dosage: '500mg',
+    route: 'uống',
+    frequency: 'Ngày 3 lần',
+    duration_days: '5',
+    quantity: '15',
+    unit: 'viên',
+    instructions: 'Chỉ dùng khi bác sĩ xác định cần kháng sinh; hỏi tiền sử dị ứng penicillin.',
+    meta: 'Nhiễm khuẩn nghi ngờ',
+    keywords: ['nhiễm khuẩn', 'nhiem khuan', 'mủ', 'mu', 'viêm amidan', 'viem amidan', 'viêm phổi', 'viem phoi', 'kháng sinh', 'khang sinh'],
+  },
+  {
+    key: 'omeprazole',
+    label: 'Omeprazole 20mg',
+    search: 'Omeprazole',
+    dosage: '20mg',
+    route: 'uống',
+    frequency: 'Ngày 1 lần trước ăn sáng',
+    duration_days: '7',
+    quantity: '7',
+    unit: 'viên',
+    instructions: 'Uống trước ăn sáng 30 phút.',
+    meta: 'Đau thượng vị, trào ngược',
+    keywords: ['đau thượng vị', 'dau thuong vi', 'dạ dày', 'da day', 'ợ nóng', 'o nong', 'trào ngược', 'trao nguoc', 'viêm dạ dày', 'viem da day'],
+  },
+  {
+    key: 'salbutamol',
+    label: 'Salbutamol',
+    search: 'Salbutamol',
+    dosage: '100mcg/liều',
+    route: 'hít',
+    frequency: '1-2 nhát khi khó thở/khò khè',
+    duration_days: '3',
+    quantity: '1',
+    unit: 'bình',
+    instructions: 'Hướng dẫn kỹ thuật xịt; tái khám/cấp cứu nếu khó thở tăng.',
+    meta: 'Khò khè, hen',
+    keywords: ['khò khè', 'kho khe', 'hen', 'khó thở', 'kho tho', 'co thắt phế quản', 'co that phe quan'],
+  },
+  {
+    key: 'metformin',
+    label: 'Metformin 500mg',
+    search: 'Metformin',
+    dosage: '500mg',
+    route: 'uống',
+    frequency: 'Ngày 1 lần sau ăn',
+    duration_days: '30',
+    quantity: '30',
+    unit: 'viên',
+    instructions: 'Dùng sau ăn; kiểm tra chống chỉ định và chức năng thận.',
+    meta: 'Đái tháo đường type 2',
+    keywords: ['đái tháo đường', 'dai thao duong', 'tiểu đường', 'tieu duong', 'glucose', 'hba1c'],
+  },
+  {
+    key: 'losartan',
+    label: 'Losartan 50mg',
+    search: 'Losartan',
+    dosage: '50mg',
+    route: 'uống',
+    frequency: 'Ngày 1 lần',
+    duration_days: '30',
+    quantity: '30',
+    unit: 'viên',
+    instructions: 'Theo dõi huyết áp, kali máu và chức năng thận khi cần.',
+    meta: 'Tăng huyết áp',
+    keywords: ['tăng huyết áp', 'tang huyet ap', 'huyết áp cao', 'huyet ap cao', 'i10'],
+  },
+]
+
+function normalizeMedicationKeyword(value = '') {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function medicationSearchTerms(keyword = '') {
+  const raw = String(keyword || '').trim()
+  const normalized = normalizeMedicationKeyword(raw)
+  return Array.from(new Set([raw, MEDICATION_SEARCH_ALIASES[normalized], normalized].filter(Boolean)))
+}
+
+function medicationDisplayText(medication = {}) {
+  const value = medication?.medication || medication || {}
+  return [
+    value.brand_name,
+    value.generic_name,
+    value.medication_name,
+    value.name,
+    value.strength,
+    value.medication_code,
+  ].filter(Boolean).join(' ')
+}
+
+function collectMedicationClinicalText(workspace = {}, noteForm = {}, diagnosisForm = {}, consultForm = {}) {
+  const fragments = [
+    noteForm.title,
+    noteForm.content,
+    diagnosisForm.icd10_code,
+    diagnosisForm.diagnosis_name,
+    consultForm.chief_complaint,
+    consultForm.assessment,
+    consultForm.plan,
+    ...safeArray(workspace.notes).flatMap((note) => [note.title, note.content, note.note_text, note.soap_subjective, note.soap_assessment, note.plan]),
+    ...safeArray(workspace.diagnoses).flatMap((diagnosis) => [diagnosis.icd10_code, diagnosis.diagnosis_name, diagnosis.description, diagnosis.notes]),
+    ...safeArray(workspace.consultations).flatMap((consultation) => [consultation.chief_complaint, consultation.assessment, consultation.plan]),
+    ...safeArray(workspace.carePlans).flatMap((carePlan) => [carePlan.title, carePlan.goal, carePlan.intervention, carePlan.notes]),
+  ]
+  return fragments.filter(Boolean).join(' ')
+}
+
+function rankMedicationSuggestions(clinicalText = '') {
+  const normalizedText = normalizeMedicationKeyword(clinicalText)
+  const scored = MEDICATION_SUGGESTION_CATALOG.map((suggestion, index) => {
+    const matched = suggestion.keywords.filter((keyword) => normalizedText.includes(normalizeMedicationKeyword(keyword)))
+    return {
+      ...suggestion,
+      score: matched.length,
+      matchedKeywords: matched,
+      fallbackOrder: index,
+    }
+  })
+  const contextual = scored
+    .filter((suggestion) => suggestion.score > 0)
+    .sort((first, second) => second.score - first.score || first.fallbackOrder - second.fallbackOrder)
+  const fallback = scored.filter((suggestion) => !contextual.some((item) => item.key === suggestion.key))
+  return [...contextual, ...fallback].slice(0, 6)
+}
+
+function medicationDisplayName(medication = {}) {
+  const value = medication?.medication || medication || {}
+  return [value.brand_name, value.generic_name || value.medication_name || value.name, value.strength]
+    .filter(Boolean)
+    .join(' ')
+    || value.medication_code
+    || medicationIdOf(value)
+}
+
+function compactClinicalText(value = '', maxLength = 180) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (!text) return '--'
+  return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text
+}
+
+function clinicalNotePreview(note = {}) {
+  return compactClinicalText(note.content || note.note_text || note.soap_subjective || note.soap_assessment || note.plan || note.title)
+}
+
+function orderPreview(order = {}) {
+  return compactClinicalText(order.title || order.order_name || order.test_name || order.procedure_name || order.body_part || order.order_type)
+}
+
+function prescriptionPreview(prescription = {}) {
+  const items = safeArray(prescription.items)
+  if (items.length) {
+    return items.map((item) => compactClinicalText([
+      item.medication_name || medicationDisplayName(item.medication_id || item.medication),
+      item.dose || item.dosage,
+      item.frequency,
+      item.duration_days ? `${item.duration_days} ngày` : '',
+    ].filter(Boolean).join(' · '), 120)).join(' | ')
+  }
+  return compactClinicalText([
+    prescription.medication_name || prescription.prescription_no,
+    prescription.dose || prescription.dosage,
+    prescription.frequency,
+  ].filter(Boolean).join(' · '))
+}
+
 function formatDateTime(value) {
   if (!value) return '--'
   const date = new Date(value)
@@ -140,6 +500,26 @@ function formatDateTime(value) {
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+  }).format(date)
+}
+
+function formatAppointmentTime(value) {
+  if (!value) return '--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--'
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatAppointmentDate(value) {
+  if (!value) return '--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--'
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
   }).format(date)
 }
 
@@ -177,12 +557,18 @@ function statusLabel(status = '') {
     on_hold: 'Tạm dừng',
     completed: 'Hoàn tất',
     cancelled: 'Đã hủy',
-    draft: 'Draft',
-    active: 'Active',
+    draft: 'Bản nháp',
+    active: 'Đang hiệu lực',
     signed: 'Đã ký',
-    final: 'Final',
+    amended: 'Đã chỉnh sửa',
+    resolved: 'Đã xử lý',
+    entered_in_error: 'Nhập sai',
+    final: 'Hoàn tất',
     sealed: 'Đã niêm phong',
-    released: 'Đã release',
+    released: 'Đã công bố',
+    routine: 'Thường quy',
+    urgent: 'Khẩn',
+    stat: 'Cấp cứu',
   }
   return labels[String(status || '').toLowerCase()] || status || 'Chưa rõ'
 }
@@ -251,9 +637,9 @@ function KpiStrip({ items }) {
   )
 }
 
-function ActionButton({ children, onClick, disabled, tone = 'neutral', type = 'button' }) {
+function ActionButton({ children, onClick, disabled, tone = 'neutral', type = 'button', form }) {
   return (
-    <button type={type} className={`dw2-command-button is-${tone}`} onClick={onClick} disabled={disabled}>
+    <button type={type} form={form} className={`dw2-command-button is-${tone}`} onClick={onClick} disabled={disabled}>
       {children}
     </button>
   )
@@ -265,6 +651,111 @@ function Field({ label, children }) {
       <span>{label}</span>
       {children}
     </label>
+  )
+}
+
+function EncounterSummaryRow({ icon: Icon, label, children }) {
+  return (
+    <div className="dw2-encounter-summary-row">
+      <Icon size={15} />
+      <span>{label}</span>
+      <strong>{children || '--'}</strong>
+    </div>
+  )
+}
+
+function EncounterChecklistRow({ icon: Icon, label, done }) {
+  return (
+    <div className="dw2-encounter-check-row">
+      <Icon size={15} />
+      <span>{label}</span>
+      <StatusPill tone={done ? 'success' : 'critical'}>{done ? 'Đã hoàn tất' : 'Chưa hoàn tất'}</StatusPill>
+    </div>
+  )
+}
+
+function MedicalRecordPreviewSection({ title, icon: Icon, children, emptyLabel }) {
+  return (
+    <section className="dw2-record-preview__section">
+      <h4><Icon size={15} /> {title}</h4>
+      <div className="dw2-record-preview__rows">
+        {children || <p className="dw2-record-preview__empty">{emptyLabel || 'Chưa có dữ liệu.'}</p>}
+      </div>
+    </section>
+  )
+}
+
+function MedicalRecordPreview({ record, workspace = {} }) {
+  const notes = safeArray(workspace.notes)
+  const diagnoses = safeArray(workspace.diagnoses)
+  const orders = safeArray(workspace.orders)
+  const prescriptions = safeArray(workspace.prescriptions)
+  const carePlans = safeArray(workspace.carePlans)
+  const consultations = safeArray(workspace.consultations)
+  const vitals = safeArray(workspace.vitals)
+
+  return (
+    <div className="dw2-record-preview">
+      <div className="dw2-record-preview__header">
+        <div>
+          <strong>Tóm tắt hồ sơ trước khi chốt</strong>
+          <small>Xem lại nội dung đã ghi trong lượt khám này trước khi ký/chốt và gửi cho bệnh nhân.</small>
+        </div>
+        <StatusPill tone={recordIdOf(record) ? 'success' : 'warning'}>{recordIdOf(record) ? statusLabel(record.status) : 'Chưa tạo hồ sơ'}</StatusPill>
+      </div>
+      <div className="dw2-record-preview__grid">
+        <MedicalRecordPreviewSection title="Ghi chú lâm sàng" icon={FileText} emptyLabel="Chưa có ghi chú lâm sàng.">
+          {notes.length ? notes.slice(0, 3).map((note) => (
+            <article key={noteIdOf(note)}>
+              <strong>{note.title || note.note_type || 'Ghi chú lâm sàng'}</strong>
+              <small>{statusLabel(note.status)} · {formatDateTime(note.created_at)}</small>
+              <p>{clinicalNotePreview(note)}</p>
+            </article>
+          )) : null}
+        </MedicalRecordPreviewSection>
+        <MedicalRecordPreviewSection title="Chẩn đoán" icon={ClipboardCheck} emptyLabel="Chưa có chẩn đoán.">
+          {diagnoses.length ? diagnoses.slice(0, 4).map((diagnosis) => (
+            <article key={diagnosisIdOf(diagnosis)}>
+              <strong>{diagnosis.diagnosis_name || diagnosis.icd10_code || 'Chẩn đoán'}</strong>
+              <small>{diagnosis.icd10_code || '--'} · {diagnosis.is_primary ? 'Chẩn đoán chính' : diagnosisTypeLabel(diagnosis.diagnosis_type)} · {statusLabel(diagnosis.status || 'active')}</small>
+            </article>
+          )) : null}
+        </MedicalRecordPreviewSection>
+        <MedicalRecordPreviewSection title="Chỉ định" icon={ClipboardList} emptyLabel="Chưa có chỉ định.">
+          {orders.length ? orders.slice(0, 4).map((order) => (
+            <article key={orderIdOf(order)}>
+              <strong>{orderPreview(order)}</strong>
+              <small>{statusLabel(order.order_type)} · {statusLabel(order.priority || 'routine')} · {statusLabel(order.status)}</small>
+            </article>
+          )) : null}
+        </MedicalRecordPreviewSection>
+        <MedicalRecordPreviewSection title="Đơn thuốc" icon={Pill} emptyLabel="Chưa có đơn thuốc.">
+          {prescriptions.length ? prescriptions.slice(0, 4).map((prescription) => (
+            <article key={prescription.prescription_id || prescription.id || prescription._id || prescription.prescription_no}>
+              <strong>{prescription.prescription_no || 'Đơn thuốc'}</strong>
+              <small>{statusLabel(prescription.status)} · {formatDateTime(prescription.created_at)}</small>
+              <p>{prescriptionPreview(prescription)}</p>
+            </article>
+          )) : null}
+        </MedicalRecordPreviewSection>
+        <MedicalRecordPreviewSection title="Sinh hiệu" icon={HeartPulse} emptyLabel="Chưa có sinh hiệu trong lượt khám.">
+          {vitals.length ? vitals.slice(0, 2).map((vital) => (
+            <article key={idOf(vital, ['vital_sign_id', 'id', '_id']) || formatDateTime(vital.recorded_at)}>
+              <strong>HA {vital.systolic_bp || '--'}/{vital.diastolic_bp || '--'} · Mạch {vital.heart_rate || '--'} · SpO2 {vital.spo2 || '--'}%</strong>
+              <small>{formatDateTime(vital.recorded_at || vital.created_at)}</small>
+            </article>
+          )) : null}
+        </MedicalRecordPreviewSection>
+        <MedicalRecordPreviewSection title="Kế hoạch / hội chẩn" icon={ListChecks} emptyLabel="Chưa có kế hoạch hoặc hội chẩn.">
+          {[...carePlans.slice(0, 2), ...consultations.slice(0, 2)].length ? [...carePlans.slice(0, 2), ...consultations.slice(0, 2)].map((item, index) => (
+            <article key={carePlanIdOf(item) || consultationIdOf(item) || index}>
+              <strong>{item.title || item.consultation_no || item.chief_complaint || 'Nội dung theo dõi'}</strong>
+              <small>{statusLabel(item.status)} · {compactClinicalText(item.goal || item.assessment || item.plan || item.intervention, 90)}</small>
+            </article>
+          )) : null}
+        </MedicalRecordPreviewSection>
+      </div>
+    </div>
   )
 }
 
@@ -486,7 +977,7 @@ export function DoctorPatientFlowPage({ item, overview, onNavigate, onRefresh })
 
   const kpis = [
     { label: 'Tổng dòng', value: filteredRows.length, hint: item?.label, tone: 'neutral' },
-    { label: 'Queue active', value: safeArray(overview.queue).length, hint: 'Từ doctor-workspace overview', tone: 'warning' },
+    { label: 'Hàng đợi đang hoạt động', value: safeArray(overview.queue).length, hint: 'Từ tổng quan bác sĩ', tone: 'warning' },
     { label: 'Encounter mở', value: safeArray(overview.active_encounters).length, hint: 'in_progress/on_hold/arrived', tone: 'success' },
     { label: 'Việc cần hoàn tất', value: safeArray(overview.tasks).length, hint: 'Task inbox lâm sàng', tone: 'neutral' },
   ]
@@ -555,7 +1046,7 @@ function readinessItems(readiness = {}) {
   const checklist = safeArray(readiness.checklist)
   if (checklist.length) return checklist
   return [
-    { key: 'note', label: 'Clinical note đã ký', done: !safeArray(readiness.missing).some((item) => String(item).toLowerCase().includes('note')) },
+    { key: 'note', label: 'Ghi chú lâm sàng đã ký', done: !safeArray(readiness.missing).some((item) => String(item).toLowerCase().includes('note')) },
     { key: 'diagnosis', label: 'Có chẩn đoán chính', done: !safeArray(readiness.missing).some((item) => String(item).toLowerCase().includes('chẩn đoán')) },
     { key: 'orders', label: 'Không còn order chờ', done: true },
     { key: 'prescription', label: 'Không còn đơn thuốc draft', done: true },
@@ -576,6 +1067,7 @@ async function loadEncounterWorkspace(encounterId) {
     clinicalAPI.listDiagnoses(encounterId),
     clinicalAPI.listVitalSigns(encounterId),
     encounterAPI.listOrders(encounterId, { limit: 40 }),
+    prescriptionAPI.listByEncounter(encounterId, { limit: 40 }),
     clinicalAPI.listCarePlans({ encounter_id: encounterId, limit: 40 }),
     clinicalAPI.listConsultations({ encounter_id: encounterId, limit: 40 }),
     recordsAPI.getEncounterMedicalRecord(encounterId),
@@ -593,9 +1085,10 @@ async function loadEncounterWorkspace(encounterId) {
     diagnoses: safeArray(value(8, [])),
     vitals: safeArray(value(9, [])),
     orders: safeArray(value(10, [])),
-    carePlans: safeArray(value(11, [])),
-    consultations: safeArray(value(12, [])),
-    record: value(13, null),
+    prescriptions: safeArray(value(11, [])),
+    carePlans: safeArray(value(12, [])),
+    consultations: safeArray(value(13, [])),
+    record: value(14, null),
   }
 }
 
@@ -603,16 +1096,22 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
   const location = useLocation()
   const params = new URLSearchParams(location.search)
   const requestedEncounterId = params.get('encounterId') || ''
+  const requestedAppointmentId = params.get('appointmentId') || ''
   const [selectedEncounterId, setSelectedEncounterId] = useState(requestedEncounterId || encounterIdOf(safeArray(overview.active_encounters)[0] || {}))
+  const [autoOpenedAppointmentId, setAutoOpenedAppointmentId] = useState('')
   const [workspace, setWorkspace] = useState({})
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState({ error: '', success: '' })
   const [noteForm, setNoteForm] = useState({ title: 'SOAP note', content: '' })
   const [diagnosisForm, setDiagnosisForm] = useState({ icd10_code: '', diagnosis_name: '', diagnosis_type: 'provisional', is_primary: true })
+  const [orderForm, setOrderForm] = useState({ order_type: 'lab', title: '', priority: 'routine', instructions: '' })
+  const [prescriptionForm, setPrescriptionForm] = useState({ medication_id: '', medication_name: '', dosage: '', route: 'oral', frequency: '', duration_days: '5', quantity: '1', unit: 'viên', instructions: '' })
+  const [medicationSearch, setMedicationSearch] = useState({ loading: false, error: '', hint: '', items: [] })
   const [vitalForm, setVitalForm] = useState({ temperature: '', heart_rate: '', respiratory_rate: '', systolic_bp: '', diastolic_bp: '', spo2: '', weight: '', height: '' })
   const [carePlanForm, setCarePlanForm] = useState({ title: 'Kế hoạch điều trị', goal: '', intervention: '' })
   const [consultForm, setConsultForm] = useState({ chief_complaint: '', assessment: '', plan: '' })
   const [problemForm, setProblemForm] = useState({ problem_name: '', severity: 'unknown', notes: '' })
+  const [activeExamAction, setActiveExamAction] = useState('note')
 
   useEffect(() => {
     if (requestedEncounterId) setSelectedEncounterId(requestedEncounterId)
@@ -640,6 +1139,13 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
   const patientId = patientIdOf(encounter)
   const readiness = encounter?.readiness || workspace.canComplete || workspace.summary?.readiness || {}
   const currentView = item?.key || 'encounter-active'
+  const isExamWorkflow = currentView === 'encounter-active'
+  const medicationClinicalText = useMemo(
+    () => collectMedicationClinicalText(workspace, noteForm, diagnosisForm, consultForm),
+    [workspace, noteForm.title, noteForm.content, diagnosisForm.icd10_code, diagnosisForm.diagnosis_name, consultForm.chief_complaint, consultForm.assessment, consultForm.plan],
+  )
+  const medicationSuggestions = useMemo(() => rankMedicationSuggestions(medicationClinicalText), [medicationClinicalText])
+  const hasMedicationClinicalContext = Boolean(normalizeMedicationKeyword(medicationClinicalText))
 
   async function runAction(action, successMessage) {
     try {
@@ -660,7 +1166,15 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
       const response = await encounterAPI.createFromQueue(ticketId)
       const payload = dataOf(response, {})
       const encounterId = encounterIdOf(payload.encounter || payload)
-      if (encounterId) setSelectedEncounterId(encounterId)
+      if (encounterId) {
+        try {
+          await startEncounterForExam(encounterId)
+        } catch (error) {
+          // Keep the encounter selected even if another active encounter blocks start.
+        }
+        setSelectedEncounterId(encounterId)
+        onNavigate?.(encounterExamPath(encounterId))
+      }
     }, 'Đã tạo encounter từ queue ticket.')
   }
 
@@ -668,12 +1182,46 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
     const appointmentId = appointmentIdOf(appointment)
     if (!appointmentId) return
     await runAction(async () => {
-      const response = await encounterAPI.createFromAppointment(appointmentId)
+      let response = null
+      let createError = null
+      try {
+        response = await encounterAPI.createFromAppointment(appointmentId)
+      } catch (error) {
+        createError = error
+        try {
+          await appointmentAPI.checkIn(appointmentId)
+        } catch (checkInError) {
+          // Retry create below; if it still fails, recover an existing encounter if possible.
+        }
+        try {
+          response = await encounterAPI.createFromAppointment(appointmentId)
+          createError = null
+        } catch (retryError) {
+          createError = retryError
+        }
+      }
+
       const payload = dataOf(response, {})
-      const encounterId = encounterIdOf(payload.encounter || payload)
-      if (encounterId) setSelectedEncounterId(encounterId)
+      let encounterId = encounterIdOf(payload.encounter || payload)
+      if (!encounterId) encounterId = await findTodayEncounterForAppointment(appointmentId)
+      if (!encounterId && createError) throw createError
+      if (encounterId) {
+        try {
+          await startEncounterForExam(encounterId, appointmentId)
+        } catch (error) {
+          // The note workspace can still open when start is blocked by another active encounter.
+        }
+        setSelectedEncounterId(encounterId)
+        onNavigate?.(encounterExamPath(encounterId))
+      }
     }, 'Đã tạo encounter từ lịch hẹn.')
   }
+
+  useEffect(() => {
+    if (!requestedAppointmentId || requestedEncounterId || autoOpenedAppointmentId === requestedAppointmentId) return
+    setAutoOpenedAppointmentId(requestedAppointmentId)
+    createFromAppointment({ appointment_id: requestedAppointmentId })
+  }, [requestedAppointmentId, requestedEncounterId, autoOpenedAppointmentId])
 
   async function createNote(event) {
     event.preventDefault()
@@ -693,6 +1241,197 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
     if (!selectedEncounterId || !diagnosisForm.diagnosis_name.trim()) return
     await runAction(() => clinicalAPI.createDiagnosis({ encounter_id: selectedEncounterId, ...diagnosisForm }), 'Đã thêm chẩn đoán.')
     setDiagnosisForm({ icd10_code: '', diagnosis_name: '', diagnosis_type: 'provisional', is_primary: false })
+  }
+
+  async function startNote(note) {
+    if (!canStartClinicalNote(note)) return
+    await runAction(() => clinicalAPI.startNote(noteIdOf(note)), 'Đã bắt đầu ghi chú.')
+  }
+
+  async function signNote(note) {
+    if (!canSignClinicalNote(note)) return
+    await runAction(() => clinicalAPI.signNote(noteIdOf(note)), 'Đã ký ghi chú.')
+  }
+
+  async function setDiagnosisPrimary(diagnosis) {
+    if (!canResolveDiagnosis(diagnosis)) return
+    await runAction(() => clinicalAPI.setPrimaryDiagnosis(diagnosisIdOf(diagnosis)), 'Đã đặt làm chẩn đoán chính.')
+  }
+
+  async function resolveDiagnosis(diagnosis) {
+    if (!canResolveDiagnosis(diagnosis)) return
+    await runAction(() => clinicalAPI.resolveDiagnosis(diagnosisIdOf(diagnosis)), 'Đã đánh dấu chẩn đoán là đã xử lý.')
+  }
+
+  async function cancelOrder(order) {
+    const id = orderIdOf(order)
+    if (!id || !canCancelOrder(order)) return
+    await runAction(() => orderAPI.cancel(id, { reason: 'Hủy từ màn hình khám của bác sĩ' }), 'Đã hủy chỉ định.')
+  }
+
+  async function activatePrescription(prescription) {
+    const id = prescriptionIdOf(prescription)
+    if (!id || !canActivatePrescription(prescription)) return
+    await runAction(() => prescriptionAPI.activate(id), 'Đã kích hoạt đơn thuốc. Đơn không còn ở trạng thái bản nháp.')
+  }
+
+  async function cancelPrescription(prescription) {
+    const id = prescriptionIdOf(prescription)
+    if (!id || !canCancelPrescription(prescription)) return
+    await runAction(() => prescriptionAPI.cancel(id, { reason: 'Hủy từ màn hình hoàn tất lượt khám của bác sĩ' }), 'Đã hủy đơn thuốc.')
+  }
+
+  function selectMedicationForPrescription(medication, defaults = {}) {
+    const medicationId = medicationIdOf(medication)
+    if (!medicationId) return
+    setPrescriptionForm((current) => ({
+      ...current,
+      medication_id: medicationId,
+      medication_name: medicationDisplayName(medication),
+      dosage: defaults.dosage || current.dosage || medication.strength || '',
+      route: medication.route_default || defaults.route || current.route || 'uống',
+      frequency: defaults.frequency || current.frequency || '',
+      duration_days: defaults.duration_days || current.duration_days || '1',
+      quantity: defaults.quantity || current.quantity || '1',
+      unit: medication.unit || defaults.unit || current.unit || 'viên',
+      instructions: defaults.instructions || current.instructions || '',
+    }))
+    setMedicationSearch((current) => ({ ...current, error: '', hint: `Đã chọn ${medicationDisplayName(medication)}.` }))
+  }
+
+  async function searchMedicationForPrescription(event, forcedKeyword = '', defaults = {}) {
+    event?.preventDefault()
+    const keyword = String(forcedKeyword || prescriptionForm.medication_name.trim() || prescriptionForm.medication_id.trim()).trim()
+    if (!keyword) {
+      setMedicationSearch({ loading: false, error: 'Nhập tên thuốc để tìm trong danh mục hoặc bấm một thuốc gợi ý.', hint: '', items: [] })
+      return []
+    }
+    setMedicationSearch({ loading: true, error: '', hint: '', items: [] })
+    try {
+      let items = []
+      let matchedTerm = keyword
+      for (const term of medicationSearchTerms(keyword)) {
+        const response = await prescriptionAPI.searchMedications(term, { limit: 8, status: 'active' })
+        items = safeArray(dataOf(response, []))
+        matchedTerm = term
+        if (items.length) break
+      }
+      const correctedTerm = normalizeMedicationKeyword(matchedTerm) !== normalizeMedicationKeyword(keyword)
+      setMedicationSearch({
+        loading: false,
+        error: items.length ? '' : 'Không tìm thấy thuốc trong danh mục. Thử bấm thuốc gợi ý hoặc kiểm tra danh mục thuốc.',
+        hint: items.length && correctedTerm ? `Đã tự sửa tìm kiếm thành "${matchedTerm}".` : '',
+        items,
+      })
+      if (items.length && defaults.autoSelect) selectMedicationForPrescription(items[0], defaults)
+      return items
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Không tìm được danh mục thuốc.')
+      setMedicationSearch({ loading: false, error: message, hint: '', items: [] })
+      return []
+    }
+  }
+
+  async function chooseMedicationSuggestion(suggestion) {
+    setPrescriptionForm((current) => ({
+      ...current,
+      medication_id: '',
+      medication_name: suggestion.search,
+      dosage: suggestion.dosage || current.dosage,
+      route: suggestion.route || current.route || 'uống',
+      frequency: suggestion.frequency || current.frequency,
+      duration_days: suggestion.duration_days || current.duration_days,
+      quantity: suggestion.quantity || current.quantity,
+      unit: suggestion.unit || current.unit || 'viên',
+      instructions: suggestion.instructions || current.instructions,
+    }))
+    await searchMedicationForPrescription(null, suggestion.search, { ...suggestion, autoSelect: true })
+  }
+
+  async function resolvePrescriptionMedication() {
+    if (prescriptionForm.medication_id.trim()) {
+      return {
+        medication_id: prescriptionForm.medication_id.trim(),
+        medication_name: prescriptionForm.medication_name.trim() || prescriptionForm.medication_id.trim(),
+      }
+    }
+    const items = medicationSearch.items.length ? medicationSearch.items : await searchMedicationForPrescription()
+    const keyword = normalizeMedicationKeyword(prescriptionForm.medication_name)
+    const selected = items.find((item) => normalizeMedicationKeyword(medicationDisplayText(item)) === keyword)
+      || items.find((item) => normalizeMedicationKeyword(medicationDisplayText(item)).includes(keyword))
+      || items[0]
+    const medicationId = medicationIdOf(selected)
+    if (!medicationId) {
+      setNotice({ error: 'Không tìm thấy thuốc hợp lệ trong danh mục. Hãy nhập tên thuốc rồi bấm Tìm thuốc.', success: '' })
+      return null
+    }
+    selectMedicationForPrescription(selected)
+    return selected
+  }
+
+  async function createOrder(event) {
+    event.preventDefault()
+    const title = orderForm.title.trim()
+    const instructions = orderForm.instructions.trim()
+    if (!selectedEncounterId) {
+      setNotice({ error: 'Chọn encounter đang khám trước khi tạo chỉ định.', success: '' })
+      return
+    }
+    if (!title) {
+      setNotice({ error: 'Nhập tên chỉ định trước khi tạo.', success: '' })
+      return
+    }
+    if (!instructions) {
+      setNotice({ error: 'Nhập lý do chỉ định / dặn dò. Trường này bắt buộc với xét nghiệm, CĐHA và thủ thuật.', success: '' })
+      return
+    }
+    const payload = {
+      order_type: orderForm.order_type,
+      priority: orderForm.priority,
+      clinical_indication: instructions,
+    }
+    if (orderForm.order_type === 'lab') payload.test_name = title
+    if (orderForm.order_type === 'imaging') {
+      payload.modality = 'xray'
+      payload.body_part = title
+    }
+    if (orderForm.order_type === 'procedure') payload.procedure_name = title
+    await runAction(() => orderAPI.createForEncounter(selectedEncounterId, payload), 'Đã tạo chỉ định.')
+    setOrderForm({ order_type: 'lab', title: '', priority: 'routine', instructions: '' })
+  }
+
+  async function createPrescription(event) {
+    event.preventDefault()
+    if (!selectedEncounterId) return
+    const medication = await resolvePrescriptionMedication()
+    const medicationId = medicationIdOf(medication)
+    if (!medicationId) return
+    if (!prescriptionForm.dosage.trim() && !String(medication.strength || '').trim()) {
+      setNotice({ error: 'Nhập liều dùng trước khi kê đơn.', success: '' })
+      return
+    }
+    if (!prescriptionForm.frequency.trim()) {
+      setNotice({ error: 'Nhập tần suất dùng thuốc trước khi kê đơn.', success: '' })
+      return
+    }
+    const medicationItem = {
+      medication_id: medicationId,
+      medication_name: prescriptionForm.medication_name || medicationDisplayName(medication),
+      dose: prescriptionForm.dosage || medication.strength,
+      route: prescriptionForm.route || medication.route_default || 'oral',
+      frequency: prescriptionForm.frequency,
+      duration_days: Number(prescriptionForm.duration_days) || 1,
+      quantity: Number(prescriptionForm.quantity) || 1,
+      unit: prescriptionForm.unit || medication.unit || 'viên',
+      instructions: prescriptionForm.instructions,
+    }
+    await runAction(() => prescriptionAPI.createForEncounter(selectedEncounterId, {
+      status: 'draft',
+      items: [medicationItem],
+      note: prescriptionForm.instructions,
+    }), 'Đã tạo đơn thuốc draft.')
+    setPrescriptionForm({ medication_id: '', medication_name: '', dosage: '', route: 'oral', frequency: '', duration_days: '5', quantity: '1', unit: 'viên', instructions: '' })
+    setMedicationSearch({ loading: false, error: '', items: [] })
   }
 
   async function createVitals(event) {
@@ -743,92 +1482,302 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
   }
 
   const selectedPatient = encounter?.patient || encounter?.patient_id || null
-  const kpis = [
-    { label: 'Encounter mở', value: safeArray(overview.active_encounters).length, hint: 'Theo overview', tone: 'success' },
-    { label: 'Note', value: safeArray(workspace.notes).length, hint: 'clinical notes', tone: 'neutral' },
-    { label: 'Chẩn đoán', value: safeArray(workspace.diagnoses).length, hint: 'diagnoses active', tone: 'neutral' },
-    { label: 'Order', value: safeArray(workspace.orders).length, hint: 'encounter orders', tone: safeArray(workspace.orders).length ? 'warning' : 'success' },
+  const encounterRows = safeArray(overview.active_encounters)
+  const examWorkflowSteps = [
+    { key: 'note', label: '1. Ghi note', done: hasSignedClinicalNote(workspace.notes), doneLabel: 'Đã ký' },
+    { key: 'diagnosis', label: '2. Chẩn đoán', done: hasPrimaryDiagnosis(workspace.diagnoses), doneLabel: 'Đã làm' },
+    { key: 'order', label: '3. Tạo chỉ định', done: hasAnyOrder(workspace.orders), doneLabel: 'Đã tạo' },
+    { key: 'prescription', label: '4. Kê đơn', done: hasAnyPrescription(workspace.prescriptions), doneLabel: 'Đã tạo' },
+    { key: 'complete', label: '5. Hoàn tất', done: canCompleteEncounter(readiness), doneLabel: 'Đã hoàn tất' },
   ]
+  const showNotePanel = currentView === 'clinical-note' || (isExamWorkflow && activeExamAction === 'note')
+  const showDiagnosisPanel = currentView === 'diagnosis' || (isExamWorkflow && activeExamAction === 'diagnosis')
+  const showOrderPanel = isExamWorkflow && activeExamAction === 'order'
+  const showPrescriptionPanel = isExamWorkflow && activeExamAction === 'prescription'
+  const showCompletePanel = currentView === 'complete-encounter' || (isExamWorkflow && activeExamAction === 'complete')
+  const showEncounterTools = currentView === 'encounter-start' || isExamWorkflow
+  const patientAgeGender = [selectedPatient?.age, selectedPatient?.gender].filter(Boolean).join(' / ') || '--'
+  const missingText = safeArray(readiness.missing).join(' ').toLowerCase()
+  const checklistRows = [
+    { key: 'note', label: 'Ghi chú lâm sàng', icon: FileText, done: !missingText.includes('note') && safeArray(workspace.notes).length > 0 },
+    { key: 'diagnosis', label: 'Chẩn đoán chính', icon: ClipboardCheck, done: !missingText.includes('diagn') && !missingText.includes('chẩn') },
+    { key: 'order', label: 'Chỉ định', icon: ClipboardList, done: !missingText.includes('order') },
+    { key: 'prescription', label: 'Đơn thuốc', icon: Pill, done: !missingText.includes('prescription') && !missingText.includes('thuốc') },
+    { key: 'care', label: 'Kế hoạch chăm sóc', icon: ListChecks, done: !missingText.includes('care') },
+  ]
+  const encounterRecord = workspace.record?.medical_record || workspace.record || null
+  const encounterRecordId = recordIdOf(encounterRecord)
+  const encounterCompleted = isEncounterCompleted(encounter)
+  const draftPrescriptions = safeArray(workspace.prescriptions).filter((prescription) => normalizedStatus(prescription.status) === 'draft')
+  const activeBlockingOrders = safeArray(workspace.orders).filter(canCancelOrder)
+  const canCompleteNow = canCompleteEncounter(readiness) && !draftPrescriptions.length && !activeBlockingOrders.length
+
+  useEffect(() => {
+    if (selectedEncounterId) return
+    const fallbackEncounterId = requestedEncounterId || encounterIdOf(safeArray(overview.active_encounters)[0] || {})
+    if (fallbackEncounterId) setSelectedEncounterId(fallbackEncounterId)
+  }, [requestedEncounterId, overview.active_encounters, selectedEncounterId])
 
   return (
-    <div className="dw2-command-page">
-      <KpiStrip items={kpis} />
+    <div className="dw2-command-page dw2-encounter-workspace">
       <CommandNotice error={notice.error} success={notice.success} />
-      <div className="dw2-workspace-layout">
-        <div className="dw2-workspace-layout__main">
-          <Panel title="Encounter đang mở" subtitle="Chọn encounter để thao tác clinical note, diagnosis, care plan, consultation và complete.">
+      {isExamWorkflow ? (
+        <div className="dw2-exam-workflow">
+          {examWorkflowSteps.map((step, index) => {
+            const isActive = activeExamAction === step.key
+            const stepStatus = step.done ? step.doneLabel : isActive ? 'Đang thực hiện' : 'Chưa bắt đầu'
+            return (
+              <button
+                type="button"
+                key={step.key}
+                className={`${isActive ? 'is-active' : ''} ${step.done ? 'is-done' : ''}`.trim()}
+                aria-pressed={isActive}
+                onClick={() => setActiveExamAction(step.key)}
+              >
+                <span>{index + 1}</span>
+                <b>{step.label.replace(/^\d+\.\s*/, '')}</b>
+                <small>{stepStatus}</small>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+      <div className="dw2-encounter-shell">
+        <div className="dw2-encounter-shell__main">
+          <Panel
+            title="Lượt khám đang mở"
+            subtitle="Chọn encounter để thao tác nội dung lâm sàng và hoàn tất lần khám."
+            action={encounter ? <ActionButton onClick={() => onNavigate?.(`/doctor/encounters?view=active&encounterId=${selectedEncounterId}`)}>Xem chi tiết</ActionButton> : null}
+          >
             <div className="dw2-encounter-list">
-              {!safeArray(overview.active_encounters).length ? <EmptyState label="Không có encounter đang mở." /> : safeArray(overview.active_encounters).map((row) => (
+              {!encounterRows.length ? <EmptyState label="Không có encounter đang mở." /> : encounterRows.map((row) => (
                 <button type="button" key={encounterIdOf(row)} className={`dw2-encounter-card ${encounterIdOf(row) === selectedEncounterId ? 'is-selected' : ''}`} onClick={() => setSelectedEncounterId(encounterIdOf(row))}>
-                  <div><strong>{row.encounter_code || 'Encounter'}</strong><span>{patientName(row)}</span></div>
-                  <div className="dw2-progress"><span style={{ width: `${row.readiness?.score || 0}%` }} /></div>
-                  <small>{statusLabel(row.status)} · {safeArray(row.readiness?.missing).join(' · ') || 'Checklist ổn'}</small>
+                  <div className="dw2-encounter-card__identity">
+                    <FileText size={18} />
+                    <span><strong>{row.encounter_code || 'Lượt khám'}</strong><small>Bắt đầu lúc {formatDateTime(row.start_time || row.started_at || row.created_at)}</small></span>
+                  </div>
+                  <span><b>Bệnh nhân</b>{patientName(row)}<small>{patientCode(row)}</small></span>
+                  <span><b>Bác sĩ</b>{doctorName(row)}<small>{departmentName(row)}</small></span>
+                  <span><b>Trạng thái</b><StatusPill tone={toneFor(row.status)}>{statusLabel(row.status)}</StatusPill><small>{safeArray(row.readiness?.missing).join(' · ') || 'Checklist ổn'}</small></span>
                 </button>
               ))}
             </div>
           </Panel>
 
-          {currentView === 'encounter-start' ? (
-            <div className="dw2-two-panels">
-              <Panel title="Tạo từ queue" subtitle="POST /api/encounters/queue/:ticketId">
-                <div className="dw2-compact-list">
-                  {!safeArray(overview.queue).length ? <EmptyState label="Không có queue sẵn sàng." /> : safeArray(overview.queue).map((ticket) => (
-                    <button type="button" key={ticketIdOf(ticket)} onClick={() => createFromQueue(ticket)}>
-                      <UsersRound size={16} /><span><strong>{patientName(ticket)}</strong><small>STT {ticket.display_number || ticket.queue_number || '--'} · {statusLabel(ticket.status)}</small></span><Play size={16} />
+          {showEncounterTools ? (
+            <div className="dw2-encounter-midgrid">
+              <Panel title="Tạo từ queue" subtitle="Chọn ticket để bắt đầu encounter.">
+                <div className="dw2-encounter-mini-list">
+                  {!safeArray(overview.queue).length ? <EmptyState label="Không có queue sẵn sàng." /> : safeArray(overview.queue).slice(0, 2).map((ticket) => (
+                    <button type="button" key={ticketIdOf(ticket)} onClick={() => createFromQueue(ticket)} className="dw2-encounter-mini-card">
+                      <span className="dw2-encounter-mini-code">{ticket.display_number || ticket.queue_number || ticket.ticket_code || '--'} <StatusPill tone={toneFor(ticket.status)}>{statusLabel(ticket.status)}</StatusPill></span>
+                      <strong>{patientName(ticket)}</strong>
+                      <small>{ticket.room_name || 'Phòng khám 1'} · {doctorName(ticket)}</small>
+                      <span className="dw2-encounter-mini-action">Xem queue</span>
                     </button>
                   ))}
                 </div>
               </Panel>
-              <Panel title="Tạo từ lịch hẹn" subtitle="POST /api/encounters/appointment/:appointmentId">
-                <div className="dw2-compact-list">
-                  {!safeArray(overview.appointments).length ? <EmptyState label="Không có lịch hẹn hôm nay." /> : safeArray(overview.appointments).map((appointment) => (
-                    <button type="button" key={appointmentIdOf(appointment)} onClick={() => createFromAppointment(appointment)}>
-                      <CalendarDays size={16} /><span><strong>{patientName(appointment)}</strong><small>{formatDateTime(appointment.appointment_time)} · {statusLabel(appointment.status)}</small></span><PlusCircle size={16} />
+              <Panel title="Tạo từ lịch hẹn" subtitle="Danh sách lịch hẹn trong ngày.">
+                <div className="dw2-encounter-mini-list">
+                  {!safeArray(overview.appointments).length ? <EmptyState label="Không có lịch hẹn hôm nay." /> : safeArray(overview.appointments).slice(0, 2).map((appointment) => (
+                    <button type="button" key={appointmentIdOf(appointment)} onClick={() => createFromAppointment(appointment)} className="dw2-encounter-appointment-row">
+                      <CalendarDays size={15} />
+                      <span className="dw2-encounter-appointment-time">
+                        <strong>{formatAppointmentTime(appointment.appointment_time)}</strong>
+                        <small>{formatAppointmentDate(appointment.appointment_time)}</small>
+                      </span>
+                      <span className="dw2-encounter-appointment-info">
+                        <strong>{patientName(appointment)}</strong>
+                        <small>{doctorName(appointment)}</small>
+                      </span>
+                      <span className="dw2-encounter-appointment-meta">
+                        <StatusPill tone={toneFor(appointment.status)}>{statusLabel(appointment.status)}</StatusPill>
+                        <span className="dw2-encounter-mini-action">Tạo lượt khám</span>
+                      </span>
                     </button>
+                  ))}
+                </div>
+              </Panel>
+              <Panel title="Dòng thời gian" subtitle="Lịch sử hoạt động của lượt khám.">
+                <div className="dw2-encounter-timeline">
+                  {!safeArray(workspace.timeline).length ? <EmptyState label="Chưa có timeline." /> : safeArray(workspace.timeline).slice(0, 3).map((event, index) => (
+                    <div key={`${event.event_id || index}`}>
+                      <span />
+                      <time>{formatDateTime(event.created_at || event.timestamp)}</time>
+                      <strong>{event.action || event.title || event.type || 'Sự kiện'}</strong>
+                      <small>{event.message || event.status || ''}</small>
+                    </div>
                   ))}
                 </div>
               </Panel>
             </div>
           ) : null}
 
-          {currentView === 'clinical-note' || currentView === 'encounter-active' ? (
-            <Panel title="Clinical note" subtitle="Tạo note thật qua /api/clinical/notes, sau đó có thể start/complete/sign.">
-              <form className="dw2-command-form" onSubmit={createNote}>
-                <Field label="Tiêu đề"><input value={noteForm.title} onChange={(event) => setNoteForm((current) => ({ ...current, title: event.target.value }))} /></Field>
-                <Field label="Nội dung SOAP / progress note"><textarea rows={7} value={noteForm.content} onChange={(event) => setNoteForm((current) => ({ ...current, content: event.target.value }))} /></Field>
-                <ActionButton type="submit" tone="success"><FileText size={16} /> Lưu note</ActionButton>
+          {showNotePanel ? (
+            <Panel
+              title="Ghi chú lâm sàng"
+              subtitle="Tạo và quản lý ghi chú lâm sàng (SOAP)."
+              action={<div className="dw2-encounter-note-actions"><ActionButton type="submit" form="dw2-clinical-note-form" tone="success"><FileText size={16} /> Lưu ghi chú</ActionButton></div>}
+            >
+              <form id="dw2-clinical-note-form" className="dw2-soap-editor" onSubmit={createNote}>
+                <input className="dw2-soap-editor__title" value={noteForm.title} onChange={(event) => setNoteForm((current) => ({ ...current, title: event.target.value }))} aria-label="Tiêu đề note" />
+                <div className="dw2-soap-editor__tabs" aria-label="SOAP sections">
+                  <button type="button" className="is-active">S - Chủ quan</button>
+                  <button type="button">O - Khách quan</button>
+                  <button type="button">A - Đánh giá</button>
+                  <button type="button">P - Kế hoạch</button>
+                </div>
+                <div className="dw2-soap-editor__toolbar">
+                  <button type="button">↶</button>
+                  <button type="button">↷</button>
+                  <select aria-label="Kiểu chữ" defaultValue="normal"><option value="normal">Bình thường</option></select>
+                  <button type="button"><strong>B</strong></button>
+                  <button type="button"><em>I</em></button>
+                  <button type="button"><u>U</u></button>
+                  <button type="button">☷</button>
+                  <button type="button"><Paperclip size={14} /></button>
+                </div>
+                <textarea rows={5} value={noteForm.content} onChange={(event) => setNoteForm((current) => ({ ...current, content: event.target.value }))} placeholder="Nhập thông tin chủ quan của bệnh nhân..." />
+                <div className="dw2-soap-editor__footer">
+                  <span>Chưa hoàn tất · Chưa ký · Cập nhật lần cuối: {formatDateTime(new Date())}</span>
+                  <ActionButton type="submit" tone="success"><FileText size={16} /> Lưu ghi chú</ActionButton>
+                </div>
               </form>
               <div className="dw2-compact-list">
-                {!safeArray(workspace.notes).length ? <EmptyState label="Chưa có note." /> : safeArray(workspace.notes).map((note) => (
-                  <button type="button" key={noteIdOf(note)}>
-                    <FileText size={16} />
-                    <span><strong>{note.title || note.note_type || 'Clinical note'}</strong><small>{statusLabel(note.status)} · {formatDateTime(note.created_at)}</small></span>
+                {!safeArray(workspace.notes).length ? <EmptyState label="Chưa có ghi chú." /> : safeArray(workspace.notes).map((note) => {
+                  const noteCanStart = canStartClinicalNote(note)
+                  const noteCanSign = canSignClinicalNote(note)
+                  return (
+                    <button type="button" key={noteIdOf(note)}>
+                      <FileText size={16} />
+                      <span><strong>{note.title || note.note_type || 'Ghi chú lâm sàng'}</strong><small>{statusLabel(note.status)} · {formatDateTime(note.created_at)}</small></span>
+                      <span className="dw2-command-actions">
+                        {noteCanStart ? <ActionButton onClick={() => startNote(note)}>Bắt đầu</ActionButton> : null}
+                        {noteCanSign ? <ActionButton onClick={() => signNote(note)} tone="success">Ký ghi chú</ActionButton> : <StatusPill tone={normalizedStatus(note.status) === 'signed' ? 'success' : 'neutral'}>{statusLabel(note.status)}</StatusPill>}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Panel>
+          ) : null}
+
+          {showDiagnosisPanel ? (
+            <Panel title="Chẩn đoán" subtitle="Hệ thống đảm bảo mỗi lượt khám chỉ có một chẩn đoán chính đang hiệu lực.">
+              <form className="dw2-command-form" onSubmit={createDiagnosis}>
+                <Field label="ICD-10"><input value={diagnosisForm.icd10_code} onChange={(event) => setDiagnosisForm((current) => ({ ...current, icd10_code: event.target.value }))} /></Field>
+                <Field label="Tên chẩn đoán"><input value={diagnosisForm.diagnosis_name} onChange={(event) => setDiagnosisForm((current) => ({ ...current, diagnosis_name: event.target.value }))} /></Field>
+                <Field label="Loại"><select value={diagnosisForm.diagnosis_type} onChange={(event) => setDiagnosisForm((current) => ({ ...current, diagnosis_type: event.target.value }))}><option value="provisional">Tạm thời</option><option value="confirmed">Đã xác nhận</option><option value="differential">Phân biệt</option></select></Field>
+                <Field label="Chẩn đoán chính"><input type="checkbox" checked={diagnosisForm.is_primary} onChange={(event) => setDiagnosisForm((current) => ({ ...current, is_primary: event.target.checked }))} /></Field>
+                <ActionButton type="submit" tone="success"><PlusCircle size={16} /> Thêm chẩn đoán</ActionButton>
+              </form>
+              <div className="dw2-compact-list">
+                {!safeArray(workspace.diagnoses).length ? <EmptyState label="Chưa có chẩn đoán." /> : safeArray(workspace.diagnoses).map((diagnosis) => {
+                  const diagnosisActive = canResolveDiagnosis(diagnosis)
+                  return (
+                    <button type="button" key={diagnosisIdOf(diagnosis)}>
+                      <ClipboardCheck size={16} /><span><strong>{diagnosis.diagnosis_name || diagnosis.icd10_code}</strong><small>{diagnosis.icd10_code || '--'} · {diagnosis.is_primary ? 'Chẩn đoán chính' : diagnosisTypeLabel(diagnosis.diagnosis_type)} · {statusLabel(diagnosis.status || 'active')}</small></span>
+                      <span className="dw2-command-actions">
+                        {diagnosisActive && !diagnosis.is_primary ? <ActionButton onClick={() => setDiagnosisPrimary(diagnosis)}>Đặt làm chính</ActionButton> : null}
+                        {diagnosisActive ? <ActionButton onClick={() => resolveDiagnosis(diagnosis)}>Đã xử lý</ActionButton> : <StatusPill tone="neutral">{statusLabel(diagnosis.status)}</StatusPill>}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Panel>
+          ) : null}
+          {showOrderPanel ? (
+            <Panel title="Tạo chỉ định" subtitle="Tạo chỉ định trực tiếp trong lượt khám đang mở.">
+              <form className="dw2-command-form" onSubmit={createOrder}>
+                <Field label="Loại chỉ định"><select value={orderForm.order_type} onChange={(event) => setOrderForm((current) => ({ ...current, order_type: event.target.value }))}><option value="lab">Xét nghiệm</option><option value="imaging">CĐHA</option><option value="procedure">Thủ thuật</option></select></Field>
+                <Field label="Tên chỉ định"><input required value={orderForm.title} onChange={(event) => setOrderForm((current) => ({ ...current, title: event.target.value }))} placeholder="Ví dụ: Công thức máu, X-quang ngực..." /></Field>
+                <Field label="Ưu tiên"><select value={orderForm.priority} onChange={(event) => setOrderForm((current) => ({ ...current, priority: event.target.value }))}><option value="routine">Thường quy</option><option value="urgent">Khẩn</option><option value="stat">Cấp cứu</option></select></Field>
+                <Field label="Lý do / dặn dò"><input required value={orderForm.instructions} onChange={(event) => setOrderForm((current) => ({ ...current, instructions: event.target.value }))} placeholder="Ví dụ: Sốt 3 ngày, ho nhiều, cần loại trừ viêm phổi..." /></Field>
+                <ActionButton type="submit" tone="success"><ClipboardList size={16} /> Tạo chỉ định</ActionButton>
+              </form>
+              <div className="dw2-compact-list">
+                {!safeArray(workspace.orders).length ? <EmptyState label="Chưa có chỉ định trong encounter." /> : safeArray(workspace.orders).map((order) => (
+                  <div className="dw2-command-row" key={orderIdOf(order)}>
+                    <ClipboardList size={16} /><span><strong>{order.title || order.order_name || order.order_type || 'Chỉ định'}</strong><small>{statusLabel(order.status)} · {statusLabel(order.priority || 'routine')}</small></span>
                     <span className="dw2-command-actions">
-                      <ActionButton onClick={() => runAction(() => clinicalAPI.startNote(noteIdOf(note)), 'Đã chuyển note sang in_progress.')}>Start</ActionButton>
-                      <ActionButton onClick={() => runAction(() => clinicalAPI.completeNote(noteIdOf(note)), 'Đã complete note.')}>Complete</ActionButton>
-                      <ActionButton onClick={() => runAction(() => clinicalAPI.signNote(noteIdOf(note)), 'Đã ký note.')} tone="success">Ký</ActionButton>
+                      {canCancelOrder(order) ? <ActionButton onClick={() => cancelOrder(order)}>Hủy chỉ định</ActionButton> : <StatusPill tone={normalizedStatus(order.status) === 'completed' ? 'success' : 'neutral'}>{statusLabel(order.status)}</StatusPill>}
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </Panel>
           ) : null}
 
-          {currentView === 'diagnosis' ? (
-            <Panel title="Chẩn đoán" subtitle="Backend đảm bảo chỉ một primary diagnosis active trên encounter.">
-              <form className="dw2-command-form" onSubmit={createDiagnosis}>
-                <Field label="ICD-10"><input value={diagnosisForm.icd10_code} onChange={(event) => setDiagnosisForm((current) => ({ ...current, icd10_code: event.target.value }))} /></Field>
-                <Field label="Tên chẩn đoán"><input value={diagnosisForm.diagnosis_name} onChange={(event) => setDiagnosisForm((current) => ({ ...current, diagnosis_name: event.target.value }))} /></Field>
-                <Field label="Loại"><select value={diagnosisForm.diagnosis_type} onChange={(event) => setDiagnosisForm((current) => ({ ...current, diagnosis_type: event.target.value }))}><option value="provisional">Provisional</option><option value="confirmed">Confirmed</option><option value="differential">Differential</option></select></Field>
-                <Field label="Primary"><input type="checkbox" checked={diagnosisForm.is_primary} onChange={(event) => setDiagnosisForm((current) => ({ ...current, is_primary: event.target.checked }))} /></Field>
-                <ActionButton type="submit" tone="success"><PlusCircle size={16} /> Thêm chẩn đoán</ActionButton>
+          {showPrescriptionPanel ? (
+            <Panel title="Kê đơn" subtitle="Tạo đơn thuốc draft cho encounter đang khám.">
+              <form className="dw2-command-form" onSubmit={createPrescription}>
+                <Field label="Tên thuốc">
+                  <span className="dw2-medication-search-field">
+                    <input
+                      required
+                      value={prescriptionForm.medication_name}
+                      onChange={(event) => {
+                        setPrescriptionForm((current) => ({ ...current, medication_id: '', medication_name: event.target.value }))
+                        setMedicationSearch((current) => ({ ...current, error: '', hint: '' }))
+                      }}
+                      placeholder="Ví dụ: Paracetamol, Amoxicillin..."
+                    />
+                    <button type="button" onClick={searchMedicationForPrescription} disabled={medicationSearch.loading}>
+                      <Search size={15} />
+                      {medicationSearch.loading ? 'Đang tìm' : 'Tìm thuốc'}
+                    </button>
+                  </span>
+                </Field>
+                <Field label="Mã thuốc đã chọn"><input value={prescriptionForm.medication_id || 'Chưa chọn thuốc từ danh mục'} readOnly /></Field>
+                <div className="dw2-medication-suggestion-box">
+                  <div className="dw2-medication-suggestion-head">
+                    <strong>{hasMedicationClinicalContext ? 'Gợi ý theo nội dung khám' : 'Gợi ý thuốc thường dùng'}</strong>
+                    <small>{hasMedicationClinicalContext ? 'Dựa trên ghi chú, chẩn đoán và nội dung khám hiện có.' : 'Chưa có nội dung khám đủ rõ, hiển thị thuốc hay dùng để chọn nhanh.'}</small>
+                  </div>
+                  <div className="dw2-medication-suggestion-chips">
+                    {medicationSuggestions.map((suggestion) => (
+                      <button type="button" key={suggestion.key} onClick={() => chooseMedicationSuggestion(suggestion)}>
+                        <strong>{suggestion.label}</strong>
+                        <small>{suggestion.score > 0 ? `Phù hợp: ${suggestion.meta}` : suggestion.meta}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Field label="Liều dùng"><input value={prescriptionForm.dosage} onChange={(event) => setPrescriptionForm((current) => ({ ...current, dosage: event.target.value }))} placeholder="500mg" /></Field>
+                <Field label="Đường dùng"><input value={prescriptionForm.route} onChange={(event) => setPrescriptionForm((current) => ({ ...current, route: event.target.value }))} placeholder="oral" /></Field>
+                <Field label="Tần suất"><input value={prescriptionForm.frequency} onChange={(event) => setPrescriptionForm((current) => ({ ...current, frequency: event.target.value }))} placeholder="Ngày 2 lần" /></Field>
+                <Field label="Số ngày"><input type="number" min="1" value={prescriptionForm.duration_days} onChange={(event) => setPrescriptionForm((current) => ({ ...current, duration_days: event.target.value }))} /></Field>
+                <Field label="Số lượng"><input type="number" min="1" value={prescriptionForm.quantity} onChange={(event) => setPrescriptionForm((current) => ({ ...current, quantity: event.target.value }))} /></Field>
+                <Field label="Đơn vị"><input value={prescriptionForm.unit} onChange={(event) => setPrescriptionForm((current) => ({ ...current, unit: event.target.value }))} placeholder="viên" /></Field>
+                <Field label="Dặn dò"><input value={prescriptionForm.instructions} onChange={(event) => setPrescriptionForm((current) => ({ ...current, instructions: event.target.value }))} /></Field>
+                <ActionButton type="submit" tone="success"><Pill size={16} /> Kê đơn</ActionButton>
               </form>
+              {medicationSearch.error ? <p className="dw2-prescription-search-note is-error">{medicationSearch.error}</p> : null}
+              {medicationSearch.hint ? <p className="dw2-prescription-search-note">{medicationSearch.hint}</p> : null}
+              {safeArray(medicationSearch.items).length ? (
+                <div className="dw2-medication-results">
+                  {safeArray(medicationSearch.items).map((medication) => (
+                    <button type="button" key={medicationIdOf(medication)} onClick={() => selectMedicationForPrescription(medication)}>
+                      <Pill size={15} />
+                      <span>
+                        <strong>{medicationDisplayName(medication)}</strong>
+                        <small>{medication.medication_code || '--'} · {medication.route_default || 'route chưa rõ'} · {medication.unit || 'đơn vị chưa rõ'}</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <div className="dw2-compact-list">
-                {!safeArray(workspace.diagnoses).length ? <EmptyState label="Chưa có chẩn đoán." /> : safeArray(workspace.diagnoses).map((diagnosis) => (
-                  <button type="button" key={diagnosisIdOf(diagnosis)}>
-                    <ClipboardCheck size={16} /><span><strong>{diagnosis.diagnosis_name || diagnosis.icd10_code}</strong><small>{diagnosis.icd10_code || '--'} · {diagnosis.is_primary ? 'Primary' : diagnosis.diagnosis_type}</small></span>
-                    <span className="dw2-command-actions"><ActionButton onClick={() => runAction(() => clinicalAPI.setPrimaryDiagnosis(diagnosisIdOf(diagnosis)), 'Đã đặt primary diagnosis.')}>Primary</ActionButton><ActionButton onClick={() => runAction(() => clinicalAPI.resolveDiagnosis(diagnosisIdOf(diagnosis)), 'Đã resolve diagnosis.')}>Resolve</ActionButton></span>
-                  </button>
+                {!safeArray(workspace.prescriptions).length ? <EmptyState label="Chưa có đơn thuốc trong encounter." /> : safeArray(workspace.prescriptions).map((prescription) => (
+                  <div className="dw2-command-row" key={prescriptionIdOf(prescription)}>
+                    <Pill size={16} /><span><strong>{prescription.prescription_no || prescription.medication_name || 'Đơn thuốc'}</strong><small>{statusLabel(prescription.status)} · {formatDateTime(prescription.created_at)}</small></span>
+                    <span className="dw2-command-actions">
+                      {canActivatePrescription(prescription) ? <ActionButton onClick={() => activatePrescription(prescription)} tone="success">Kích hoạt đơn</ActionButton> : null}
+                      {canCancelPrescription(prescription) ? <ActionButton onClick={() => cancelPrescription(prescription)}>Hủy đơn</ActionButton> : <StatusPill tone="success">{statusLabel(prescription.status)}</StatusPill>}
+                    </span>
+                  </div>
                 ))}
               </div>
             </Panel>
@@ -846,7 +1795,7 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
                 {!safeArray(workspace.clinicalSummary?.problems).length ? <EmptyState label="Chưa có problem active." /> : safeArray(workspace.clinicalSummary?.problems).map((problem) => (
                   <button type="button" key={problemIdOf(problem)}>
                     <ListChecks size={16} /><span><strong>{problem.problem_name || problem.name}</strong><small>{problem.severity || '--'} · {statusLabel(problem.status)}</small></span>
-                    <ActionButton onClick={() => runAction(() => clinicalAPI.resolveProblem(problemIdOf(problem)), 'Đã resolve problem.')}>Resolve</ActionButton>
+                    <ActionButton onClick={() => runAction(() => clinicalAPI.resolveProblem(problemIdOf(problem)), 'Đã đánh dấu vấn đề là đã xử lý.')}>Đã xử lý</ActionButton>
                   </button>
                 ))}
               </div>
@@ -854,18 +1803,18 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
           ) : null}
 
           {currentView === 'care-plan' ? (
-            <Panel title="Care plan" subtitle="Tạo kế hoạch điều trị, dặn dò và follow-up bằng model CarePlan thật.">
+            <Panel title="Kế hoạch chăm sóc" subtitle="Tạo kế hoạch điều trị, dặn dò và lịch theo dõi thật trong hệ thống.">
               <form className="dw2-command-form" onSubmit={createCarePlan}>
                 <Field label="Tiêu đề"><input value={carePlanForm.title} onChange={(event) => setCarePlanForm((current) => ({ ...current, title: event.target.value }))} /></Field>
                 <Field label="Mục tiêu"><input value={carePlanForm.goal} onChange={(event) => setCarePlanForm((current) => ({ ...current, goal: event.target.value }))} /></Field>
                 <Field label="Can thiệp"><input value={carePlanForm.intervention} onChange={(event) => setCarePlanForm((current) => ({ ...current, intervention: event.target.value }))} /></Field>
-                <ActionButton type="submit" tone="success"><PlusCircle size={16} /> Tạo care plan</ActionButton>
+                <ActionButton type="submit" tone="success"><PlusCircle size={16} /> Tạo kế hoạch</ActionButton>
               </form>
               <div className="dw2-compact-list">
-                {!safeArray(workspace.carePlans).length ? <EmptyState label="Chưa có care plan." /> : safeArray(workspace.carePlans).map((plan) => (
+                {!safeArray(workspace.carePlans).length ? <EmptyState label="Chưa có kế hoạch chăm sóc." /> : safeArray(workspace.carePlans).map((plan) => (
                   <button type="button" key={carePlanIdOf(plan)}>
                     <ClipboardList size={16} /><span><strong>{plan.title || plan.plan_no}</strong><small>{statusLabel(plan.status)} · {safeArray(plan.goals).length} mục tiêu</small></span>
-                    <span className="dw2-command-actions"><ActionButton onClick={() => runAction(() => clinicalAPI.completeCarePlan(carePlanIdOf(plan)), 'Đã hoàn tất care plan.')} tone="success">Complete</ActionButton><ActionButton onClick={() => runAction(() => clinicalAPI.cancelCarePlan(carePlanIdOf(plan), { reason: 'Cancelled from doctor workspace' }), 'Đã hủy care plan.')}>Cancel</ActionButton></span>
+                    <span className="dw2-command-actions"><ActionButton onClick={() => runAction(() => clinicalAPI.completeCarePlan(carePlanIdOf(plan)), 'Đã hoàn tất kế hoạch chăm sóc.')} tone="success">Hoàn tất</ActionButton><ActionButton onClick={() => runAction(() => clinicalAPI.cancelCarePlan(carePlanIdOf(plan), { reason: 'Hủy từ màn hình khám của bác sĩ' }), 'Đã hủy kế hoạch chăm sóc.')}>Hủy</ActionButton></span>
                   </button>
                 ))}
               </div>
@@ -873,36 +1822,88 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
           ) : null}
 
           {currentView === 'consultation' ? (
-            <Panel title="Consultation" subtitle="Tạo và ký consultation record trong encounter.">
+            <Panel title="Hội chẩn" subtitle="Tạo và ký phiếu hội chẩn trong lượt khám.">
               <form className="dw2-command-form" onSubmit={createConsultation}>
                 <Field label="Lý do / than phiền"><input value={consultForm.chief_complaint} onChange={(event) => setConsultForm((current) => ({ ...current, chief_complaint: event.target.value }))} /></Field>
-                <Field label="Assessment"><input value={consultForm.assessment} onChange={(event) => setConsultForm((current) => ({ ...current, assessment: event.target.value }))} /></Field>
-                <Field label="Plan"><input value={consultForm.plan} onChange={(event) => setConsultForm((current) => ({ ...current, plan: event.target.value }))} /></Field>
-                <ActionButton type="submit" tone="success"><PlusCircle size={16} /> Tạo consultation</ActionButton>
+                <Field label="Đánh giá"><input value={consultForm.assessment} onChange={(event) => setConsultForm((current) => ({ ...current, assessment: event.target.value }))} /></Field>
+                <Field label="Kế hoạch"><input value={consultForm.plan} onChange={(event) => setConsultForm((current) => ({ ...current, plan: event.target.value }))} /></Field>
+                <ActionButton type="submit" tone="success"><PlusCircle size={16} /> Tạo hội chẩn</ActionButton>
               </form>
               <div className="dw2-compact-list">
-                {!safeArray(workspace.consultations).length ? <EmptyState label="Chưa có consultation." /> : safeArray(workspace.consultations).map((consultation) => (
+                {!safeArray(workspace.consultations).length ? <EmptyState label="Chưa có hội chẩn." /> : safeArray(workspace.consultations).map((consultation) => (
                   <button type="button" key={consultationIdOf(consultation)}>
-                    <Send size={16} /><span><strong>{consultation.consultation_no || consultation.chief_complaint || 'Consultation'}</strong><small>{statusLabel(consultation.status)} · {consultation.assessment || '--'}</small></span>
-                    <span className="dw2-command-actions"><ActionButton onClick={() => runAction(() => clinicalAPI.startConsultation(consultationIdOf(consultation)), 'Đã start consultation.')}>Start</ActionButton><ActionButton onClick={() => runAction(() => clinicalAPI.signConsultation(consultationIdOf(consultation)), 'Đã ký consultation.')} tone="success">Ký</ActionButton></span>
+                    <Send size={16} /><span><strong>{consultation.consultation_no || consultation.chief_complaint || 'Hội chẩn'}</strong><small>{statusLabel(consultation.status)} · {consultation.assessment || '--'}</small></span>
+                    <span className="dw2-command-actions"><ActionButton onClick={() => runAction(() => clinicalAPI.startConsultation(consultationIdOf(consultation)), 'Đã bắt đầu hội chẩn.')}>Bắt đầu</ActionButton><ActionButton onClick={() => runAction(() => clinicalAPI.signConsultation(consultationIdOf(consultation)), 'Đã ký hội chẩn.')} tone="success">Ký</ActionButton></span>
                   </button>
                 ))}
               </div>
             </Panel>
           ) : null}
 
-          {currentView === 'complete-encounter' ? (
-            <Panel title="Hoàn tất encounter" subtitle="Kiểm tra can-complete, tạo medical record, finalize và release.">
+          {showCompletePanel ? (
+            <Panel title="Hoàn tất lượt khám" subtitle="Tạo hồ sơ bệnh án, ký/chốt hồ sơ rồi gửi cho bệnh nhân.">
               <div className="dw2-focus-list">
                 {readinessItems(readiness).map((check) => (
                   <div key={check.key}><CheckCircle2 size={16} /><span>{check.label}: {check.done ? 'Đạt' : 'Còn thiếu'}</span></div>
                 ))}
+                {encounterRecordId ? (
+                  <div><FileText size={16} /><span>Hồ sơ bệnh án đã tạo: {encounterRecord.record_no || encounterRecord.title || encounterRecordId} · {statusLabel(encounterRecord.status)}</span></div>
+                ) : (
+                  <div><FileText size={16} /><span>Chưa tạo hồ sơ bệnh án cho lượt khám này.</span></div>
+                )}
               </div>
+              {(draftPrescriptions.length || activeBlockingOrders.length || !encounterCompleted) ? (
+                <div className="dw2-complete-blockers">
+                  <div>
+                    <strong>Cần xử lý trước</strong>
+                    <small>Xử lý đơn/chỉ định đang mở rồi mới hoàn tất lượt khám.</small>
+                  </div>
+                  {draftPrescriptions.length ? draftPrescriptions.map((prescription) => (
+                    <div className="dw2-command-row dw2-blocker-row" key={prescriptionIdOf(prescription)}>
+                      <Pill size={16} />
+                      <span><strong>{prescription.prescription_no || 'Đơn thuốc'}</strong><small>Bản nháp</small></span>
+                      <span className="dw2-command-actions">
+                        <ActionButton onClick={() => activatePrescription(prescription)} tone="success">Kích hoạt</ActionButton>
+                        <ActionButton onClick={() => cancelPrescription(prescription)}>Hủy</ActionButton>
+                      </span>
+                    </div>
+                  )) : null}
+                  {activeBlockingOrders.length ? activeBlockingOrders.map((order) => (
+                    <div className="dw2-command-row dw2-blocker-row" key={orderIdOf(order)}>
+                      <ClipboardList size={16} />
+                      <span><strong>{order.title || order.order_name || order.order_type || 'Chỉ định'}</strong><small>{statusLabel(order.status)}</small></span>
+                      <span className="dw2-command-actions">
+                        <ActionButton onClick={() => cancelOrder(order)}>Hủy</ActionButton>
+                      </span>
+                    </div>
+                  )) : null}
+                  {!encounterCompleted ? (
+                    <div className="dw2-complete-blockers__hint">
+                      Hết mục chặn thì bấm <strong>Hoàn tất lượt khám</strong>, sau đó <strong>Ký/chốt hồ sơ</strong>.
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {encounterRecordId ? <MedicalRecordPreview record={encounterRecord} workspace={workspace} /> : null}
               <div className="dw2-command-actions is-wide">
-                <ActionButton onClick={() => runAction(() => encounterAPI.complete(selectedEncounterId), 'Đã hoàn tất encounter.')} tone="success"><CheckCircle2 size={16} /> Hoàn tất encounter</ActionButton>
-                <ActionButton onClick={() => runAction(() => recordsAPI.createMedicalRecordFromEncounter(selectedEncounterId, { title: `Hồ sơ ${encounter?.encounter_code || ''}` }), 'Đã tạo medical record.') }><FileText size={16} /> Tạo medical record</ActionButton>
-                {recordIdOf(workspace.record?.medical_record || workspace.record) ? <ActionButton onClick={() => runAction(() => recordsAPI.finalizeMedicalRecord(recordIdOf(workspace.record?.medical_record || workspace.record)), 'Đã finalize medical record.')}>Finalize</ActionButton> : null}
-                {recordIdOf(workspace.record?.medical_record || workspace.record) ? <ActionButton onClick={() => runAction(() => recordsAPI.releaseMedicalRecordToPatient(recordIdOf(workspace.record?.medical_record || workspace.record)), 'Đã release medical record cho patient.')} tone="success">Release</ActionButton> : null}
+                <ActionButton
+                  onClick={() => runAction(
+                    () => recordsAPI.createMedicalRecordFromEncounter(selectedEncounterId, { title: `Hồ sơ ${encounter?.encounter_code || ''}` }),
+                    'Đã tạo hồ sơ bệnh án. Hồ sơ vẫn ở màn hình này để bác sĩ ký/chốt và gửi cho bệnh nhân.',
+                  )}
+                  disabled={Boolean(encounterRecordId)}
+                >
+                  <FileText size={16} /> {encounterRecordId ? 'Đã tạo hồ sơ bệnh án' : 'Tạo hồ sơ bệnh án'}
+                </ActionButton>
+                <ActionButton
+                  onClick={() => runAction(() => encounterAPI.complete(selectedEncounterId), 'Đã hoàn tất lượt khám. Bây giờ có thể ký/chốt hồ sơ bệnh án.')}
+                  disabled={!canCompleteNow || encounterCompleted}
+                  tone="success"
+                >
+                  <CheckCircle2 size={16} /> {encounterCompleted ? 'Đã hoàn tất lượt khám' : 'Hoàn tất lượt khám'}
+                </ActionButton>
+                {encounterRecordId ? <ActionButton disabled={!encounterCompleted} onClick={() => runAction(() => recordsAPI.finalizeMedicalRecord(encounterRecordId), 'Đã ký/chốt hồ sơ bệnh án.')}>Ký/chốt hồ sơ</ActionButton> : null}
+                {encounterRecordId ? <ActionButton disabled={!encounterCompleted} onClick={() => runAction(() => recordsAPI.releaseMedicalRecordToPatient(encounterRecordId), 'Đã gửi hồ sơ bệnh án cho bệnh nhân.')} tone="success">Gửi cho bệnh nhân</ActionButton> : null}
               </div>
             </Panel>
           ) : null}
@@ -916,28 +1917,27 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
             </Panel>
           ) : null}
         </div>
-        <aside className="dw2-workspace-layout__side">
-          <Panel title="Encounter summary" subtitle={loading ? 'Đang tải...' : 'Patient, readiness, orders, timeline.'}>
+        <aside className="dw2-encounter-shell__side">
+          <Panel title="Tóm tắt lượt khám" subtitle={loading ? 'Đang tải...' : 'Tổng quan nhanh về lượt khám hiện tại.'}>
             {!encounter ? <EmptyState label="Chọn encounter để xem chi tiết." /> : (
-              <div className="dw2-clinical-360">
-                <div className="dw2-clinical-360__header"><span className="dw2-clinical-avatar">{String(patientName(encounter)).slice(0, 2).toUpperCase()}</span><div><strong>{patientName(encounter)}</strong><p>{encounter.encounter_code || selectedEncounterId}</p></div></div>
-                <div className="dw2-command-badges"><StatusPill tone={toneFor(encounter.status)}>{statusLabel(encounter.status)}</StatusPill><StatusPill tone={workspace.editable?.editable === false ? 'warning' : 'success'}>{workspace.editable?.editable === false ? 'Không editable' : 'Editable nếu có quyền'}</StatusPill></div>
-                <div className="dw2-focus-list">
-                  {readinessItems(readiness).map((check) => <div key={check.key}><CheckCircle2 size={16} /><span>{check.label}: {check.done ? 'Đạt' : 'Thiếu'}</span></div>)}
-                </div>
-                <div className="dw2-command-actions is-wide">
-                  <ActionButton onClick={() => runAction(() => encounterAPI.start(selectedEncounterId), 'Đã start encounter.')}><Play size={16} /> Start</ActionButton>
-                  <ActionButton onClick={() => runAction(() => encounterAPI.hold(selectedEncounterId), 'Đã hold encounter.')}>Hold</ActionButton>
-                  <ActionButton onClick={() => runAction(() => encounterAPI.resume(selectedEncounterId), 'Đã resume encounter.')}>Resume</ActionButton>
-                </div>
+              <div className="dw2-encounter-summary">
+                <EncounterSummaryRow icon={UserRound} label="Bệnh nhân">{patientName(encounter)}</EncounterSummaryRow>
+                <EncounterSummaryRow icon={UsersRound} label="Tuổi / Giới">{patientAgeGender}</EncounterSummaryRow>
+                <EncounterSummaryRow icon={Stethoscope} label="Bác sĩ điều trị">{doctorName(encounter)}</EncounterSummaryRow>
+                <EncounterSummaryRow icon={ShieldCheck} label="Khoa">{departmentName(encounter)}</EncounterSummaryRow>
+                <EncounterSummaryRow icon={CalendarDays} label="Bắt đầu lúc">{formatDateTime(encounter.start_time || encounter.started_at || encounter.created_at)}</EncounterSummaryRow>
+                <EncounterSummaryRow icon={ClipboardList} label="Nguồn">{encounter.source || encounter.encounter_source || 'Khám trực tiếp / Hàng đợi'}</EncounterSummaryRow>
+                <EncounterSummaryRow icon={FileText} label="Mã lượt khám">{encounter.encounter_code || selectedEncounterId}</EncounterSummaryRow>
+                <button type="button" className="dw2-encounter-link-button" onClick={() => onNavigate?.(`/doctor/encounters?view=active&encounterId=${selectedEncounterId}`)}>Xem chi tiết thông tin</button>
               </div>
             )}
           </Panel>
-          <Panel title="Timeline" subtitle="Audit/lifecycle từ encounter endpoint.">
-            <div className="dw2-command-timeline">
-              {!safeArray(workspace.timeline).length ? <EmptyState label="Chưa có timeline." /> : safeArray(workspace.timeline).slice(0, 8).map((event, index) => (
-                <div key={`${event.event_id || index}`}><time>{formatDateTime(event.created_at || event.timestamp)}</time><strong>{event.action || event.title || event.type || 'Sự kiện'}</strong><span>{event.message || event.status || ''}</span></div>
+          <Panel title="Việc cần hoàn tất" subtitle="Các hạng mục cần hoàn thành trước khi đóng encounter.">
+            <div className="dw2-encounter-checklist">
+              {checklistRows.map((check) => (
+                <EncounterChecklistRow key={check.key} icon={check.icon} label={check.label} done={check.done} />
               ))}
+              <button type="button" className="dw2-encounter-link-button">Xem chi tiết danh sách cần hoàn tất</button>
             </div>
           </Panel>
         </aside>
@@ -1062,18 +2062,18 @@ export function DoctorClinicalRecordsPage({ item, overview, onNavigate, onRefres
                 <form className="dw2-command-form" onSubmit={createAllergy}>
                   <Field label="Dị nguyên"><input value={allergyForm.allergen} onChange={(event) => setAllergyForm((current) => ({ ...current, allergen: event.target.value }))} /></Field>
                   <Field label="Phản ứng"><input value={allergyForm.reaction} onChange={(event) => setAllergyForm((current) => ({ ...current, reaction: event.target.value }))} /></Field>
-                  <Field label="Mức độ"><select value={allergyForm.severity} onChange={(event) => setAllergyForm((current) => ({ ...current, severity: event.target.value }))}><option value="unknown">Unknown</option><option value="mild">Mild</option><option value="moderate">Moderate</option><option value="severe">Severe</option></select></Field>
+                  <Field label="Mức độ"><select value={allergyForm.severity} onChange={(event) => setAllergyForm((current) => ({ ...current, severity: event.target.value }))}><option value="unknown">Chưa rõ</option><option value="mild">Nhẹ</option><option value="moderate">Trung bình</option><option value="severe">Nặng</option></select></Field>
                   <ActionButton type="submit" tone="success">Thêm dị ứng</ActionButton>
                 </form>
-                <div className="dw2-compact-list">{safeArray(summary?.allergies).map((allergy) => <button type="button" key={allergyIdOf(allergy)}><AlertTriangle size={16} /><span><strong>{allergy.allergen || allergy.allergen_name}</strong><small>{allergy.reaction || '--'} · {allergy.severity}</small></span><ActionButton onClick={() => runAction(() => clinicalAPI.resolveAllergy(allergyIdOf(allergy)), 'Đã resolve dị ứng.')}>Resolve</ActionButton></button>)}</div>
+                <div className="dw2-compact-list">{safeArray(summary?.allergies).map((allergy) => <button type="button" key={allergyIdOf(allergy)}><AlertTriangle size={16} /><span><strong>{allergy.allergen || allergy.allergen_name}</strong><small>{allergy.reaction || '--'} · {statusLabel(allergy.severity)}</small></span><ActionButton onClick={() => runAction(() => clinicalAPI.resolveAllergy(allergyIdOf(allergy)), 'Đã đánh dấu dị ứng là đã xử lý.')}>Đã xử lý</ActionButton></button>)}</div>
               </Panel>
-              <Panel title="Problem list" subtitle="CRUD qua /api/clinical/patients/:patientId/problems">
+              <Panel title="Danh sách vấn đề" subtitle="Quản lý vấn đề sức khỏe của bệnh nhân.">
                 <form className="dw2-command-form" onSubmit={createProblem}>
                   <Field label="Vấn đề"><input value={problemForm.problem_name} onChange={(event) => setProblemForm((current) => ({ ...current, problem_name: event.target.value }))} /></Field>
                   <Field label="Ghi chú"><input value={problemForm.notes} onChange={(event) => setProblemForm((current) => ({ ...current, notes: event.target.value }))} /></Field>
-                  <ActionButton type="submit" tone="success">Thêm problem</ActionButton>
+                  <ActionButton type="submit" tone="success">Thêm vấn đề</ActionButton>
                 </form>
-                <div className="dw2-compact-list">{safeArray(summary?.problems).map((problem) => <button type="button" key={problemIdOf(problem)}><ListChecks size={16} /><span><strong>{problem.problem_name || problem.name}</strong><small>{problem.severity || '--'} · {statusLabel(problem.status)}</small></span><ActionButton onClick={() => runAction(() => clinicalAPI.resolveProblem(problemIdOf(problem)), 'Đã resolve problem.')}>Resolve</ActionButton></button>)}</div>
+                <div className="dw2-compact-list">{safeArray(summary?.problems).map((problem) => <button type="button" key={problemIdOf(problem)}><ListChecks size={16} /><span><strong>{problem.problem_name || problem.name}</strong><small>{statusLabel(problem.severity) || '--'} · {statusLabel(problem.status)}</small></span><ActionButton onClick={() => runAction(() => clinicalAPI.resolveProblem(problemIdOf(problem)), 'Đã đánh dấu vấn đề là đã xử lý.')}>Đã xử lý</ActionButton></button>)}</div>
               </Panel>
             </div>
           ) : null}

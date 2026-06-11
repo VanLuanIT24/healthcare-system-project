@@ -43774,3 +43774,60 @@ button.doctor-history-kpi {
   white-space: nowrap;
   cursor: default;
 }
+
+/* Keep doctor topbar popovers inside the visible workspace on narrow screens. */
+.doctor-shell .doctor-notification-menu {
+  isolation: isolate;
+}
+
+.doctor-shell .doctor-notification-dropdown {
+  z-index: 1400 !important;
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+}
+
+.doctor-shell .doctor-notification-list {
+  max-height: min(420px, calc(100vh - 180px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.doctor-shell .doctor-notification-copy strong,
+.doctor-shell .doctor-notification-copy small {
+  overflow-wrap: anywhere;
+}
+
+.doctor-shell .doctor-notification-item:hover {
+  transform: none !important;
+}
+
+@media (max-width: 720px) {
+  .doctor-shell .doctor-notification-dropdown {
+    position: fixed;
+    top: 74px;
+    right: 10px;
+    left: 76px;
+    width: auto;
+    max-width: none;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .doctor-shell .doctor-notification-item {
+    grid-template-columns: 10px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .doctor-shell .doctor-notification-time {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 420px) {
+  .doctor-shell .doctor-notification-dropdown {
+    left: 70px;
+    right: 8px;
+  }
+}

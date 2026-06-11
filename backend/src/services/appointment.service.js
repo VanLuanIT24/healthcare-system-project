@@ -1382,8 +1382,8 @@ async function createEncounterFromAppointment(appointmentId, actor, requestMeta 
   assertAppointmentReadable(appointment, actor);
   assertAppointmentWritable(appointment, actor, 'encounter');
 
-  if (![APPOINTMENT_STATUS.CHECKED_IN, APPOINTMENT_STATUS.IN_CONSULTATION].includes(appointment.status)) {
-    throw createError('Chỉ tạo encounter từ appointment đã check-in hoặc đang khám.', 409);
+  if (![APPOINTMENT_STATUS.CONFIRMED, APPOINTMENT_STATUS.CHECKED_IN, APPOINTMENT_STATUS.IN_CONSULTATION].includes(appointment.status)) {
+    throw createError('Chỉ tạo encounter từ appointment đã xác nhận, check-in hoặc đang khám.', 409);
   }
   const encounterService = require('./encounter.service');
   return encounterService.createEncounterFromAppointment(appointment._id, actor, requestMeta);

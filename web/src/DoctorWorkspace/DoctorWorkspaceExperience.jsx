@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Activity,
@@ -31,7 +31,12 @@ import {
   X,
 } from 'lucide-react'
 import { AppLogo, APP_BRAND_NAME } from '../app/AppLogo'
-import { doctorWorkspaceAPI, getApiErrorMessage, unwrapData } from '../utils/api'
+import { appointmentAPI, doctorWorkspaceAPI, encounterAPI, getApiErrorMessage, orderAPI, prescriptionAPI, unwrapData } from '../utils/api'
+import {
+  DoctorClinicalRecordsPage as DoctorClinicalRecordsCommandPage,
+  DoctorEncounterCommandPage,
+  DoctorPatientFlowPage as DoctorPatientCommandPage,
+} from './DoctorClinicalCommandPages'
 import './doctor-workspace-v2.css'
 
 const EMPTY_OVERVIEW = {
@@ -58,7 +63,7 @@ const NAV_GROUPS = [
       { key: 'dashboard', label: 'Dashboard của tôi', path: '/doctor/dashboard', description: 'Clinical command center cá nhân cho toàn bộ ca làm việc.' },
       { key: 'waiting-for-me', label: 'Bệnh nhân đang chờ tôi', path: '/doctor/queue?view=waiting', description: 'Queue khám theo readiness, ưu tiên và thời gian chờ.' },
       { key: 'today-schedule', label: 'Lịch khám hôm nay', path: '/doctor/schedules/today', description: 'Timeline lịch hẹn, check-in, no-show và encounter liên quan.' },
-      { key: 'open-encounters', label: 'Encounter đang mở', path: '/doctor/encounters?view=active', description: 'Các encounter cần tiếp tục hoặc hoàn tất.' },
+      { key: 'open-encounters', label: 'Encounter đang mở', path: '/doctor/dashboard?panel=open-encounters', description: 'Các encounter cần tiếp tục hoặc hoàn tất.' },
       { key: 'new-results', label: 'Kết quả mới', path: '/doctor/results?view=new', description: 'Kết quả vừa release, critical và chưa đọc.' },
       { key: 'pending-work', label: 'Việc cần hoàn tất', path: '/doctor/dashboard?panel=tasks', description: 'Task inbox lâm sàng: note, diagnosis, critical, refill, order.' },
     ],
@@ -79,6 +84,8 @@ const NAV_GROUPS = [
     id: 'encounter',
     label: 'Encounter',
     icon: Stethoscope,
+    path: '/doctor/encounters?view=active',
+    compactSidebar: true,
     items: [
       { key: 'encounter-active', label: 'Encounter đang mở', path: '/doctor/encounters?view=active', description: 'Danh sách encounter chưa hoàn tất kèm completion checklist.' },
       { key: 'encounter-start', label: 'Tạo / bắt đầu encounter', path: '/doctor/encounters?view=start', description: 'Bắt đầu khám từ queue, appointment hoặc bệnh nhân được chọn.' },
@@ -290,6 +297,11 @@ function filterGroupsForUser(user) {
 
 function findActiveNavigation(location, groups) {
   const signature = routeSignature(location)
+  if (location.pathname === '/doctor/encounters') {
+    const encounterGroup = groups.find((group) => group.id === 'encounter')
+    const item = encounterGroup?.items.find((entry) => signature === entry.path || signature.startsWith(`${entry.path}&`))
+    if (encounterGroup && item) return { group: encounterGroup, item }
+  }
   for (const group of groups) {
     const item = group.items.find((entry) => signature === entry.path || signature.startsWith(`${entry.path}&`))
     if (item) return { group, item }
@@ -386,6 +398,20 @@ function EmptyState({ label = 'Chưa có dữ liệu phù hợp.' }) {
   )
 }
 
+function ActionButton({ children, onClick, disabled, tone = 'neutral', type = 'button', title }) {
+  return (
+    <button
+      type={type}
+      className={`dw2-command-button is-${tone}`}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+    >
+      {children}
+    </button>
+  )
+}
+
 function SidebarBadge({ value, tone = 'neutral' }) {
   if (!Number(value)) return null
   return <span className={`dw2-sidebar-badge dw2-tone-${tone}`}>{value > 99 ? '99+' : value}</span>
@@ -403,6 +429,10 @@ function getGroupBadge(groupId, overview) {
     communication: safeArray(overview?.notifications).length,
   }
   return map[groupId] || 0
+}
+
+function isSidebarItemCurrent(item, activeItemKey) {
+  return item.key === activeItemKey || safeArray(item.activeKeys).includes(activeItemKey)
 }
 
 function Sidebar({ groups, activeGroupId, activeItemKey, expanded, onToggle, onNavigate, collapsed, onToggleCollapsed, onLogout, overview }) {
@@ -456,28 +486,39 @@ function Sidebar({ groups, activeGroupId, activeItemKey, expanded, onToggle, onN
           const isOpen = expanded[group.id]
           const isGroupActive = activeGroupId === group.id
           const badgeValue = getGroupBadge(group.id, overview)
+          const isCompactSidebarGroup = Boolean(group.compactSidebar && group.path)
           return (
             <div className={`dw2-nav-group ${isGroupActive ? 'is-active' : ''}`} key={group.id}>
-              <button type="button" className="dw2-nav-group__button" onClick={() => onToggle(group.id)} title={group.label}>
+              <button
+                type="button"
+                className={`dw2-nav-group__button ${isCompactSidebarGroup ? 'is-direct' : ''}`}
+                onClick={() => (isCompactSidebarGroup ? onNavigate(group.path) : onToggle(group.id))}
+                title={group.label}
+              >
                 <span className="dw2-nav-group__icon" aria-hidden="true"><Icon size={18} /></span>
                 <span className="dw2-nav-group__label">{group.label}</span>
                 <SidebarBadge value={badgeValue} tone={criticalCount && ['overview', 'results'].includes(group.id) ? 'critical' : 'neutral'} />
-                {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                {!isCompactSidebarGroup ? (isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : null}
               </button>
-              <div className={`dw2-nav-group__items ${isOpen ? 'is-open' : ''}`}>
-                {group.items.map((item) => (
-                  <button
-                    type="button"
-                    className={`dw2-nav-item ${activeItemKey === item.key ? 'is-current' : ''}`}
-                    key={item.key}
-                    title={item.description || item.label}
-                    onClick={() => onNavigate(item.path)}
-                  >
-                    <span>{item.label}</span>
-                    {activeItemKey === item.key ? <small>Đang mở</small> : null}
-                  </button>
-                ))}
-              </div>
+              {!isCompactSidebarGroup ? (
+                <div className={`dw2-nav-group__items ${isOpen ? 'is-open' : ''}`}>
+                  {group.items.map((item) => {
+                    const isCurrent = isSidebarItemCurrent(item, activeItemKey)
+                    return (
+                    <button
+                      type="button"
+                      className={`dw2-nav-item ${isCurrent ? 'is-current' : ''}`}
+                      key={item.key}
+                      title={item.description || item.label}
+                      onClick={() => onNavigate(item.path)}
+                    >
+                      <span>{item.label}</span>
+                      {isCurrent ? <small>Đang mở</small> : null}
+                    </button>
+                    )
+                  })}
+                </div>
+              ) : null}
             </div>
           )
         })}
@@ -643,7 +684,9 @@ function Topbar({ user, overview, searchTerm, onSearchTerm, searchState, onNavig
   )
 }
 
-function PageHeader({ group, item, mode, overview, isLoading, error, onRefresh }) {
+function PageHeader({ group, item, mode, overview, isLoading, error, onRefresh, compact = false }) {
+  if (compact) return null
+
   return (
     <div className="dw2-page-header">
       <div>
@@ -657,7 +700,7 @@ function PageHeader({ group, item, mode, overview, isLoading, error, onRefresh }
           {isLoading ? 'Đang tải...' : 'Làm mới'}
         </button>
       </div>
-      <div className="dw2-page-header__workflow">
+      {!compact ? <div className="dw2-page-header__workflow">
         {safeArray(overview.workflow).length ? safeArray(overview.workflow).map((step) => (
           <div key={step.key}>
             <strong>{step.count}</strong>
@@ -669,15 +712,39 @@ function PageHeader({ group, item, mode, overview, isLoading, error, onRefresh }
             <span>{focus}</span>
           </div>
         ))}
-      </div>
+      </div> : null}
     </div>
   )
 }
 
 function PatientContextBar({ overview, onNavigate }) {
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const requestedEncounterId = searchParams.get('encounterId') || ''
   const patient = getActivePatient(overview)
+  const activeEncounter = safeArray(overview.active_encounters)[0] || null
+  const activeEncounterId = activeEncounter?.encounter_id || activeEncounter?._id || activeEncounter?.id || requestedEncounterId
+  const activePatientId = patientIdOf(patient)
+  const canUseExamActions = Boolean(activeEncounterId)
   const latestVital = safeArray(overview.queue).find((ticket) => ticket.patient?.patient_id === patient?.patient_id)?.latest_vital
   const critical = safeArray(overview.critical_results)[0]
+  const actions = [
+    { label: 'Ghi note', path: '/doctor/encounters?view=active', requiresEncounter: true },
+    { label: 'Chẩn đoán', path: '/doctor/encounters?view=active', requiresEncounter: true },
+    { label: 'Tạo chỉ định', path: '/doctor/encounters?view=active', requiresEncounter: true },
+    { label: 'Kê đơn', path: '/doctor/encounters?view=active', requiresEncounter: true },
+    { label: 'Hoàn tất', path: '/doctor/encounters?view=active', requiresEncounter: true },
+  ]
+
+  function actionPath(path) {
+    if (!activeEncounterId) return '/doctor/encounters?view=start'
+    const separator = path.includes('?') ? '&' : '?'
+    return `${path}${separator}encounterId=${encodeURIComponent(activeEncounterId)}`
+  }
+
+  function startPath() {
+    return `/doctor/encounters?view=start${activePatientId ? `&patientId=${encodeURIComponent(activePatientId)}` : ''}`
+  }
 
   return (
     <div className="dw2-patient-context">
@@ -693,8 +760,24 @@ function PatientContextBar({ overview, onNavigate }) {
         <StatusPill tone={latestVital ? 'neutral' : 'warning'}>{latestVital ? `HA ${latestVital.blood_pressure_systolic || '--'}/${latestVital.blood_pressure_diastolic || '--'} · SpO2 ${latestVital.spo2 || '--'}%` : 'Chưa có sinh hiệu mới'}</StatusPill>
       </div>
       <div className="dw2-patient-context__actions">
-        {['Ghi note', 'Chẩn đoán', 'Tạo chỉ định', 'Kê đơn', 'Hoàn tất'].map((label) => (
-          <button type="button" key={label} onClick={() => onNavigate('/doctor/encounters?view=active')}>{label}</button>
+        {!activeEncounterId ? (
+          <button type="button" onClick={() => onNavigate(startPath())}>
+            Bat dau kham
+          </button>
+        ) : null}
+        {actions.map((action) => (
+          <button
+            type="button"
+            key={action.label}
+            disabled={!canUseExamActions}
+            title={action.requiresEncounter && !activeEncounterId ? 'Tạo hoặc bắt đầu encounter trước khi thao tác.' : action.label}
+            onClick={() => {
+              if (!canUseExamActions) return
+              onNavigate(actionPath(action.path))
+            }}
+          >
+            {action.label}
+          </button>
         ))}
       </div>
     </div>
@@ -715,13 +798,89 @@ function KpiGrid({ overview }) {
   )
 }
 
-function QueuePanel({ queue, onNavigate }) {
+function queueTicketIdOf(ticket = {}) {
+  const value = ticket || {}
+  return valueId(value.queue_ticket_id || value.id || value._id)
+}
+
+function patientIdOf(row = {}) {
+  const value = row || {}
+  return valueId(value.patient || value.patient_id || value)
+}
+
+async function startEncounterWithRecovery(encounterId, appointmentId = '') {
+  if (!encounterId) return
+  try {
+    await encounterAPI.start(encounterId)
+  } catch (startError) {
+    try {
+      await encounterAPI.arrive(encounterId)
+      await encounterAPI.start(encounterId)
+    } catch (arriveError) {
+      if (!appointmentId) throw arriveError || startError
+      await appointmentAPI.checkIn(appointmentId)
+      await encounterAPI.start(encounterId)
+    }
+  }
+}
+
+function QueuePanel({ queue, onNavigate, onRefresh }) {
   const rows = safeArray(queue)
+  const [busyTicketId, setBusyTicketId] = useState('')
+  const [notice, setNotice] = useState({ error: '', success: '' })
+
+  async function openQueueTicket(ticket) {
+    const value = ticket || {}
+    const existingEncounterId = valueId(value.encounter_id || value.encounter)
+    if (existingEncounterId) {
+      onNavigate(`/doctor/encounters?view=active&encounterId=${encodeURIComponent(existingEncounterId)}`)
+      return
+    }
+
+    const ticketId = queueTicketIdOf(ticket)
+    if (!ticketId) {
+      const patientId = patientIdOf(ticket)
+      onNavigate(`/doctor/encounters?view=start${patientId ? `&patientId=${encodeURIComponent(patientId)}` : ''}`)
+      return
+    }
+
+    setBusyTicketId(ticketId)
+    setNotice({ error: '', success: '' })
+    try {
+      const response = await encounterAPI.createFromQueue(ticketId)
+      const payload = unwrapData(response) || {}
+      const encounterId = valueId(payload.encounter || payload)
+      if (encounterId) {
+        try {
+          await startEncounterWithRecovery(encounterId)
+        } catch (startError) {
+          // If start is blocked by readiness rules, still open the encounter workspace.
+        }
+        setNotice({ error: '', success: 'Da tao encounter tu queue.' })
+        onRefresh?.({ silent: true })
+        onNavigate(`/doctor/encounters?view=active&encounterId=${encodeURIComponent(encounterId)}`)
+      } else {
+        onRefresh?.({ silent: true })
+        onNavigate(`/doctor/encounters?view=start&ticketId=${encodeURIComponent(ticketId)}`)
+      }
+    } catch (error) {
+      setNotice({ error: getApiErrorMessage(error, 'Khong the tao encounter tu queue ticket nay.'), success: '' })
+    } finally {
+      setBusyTicketId('')
+    }
+  }
   return (
     <Panel title="Queue bệnh nhân của tôi" subtitle="Ưu tiên clinical readiness, SLA và cảnh báo sinh hiệu.">
+      {notice.error || notice.success ? <div className={`dw2-command-notice ${notice.error ? 'is-error' : 'is-success'}`}>{notice.error || notice.success}</div> : null}
       <div className="dw2-card-list">
         {!rows.length ? <EmptyState label="Không có bệnh nhân đang chờ trong queue." /> : rows.slice(0, 6).map((ticket) => (
-          <button type="button" className="dw2-patient-card" key={ticket.queue_ticket_id} onClick={() => onNavigate('/doctor/encounters?view=start')}>
+          <button
+            type="button"
+            className="dw2-patient-card"
+            key={queueTicketIdOf(ticket) || patientIdOf(ticket)}
+            disabled={busyTicketId === queueTicketIdOf(ticket)}
+            onClick={() => openQueueTicket(ticket)}
+          >
             <div>
               <StatusPill tone={statusTone(ticket.status)}>{statusLabel(ticket.status)}</StatusPill>
               <strong>{ticket.patient?.full_name || 'Bệnh nhân'}</strong>
@@ -739,17 +898,155 @@ function QueuePanel({ queue, onNavigate }) {
   )
 }
 
-function AppointmentPanel({ appointments, onNavigate }) {
+function valueId(value) {
+  if (!value) return ''
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  return String(value.encounter_id || value.appointment_id || value.patient_id || value.id || value._id || '')
+}
+
+function appointmentIdOf(row = {}) {
+  const value = row || {}
+  return valueId(value.appointment || value.appointment_id || value)
+}
+
+function appointmentPatientIdOf(row = {}) {
+  const value = row || {}
+  return valueId(value.patient || value.patient_id || value)
+}
+
+function encounterIdFromAppointment(appointment = {}, encounters = []) {
+  const value = appointment || {}
+  const direct = valueId(value.encounter || value.active_encounter || value.encounter_id)
+  if (direct) return direct
+  const appointmentId = appointmentIdOf(value)
+  const matched = safeArray(encounters).find((encounter) => valueId(encounter.appointment || encounter.appointment_id) === appointmentId)
+  return valueId(matched)
+}
+
+function appointmentStartPath(appointment = {}) {
+  const value = appointment || {}
+  const params = new URLSearchParams({ view: 'start' })
+  const appointmentId = appointmentIdOf(value)
+  const patientId = appointmentPatientIdOf(value)
+  if (appointmentId) params.set('appointmentId', appointmentId)
+  if (patientId) params.set('patientId', patientId)
+  return `/doctor/encounters?${params.toString()}`
+}
+
+function appointmentAutoExamPath(appointment = {}) {
+  const value = appointment || {}
+  const params = new URLSearchParams({ view: 'active' })
+  const appointmentId = appointmentIdOf(value)
+  const patientId = appointmentPatientIdOf(value)
+  if (appointmentId) params.set('appointmentId', appointmentId)
+  if (patientId) params.set('patientId', patientId)
+  return `/doctor/encounters?${params.toString()}`
+}
+
+function appointmentExamPath(encounterId) {
+  return `/doctor/encounters?view=active&encounterId=${encodeURIComponent(encounterId)}`
+}
+
+function encounterIdFromResponse(response) {
+  const payload = unwrapData(response) || {}
+  return valueId(payload.encounter || payload)
+}
+
+async function findTodayEncounterForAppointment(appointmentId) {
+  if (!appointmentId) return ''
+  try {
+    const response = await encounterAPI.listToday({ limit: 100 })
+    const payload = unwrapData(response)
+    return encounterIdFromAppointment({ appointment_id: appointmentId }, safeArray(payload))
+  } catch (error) {
+    return ''
+  }
+}
+
+async function startEncounterForExam(encounterId, appointmentId) {
+  if (!encounterId) return null
+  try {
+    await startEncounterWithRecovery(encounterId, appointmentId)
+    return null
+  } catch (error) {
+    return error
+  }
+}
+
+async function createAppointmentEncounterForExam(appointmentId) {
+  let response = null
+  let createError = null
+  try {
+    response = await encounterAPI.createFromAppointment(appointmentId)
+  } catch (error) {
+    createError = error
+    try {
+      await appointmentAPI.checkIn(appointmentId)
+    } catch (checkInError) {
+      // The encounter endpoint may still be able to recover an existing encounter below.
+    }
+    try {
+      response = await encounterAPI.createFromAppointment(appointmentId)
+      createError = null
+    } catch (retryError) {
+      createError = retryError
+    }
+  }
+
+  let encounterId = encounterIdFromResponse(response)
+  if (!encounterId) {
+    encounterId = await findTodayEncounterForAppointment(appointmentId)
+  }
+  if (!encounterId && createError) throw createError
+
+  const startError = await startEncounterForExam(encounterId, appointmentId)
+  return { encounterId, startError }
+}
+
+function AppointmentPanel({ appointments, encounters = [], onNavigate, onRefresh }) {
   const rows = safeArray(appointments)
+  const [busyAppointmentId, setBusyAppointmentId] = useState('')
+  const [error, setError] = useState('')
+
+  async function openAppointment(appointment) {
+    const existingEncounterId = encounterIdFromAppointment(appointment, encounters)
+    if (existingEncounterId) {
+      onNavigate(appointmentExamPath(existingEncounterId))
+      return
+    }
+
+    const appointmentId = appointmentIdOf(appointment)
+    if (!appointmentId) {
+      onNavigate(appointmentStartPath(appointment))
+      return
+    }
+
+    onNavigate(appointmentAutoExamPath(appointment))
+    setBusyAppointmentId(appointmentId)
+    setError('')
+    try {
+      const { encounterId: createdEncounterId } = await createAppointmentEncounterForExam(appointmentId)
+      onRefresh?.()
+      if (createdEncounterId) {
+        onNavigate(appointmentExamPath(createdEncounterId))
+      }
+    } catch (createError) {
+      setError(getApiErrorMessage(createError, 'Chưa thể tạo encounter từ lịch hẹn này.'))
+    } finally {
+      setBusyAppointmentId('')
+    }
+  }
+
   return (
     <Panel title="Lịch khám hôm nay" subtitle="Timeline lịch hẹn gắn với check-in và encounter.">
+      {error ? <div className="dw2-command-notice is-error">{error}</div> : null}
       <div className="dw2-timeline">
         {!rows.length ? <EmptyState label="Không có lịch hẹn hôm nay." /> : rows.slice(0, 7).map((appointment) => (
-          <button type="button" key={appointment.appointment_id} onClick={() => onNavigate('/doctor/schedules/today')}>
+          <button type="button" key={appointmentIdOf(appointment)} disabled={busyAppointmentId === appointmentIdOf(appointment)} onClick={() => openAppointment(appointment)}>
             <time>{formatTime(appointment.appointment_time)}</time>
             <div>
               <strong>{appointment.patient?.full_name || 'Bệnh nhân'}</strong>
-              <span>{appointment.reason || statusLabel(appointment.status)}</span>
+              <span>{busyAppointmentId === appointmentIdOf(appointment) ? 'Đang mở màn khám...' : appointment.reason || statusLabel(appointment.status)}</span>
             </div>
             <StatusPill tone={statusTone(appointment.status)}>{statusLabel(appointment.status)}</StatusPill>
           </button>
@@ -776,6 +1073,102 @@ function EncounterPanel({ encounters, onNavigate }) {
             <small>{encounter.readiness?.score || 0}% hoàn tất · {safeArray(encounter.readiness?.missing).slice(0, 2).join(' · ') || 'Sẵn sàng hoàn tất'}</small>
           </button>
         ))}
+      </div>
+    </Panel>
+  )
+}
+
+function encounterClinicalPath(encounter, view = 'active') {
+  const encounterId = valueId(encounter.encounter_id || encounter.id || encounter._id)
+  return `/doctor/encounters?view=${encodeURIComponent(view)}${encounterId ? `&encounterId=${encodeURIComponent(encounterId)}` : ''}`
+}
+
+function getEncounterActionSet(encounter = {}) {
+  const status = String(encounter.status || '').toLowerCase()
+  if (['planned', 'arrived', 'waiting'].includes(status)) return [{ key: 'start', label: 'Bat dau', tone: 'success' }]
+  if (status === 'in_progress' || status === 'active') {
+    return [
+      { key: 'hold', label: 'Tam dung', tone: 'warning' },
+      { key: 'complete', label: 'Hoan tat', tone: 'success' },
+    ]
+  }
+  if (status === 'on_hold') {
+    return [
+      { key: 'resume', label: 'Tiep tuc', tone: 'success' },
+      { key: 'complete', label: 'Hoan tat', tone: 'success' },
+    ]
+  }
+  if (['completed', 'cancelled'].includes(status)) return [{ key: 'reopen', label: 'Mo lai', tone: 'warning' }]
+  return [{ key: 'start', label: 'Bat dau', tone: 'success' }]
+}
+
+function LiveEncounterPanel({ encounters, onNavigate, onRefresh }) {
+  const rows = safeArray(encounters)
+  const [busyAction, setBusyAction] = useState('')
+  const [notice, setNotice] = useState({ error: '', success: '' })
+
+  async function runEncounterAction(encounter, action) {
+    const encounterId = valueId(encounter.encounter_id || encounter.id || encounter._id)
+    if (!encounterId) return
+    setBusyAction(`${encounterId}:${action.key}`)
+    setNotice({ error: '', success: '' })
+    try {
+      if (action.key === 'start') await startEncounterWithRecovery(encounterId, valueId(encounter.appointment_id))
+      if (action.key === 'hold') await encounterAPI.hold(encounterId)
+      if (action.key === 'resume') await encounterAPI.resume(encounterId)
+      if (action.key === 'complete') await encounterAPI.complete(encounterId)
+      if (action.key === 'reopen') await encounterAPI.reopen(encounterId)
+      setNotice({ error: '', success: `${action.label} encounter thanh cong.` })
+      await onRefresh?.({ silent: true })
+    } catch (error) {
+      setNotice({ error: getApiErrorMessage(error, `Khong the ${action.label.toLowerCase()} encounter.`), success: '' })
+    } finally {
+      setBusyAction('')
+    }
+  }
+
+  return (
+    <Panel title="Encounter dang mo" subtitle="Thao tac truc tiep bang API encounter va mo dung workspace lam sang.">
+      {notice.error || notice.success ? <div className={`dw2-command-notice ${notice.error ? 'is-error' : 'is-success'}`}>{notice.error || notice.success}</div> : null}
+      <div className="dw2-encounter-list">
+        {!rows.length ? (
+          <div className="dw2-command-empty-actions">
+            <EmptyState label="Khong co encounter dang mo." />
+            <ActionButton tone="success" onClick={() => onNavigate('/doctor/encounters?view=start')}>
+              Bat dau kham
+            </ActionButton>
+          </div>
+        ) : rows.slice(0, 5).map((encounter) => {
+          const encounterId = valueId(encounter.encounter_id || encounter.id || encounter._id)
+          return (
+            <article key={encounterId} className="dw2-encounter-card">
+              <button type="button" className="dw2-encounter-card__main" onClick={() => onNavigate(encounterClinicalPath(encounter))}>
+                <div>
+                  <strong>{encounter.encounter_code || 'Encounter'}</strong>
+                  <span>{patientLabel(encounter.patient)}</span>
+                </div>
+                <div className="dw2-progress">
+                  <span style={{ width: `${encounter.readiness?.score || 0}%` }} />
+                </div>
+                <small>{encounter.readiness?.score || 0}% complete - {safeArray(encounter.readiness?.missing).slice(0, 2).join(' / ') || 'Ready'}</small>
+              </button>
+              <div className="dw2-command-actions is-wide">
+                {getEncounterActionSet(encounter).map((action) => {
+                  const busy = busyAction === `${encounterId}:${action.key}`
+                  return (
+                    <ActionButton key={action.key} tone={action.tone} disabled={busy || Boolean(busyAction)} onClick={() => runEncounterAction(encounter, action)}>
+                      {busy ? 'Dang xu ly...' : action.label}
+                    </ActionButton>
+                  )
+                })}
+                <ActionButton onClick={() => onNavigate(encounterClinicalPath(encounter, 'note'))}>Ghi note</ActionButton>
+                <ActionButton onClick={() => onNavigate(encounterClinicalPath(encounter, 'diagnosis'))}>Chan doan</ActionButton>
+                <ActionButton onClick={() => onNavigate(`/doctor/orders?view=create&encounterId=${encodeURIComponent(encounterId)}`)}>Chi dinh</ActionButton>
+                <ActionButton onClick={() => onNavigate(`/doctor/prescriptions?view=create&encounterId=${encodeURIComponent(encounterId)}`)}>Ke don</ActionButton>
+              </div>
+            </article>
+          )
+        })}
       </div>
     </Panel>
   )
@@ -853,15 +1246,15 @@ function OrderPrescriptionPanel({ overview, onNavigate }) {
   )
 }
 
-function DashboardView({ overview, onNavigate }) {
+function DashboardView({ overview, onNavigate, onRefresh }) {
   return (
     <>
       <KpiGrid overview={overview} />
       <PatientContextBar overview={overview} onNavigate={onNavigate} />
       <div className="dw2-main-grid">
-        <QueuePanel queue={overview.queue} onNavigate={onNavigate} />
-        <AppointmentPanel appointments={overview.appointments} onNavigate={onNavigate} />
-        <EncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} />
+        <QueuePanel queue={overview.queue} onNavigate={onNavigate} onRefresh={onRefresh} />
+        <AppointmentPanel appointments={overview.appointments} encounters={overview.active_encounters} onNavigate={onNavigate} onRefresh={onRefresh} />
+        <LiveEncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} onRefresh={onRefresh} />
         <ResultPanel results={overview.results} criticalResults={overview.critical_results} onNavigate={onNavigate} />
         <TaskPanel tasks={overview.tasks} onNavigate={onNavigate} />
       </div>
@@ -871,15 +1264,15 @@ function DashboardView({ overview, onNavigate }) {
 }
 
 
-function OverviewSubPage({ item, overview, onNavigate }) {
+function OverviewSubPage({ item, overview, onNavigate, onRefresh }) {
   if (item.key === 'waiting-for-me') {
     return (
       <>
         <PatientContextBar overview={overview} onNavigate={onNavigate} />
         <div className="dw2-workspace-layout">
           <div className="dw2-workspace-layout__main">
-            <QueuePanel queue={overview.queue} onNavigate={onNavigate} />
-            <EncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} />
+            <QueuePanel queue={overview.queue} onNavigate={onNavigate} onRefresh={onRefresh} />
+            <LiveEncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} onRefresh={onRefresh} />
           </div>
           <aside className="dw2-workspace-layout__side">
             <Panel title="Logic backend áp dụng" subtitle="Màn hình này không dùng dữ liệu giả.">
@@ -889,7 +1282,7 @@ function OverviewSubPage({ item, overview, onNavigate }) {
                 <span>Ưu tiên ready_for_doctor_at, checkin_time, SLA và status.</span>
               </div>
             </Panel>
-            <ActionPanel mode={GROUP_MODES.patients} onNavigate={onNavigate} />
+            <ActionPanel mode={GROUP_MODES.patients} onNavigate={onNavigate} disabled />
           </aside>
         </div>
       </>
@@ -900,8 +1293,8 @@ function OverviewSubPage({ item, overview, onNavigate }) {
     return (
       <div className="dw2-workspace-layout">
         <div className="dw2-workspace-layout__main">
-          <AppointmentPanel appointments={overview.appointments} onNavigate={onNavigate} />
-          <QueuePanel queue={overview.queue} onNavigate={onNavigate} />
+          <AppointmentPanel appointments={overview.appointments} encounters={overview.active_encounters} onNavigate={onNavigate} onRefresh={onRefresh} />
+          <QueuePanel queue={overview.queue} onNavigate={onNavigate} onRefresh={onRefresh} />
         </div>
         <aside className="dw2-workspace-layout__side">
           <Panel title="Timeline chuẩn khám" subtitle="Lịch hẹn → check-in → queue → encounter.">
@@ -918,7 +1311,7 @@ function OverviewSubPage({ item, overview, onNavigate }) {
   }
 
   if (item.key === 'open-encounters') {
-    return <DoctorEncounterFlowPage item={{ ...item, key: 'encounter-active' }} overview={overview} onNavigate={onNavigate} />
+    return <DoctorEncounterFlowPage item={{ ...item, key: 'encounter-active' }} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
   }
 
   if (item.key === 'new-results') {
@@ -946,7 +1339,7 @@ function OverviewSubPage({ item, overview, onNavigate }) {
       <div className="dw2-workspace-layout">
         <div className="dw2-workspace-layout__main">
           <TaskPanel tasks={overview.tasks} onNavigate={onNavigate} />
-          <EncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} />
+          <LiveEncounterPanel encounters={overview.active_encounters} onNavigate={onNavigate} onRefresh={onRefresh} />
         </div>
         <aside className="dw2-workspace-layout__side">
           <Panel title="Task inbox được tính từ backend" subtitle="Không phải menu tĩnh.">
@@ -962,7 +1355,7 @@ function OverviewSubPage({ item, overview, onNavigate }) {
     )
   }
 
-  return <DashboardView overview={overview} onNavigate={onNavigate} />
+  return <DashboardView overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
 }
 
 function DoctorPatientFlowPage({ item, overview, onNavigate }) {
@@ -1067,7 +1460,7 @@ function DoctorPatientFlowPage({ item, overview, onNavigate }) {
   )
 }
 
-function DoctorEncounterFlowPage({ item, overview, onNavigate }) {
+function DoctorEncounterFlowPage({ item, overview, onNavigate, onRefresh }) {
   const activeEncounters = safeArray(overview.active_encounters)
   const queueCandidates = safeArray(overview.queue).filter((ticket) => !ticket.encounter_id)
   const subview = item.key
@@ -1111,7 +1504,7 @@ function DoctorEncounterFlowPage({ item, overview, onNavigate }) {
       <PatientContextBar overview={overview} onNavigate={onNavigate} />
       <div className="dw2-workspace-layout">
         <div className="dw2-workspace-layout__main">
-          <EncounterPanel encounters={activeEncounters} onNavigate={onNavigate} />
+          <LiveEncounterPanel encounters={activeEncounters} onNavigate={onNavigate} onRefresh={onRefresh} />
           {editorCopy ? (
             <Panel title={item.label} subtitle={item.description}>
               <div className="dw2-encounter-editor-grid">
@@ -1168,17 +1561,189 @@ function FocusPanel({ mode }) {
   )
 }
 
-function ActionPanel({ mode, onNavigate }) {
+function ActionPanel({ mode, onNavigate, disabled = false }) {
   return (
     <Panel title="Quick actions" subtitle="Các lệnh chính giữ cố định theo ngữ cảnh màn hình.">
       <div className="dw2-action-grid">
         {mode.primaryActions.map((action, index) => (
-          <button type="button" key={action} onClick={() => onNavigate(index < 2 ? '/doctor/encounters?view=active' : '/doctor/orders?view=create')}>
+          <button
+            type="button"
+            key={action}
+            disabled={disabled}
+            title={disabled ? 'Thao tac kham thuc hien truc tiep trong Encounter dang mo.' : action}
+            onClick={() => {
+              if (disabled) return
+              onNavigate(index < 2 ? '/doctor/encounters?view=active' : '/doctor/orders?view=create')
+            }}
+          >
             {index === 0 ? <PlusCircle size={18} /> : index === 1 ? <FileSignature size={18} /> : index === 2 ? <ClipboardList size={18} /> : <Send size={18} />}
             <span>{action}</span>
           </button>
         ))}
       </div>
+    </Panel>
+  )
+}
+
+function activeEncounterIdOf(row = {}) {
+  return row?.encounter_id || row?._id || row?.id || ''
+}
+
+function activeEncounterFromOverview(overview, encounterId = '') {
+  const encounters = safeArray(overview.active_encounters)
+  if (encounterId) {
+    return encounters.find((row) => activeEncounterIdOf(row) === encounterId) || null
+  }
+  return encounters[0] || null
+}
+
+function QuickOrderCreatePanel({ overview, onRefresh }) {
+  const location = useLocation()
+  const encounterId = new URLSearchParams(location.search).get('encounterId') || ''
+  const selectedEncounter = activeEncounterFromOverview(overview, encounterId)
+  const selectedEncounterId = activeEncounterIdOf(selectedEncounter)
+  const [form, setForm] = useState({
+    order_type: 'lab',
+    priority: 'routine',
+    clinical_indication: '',
+    test_name: '',
+    modality: 'xray',
+    body_part: '',
+    contrast_required: false,
+    procedure_name: '',
+  })
+  const [notice, setNotice] = useState({ error: '', success: '' })
+  const [busy, setBusy] = useState(false)
+
+  async function submitOrder(event) {
+    event.preventDefault()
+    if (!selectedEncounterId) {
+      setNotice({ error: 'Cần tạo hoặc bắt đầu encounter trước khi tạo chỉ định.', success: '' })
+      return
+    }
+    setBusy(true)
+    setNotice({ error: '', success: '' })
+    try {
+      const payload = {
+        order_type: form.order_type,
+        priority: form.priority,
+        clinical_indication: form.clinical_indication,
+      }
+      if (form.order_type === 'lab') payload.test_name = form.test_name
+      if (form.order_type === 'imaging') {
+        payload.modality = form.modality
+        payload.body_part = form.body_part
+        payload.contrast_required = form.contrast_required
+      }
+      if (form.order_type === 'procedure') payload.procedure_name = form.procedure_name
+      await orderAPI.createForEncounter(selectedEncounterId, payload)
+      setNotice({ error: '', success: 'Đã tạo chỉ định cho encounter đang khám.' })
+      setForm((current) => ({ ...current, clinical_indication: '', test_name: '', body_part: '', procedure_name: '', contrast_required: false }))
+      onRefresh?.()
+    } catch (error) {
+      setNotice({ error: getApiErrorMessage(error, 'Không tạo được chỉ định.'), success: '' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Panel title="Tạo chỉ định" subtitle="Gọi POST /api/encounters/:encounterId/orders cho encounter đang chọn.">
+      {notice.error || notice.success ? <div className={`dw2-command-notice ${notice.error ? 'is-error' : 'is-success'}`}>{notice.error || notice.success}</div> : null}
+      {!selectedEncounterId ? <EmptyState label="Chưa có encounter đang mở. Hãy tạo hoặc bắt đầu encounter trước." /> : (
+        <form className="dw2-command-form" onSubmit={submitOrder}>
+          <label><span>Encounter</span><input value={selectedEncounter?.encounter_code || selectedEncounterId} readOnly /></label>
+          <label><span>Loại chỉ định</span><select value={form.order_type} onChange={(event) => setForm((current) => ({ ...current, order_type: event.target.value }))}><option value="lab">Xét nghiệm</option><option value="imaging">CĐHA</option><option value="procedure">Thủ thuật</option></select></label>
+          <label><span>Ưu tiên</span><select value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}><option value="routine">Routine</option><option value="urgent">Urgent</option><option value="stat">STAT</option></select></label>
+          <label><span>Chỉ định lâm sàng</span><textarea rows={3} value={form.clinical_indication} onChange={(event) => setForm((current) => ({ ...current, clinical_indication: event.target.value }))} required /></label>
+          {form.order_type === 'lab' ? <label><span>Tên xét nghiệm</span><input value={form.test_name} onChange={(event) => setForm((current) => ({ ...current, test_name: event.target.value }))} required /></label> : null}
+          {form.order_type === 'imaging' ? (
+            <>
+              <label><span>Modality</span><select value={form.modality} onChange={(event) => setForm((current) => ({ ...current, modality: event.target.value }))}><option value="xray">X-ray</option><option value="ct">CT</option><option value="mri">MRI</option><option value="ultrasound">Ultrasound</option></select></label>
+              <label><span>Vùng khảo sát</span><input value={form.body_part} onChange={(event) => setForm((current) => ({ ...current, body_part: event.target.value }))} required /></label>
+              <label><span>Cản quang</span><input type="checkbox" checked={form.contrast_required} onChange={(event) => setForm((current) => ({ ...current, contrast_required: event.target.checked }))} /></label>
+            </>
+          ) : null}
+          {form.order_type === 'procedure' ? <label><span>Tên thủ thuật</span><input value={form.procedure_name} onChange={(event) => setForm((current) => ({ ...current, procedure_name: event.target.value }))} required /></label> : null}
+          <button type="submit" className="dw2-command-button dw2-tone-success" disabled={busy}>{busy ? 'Đang tạo...' : 'Tạo chỉ định'}</button>
+        </form>
+      )}
+    </Panel>
+  )
+}
+
+function QuickPrescriptionCreatePanel({ overview, onRefresh }) {
+  const location = useLocation()
+  const encounterId = new URLSearchParams(location.search).get('encounterId') || ''
+  const selectedEncounter = activeEncounterFromOverview(overview, encounterId)
+  const selectedEncounterId = activeEncounterIdOf(selectedEncounter)
+  const [form, setForm] = useState({
+    medication_id: '',
+    dose: '',
+    route: 'oral',
+    frequency: '',
+    duration_days: '1',
+    quantity: '1',
+    unit: 'viên',
+    instructions: '',
+    note: '',
+    status: 'draft',
+  })
+  const [notice, setNotice] = useState({ error: '', success: '' })
+  const [busy, setBusy] = useState(false)
+
+  async function submitPrescription(event) {
+    event.preventDefault()
+    if (!selectedEncounterId) {
+      setNotice({ error: 'Cần tạo hoặc bắt đầu encounter trước khi kê đơn.', success: '' })
+      return
+    }
+    setBusy(true)
+    setNotice({ error: '', success: '' })
+    try {
+      await prescriptionAPI.createForEncounter(selectedEncounterId, {
+        status: form.status,
+        note: form.note,
+        items: [{
+          medication_id: form.medication_id,
+          dose: form.dose,
+          route: form.route,
+          frequency: form.frequency,
+          duration_days: Number(form.duration_days),
+          quantity: Number(form.quantity),
+          unit: form.unit,
+          instructions: form.instructions,
+        }],
+      })
+      setNotice({ error: '', success: 'Đã tạo đơn thuốc cho encounter đang khám.' })
+      setForm((current) => ({ ...current, medication_id: '', dose: '', frequency: '', instructions: '', note: '' }))
+      onRefresh?.()
+    } catch (error) {
+      setNotice({ error: getApiErrorMessage(error, 'Không tạo được đơn thuốc.'), success: '' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Panel title="Kê đơn" subtitle="Gọi POST /api/prescriptions/encounters/:encounterId/prescriptions kèm item thuốc.">
+      {notice.error || notice.success ? <div className={`dw2-command-notice ${notice.error ? 'is-error' : 'is-success'}`}>{notice.error || notice.success}</div> : null}
+      {!selectedEncounterId ? <EmptyState label="Chưa có encounter đang mở. Hãy tạo hoặc bắt đầu encounter trước." /> : (
+        <form className="dw2-command-form" onSubmit={submitPrescription}>
+          <label><span>Encounter</span><input value={selectedEncounter?.encounter_code || selectedEncounterId} readOnly /></label>
+          <label><span>Medication ID</span><input value={form.medication_id} onChange={(event) => setForm((current) => ({ ...current, medication_id: event.target.value }))} required /></label>
+          <label><span>Liều</span><input value={form.dose} onChange={(event) => setForm((current) => ({ ...current, dose: event.target.value }))} required /></label>
+          <label><span>Đường dùng</span><input value={form.route} onChange={(event) => setForm((current) => ({ ...current, route: event.target.value }))} required /></label>
+          <label><span>Tần suất</span><input value={form.frequency} onChange={(event) => setForm((current) => ({ ...current, frequency: event.target.value }))} required /></label>
+          <label><span>Số ngày</span><input type="number" min="1" value={form.duration_days} onChange={(event) => setForm((current) => ({ ...current, duration_days: event.target.value }))} required /></label>
+          <label><span>Số lượng</span><input type="number" min="1" value={form.quantity} onChange={(event) => setForm((current) => ({ ...current, quantity: event.target.value }))} required /></label>
+          <label><span>Đơn vị</span><input value={form.unit} onChange={(event) => setForm((current) => ({ ...current, unit: event.target.value }))} required /></label>
+          <label><span>Hướng dẫn</span><textarea rows={2} value={form.instructions} onChange={(event) => setForm((current) => ({ ...current, instructions: event.target.value }))} /></label>
+          <label><span>Ghi chú đơn</span><textarea rows={2} value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} /></label>
+          <label><span>Trạng thái</span><select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}><option value="draft">Draft</option><option value="active">Active</option></select></label>
+          <button type="submit" className="dw2-command-button dw2-tone-success" disabled={busy}>{busy ? 'Đang kê...' : 'Kê đơn'}</button>
+        </form>
+      )}
     </Panel>
   )
 }
@@ -1193,15 +1758,19 @@ function GenericWorkspacePage({ group, item, mode, overview, onNavigate, onRefre
   const isOverview = group.id === 'overview'
 
   if (isOverview) {
-    return <OverviewSubPage item={item} overview={overview} onNavigate={onNavigate} />
+    return <OverviewSubPage item={item} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
   }
 
   if (isPatients) {
-    return <DoctorPatientFlowPage item={item} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
+    return <DoctorPatientCommandPage item={item} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
   }
 
   if (isEncounter) {
-    return <DoctorEncounterFlowPage item={item} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
+    return <DoctorEncounterCommandPage item={item} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
+  }
+
+  if (isClinicalRecords) {
+    return <DoctorClinicalRecordsCommandPage item={item} overview={overview} onNavigate={onNavigate} onRefresh={onRefresh} />
   }
 
   if (isClinicalRecords) {
@@ -1224,9 +1793,9 @@ function GenericWorkspacePage({ group, item, mode, overview, onNavigate, onRefre
       <PatientContextBar overview={overview} onNavigate={onNavigate} />
       <div className="dw2-workspace-layout">
         <div className="dw2-workspace-layout__main">
-          {isOrders ? <OrderPrescriptionPanel overview={overview} onNavigate={onNavigate} /> : null}
+          {isOrders ? (item.key === 'create-order' ? <QuickOrderCreatePanel overview={overview} onRefresh={onRefresh} /> : <OrderPrescriptionPanel overview={overview} onNavigate={onNavigate} />) : null}
           {isResults ? <ResultPanel results={overview.results} criticalResults={item.key === 'critical-results' ? overview.critical_results : []} onNavigate={onNavigate} /> : null}
-          {isPrescriptions ? <OrderPrescriptionPanel overview={overview} onNavigate={onNavigate} /> : null}
+          {isPrescriptions ? (item.key === 'create-prescription' ? <QuickPrescriptionCreatePanel overview={overview} onRefresh={onRefresh} /> : <OrderPrescriptionPanel overview={overview} onNavigate={onNavigate} />) : null}
           {!isOrders && !isResults && !isPrescriptions ? (
             <Panel title={item.label} subtitle={item.description}>
               <div className="dw2-blueprint-grid">
@@ -1286,8 +1855,8 @@ export function DoctorWorkspaceExperience({ user, onLogout, onNavigateHome }) {
     setExpandedGroups((current) => ({ ...current, [active.group?.id]: true }))
   }, [active.group?.id])
 
-  async function loadOverview() {
-    setLoading(true)
+  const loadOverview = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
       const response = await doctorWorkspaceAPI.overview({ date: todayString() })
@@ -1296,13 +1865,33 @@ export function DoctorWorkspaceExperience({ user, onLogout, onNavigateHome }) {
       setError(getApiErrorMessage(fetchError, 'Không tải được Doctor Workspace.'))
       setOverview((current) => ({ ...EMPTY_OVERVIEW, ...current }))
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadOverview()
-  }, [])
+  }, [loadOverview])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (!document.hidden) {
+        loadOverview({ silent: true })
+      }
+    }, 15000)
+
+    function handleVisibilityChange() {
+      if (!document.hidden) {
+        loadOverview({ silent: true })
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [loadOverview])
 
   useEffect(() => {
     const q = searchTerm.trim()
@@ -1383,9 +1972,10 @@ export function DoctorWorkspaceExperience({ user, onLogout, onNavigateHome }) {
             isLoading={loading}
             error={error}
             onRefresh={loadOverview}
+            compact={active.group?.id === 'encounter'}
           />
           {(active.item?.key === 'dashboard' || routeSignature(location) === '/doctor/dashboard') ? (
-            <DashboardView overview={overview} onNavigate={handleNavigate} />
+            <DashboardView overview={overview} onNavigate={handleNavigate} onRefresh={loadOverview} />
           ) : (
             <GenericWorkspacePage group={active.group} item={active.item} mode={mode} overview={overview} onNavigate={handleNavigate} onRefresh={loadOverview} />
           )}

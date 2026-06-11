@@ -36,6 +36,11 @@ const recordFinalizePermissions = [
   PERMISSION.MEDICAL_RECORDS.FINALIZE_BY_POLICY,
 ];
 
+const recordReleasePermissions = [
+  PERMISSION.MEDICAL_RECORDS.RELEASE_TO_PATIENT,
+  PERMISSION.MEDICAL_RECORDS.FINALIZE_OWN,
+];
+
 const recordUpdatePermissions = [
   PERMISSION.MEDICAL_RECORDS.UPDATE,
   PERMISSION.MEDICAL_RECORDS.AMEND,
@@ -136,7 +141,7 @@ router.post('/medical-records/:recordId/finalize', authorize({ anyPermissions: r
 router.post('/medical-records/:recordId/seal', authorize({ anyPermissions: [PERMISSION.MEDICAL_RECORDS.SEAL] }), recordsController.sealMedicalRecord);
 router.post('/medical-records/:recordId/archive', authorize({ anyPermissions: [PERMISSION.MEDICAL_RECORDS.ARCHIVE] }), recordsController.archiveMedicalRecord);
 router.post('/medical-records/:recordId/void', authorize({ anyPermissions: [PERMISSION.MEDICAL_RECORDS.VOID] }), recordsController.voidMedicalRecord);
-router.post('/medical-records/:recordId/release-to-patient', authorize({ anyPermissions: [PERMISSION.MEDICAL_RECORDS.RELEASE_TO_PATIENT] }), recordsController.releaseMedicalRecordToPatient);
+router.post('/medical-records/:recordId/release-to-patient', authorize({ anyPermissions: recordReleasePermissions }), recordsController.releaseMedicalRecordToPatient);
 router.get('/medical-records/:recordId', authorize({ anyPermissions: recordReadPermissions }), recordsController.getMedicalRecordDetail);
 router.patch('/medical-records/:recordId', authorize({ anyPermissions: recordUpdatePermissions }), recordsController.updateMedicalRecord);
 

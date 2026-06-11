@@ -111,6 +111,21 @@ function asDateRange(query = {}) {
   };
 }
 
+function encounterInDayFilter(dayRange) {
+  return {
+    start_time: { $gte: dayRange.start, $lte: dayRange.end },
+  };
+}
+
+function activeEncounterInDayFilter(doctorId, dayRange, extra = {}) {
+  return {
+    attending_doctor_id: doctorId,
+    status: { $in: ACTIVE_ENCOUNTER_STATUSES },
+    ...encounterInDayFilter(dayRange),
+    ...extra,
+  };
+}
+
 function ageFromDate(date) {
   if (!date) return null;
   const birth = new Date(date);
@@ -417,10 +432,7 @@ function completionChecklistFromReadiness(encounter, readiness = {}) {
 async function getDoctorScopeIds(doctorId, dayRange) {
   const encounters = await Encounter.find({
     attending_doctor_id: doctorId,
-    $or: [
-      { status: { $in: ACTIVE_ENCOUNTER_STATUSES } },
-      { start_time: { $gte: dayRange.start, $lte: dayRange.end } },
-    ],
+    ...encounterInDayFilter(dayRange),
   })
     .select('_id patient_id status start_time')
     .lean();
@@ -514,7 +526,7 @@ async function getOverview(query = {}, actor = {}) {
       .sort({ ready_for_doctor_at: -1, checkin_time: 1, created_at: 1 })
       .limit(40)
       .lean(),
-    Encounter.find({ attending_doctor_id: doctorId, status: { $in: ACTIVE_ENCOUNTER_STATUSES } })
+    Encounter.find(activeEncounterInDayFilter(doctorId, dayRange))
       .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
       .populate('department_id', 'department_code department_name status')
       .populate('attending_doctor_id', 'full_name employee_code department_id status')
@@ -526,7 +538,7 @@ async function getOverview(query = {}, actor = {}) {
       status: ENCOUNTER_STATUS.COMPLETED,
       end_time: { $gte: dayRange.start, $lte: dayRange.end },
     }),
-    Encounter.countDocuments({ attending_doctor_id: doctorId, status: { $in: ACTIVE_ENCOUNTER_STATUSES } }),
+    Encounter.countDocuments(activeEncounterInDayFilter(doctorId, dayRange)),
     Order.find({ ordered_by: doctorId, status: { $in: ACTIVE_ORDER_STATUSES } })
       .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
       .sort({ priority: -1, ordered_at: -1 })
@@ -1062,9 +1074,10 @@ async function getDoctorPatients(query = {}, actor = {}) {
 
   const encounterFilter = {
     attending_doctor_id: doctorId,
-    ...(view === 'in-care' ? { status: { $in: ACTIVE_ENCOUNTER_STATUSES } } : {}),
+    ...(view === 'in-care' ? { status: { $in: ACTIVE_ENCOUNTER_STATUSES }, ...encounterInDayFilter(dayRange) } : {}),
     ...(view === 'seen-today' ? { status: ENCOUNTER_STATUS.COMPLETED, end_time: { $gte: dayRange.start, $lte: dayRange.end } } : {}),
     ...(view === 'history' ? {} : {}),
+    ...(view === 'follow-up' ? encounterInDayFilter(dayRange) : {}),
   };
 
   const encounters = await Encounter.find(encounterFilter)
@@ -1138,10 +1151,7 @@ async function getDoctorEncounters(query = {}, actor = {}) {
     };
   }
 
-  const encounters = await Encounter.find({
-    attending_doctor_id: doctorId,
-    ...(view === 'complete' ? { status: { $in: ACTIVE_ENCOUNTER_STATUSES } } : { status: { $in: ACTIVE_ENCOUNTER_STATUSES } }),
-  })
+  const encounters = await Encounter.find(activeEncounterInDayFilter(doctorId, dayRange))
     .populate('patient_id', 'patient_code full_name date_of_birth gender phone insurance_number status')
     .populate('department_id', 'department_code department_name status')
     .populate('attending_doctor_id', 'full_name employee_code department_id status')
