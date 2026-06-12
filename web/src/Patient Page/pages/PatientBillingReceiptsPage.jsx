@@ -89,11 +89,92 @@ function safeFileName(value, fallback = 'bien-lai') {
     .replace(/^-|-$/g, '') || fallback
 }
 
+function getInvoiceLineItems(source = {}) {
+  if (Array.isArray(source.items)) return source.items
+  if (Array.isArray(source.invoice_items)) return source.invoice_items
+  return []
+}
+
+function getInvoiceLineTitle(item = {}) {
+  return firstValue(
+    item.service_name,
+    item.service_id?.service_name,
+    item.description,
+    item.charge_id?.charge_no,
+    'Dòng phí',
+  )
+}
+
+function getInvoiceLineCode(item = {}) {
+  return firstValue(item.service_code, item.service_id?.service_code, item.charge_no, item.charge_id?.charge_no)
+}
+
+function getInvoiceLineKind(item = {}) {
+  const sourceModule = String(item.charge_id?.source_module || item.source_module || '').toLowerCase()
+  const serviceType = String(item.service_id?.service_type || item.service_type || '').toLowerCase()
+  if (sourceModule.includes('dispense') || sourceModule.includes('medication') || serviceType.includes('medication')) {
+    return 'Thuốc'
+  }
+  if (serviceType.includes('lab')) return 'Xét nghiệm'
+  if (serviceType.includes('imaging')) return 'Chẩn đoán hình ảnh'
+  if (serviceType.includes('consultation')) return 'Khám bệnh'
+  return 'Dịch vụ'
+}
+
+function formatQuantity(value) {
+  const quantity = Number(value ?? 0)
+  if (!Number.isFinite(quantity)) return '0'
+  return Number.isInteger(quantity) ? String(quantity) : quantity.toLocaleString('vi-VN')
+}
+
+function InvoiceLineItems({ items = [], title = 'Chi tiết thuốc / dịch vụ', emptyText = 'Chưa có dòng phí chi tiết.' }) {
+  return (
+    <section className="patient-invoice-lines">
+      <div className="patient-invoice-lines-head">
+        <div>
+          <span>Chi tiết thanh toán</span>
+          <h3>{title}</h3>
+        </div>
+        <strong>{items.length} dòng</strong>
+      </div>
+
+      {items.length ? (
+        <div className="patient-invoice-lines-table" role="table" aria-label={title}>
+          <div className="patient-invoice-lines-row is-head" role="row">
+            <span role="columnheader">Khoản mục</span>
+            <span role="columnheader">SL</span>
+            <span role="columnheader">Đơn giá</span>
+            <span role="columnheader">Thành tiền</span>
+          </div>
+          {items.map((item, index) => {
+            const code = getInvoiceLineCode(item)
+            const key = item._id || item.id || item.charge_id?._id || item.charge_id || `${getInvoiceLineTitle(item)}-${index}`
+            return (
+              <div className="patient-invoice-lines-row" role="row" key={key}>
+                <div className="patient-invoice-line-name" role="cell">
+                  <strong>{getInvoiceLineTitle(item)}</strong>
+                  <span>{getInvoiceLineKind(item)}{code ? ` - ${code}` : ''}</span>
+                </div>
+                <span role="cell">{formatQuantity(item.quantity)}</span>
+                <span role="cell">{formatMoney(item.unit_price)}</span>
+                <strong role="cell">{formatMoney(item.line_total ?? item.total_amount)}</strong>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="patient-invoice-lines-empty">{emptyText}</div>
+      )}
+    </section>
+  )
+}
+
 function buildReceiptDownloadHtml(receipt = {}) {
   const payment = asObject(receipt.payment_id)
   const invoice = asObject(receipt.invoice_id)
   const patient = asObject(receipt.patient_id)
   const intent = asObject(receipt.payment_intent_id)
+  const receiptItems = getInvoiceLineItems(receipt)
   const method = getPaymentMethodLabel(
     firstValue(receipt.payment_method, payment.payment_method, intent.method),
     firstValue(receipt.payment_provider, payment.payment_provider, intent.provider),
@@ -144,6 +225,14 @@ function buildReceiptDownloadHtml(receipt = {}) {
     .cell span, .note span { display: block; color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase; }
     .cell strong, .note strong { display: block; margin-top: 6px; overflow-wrap: anywhere; }
     .note { margin-top: 12px; }
+    .lines { margin-top: 16px; border: 1px solid #dbe7f5; border-radius: 14px; overflow: hidden; }
+    .lines h2 { margin: 0; padding: 14px 16px; font-size: 18px; background: #f8fbff; border-bottom: 1px solid #dbe7f5; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+    th { color: #64748b; background: #f8fbff; font-size: 12px; text-transform: uppercase; }
+    td:nth-child(n + 2), th:nth-child(n + 2) { text-align: right; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    .line-kind { display: block; margin-top: 4px; color: #64748b; font-size: 12px; }
     .footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 18px; padding-top: 14px; border-top: 1px dashed #9fb2cc; color: #64748b; font-size: 13px; }
     @media print { body { background: #fff; padding: 0; } .paper { box-shadow: none; } }
   </style>
@@ -163,6 +252,25 @@ function buildReceiptDownloadHtml(receipt = {}) {
       ${rows.map(([label, value]) => `<div class="cell"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
     </section>
     ${paymentNote ? `<section class="note"><span>Nội dung thanh toán</span><strong>${escapeHtml(paymentNote)}</strong></section>` : ''}
+    ${receiptItems.length ? `<section class="lines">
+      <h2>Chi tiết thuốc / dịch vụ</h2>
+      <table>
+        <thead>
+          <tr><th>Khoản mục</th><th>SL</th><th>Đơn giá</th><th>Thành tiền</th></tr>
+        </thead>
+        <tbody>
+          ${receiptItems.map((item) => {
+            const code = getInvoiceLineCode(item)
+            return `<tr>
+              <td>${escapeHtml(getInvoiceLineTitle(item))}<span class="line-kind">${escapeHtml(getInvoiceLineKind(item))}${code ? ` - ${escapeHtml(code)}` : ''}</span></td>
+              <td>${escapeHtml(formatQuantity(item.quantity))}</td>
+              <td>${escapeHtml(formatMoney(item.unit_price))}</td>
+              <td>${escapeHtml(formatMoney(item.line_total ?? item.total_amount))}</td>
+            </tr>`
+          }).join('')}
+        </tbody>
+      </table>
+    </section>` : ''}
     <section class="footer">
       <span>Biên lai này xác nhận khoản thanh toán đã được ghi nhận trong hệ thống.</span>
       <strong>${escapeHtml(receipt._id || receipt.receipt_id || receipt.id || receipt.receipt_no || '')}</strong>
@@ -206,6 +314,7 @@ function ReceiptDetailPaper({ receipt }) {
   const isMomoPayment = /momo/i.test(`${method} ${transactionRef} ${paymentNote}`)
   const amount = firstValue(receipt.amount, payment.amount, invoice.paid_amount)
   const paidAt = firstValue(payment.paid_at, payment.confirmed_at, receipt.issued_at, receipt.created_at)
+  const receiptItems = getInvoiceLineItems(receipt)
 
   return (
     <section className="patient-receipt-paper" aria-label="Biên lai thanh toán">
@@ -247,6 +356,12 @@ function ReceiptDetailPaper({ receipt }) {
           <strong>{paymentNote}</strong>
         </div>
       ) : null}
+
+      <InvoiceLineItems
+        items={receiptItems}
+        title="Chi tiết thuốc / dịch vụ đã thanh toán"
+        emptyText="Biên lai này chưa có dòng thuốc hoặc dịch vụ chi tiết từ hóa đơn."
+      />
 
       <div className="patient-receipt-paper-footer">
         <span>Biên lai này xác nhận khoản thanh toán đã được ghi nhận trong hệ thống.</span>
@@ -510,12 +625,15 @@ export default function PatientBillingReceiptsPage({
           </div>
 
           {detail.type === 'invoice' ? (
-            <div className="patient-receipt-detail-grid">
-              <div><span>Tổng tiền</span><strong>{formatMoney(detail.data.total_amount)}</strong></div>
-              <div><span>Đã thanh toán</span><strong>{formatMoney(detail.data.paid_amount)}</strong></div>
-              <div><span>Còn lại</span><strong>{formatMoney(detail.data.balance_due)}</strong></div>
-              <div><span>Số dòng phí</span><strong>{detail.data.items?.length || 0}</strong></div>
-            </div>
+            <>
+              <div className="patient-receipt-detail-grid">
+                <div><span>Tổng tiền</span><strong>{formatMoney(detail.data.total_amount)}</strong></div>
+                <div><span>Đã thanh toán</span><strong>{formatMoney(detail.data.paid_amount)}</strong></div>
+                <div><span>Còn lại</span><strong>{formatMoney(detail.data.balance_due)}</strong></div>
+                <div><span>Số dòng phí</span><strong>{getInvoiceLineItems(detail.data).length}</strong></div>
+              </div>
+              <InvoiceLineItems items={getInvoiceLineItems(detail.data)} />
+            </>
           ) : (
             <ReceiptDetailPaper receipt={detail.data} />
           )}

@@ -465,6 +465,111 @@
   font-size: 15px;
 }
 
+.patient-invoice-lines {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px solid rgba(13, 99, 243, 0.14);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.76);
+}
+
+.patient-invoice-lines-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.patient-invoice-lines-head span {
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.patient-invoice-lines-head h3 {
+  margin: 4px 0 0;
+  color: var(--patient-copy);
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.patient-invoice-lines-head > strong {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #075985;
+  background: #e0f2fe;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.patient-invoice-lines-table {
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.patient-invoice-lines-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 72px 132px 142px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.patient-invoice-lines-row:last-child {
+  border-bottom: 0;
+}
+
+.patient-invoice-lines-row.is-head {
+  background: #f8fbff;
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.patient-invoice-lines-row > span,
+.patient-invoice-lines-row > strong {
+  text-align: right;
+}
+
+.patient-invoice-line-name {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.patient-invoice-line-name strong {
+  color: var(--patient-copy);
+  font-size: 14px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.patient-invoice-line-name span {
+  color: var(--patient-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.patient-invoice-lines-empty {
+  padding: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  color: var(--patient-muted);
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .patient-receipt-paper-footer {
   display: flex;
   justify-content: space-between;
@@ -700,8 +805,43 @@
   .patient-checkin-meta-grid,
   .patient-receipt-detail-grid,
   .patient-receipt-paper-grid,
+  .patient-invoice-lines-row,
   .patient-relatives-checks {
     grid-template-columns: 1fr;
+  }
+
+  .patient-invoice-lines-row {
+    gap: 7px;
+  }
+
+  .patient-invoice-lines-row.is-head {
+    display: none;
+  }
+
+  .patient-invoice-lines-row > span,
+  .patient-invoice-lines-row > strong {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: right;
+  }
+
+  .patient-invoice-lines-row > span:nth-child(2)::before {
+    content: 'Số lượng';
+    color: var(--patient-muted);
+    font-weight: 800;
+  }
+
+  .patient-invoice-lines-row > span:nth-child(3)::before {
+    content: 'Đơn giá';
+    color: var(--patient-muted);
+    font-weight: 800;
+  }
+
+  .patient-invoice-lines-row > strong:nth-child(4)::before {
+    content: 'Thành tiền';
+    color: var(--patient-muted);
+    font-weight: 800;
   }
 
   .patient-receipt-paper {

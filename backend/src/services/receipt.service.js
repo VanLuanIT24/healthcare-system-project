@@ -1,6 +1,7 @@
 const {
   AuditLog,
   Invoice,
+  InvoiceItem,
   Patient,
   Payment,
   PaymentIntent,
@@ -378,7 +379,18 @@ async function getReceiptDetail(receiptId, actor = {}, options = {}) {
       requestMeta: options.requestMeta,
     });
   }
-  return receipt;
+  const invoiceId = receipt.invoice_id?._id || receipt.invoice_id;
+  const invoiceItems = invoiceId
+    ? await InvoiceItem.find({ invoice_id: invoiceId })
+      .sort({ display_order: 1 })
+      .populate('service_id', 'service_code service_name service_type')
+      .populate({
+        path: 'charge_id',
+        select: 'charge_no source_module source_id medication_id dispense_id dispense_item_id status total_amount charged_at posted_at',
+      })
+      .lean()
+    : [];
+  return { ...receipt, invoice_items: invoiceItems };
 }
 
 async function getReceiptByPayment(paymentId, actor = {}, requestMeta = {}) {
