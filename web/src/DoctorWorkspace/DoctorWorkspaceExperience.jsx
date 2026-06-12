@@ -320,8 +320,16 @@ function patientLabel(patient) {
   return [patient.full_name, patient.gender, patient.age ? `${patient.age} tuổi` : null, patient.patient_code].filter(Boolean).join(' · ')
 }
 
+function normalizedStatus(status) {
+  return String(status || '').trim().toLowerCase()
+}
+
 function statusLabel(status) {
   const labels = {
+    booked: 'Đã đặt',
+    confirmed: 'Đã xác nhận',
+    checked_in: 'Đã check-in',
+    in_consultation: 'Đang khám',
     waiting: 'Chờ khám',
     called: 'Đã gọi',
     recalled: 'Gọi lại',
@@ -338,7 +346,7 @@ function statusLabel(status) {
     final: 'Final',
     amended: 'Amended',
   }
-  return labels[status] || status || 'Chưa rõ'
+  return labels[normalizedStatus(status)] || status || 'Chưa rõ'
 }
 
 function statusTone(status, priority) {
@@ -992,8 +1000,33 @@ async function createAppointmentEncounterForExam(appointmentId) {
 
 function AppointmentPanel({ appointments, encounters = [], onNavigate, onRefresh }) {
   const rows = safeArray(appointments)
+  const [sortMode, setSortMode] = useState('recent')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [busyAppointmentId, setBusyAppointmentId] = useState('')
   const [error, setError] = useState('')
+  const visibleRows = useMemo(() => {
+    const filtered = statusFilter === 'all'
+      ? rows
+      : rows.filter((appointment) => normalizedStatus(appointment.status) === statusFilter)
+    return [...filtered].sort((first, second) => {
+      if (sortMode === 'time') {
+        return new Date(first.appointment_time || 0) - new Date(second.appointment_time || 0)
+      }
+      const firstCreated = new Date(first.created_at || first.updated_at || first.appointment_time || 0).getTime()
+      const secondCreated = new Date(second.created_at || second.updated_at || second.appointment_time || 0).getTime()
+      return secondCreated - firstCreated
+    })
+  }, [rows, sortMode, statusFilter])
+  const statusOptions = useMemo(() => {
+    const seen = new Set(rows.map((appointment) => normalizedStatus(appointment.status)).filter(Boolean))
+    return [
+      { key: 'all', label: 'Tất cả' },
+      ...['booked', 'confirmed', 'checked_in', 'in_consultation', 'completed'].filter((key) => seen.has(key)).map((key) => ({
+        key,
+        label: statusLabel(key),
+      })),
+    ]
+  }, [rows])
 
   async function openAppointment(appointment) {
     const existingEncounterId = encounterIdFromAppointment(appointment, encounters)
@@ -1025,10 +1058,27 @@ function AppointmentPanel({ appointments, encounters = [], onNavigate, onRefresh
   }
 
   return (
-    <Panel title="Lịch khám hôm nay" subtitle="Timeline lịch hẹn gắn với check-in và encounter.">
+    <Panel
+      title="Lịch khám hôm nay"
+      subtitle="Timeline lịch hẹn gắn với check-in và encounter."
+      action={<ActionButton onClick={() => onNavigate('/doctor/schedules/today')}><CalendarDays size={15} /> Chi tiết</ActionButton>}
+    >
       {error ? <div className="dw2-command-notice is-error">{error}</div> : null}
+      <div className="dw2-appointment-controls" aria-label="Bộ lọc lịch khám hôm nay">
+        <div className="dw2-segmented">
+          <button type="button" className={sortMode === 'recent' ? 'is-active' : ''} onClick={() => setSortMode('recent')}>Mới đặt</button>
+          <button type="button" className={sortMode === 'time' ? 'is-active' : ''} onClick={() => setSortMode('time')}>Theo giờ khám</button>
+        </div>
+        <div className="dw2-segmented">
+          {statusOptions.map((option) => (
+            <button type="button" key={option.key} className={statusFilter === option.key ? 'is-active' : ''} onClick={() => setStatusFilter(option.key)}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="dw2-timeline">
-        {!rows.length ? <EmptyState label="Không có lịch hẹn hôm nay." /> : rows.slice(0, 7).map((appointment) => (
+        {!visibleRows.length ? <EmptyState label="Không có lịch hẹn phù hợp." /> : visibleRows.slice(0, 7).map((appointment) => (
           <button type="button" key={appointmentIdOf(appointment)} disabled={busyAppointmentId === appointmentIdOf(appointment)} onClick={() => openAppointment(appointment)}>
             <time>{formatTime(appointment.appointment_time)}</time>
             <div>
@@ -1039,6 +1089,11 @@ function AppointmentPanel({ appointments, encounters = [], onNavigate, onRefresh
           </button>
         ))}
       </div>
+      {visibleRows.length > 7 ? (
+        <button type="button" className="dw2-panel-link" onClick={() => onNavigate('/doctor/schedules/today')}>
+          Xem tất cả {visibleRows.length} lịch khám <ChevronRight size={15} />
+        </button>
+      ) : null}
     </Panel>
   )
 }

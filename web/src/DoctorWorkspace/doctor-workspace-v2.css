@@ -604,6 +604,68 @@
   font-size: 13px;
 }
 
+.dw2-appointment-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.dw2-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--dw2-border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.dw2-segmented button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dw2-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dw2-segmented button:hover,
+.dw2-segmented button.is-active {
+  color: var(--dw2-accent);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.dw2-panel-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  margin-top: 10px;
+  padding: 0 12px;
+  border: 1px solid rgba(15, 124, 128, 0.24);
+  border-radius: 999px;
+  background: #f0fbfb;
+  color: var(--dw2-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.dw2-panel-link:hover {
+  border-color: rgba(15, 124, 128, 0.42);
+  background: #e6f7f7;
+}
+
 .dw2-card-list,
 .dw2-encounter-list,
 .dw2-result-list,
