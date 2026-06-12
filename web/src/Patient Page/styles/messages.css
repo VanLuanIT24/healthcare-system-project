@@ -89,6 +89,24 @@
   gap: 6px;
 }
 
+.patient-chat-api-note {
+  margin: 0 14px 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(13, 99, 243, 0.12);
+  border-radius: 12px;
+  background: rgba(13, 99, 243, 0.06);
+  color: #41607d;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.patient-chat-api-note.is-error {
+  border-color: rgba(186, 26, 26, 0.16);
+  background: rgba(186, 26, 26, 0.06);
+  color: #9f1d1d;
+}
+
 .patient-chat-thread-card {
   display: flex;
   align-items: flex-start;
@@ -135,10 +153,26 @@
   font-weight: 800;
 }
 
+.patient-chat-thread-avatar img,
+.patient-chat-conversation-avatar img,
+.patient-chat-message-avatar img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: block;
+  object-fit: cover;
+  background: #e2e8f0;
+}
+
 .patient-chat-conversation-avatar span {
   width: 42px;
   height: 42px;
   font-size: 14px;
+}
+
+.patient-chat-conversation-avatar img {
+  width: 42px;
+  height: 42px;
 }
 
 .patient-chat-message-avatar span {
@@ -147,8 +181,14 @@
   font-size: 12px;
 }
 
+.patient-chat-message-avatar img {
+  width: 34px;
+  height: 34px;
+}
+
 .patient-chat-thread-avatar i,
-.patient-chat-conversation-avatar i {
+.patient-chat-conversation-avatar i,
+.patient-chat-message-avatar i {
   position: absolute;
   right: 1px;
   bottom: 1px;
@@ -160,7 +200,8 @@
 }
 
 .patient-chat-thread-avatar i.is-online,
-.patient-chat-conversation-avatar i.is-online {
+.patient-chat-conversation-avatar i.is-online,
+.patient-chat-message-avatar i.is-online {
   background: #0aa174;
 }
 
@@ -415,6 +456,36 @@
   display: inline-flex;
   align-items: center;
   color: var(--patient-primary);
+}
+
+.patient-chat-empty-conversation {
+  align-self: center;
+  width: min(100%, 520px);
+  padding: 20px;
+  border: 1px dashed rgba(13, 99, 243, 0.26);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--patient-muted);
+  text-align: center;
+}
+
+.patient-chat-empty-conversation > svg,
+.patient-chat-empty-conversation > span {
+  color: var(--patient-primary);
+}
+
+.patient-chat-empty-conversation strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--patient-copy);
+  font-size: 15px;
+}
+
+.patient-chat-empty-conversation p {
+  margin: 8px auto 0;
+  max-width: 380px;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .patient-chat-ai-card {

@@ -2,9 +2,94 @@ import { startTransition, useDeferredValue, useEffect, useRef, useState } from '
 import PatientIcon from '../components/PatientIcon'
 import { messageThreads } from '../data/patientPageData'
 import { getInitials } from '../utils/patientHelpers'
+import { getApiErrorMessage, messageAPI, patientAPI, unwrapData } from '../../utils/api'
 
 function getChatInitials(name = '') {
   return getInitials(name.replace(/^ThS\.\s*BS\.\s*|^BS\.\s*/i, '')) || 'BS'
+}
+
+function toArrayPayload(payload) {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.items)) return payload.items
+  if (Array.isArray(payload?.data)) return payload.data
+  if (Array.isArray(payload?.results)) return payload.results
+  return []
+}
+
+function valueId(value) {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (value._id) return value._id
+  if (value.id) return value.id
+  return String(value)
+}
+
+function formatThreadTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const now = new Date()
+  const sameDay = date.toDateString() === now.toDateString()
+  if (sameDay) {
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  }
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+}
+
+function normalizeDoctorThread(encounter, index) {
+  const doctorId = valueId(encounter.doctor_id || encounter.attending_doctor_id || encounter.doctor)
+  const doctorName =
+    encounter.doctor_name ||
+    encounter.attending_doctor_name ||
+    encounter.doctor?.full_name ||
+    encounter.attending_doctor?.full_name ||
+    (doctorId ? `Bác sĩ ${doctorId.slice(-6)}` : 'Bác sĩ')
+  const specialty =
+    encounter.department_name ||
+    encounter.department?.department_name ||
+    encounter.specialty ||
+    encounter.doctor?.specialty ||
+    'Chưa cập nhật chuyên khoa'
+  const lastVisit = encounter.start_time || encounter.end_time || encounter.created_at || ''
+
+  return {
+    id: `doctor-${doctorId || index}`,
+    doctorId,
+    doctor: doctorName,
+    specialty,
+    preview: encounter.chief_reason
+      ? `Lần khám gần nhất: ${encounter.chief_reason}`
+      : 'Bác sĩ đã từng khám cho bạn. Bạn có thể nhắn để hỏi thêm.',
+    time: formatThreadTime(lastVisit) || 'Gần đây',
+    online: false,
+    experience: `${specialty} | Lần khám gần nhất ${formatThreadTime(lastVisit) || 'đang cập nhật'}`,
+    avatarUrl:
+      encounter.doctor_avatar_url ||
+      encounter.attending_doctor_avatar_url ||
+      encounter.doctor?.avatar_url ||
+      encounter.attending_doctor?.avatar_url ||
+      '',
+    encounterId: valueId(encounter.encounter_id || encounter._id),
+    appointmentId: valueId(encounter.appointment_id),
+    lastVisit,
+    apiSource: true,
+    conversationId: encounter.conversation_id || encounter.message_conversation_id || '',
+    documents: [],
+    messages: [],
+  }
+}
+
+function buildDoctorThreadsFromEncounters(encounters = []) {
+  const byDoctor = new Map()
+  encounters.forEach((encounter, index) => {
+    const thread = normalizeDoctorThread(encounter, index)
+    const key = thread.doctorId || thread.doctor
+    const current = byDoctor.get(key)
+    if (!current || new Date(thread.lastVisit || 0) > new Date(current.lastVisit || 0)) {
+      byDoctor.set(key, thread)
+    }
+  })
+  return [...byDoctor.values()].sort((first, second) => new Date(second.lastVisit || 0) - new Date(first.lastVisit || 0))
 }
 
 const defaultChatResources = {
@@ -127,12 +212,23 @@ function buildThreadResources(thread) {
   }
 }
 
+function DoctorAvatar({ thread, className = '' }) {
+  return (
+    <div className={className}>
+      {thread.avatarUrl ? <img src={thread.avatarUrl} alt={thread.doctor} /> : <span>{getChatInitials(thread.doctor)}</span>}
+      <i className={thread.online ? 'is-online' : ''} aria-hidden="true" />
+    </div>
+  )
+}
+
 export default function PatientMessagesPage() {
   const [threads, setThreads] = useState(messageThreads)
   const [selectedThreadId, setSelectedThreadId] = useState(messageThreads[0]?.id || '')
   const [threadSearch, setThreadSearch] = useState('')
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState([])
+  const [loadingDoctors, setLoadingDoctors] = useState(true)
+  const [threadError, setThreadError] = useState('')
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
   const [showResourceMenu, setShowResourceMenu] = useState(false)
   const fileInputRef = useRef(null)
@@ -140,6 +236,47 @@ export default function PatientMessagesPage() {
   const attachmentMenuRef = useRef(null)
   const resourceMenuRef = useRef(null)
   const deferredSearch = useDeferredValue(threadSearch)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadVisitedDoctors() {
+      setLoadingDoctors(true)
+      setThreadError('')
+      try {
+        const response = await patientAPI.getMyEncounters({ limit: 50 })
+        const payload = unwrapData(response)
+        const doctorThreads = buildDoctorThreadsFromEncounters(toArrayPayload(payload))
+
+        if (!active) return
+        if (doctorThreads.length) {
+          setThreads(doctorThreads)
+          setSelectedThreadId((current) =>
+            doctorThreads.some((thread) => thread.id === current) ? current : doctorThreads[0].id,
+          )
+        } else {
+          setThreads(messageThreads)
+          setSelectedThreadId((current) =>
+            messageThreads.some((thread) => thread.id === current) ? current : messageThreads[0]?.id || '',
+          )
+        }
+      } catch (error) {
+        if (!active) return
+        setThreadError(getApiErrorMessage(error, 'Chưa tải được danh sách bác sĩ đã khám.'))
+        setThreads(messageThreads)
+        setSelectedThreadId((current) =>
+          messageThreads.some((thread) => thread.id === current) ? current : messageThreads[0]?.id || '',
+        )
+      } finally {
+        if (active) setLoadingDoctors(false)
+      }
+    }
+
+    loadVisitedDoctors()
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -167,7 +304,45 @@ export default function PatientMessagesPage() {
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) || threads[0]
   const threadResources = selectedThread ? buildThreadResources(selectedThread) : null
 
-  const handleSendMessage = () => {
+  const updateThreadConversationId = (threadId, conversationId) => {
+    if (!conversationId) return
+    setThreads((current) =>
+      current.map((thread) => (thread.id === threadId ? { ...thread, conversationId } : thread)),
+    )
+  }
+
+  const ensureConversationForThread = async (thread, initialText) => {
+    if (thread.conversationId) return thread.conversationId
+    if (!thread.doctorId) return ''
+
+    const response = await messageAPI.createConversation({
+      type: 'doctor_patient',
+      doctor_id: thread.doctorId,
+      assigned_user_id: thread.doctorId,
+      encounter_id: thread.encounterId || undefined,
+      appointment_id: thread.appointmentId || undefined,
+      title: `Trao đổi với ${thread.doctor}`,
+      metadata: {
+        source: 'patient_messages',
+        last_encounter_id: thread.encounterId || undefined,
+      },
+      initial_message: initialText ? { body: initialText } : undefined,
+    })
+    const payload = unwrapData(response)
+    const conversationId = valueId(payload.conversation_id || payload._id || payload.id || payload.conversation?._id)
+    updateThreadConversationId(thread.id, conversationId)
+    return conversationId
+  }
+
+  const persistPatientMessage = async (thread, messageText, files) => {
+    if (!thread?.apiSource || !thread.doctorId || files.length) return
+    const conversationId = await ensureConversationForThread(thread, messageText)
+    if (conversationId && thread.conversationId) {
+      await messageAPI.sendMessage(conversationId, { body: messageText })
+    }
+  }
+
+  const handleSendMessage = async () => {
     const nextMessage = draft.trim()
 
     if ((!nextMessage && attachments.length === 0) || !selectedThread) {
@@ -209,6 +384,13 @@ export default function PatientMessagesPage() {
 
     setDraft('')
     setAttachments([])
+
+    try {
+      await persistPatientMessage(selectedThread, nextMessage, attachments)
+      setThreadError('')
+    } catch (error) {
+      setThreadError(getApiErrorMessage(error, 'Tin nhắn đã hiển thị tạm, nhưng chưa đồng bộ được lên hệ thống.'))
+    }
   }
 
   const handleFileSelect = (event) => {
@@ -292,10 +474,7 @@ export default function PatientMessagesPage() {
                 type="button"
                 onClick={() => setSelectedThreadId(thread.id)}
               >
-                <div className="patient-chat-thread-avatar">
-                  <span>{getChatInitials(thread.doctor)}</span>
-                  <i className={thread.online ? 'is-online' : ''} aria-hidden="true" />
-                </div>
+                <DoctorAvatar thread={thread} className="patient-chat-thread-avatar" />
 
                 <div className="patient-chat-mobile-thread-copy">
                   <strong>{thread.doctor}</strong>
@@ -322,6 +501,13 @@ export default function PatientMessagesPage() {
               />
             </label>
           </div>
+          {loadingDoctors ? (
+            <div className="patient-chat-api-note">Đang tải bác sĩ đã khám...</div>
+          ) : threadError ? (
+            <div className="patient-chat-api-note is-error">{threadError}</div>
+          ) : (
+            <div className="patient-chat-api-note">Bác sĩ lấy từ lịch sử khám của bạn.</div>
+          )}
 
           <div className="patient-chat-thread-list">
             {visibleThreads.length ? (
@@ -335,10 +521,7 @@ export default function PatientMessagesPage() {
                     type="button"
                     onClick={() => setSelectedThreadId(thread.id)}
                   >
-                    <div className="patient-chat-thread-avatar">
-                      <span>{getChatInitials(thread.doctor)}</span>
-                      <i className={thread.online ? 'is-online' : ''} aria-hidden="true" />
-                    </div>
+                    <DoctorAvatar thread={thread} className="patient-chat-thread-avatar" />
 
                     <div className="patient-chat-thread-copy">
                       <div className="patient-chat-thread-head">
@@ -366,10 +549,7 @@ export default function PatientMessagesPage() {
         <section className="patient-chat-main-panel">
           <header className="patient-chat-conversation-head">
             <div className="patient-chat-conversation-profile">
-              <div className="patient-chat-conversation-avatar">
-                <span>{getChatInitials(selectedThread.doctor)}</span>
-                <i className={selectedThread.online ? 'is-online' : ''} aria-hidden="true" />
-              </div>
+              <DoctorAvatar thread={selectedThread} className="patient-chat-conversation-avatar" />
 
               <div>
                 <div className="patient-chat-conversation-title">
@@ -491,6 +671,14 @@ export default function PatientMessagesPage() {
           <div className="patient-chat-history">
             <div className="patient-chat-day-pill">Hôm nay, ngày 10 tháng 10</div>
 
+            {!selectedThread.messages.length ? (
+              <div className="patient-chat-empty-conversation">
+                <PatientIcon name="forum" aria-hidden="true" />
+                <strong>{selectedThread.doctor}</strong>
+                <p>Bác sĩ này đã từng khám cho bạn. Bạn có thể nhắn câu hỏi theo lần khám gần nhất để được hỗ trợ thêm.</p>
+              </div>
+            ) : null}
+
             {selectedThread.messages.map((message) => {
               if (message.type === 'ai') {
                 return (
@@ -518,9 +706,13 @@ export default function PatientMessagesPage() {
                   key={message.id}
                   className={`patient-chat-message-row${fromDoctor ? ' is-doctor' : ' is-patient'}`}
                 >
-                  <div className="patient-chat-message-avatar">
-                    <span>{fromDoctor ? getChatInitials(selectedThread.doctor) : 'BN'}</span>
-                  </div>
+                  {fromDoctor ? (
+                    <DoctorAvatar thread={selectedThread} className="patient-chat-message-avatar" />
+                  ) : (
+                    <div className="patient-chat-message-avatar">
+                      <span>BN</span>
+                    </div>
+                  )}
 
                   <div className="patient-chat-bubble-stack">
                     <div className={`patient-chat-bubble${fromDoctor ? '' : ' is-patient'}`}>
