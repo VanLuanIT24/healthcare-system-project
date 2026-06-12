@@ -484,6 +484,8 @@ async function getMedicationStockSummaries(medicationIds = []) {
 async function findMedicationIdsByStockFilters(baseFilter = {}, query = {}) {
   const needsStockFilter = booleanQuery(query.below_min_stock)
     || booleanQuery(query.without_stock)
+    || booleanQuery(query.with_stock)
+    || booleanQuery(query.in_stock)
     || booleanQuery(query.has_near_expiry);
   if (!needsStockFilter) return null;
 
@@ -496,6 +498,9 @@ async function findMedicationIdsByStockFilters(baseFilter = {}, query = {}) {
   }
   if (booleanQuery(query.without_stock)) {
     conditions.push({ available_on_hand: { $lte: 0 } });
+  }
+  if (booleanQuery(query.with_stock) || booleanQuery(query.in_stock)) {
+    conditions.push({ available_on_hand: { $gt: 0 } });
   }
   if (booleanQuery(query.has_near_expiry)) {
     conditions.push({ near_expiry_batches: { $gt: 0 } });

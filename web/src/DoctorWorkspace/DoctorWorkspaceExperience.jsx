@@ -692,7 +692,7 @@ function Topbar({ user, overview, searchTerm, onSearchTerm, searchState, onNavig
   )
 }
 
-function PageHeader({ group, item, mode, overview, isLoading, error, onRefresh, compact = false }) {
+function PageHeader({ group, item, mode, isLoading, error, onRefresh, compact = false }) {
   if (compact) return null
 
   return (
@@ -2010,7 +2010,6 @@ export function DoctorWorkspaceExperience({ user, onLogout, onNavigateHome }) {
             group={active.group}
             item={active.item || groups[0]?.items[0]}
             mode={mode}
-            overview={overview}
             isLoading={loading}
             error={error}
             onRefresh={loadOverview}

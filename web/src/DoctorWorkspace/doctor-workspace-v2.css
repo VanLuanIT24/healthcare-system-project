@@ -392,31 +392,6 @@
   color: var(--dw2-ink);
 }
 
-.dw2-page-header__workflow {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(6, minmax(120px, 1fr));
-  gap: 10px;
-}
-
-.dw2-page-header__workflow div {
-  display: grid;
-  gap: 2px;
-  padding: 12px;
-  border: 1px solid var(--dw2-border);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.dw2-page-header__workflow strong {
-  font-size: 22px;
-}
-
-.dw2-page-header__workflow span {
-  color: var(--dw2-muted);
-  font-size: 13px;
-}
-
 .dw2-kpi-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(145px, 1fr));
@@ -1176,8 +1151,7 @@
     display: none;
   }
 
-  .dw2-kpi-grid,
-  .dw2-page-header__workflow {
+  .dw2-kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -1221,8 +1195,7 @@
     padding: 12px;
   }
 
-  .dw2-kpi-grid,
-  .dw2-page-header__workflow {
+  .dw2-kpi-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1439,6 +1412,10 @@
   gap: 8px;
 }
 
+.dw2-medication-suggestion-chips.is-hidden {
+  display: none;
+}
+
 .dw2-medication-suggestion-chips button {
   display: grid;
   gap: 2px;
@@ -1474,6 +1451,22 @@
   color: #64748b;
   font-size: 10px;
   font-weight: 750;
+}
+
+.dw2-medication-suggestion-chips.is-catalog button {
+  max-width: 280px;
+  border-color: rgba(14, 165, 233, .25);
+  background: #f0f9ff;
+}
+
+.dw2-medication-suggestion-chips.is-catalog button:hover {
+  border-color: rgba(14, 165, 233, .55);
+  background: #e0f2fe;
+}
+
+.dw2-medication-suggestion-chips.is-catalog small {
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .dw2-medication-results {
