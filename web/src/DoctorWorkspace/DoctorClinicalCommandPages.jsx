@@ -475,6 +475,24 @@ function medicationDisplayName(medication = {}) {
     || medicationIdOf(value)
 }
 
+function medicationAvailableStock(medication = {}) {
+  const value = medication?.medication || medication || {}
+  const stock = value.stock_summary || value.stock || {}
+  return Number(stock.available_on_hand ?? stock.available_quantity ?? stock.quantity_available ?? 0)
+}
+
+function medicationSuggestionLabel(medication = {}, fallback = '') {
+  const value = medication?.medication || medication || {}
+  const stock = medicationAvailableStock(value)
+  return [
+    value.medication_code || '',
+    value.route_default || '',
+    value.unit || '',
+    `Tồn ${Number.isFinite(stock) ? stock : 0}`,
+    fallback,
+  ].filter(Boolean).join(' · ')
+}
+
 function compactClinicalText(value = '', maxLength = 180) {
   const text = String(value || '').replace(/\s+/g, ' ').trim()
   if (!text) return '--'
@@ -1123,6 +1141,7 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
   const [orderForm, setOrderForm] = useState({ order_type: 'lab', title: '', priority: 'routine', instructions: '' })
   const [prescriptionForm, setPrescriptionForm] = useState({ medication_id: '', medication_name: '', dosage: '', route: 'oral', frequency: '', duration_days: '5', quantity: '1', unit: 'viên', instructions: '' })
   const [medicationSearch, setMedicationSearch] = useState({ loading: false, error: '', hint: '', items: [] })
+  const [medicationCatalogSuggestions, setMedicationCatalogSuggestions] = useState({ loading: false, error: '', items: [] })
   const [vitalForm, setVitalForm] = useState({ temperature: '', heart_rate: '', respiratory_rate: '', systolic_bp: '', diastolic_bp: '', spo2: '', weight: '', height: '' })
   const [carePlanForm, setCarePlanForm] = useState({ title: 'Kế hoạch điều trị', goal: '', intervention: '' })
   const [consultForm, setConsultForm] = useState({ chief_complaint: '', assessment: '', plan: '' })
@@ -1162,6 +1181,66 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
   )
   const medicationSuggestions = useMemo(() => rankMedicationSuggestions(medicationClinicalText), [medicationClinicalText])
   const hasMedicationClinicalContext = Boolean(normalizeMedicationKeyword(medicationClinicalText))
+  const visibleMedicationSuggestions = medicationCatalogSuggestions.items.length ? medicationCatalogSuggestions.items : medicationSuggestions
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      const ranked = medicationSuggestions
+      const seeds = (ranked.some((suggestion) => suggestion.score > 0)
+        ? ranked.filter((suggestion) => suggestion.score > 0)
+        : ranked).slice(0, 6)
+      setMedicationCatalogSuggestions((current) => ({ ...current, loading: true, error: '' }))
+      try {
+        const catalogItems = []
+        const seen = new Set()
+        for (const suggestion of seeds) {
+          let matchedItems = []
+          for (const term of medicationSearchTerms(suggestion.search || suggestion.label)) {
+            const response = await prescriptionAPI.searchMedications(term, { limit: 4, status: 'active' })
+            matchedItems = safeArray(dataOf(response, []))
+            if (matchedItems.length) break
+          }
+          const selected = matchedItems.find((medication) => {
+            const medicationId = medicationIdOf(medication)
+            return medicationId && !seen.has(medicationId)
+          })
+          if (!selected) continue
+          const medicationId = medicationIdOf(selected)
+          seen.add(medicationId)
+          catalogItems.push({
+            ...selected,
+            suggestion_key: suggestion.key,
+            suggestion_reason: suggestion.score > 0 ? suggestion.meta : '',
+            prescription_defaults: suggestion,
+          })
+          if (catalogItems.length >= 6) break
+        }
+        if (!catalogItems.length) {
+          const response = await prescriptionAPI.listMedications({ limit: 6, status: 'active' })
+          for (const medication of safeArray(dataOf(response, []))) {
+            const medicationId = medicationIdOf(medication)
+            if (!medicationId || seen.has(medicationId)) continue
+            seen.add(medicationId)
+            catalogItems.push(medication)
+          }
+        }
+        if (!cancelled) setMedicationCatalogSuggestions({ loading: false, error: '', items: catalogItems })
+      } catch (error) {
+        if (!cancelled) {
+          setMedicationCatalogSuggestions({
+            loading: false,
+            error: getApiErrorMessage(error, 'Không tải được gợi ý thuốc từ kho dược.'),
+            items: [],
+          })
+        }
+      }
+    }, 250)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [medicationSuggestions])
 
   async function runAction(action, successMessage) {
     try {
@@ -1381,6 +1460,11 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
   }
 
   async function chooseMedicationSuggestion(suggestion) {
+    const medicationId = medicationIdOf(suggestion)
+    if (medicationId) {
+      selectMedicationForPrescription(suggestion, suggestion.prescription_defaults || {})
+      return
+    }
     setPrescriptionForm((current) => ({
       ...current,
       medication_id: '',
@@ -1819,13 +1903,15 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
                     <small>{hasMedicationClinicalContext ? 'Dựa trên ghi chú, chẩn đoán và nội dung khám hiện có.' : 'Chưa có nội dung khám đủ rõ, hiển thị thuốc hay dùng để chọn nhanh.'}</small>
                   </div>
                   <div className="dw2-medication-suggestion-chips">
-                    {medicationSuggestions.map((suggestion) => (
-                      <button type="button" key={suggestion.key} onClick={() => chooseMedicationSuggestion(suggestion)}>
-                        <strong>{suggestion.label}</strong>
-                        <small>{suggestion.score > 0 ? `Phù hợp: ${suggestion.meta}` : suggestion.meta}</small>
+                    {visibleMedicationSuggestions.map((suggestion) => (
+                      <button type="button" key={medicationIdOf(suggestion) || suggestion.key} onClick={() => chooseMedicationSuggestion(suggestion)}>
+                        <strong>{medicationIdOf(suggestion) ? medicationDisplayName(suggestion) : suggestion.label}</strong>
+                        <small>{medicationIdOf(suggestion) ? medicationSuggestionLabel(suggestion, suggestion.suggestion_reason) : (suggestion.score > 0 ? `Phù hợp: ${suggestion.meta}` : suggestion.meta)}</small>
                       </button>
                     ))}
                   </div>
+                  {medicationCatalogSuggestions.loading ? <p className="dw2-prescription-search-note">Đang lấy gợi ý từ kho dược...</p> : null}
+                  {medicationCatalogSuggestions.error ? <p className="dw2-prescription-search-note is-error">{medicationCatalogSuggestions.error}</p> : null}
                 </div>
                 <Field label="Liều dùng"><input value={prescriptionForm.dosage} onChange={(event) => setPrescriptionForm((current) => ({ ...current, dosage: event.target.value }))} placeholder="500mg" /></Field>
                 <Field label="Đường dùng"><input value={prescriptionForm.route} onChange={(event) => setPrescriptionForm((current) => ({ ...current, route: event.target.value }))} placeholder="oral" /></Field>

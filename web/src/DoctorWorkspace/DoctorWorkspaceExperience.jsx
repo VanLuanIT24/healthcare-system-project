@@ -700,19 +700,6 @@ function PageHeader({ group, item, mode, overview, isLoading, error, onRefresh, 
           {isLoading ? 'Đang tải...' : 'Làm mới'}
         </button>
       </div>
-      {!compact ? <div className="dw2-page-header__workflow">
-        {safeArray(overview.workflow).length ? safeArray(overview.workflow).map((step) => (
-          <div key={step.key}>
-            <strong>{step.count}</strong>
-            <span>{step.label}</span>
-          </div>
-        )) : mode.focus.map((focus) => (
-          <div key={focus}>
-            <strong>0</strong>
-            <span>{focus}</span>
-          </div>
-        ))}
-      </div> : null}
     </div>
   )
 }
