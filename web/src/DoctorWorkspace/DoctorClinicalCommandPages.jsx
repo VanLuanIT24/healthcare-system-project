@@ -475,6 +475,65 @@ function medicationDisplayName(medication = {}) {
     || medicationIdOf(value)
 }
 
+function medicationAvailableStock(medication = {}) {
+  const value = medication?.medication || medication || {}
+  const summary = value.stock_summary || value.stockSummary || value.inventory_summary || {}
+  const candidates = [
+    summary.available_on_hand,
+    summary.availableOnHand,
+    summary.available_quantity,
+    summary.quantity_available,
+    value.available_on_hand,
+    value.available_quantity,
+    summary.total_on_hand,
+    value.total_on_hand,
+  ]
+  const numeric = candidates.map((item) => Number(item)).find((item) => Number.isFinite(item))
+  return numeric || 0
+}
+
+function medicationStockText(medication = {}) {
+  const value = medication?.medication || medication || {}
+  const summary = value.stock_summary || value.stockSummary || value.inventory_summary || {}
+  const available = medicationAvailableStock(value)
+  const batchCount = Number(summary.available_batches ?? summary.batch_count ?? summary.batchCount ?? 0)
+  const nearExpiry = Number(summary.near_expiry_batches ?? summary.nearExpiryBatches ?? 0)
+  const parts = [
+    available > 0 ? `Tồn khả dụng ${available}` : 'Hết tồn khả dụng',
+    batchCount > 0 ? `${batchCount} lô` : '',
+    nearExpiry > 0 ? `${nearExpiry} lô gần hết hạn` : '',
+  ].filter(Boolean)
+  return parts.join(' · ')
+}
+
+function sortMedicationsByStock(items = []) {
+  return safeArray(items).slice().sort((first, second) => {
+    const firstStock = medicationAvailableStock(first)
+    const secondStock = medicationAvailableStock(second)
+    if (Boolean(secondStock) !== Boolean(firstStock)) return Number(Boolean(secondStock)) - Number(Boolean(firstStock))
+    return secondStock - firstStock
+  })
+}
+
+async function fetchMedicationCatalogSuggestions(keyword = '', options = {}) {
+  const limit = options.limit || 10
+  const stockedOnly = options.stockedOnly !== false
+  let items = []
+  let matchedTerm = keyword
+  for (const term of medicationSearchTerms(keyword)) {
+    const response = await prescriptionAPI.searchMedications(term, {
+      limit,
+      status: 'active',
+      with_stock: stockedOnly ? true : undefined,
+      in_stock: stockedOnly ? true : undefined,
+    })
+    items = sortMedicationsByStock(safeArray(dataOf(response, [])))
+    matchedTerm = term
+    if (items.length) break
+  }
+  return { items, matchedTerm }
+}
+
 function compactClinicalText(value = '', maxLength = 180) {
   const text = String(value || '').replace(/\s+/g, ' ').trim()
   if (!text) return '--'
@@ -1163,6 +1222,59 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
   const medicationSuggestions = useMemo(() => rankMedicationSuggestions(medicationClinicalText), [medicationClinicalText])
   const hasMedicationClinicalContext = Boolean(normalizeMedicationKeyword(medicationClinicalText))
 
+  useEffect(() => {
+    if (!isExamWorkflow || activeExamAction !== 'prescription') return undefined
+    if (prescriptionForm.medication_id) return undefined
+    const keyword = prescriptionForm.medication_name.trim()
+    if (keyword.length < 2) {
+      setMedicationSearch((current) => (
+        current.loading || current.error || current.hint || current.items.length
+          ? { loading: false, error: '', hint: '', items: [] }
+          : current
+      ))
+      return undefined
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      setMedicationSearch((current) => ({
+        ...current,
+        loading: true,
+        error: '',
+        hint: 'Đang lấy gợi ý từ kho thuốc dược...',
+      }))
+      try {
+        const { items, matchedTerm } = await fetchMedicationCatalogSuggestions(keyword, { limit: 10 })
+        if (cancelled) return
+        const correctedTerm = normalizeMedicationKeyword(matchedTerm) !== normalizeMedicationKeyword(keyword)
+        setMedicationSearch({
+          loading: false,
+          error: items.length ? '' : 'Không tìm thấy thuốc còn tồn khả dụng trong kho dược.',
+          hint: items.length
+            ? correctedTerm
+              ? `Đã tự sửa tìm kiếm thành "${matchedTerm}" và lấy gợi ý từ kho dược.`
+              : 'Gợi ý lấy từ kho thuốc dược backend.'
+            : '',
+          items,
+        })
+      } catch (error) {
+        if (!cancelled) {
+          setMedicationSearch({
+            loading: false,
+            error: getApiErrorMessage(error, 'Không tải được gợi ý thuốc từ kho dược.'),
+            hint: '',
+            items: [],
+          })
+        }
+      }
+    }, 350)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [activeExamAction, isExamWorkflow, prescriptionForm.medication_id, prescriptionForm.medication_name])
+
   async function runAction(action, successMessage) {
     try {
       setNotice({ error: '', success: '' })
@@ -1356,19 +1468,16 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
     }
     setMedicationSearch({ loading: true, error: '', hint: '', items: [] })
     try {
-      let items = []
-      let matchedTerm = keyword
-      for (const term of medicationSearchTerms(keyword)) {
-        const response = await prescriptionAPI.searchMedications(term, { limit: 8, status: 'active' })
-        items = safeArray(dataOf(response, []))
-        matchedTerm = term
-        if (items.length) break
-      }
+      const { items, matchedTerm } = await fetchMedicationCatalogSuggestions(keyword, { limit: 10 })
       const correctedTerm = normalizeMedicationKeyword(matchedTerm) !== normalizeMedicationKeyword(keyword)
       setMedicationSearch({
         loading: false,
-        error: items.length ? '' : 'Không tìm thấy thuốc trong danh mục. Thử bấm thuốc gợi ý hoặc kiểm tra danh mục thuốc.',
-        hint: items.length && correctedTerm ? `Đã tự sửa tìm kiếm thành "${matchedTerm}".` : '',
+        error: items.length ? '' : 'Không tìm thấy thuốc còn tồn khả dụng trong kho dược. Thử từ khóa khác hoặc kiểm tra kho thuốc.',
+        hint: items.length
+          ? correctedTerm
+            ? `Đã tự sửa tìm kiếm thành "${matchedTerm}" và lấy gợi ý từ kho dược.`
+            : 'Gợi ý lấy từ kho thuốc dược backend.'
+          : '',
         items,
       })
       if (items.length && defaults.autoSelect) selectMedicationForPrescription(items[0], defaults)
@@ -1818,7 +1927,19 @@ export function DoctorEncounterCommandPage({ item, overview, onNavigate, onRefre
                     <strong>{hasMedicationClinicalContext ? 'Gợi ý theo nội dung khám' : 'Gợi ý thuốc thường dùng'}</strong>
                     <small>{hasMedicationClinicalContext ? 'Dựa trên ghi chú, chẩn đoán và nội dung khám hiện có.' : 'Chưa có nội dung khám đủ rõ, hiển thị thuốc hay dùng để chọn nhanh.'}</small>
                   </div>
-                  <div className="dw2-medication-suggestion-chips">
+                  {medicationSearch.loading ? <p className="dw2-prescription-search-note">Đang lấy gợi ý từ kho thuốc dược...</p> : null}
+                  {safeArray(medicationSearch.items).length ? <p className="dw2-prescription-search-note">Gợi ý từ kho thuốc dược backend.</p> : null}
+                  {safeArray(medicationSearch.items).length ? (
+                    <div className="dw2-medication-suggestion-chips is-catalog">
+                      {safeArray(medicationSearch.items).map((medication) => (
+                        <button type="button" key={medicationIdOf(medication)} onClick={() => selectMedicationForPrescription(medication)}>
+                          <strong>{medicationDisplayName(medication)}</strong>
+                          <small>{[medication.medication_code, medication.route_default || 'route chưa rõ', medication.unit || 'đơn vị chưa rõ', medicationStockText(medication)].filter(Boolean).join(' · ')}</small>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className={`dw2-medication-suggestion-chips ${safeArray(medicationSearch.items).length ? 'is-hidden' : ''}`.trim()}>
                     {medicationSuggestions.map((suggestion) => (
                       <button type="button" key={suggestion.key} onClick={() => chooseMedicationSuggestion(suggestion)}>
                         <strong>{suggestion.label}</strong>

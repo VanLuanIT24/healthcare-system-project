@@ -684,7 +684,7 @@ function Topbar({ user, overview, searchTerm, onSearchTerm, searchState, onNavig
   )
 }
 
-function PageHeader({ group, item, mode, overview, isLoading, error, onRefresh, compact = false }) {
+function PageHeader({ group, item, mode, isLoading, error, onRefresh, compact = false }) {
   if (compact) return null
 
   return (
@@ -700,19 +700,6 @@ function PageHeader({ group, item, mode, overview, isLoading, error, onRefresh, 
           {isLoading ? 'Đang tải...' : 'Làm mới'}
         </button>
       </div>
-      {!compact ? <div className="dw2-page-header__workflow">
-        {safeArray(overview.workflow).length ? safeArray(overview.workflow).map((step) => (
-          <div key={step.key}>
-            <strong>{step.count}</strong>
-            <span>{step.label}</span>
-          </div>
-        )) : mode.focus.map((focus) => (
-          <div key={focus}>
-            <strong>0</strong>
-            <span>{focus}</span>
-          </div>
-        ))}
-      </div> : null}
     </div>
   )
 }
@@ -1968,7 +1955,6 @@ export function DoctorWorkspaceExperience({ user, onLogout, onNavigateHome }) {
             group={active.group}
             item={active.item || groups[0]?.items[0]}
             mode={mode}
-            overview={overview}
             isLoading={loading}
             error={error}
             onRefresh={loadOverview}
